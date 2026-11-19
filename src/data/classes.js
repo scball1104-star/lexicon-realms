@@ -5,6 +5,8 @@
 export const CLASSES = {
   warden: {
     id: 'warden', name: 'Warden', role: 'tank', armor: 'plate', weapons: ['sword', 'shield'],
+    // class identity pass (CLASSES.md, strengths and weaknesses): the two lines the class card shows
+    identity: { strong: 'Packs. Every hit taken feeds Resolve.', weak: 'Heavy hitters. They drain your Resolve.' },
     // combatStart: Resolve gained the moment a fight starts (fix pass 1, critique 6): Bash (+15) then Strike (20) works on
     // the second press of the first fight instead of failing until two auto-attacks land
     resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 5, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5, combatStart: 10 },
@@ -21,10 +23,13 @@ export const CLASSES = {
   },
   mender: {
     id: 'mender', name: 'Mender', role: 'healer', armor: 'cloth', weapons: ['rod', 'bell'],
+    identity: { strong: 'Long fights. Your light burns hotter.', weak: 'Packs. Every hit pushes your casts back.' },
     resource: { kind: 'mana', maxBase: 50, maxPerInt: 15, start: 'max', regenPerSpi: 0.4, regenOocMult: 2, sitPct: 0.06 },
     base: { hp: 30, str: 6, agi: 6, int: 11, spi: 12, sta: 10 },
     perLevel: { hp: 0, str: 0.4, agi: 0.4, int: 1.3, spi: 1.3, sta: 1.0 },
     hpPerSta: 10, apPerStr: 2, spPerInt: 1, critBase: 0.05, mainStat: 'int',
+    // class identity pass: Long Light. The longer a fight runs, the hotter her light: damage +10% after 8 s, +20% after 16 s
+    passives: { mods: [{ stat: 'damageDone', mul: 1.1, when: { inCombatFor: 8 } }, { stat: 'damageDone', mul: 1.1, when: { inCombatFor: 16 } }] },
     auto: { weapon: 'rod', range: 40 },
     // combat role pass: Chorus (the area heal and burn) at 6 (was 14), Warding Word at 10 (was 6), Steady Name at 14 (was 10)
     abilities: [{ id: 'mender_kindle', level: 1 }, { id: 'mender_mend', level: 1 }, { id: 'mender_brand', level: 3 },
@@ -35,6 +40,7 @@ export const CLASSES = {
   },
   scribe: {
     id: 'scribe', name: 'Scribe', role: 'caster', armor: 'cloth', weapons: ['quill', 'book'],
+    identity: { strong: 'Armored foes. Ink ignores plating.', weak: 'Fast foes. Your roots last half as long.' },
     resource: { kind: 'mana', maxBase: 50, maxPerInt: 15, start: 'max', regenPerSpi: 0.4, regenOocMult: 2, sitPct: 0.06 },
     base: { hp: 30, str: 5, agi: 6, int: 13, spi: 10, sta: 9 },
     perLevel: { hp: 0, str: 0.3, agi: 0.4, int: 1.6, spi: 1.0, sta: 0.9 },
@@ -48,10 +54,13 @@ export const CLASSES = {
   },
   wayfinder: {
     id: 'wayfinder', name: 'Wayfinder', role: 'ranged', armor: 'mail', weapons: ['bow'],
+    identity: { strong: 'Fast foes. +25% damage, full snares.', weak: 'Casters. They stand off and duel you.' },
     resource: { kind: 'focus', max: 100, start: 'max', regen: 5 },
     base: { hp: 30, str: 7, agi: 13, int: 6, spi: 8, sta: 10 },
     perLevel: { hp: 0, str: 0.5, agi: 1.6, int: 0.4, spi: 0.6, sta: 1.1 },
     hpPerSta: 10, apPerAgi: 2, critBase: 0.05, autoNeedsStill: true, mainStat: 'agi',
+    // class identity pass: Quarry. +25% damage to fast foes, and your slows and roots hold them for their full time
+    passives: { mods: [{ stat: 'damageDone', mul: 1.25, when: { targetTrait: 'fast' } }, { stat: 'snareFast', add: 1 }] },
     auto: { weapon: 'bow', range: 144, projectile: { speed: 480 }, name: 'Auto Shot' },
     abilities: [{ id: 'wayfinder_quick_shot', level: 1 }, { id: 'wayfinder_pinning_shot', level: 1 }, { id: 'wayfinder_briar_trap', level: 3 },
       { id: 'wayfinder_light_foot', level: 6 }, { id: 'wayfinder_aimed_shot', level: 10 }, { id: 'wayfinder_volley', level: 14 }],
@@ -61,10 +70,15 @@ export const CLASSES = {
   },
   inkblade: {
     id: 'inkblade', name: 'Inkblade', role: 'melee', armor: 'leather', weapons: ['dagger', 'dagger'],
+    identity: { strong: 'Casters. +30% damage; hits break spells.', weak: 'Armored foes. Plating eats dagger hits.' },
     resource: { kind: 'focus', max: 100, start: 'max', regen: 10 }, combo: { max: 3, duration: 20 },
     base: { hp: 30, str: 8, agi: 13, int: 4, spi: 6, sta: 10 },
     perLevel: { hp: 0, str: 0.6, agi: 1.6, int: 0.2, spi: 0.4, sta: 1.1 },
     hpPerSta: 10, apPerAgi: 2, critBase: 0.05, offHandMult: 0.5, mainStat: 'agi',
+    // class identity pass: Cut the Word. +30% damage to casters, and a hit on a foe that is casting breaks the spell (once per
+    // 4 s; the spell is not locked)
+    passives: { mods: [{ stat: 'damageDone', mul: 1.3, when: { targetTrait: 'caster' } }],
+      procs: [{ on: 'hit', chance: 1, icd: 4, when: { targetCasting: true }, effects: [{ type: 'interrupt', to: 'target', lockout: 0.05 }] }] },
     auto: { weapon: 'dagger', range: 40, offHand: true },
     // combat role pass: Inkstep (now the area strike) at 6 (was 14), Ink in the Eyes at 14 (was 6)
     abilities: [{ id: 'inkblade_nick', level: 1 }, { id: 'inkblade_spill', level: 1 }, { id: 'inkblade_fade', level: 3 },

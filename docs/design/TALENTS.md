@@ -25,11 +25,31 @@ Owner: game design. Written 2026-11-19 against `docs/DESIGN.md` and `CLASSES.md`
 
 A few example builds are at the end of each class.
 
+### 0.1 Branch roles (class identity pass, 2026-11-19)
+
+Scott (2026-11-19): "Each class should have its own unique strength(s) and weakness(es). Skills can make super-strengths
+or compensate for weaknesses." Every class's three branches now read as:
+
+| class | strength branch (push it further) | counter branch (patch the weakness) | flavor branch |
+|---|---|---|---|
+| Warden (strong: packs; weak: heavy hitters) | Bulwark: hold the pack | Oathblade: heavy hitters (Unshaken, Brace, Rising Wrath keep Resolve and health under heavy blows) | Lantern: light and aid |
+| Mender (strong: long fights; weak: packs) | Hearth: outlast anything (Long Vigil) | Bell: packs (Clear Voice, Toll, Alarm Bell, Bell Hum, Sanctuary Peal) | Kindling: the healing fire |
+| Scribe (strong: armored foes; weak: fast foes) | Quill: ink through armor (Etch) | Margin: fast foes (Fine Print, Long Pause, Comma, Blank Margin) | Wet Ink: spreading ink |
+| Wayfinder (strong: fast foes; weak: casters) | Snare: run them down (Run to Ground) | Fletch: casters (Hush Arrow, Duelist's Eye, Aimed Shot nodes) | Roadwise: the open road |
+| Inkblade (strong: casters; weak: armored foes) | Edge: silence casters (Throat Cut) | Blot: armored foes (bleeds ignore plating; Find the Seam) | Shade: the shadows |
+
+The talents window shows each branch's purpose under its name. Ten nodes were renamed and rewritten for this, and Toll gained a line (ids kept, so a
+saved build still loads; the node's name and effect are new): Weapon Weight -> Unshaken, Bright Steel -> Brace, Bell of
+Rest -> Long Vigil (Toll now also takes the Chorus cooldown), Underscore -> Etch, Tight Bracket -> Fine Print, Draw Weight
+-> Hush Arrow, Piercing Point -> Duelist's Eye, Long Bramble -> Run to Ground, Ambidexter -> Throat Cut, Lasting Mark ->
+Find the Seam. Counts, tiers, ranks and the point rules are unchanged. The Mender's and the Wayfinder's branch columns
+are reordered (strength, counter, flavor); the Inkblade's too.
+
 ---
 
 ## 1. Warden
 
-### 1.1 Bulwark (defense)
+### 1.1 Bulwark (defense; the strength branch: hold the pack)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `warden_bulwark_iron_skin` | Iron Skin | 3 | armor +4% / +8% / +12% |
@@ -44,22 +64,22 @@ A few example builds are at the end of each class.
 | 5 | `warden_bulwark_unbreakable` | Unbreakable | 1 | **[play]** Oath of Iron becomes a stance you toggle (3 s cooldown, no Resolve cost): while on, damage taken -20%, damage dealt -15%, threat +50% |
 | 5 | `warden_bulwark_shieldbearers_vow` | Shieldbearer's Vow | 1 | **[play]** every block resets Shield Bash's cooldown; Shield Bash stuns 0.5 s longer |
 
-### 1.2 Oathblade (damage)
+### 1.2 Oathblade (damage; the counter branch: heavy hitters)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `warden_oathblade_keen_edge` | Keen Edge | 3 | crit chance +2% / +4% / +6% |
-| 1 | `warden_oathblade_weapon_weight` | Weapon Weight | 2 | auto-attack damage +5% / +10% |
+| 1 | `warden_oathblade_weapon_weight` | Unshaken | 2 | a heavy blow knocks 7 / 0 Resolve out of you (from 15) |
 | 2 | `warden_oathblade_follow_through` | Follow Through | 3 | Strike has a 10% / 20% / 30% chance to refund 10 Resolve |
 | 2 | `warden_oathblade_rising_wrath` | Rising Wrath | 2 | auto-attack hits give +2 / +4 more Resolve |
 | 3 | `warden_oathblade_sworn_strike` | Sworn Strike | 1 | **[play]** Strike at a target 3 to 8 tiles away carries you to it in 0.3 s and roots it 1 s. That long Strike has a 10 s cooldown (the normal Strike has none) |
 | 3 | `warden_oathblade_momentum` | Momentum | 1 | **[play]** each Strike within 4 s of your last Strike deals +8% more, stacking 5 times; the stacks fall off after 4 s without a Strike |
 | 4 | `warden_oathblade_clear_mind` | Clear Mind | 3 | Sweeping Blow cooldown -1 / -2 / -3 s |
-| 4 | `warden_oathblade_bright_steel` | Bright Steel | 2 | Strike damage +6% / +12% |
+| 4 | `warden_oathblade_bright_steel` | Brace | 2 | heavy hitters deal 10% / 20% less damage to you |
 | 4 | `warden_oathblade_finishing_cut` | Finishing Cut | 3 | Strike deals +10% / +20% / +30% to targets under 35% HP |
 | 5 | `warden_oathblade_oathbreaker` | Oathbreaker | 1 | **[play]** Shield Bash spends all Resolve above 20 and deals +2% damage per Resolve spent; its stun becomes 1.5 s. Bash turns from builder into finisher |
 | 5 | `warden_oathblade_sword_sworn` | Sword Sworn | 1 | **[play]** Oath of Iron no longer reduces damage taken; instead your damage +30% and auto-attack speed +30% for 8 s |
 
-### 1.3 Lantern (sustain and support)
+### 1.3 Lantern (sustain and support; the flavor branch)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `warden_lantern_steady_flame` | Steady Flame | 3 | regain 0.2% / 0.4% / 0.6% max HP per second in combat |
@@ -80,7 +100,7 @@ Example builds: **Bulwark 8 / Lantern 3** (the group tank: Challenge, Unbreakabl
 
 ## 2. Mender
 
-### 2.1 Hearth (healing)
+### 2.1 Hearth (healing; the strength branch: outlast anything)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `mender_hearth_gentle_hands` | Gentle Hands | 3 | Mend heals +4% / +8% / +12% |
@@ -91,11 +111,11 @@ Example builds: **Bulwark 8 / Lantern 3** (the group tank: Challenge, Unbreakabl
 | 3 | `mender_hearth_kept_close` | Kept Close | 1 | **[play]** when a Warding Word on you breaks, it heals you for 30% of its full absorb |
 | 4 | `mender_hearth_quiet_mind` | Quiet Mind | 3 | in-combat mana regen +10% / +20% / +30% |
 | 4 | `mender_hearth_deep_well` | Deep Well | 2 | max mana +5% / +10% |
-| 4 | `mender_hearth_bell_of_rest` | Bell of Rest | 3 | Chorus cooldown -2 / -4 / -6 s |
+| 4 | `mender_hearth_bell_of_rest` | Long Vigil | 3 | after 8 s in a fight, in-combat mana regen +15% / +30% / +45% |
 | 5 | `mender_hearth_hearthfire` | Hearthfire | 1 | **[play]** Mend becomes instant with a 6 s cooldown. Heal on the run |
 | 5 | `mender_hearth_many_names` | Many Names | 1 | **[play]** when a Steady Name tick lands on a target at full HP, the rest of the HoT moves to the most injured ally within 8 tiles |
 
-### 2.2 Kindling (damage, the solo branch)
+### 2.2 Kindling (damage, the solo branch; the flavor branch)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `mender_kindling_bright_coal` | Bright Coal | 3 | Kindle damage +4% / +8% / +12% |
@@ -109,13 +129,13 @@ Example builds: **Bulwark 8 / Lantern 3** (the group tank: Challenge, Unbreakabl
 | 5 | `mender_kindling_pyre_word` | Pyre Word | 1 | **[play]** every third Kindle on the same Branded target is instant and deals +50% |
 | 5 | `mender_kindling_flame_that_mends` | Flame That Mends | 1 | **[play]** all your damage heals you for 15% of the damage dealt (on top of Brand); Mend costs 30% more. The battle-healer |
 
-### 2.3 Bell (protection and control)
+### 2.3 Bell (protection and control; the counter branch: packs)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `mender_bell_clear_voice` | Clear Voice | 3 | cast pushback from damage -20% / -40% / -60% |
 | 1 | `mender_bell_ringing_ward` | Ringing Ward | 2 | Warding Word lasts +5 / +10 s |
 | 2 | `mender_bell_still_air` | Still Air | 3 | an enemy that hits a target under your Warding Word attacks 10% / 20% / 30% slower for 4 s |
-| 2 | `mender_bell_toll` | Toll | 2 | Chorus damage +15% / +30% |
+| 2 | `mender_bell_toll` | Toll | 2 | Chorus damage +15% / +30% and its cooldown -3 / -6 s |
 | 3 | `mender_bell_alarm_bell` | Alarm Bell | 1 | **[play]** Chorus becomes instant with a 30 s cooldown and knocks every enemy in range 3 tiles away from you |
 | 3 | `mender_bell_bell_hum` | Bell Hum | 1 | **[play]** when a Warding Word's absorb is used up, it rings: `8 + 3 * L + 0.3 * SP` light damage to every enemy within 3 tiles of the warded target |
 | 4 | `mender_bell_shelter` | Shelter | 3 | damage taken -2% / -4% / -6% |
@@ -131,7 +151,7 @@ group healer: Name Twice, Hearthfire); **Bell 8 / Hearth 3** (the warder: Alarm 
 
 ## 3. Scribe
 
-### 3.1 Quill (single target)
+### 3.1 Quill (single target; the strength branch: ink through armor)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `scribe_quill_sharp_nib` | Sharp Nib | 3 | Inkbolt damage +4% / +8% / +12% |
@@ -140,19 +160,19 @@ group healer: Name Twice, Hearthfire); **Bell 8 / Hearth 3** (the warder: Alarm 
 | 2 | `scribe_quill_heavy_stroke` | Heavy Stroke | 2 | Scrawl damage +15% / +30% |
 | 3 | `scribe_quill_run_on_sentence` | Run-on Sentence | 1 | **[play]** Inkbolt becomes a 3.0 s channel that deals 150% of Inkbolt's damage in 3 ticks, and you may walk at 50% speed while writing it |
 | 3 | `scribe_quill_exclamation` | Exclamation | 1 | **[play]** a Scrawl crit resets Scrawl's cooldown and makes your next Inkbolt instant |
-| 4 | `scribe_quill_underscore` | Underscore | 3 | Underline damage +10% / +20% / +30% |
+| 4 | `scribe_quill_underscore` | Etch | 3 | your spells deal +5% / +10% / +15% to armored foes |
 | 4 | `scribe_quill_clean_copy` | Clean Copy | 2 | Inkbolt mana cost -5% / -10% |
 | 4 | `scribe_quill_final_draft` | Final Draft | 3 | spell damage +10% / +20% / +30% against targets under 30% HP |
 | 5 | `scribe_quill_capital_letter` | Capital Letter | 1 | **[play]** every 4th Inkbolt is a Capital: instant, +100% damage, stuns 1 s. The bar shows the count |
 | 5 | `scribe_quill_footnote` | Footnote | 1 | **[play]** Inkbolt leaves a Footnote on its target; when that target dies, the Footnote jumps to the nearest enemy within 6 tiles and deals 50% of an Inkbolt |
 
-### 3.2 Margin (control and defense)
+### 3.2 Margin (control and defense; the counter branch: fast foes)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `scribe_margin_wide_margin` | Wide Margin | 3 | Full Stop radius +0.5 / +1.0 / +1.5 tiles |
 | 1 | `scribe_margin_blotting_paper` | Blotting Paper | 2 | damage taken -3% / -6% while you are not casting |
 | 2 | `scribe_margin_long_pause` | Long Pause | 3 | Full Stop root +1 / +2 / +3 s |
-| 2 | `scribe_margin_tight_bracket` | Tight Bracket | 2 | Bracket lasts +3 / +6 s |
+| 2 | `scribe_margin_tight_bracket` | Fine Print | 2 | your roots and slows hold a fast foe for 75% / 100% of their time (from 50%) |
 | 3 | `scribe_margin_blank_margin` | Blank Margin | 1 | **[play]** Full Stop also shields you for 15% max HP for 8 s, and its cooldown is 10 s (combat role pass: Full Stop's own cooldown is now 15) |
 | 3 | `scribe_margin_comma` | Comma | 1 | **[play]** Scrawl's slow becomes a 1.0 s stop (the foe cannot move) followed by a 50% slow for 3 s |
 | 4 | `scribe_margin_indent` | Indent | 3 | Inkbolt on a rooted target deals +5% / +10% / +15% |
@@ -161,7 +181,7 @@ group healer: Name Twice, Hearthfire); **Bell 8 / Hearth 3** (the warder: Alarm 
 | 5 | `scribe_margin_parenthetical` | Parenthetical | 1 | **[play]** Bracket can hold two targets at once, and works on elites for 4 s |
 | 5 | `scribe_margin_semicolon` | Semicolon | 1 | **[play]** Full Stop no longer roots; it writes a pause on the ground (radius 3, 6 s): enemies inside are slowed 60% and your spells on them cost 30% less mana |
 
-### 3.3 Wet Ink (damage over time and areas)
+### 3.3 Wet Ink (damage over time and areas; the flavor branch)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `scribe_wet_ink_seeping` | Seeping | 3 | Underline damage +5% / +10% / +15% |
@@ -182,22 +202,22 @@ Margin, Semicolon); **Wet Ink 8 / Quill 3** (pack clearing: Smudge, Wet Signatur
 
 ## 4. Wayfinder
 
-### 4.1 Fletch (shots)
+### 4.1 Fletch (shots; the counter branch: casters)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `wayfinder_fletch_true_aim` | True Aim | 3 | Quick Shot damage +5% / +10% / +15% |
-| 1 | `wayfinder_fletch_draw_weight` | Draw Weight | 2 | Auto Shot damage +5% / +10% |
+| 1 | `wayfinder_fletch_draw_weight` | Hush Arrow | 2 | Quick Shot interrupts a cast (the spell is locked 3 s); once every 10 / 6 s |
 | 2 | `wayfinder_fletch_long_eye` | Long Eye | 3 | range of shots and Auto Shot +1 / +2 / +3 tiles |
 | 2 | `wayfinder_fletch_fletchers_pace` | Fletcher's Pace | 2 | Focus regen +0.5 / +1.0 per second |
 | 3 | `wayfinder_fletch_running_shot` | Running Shot | 1 | **[play]** Auto Shot fires while you move, at 70% damage while moving |
 | 3 | `wayfinder_fletch_double_nock` | Double Nock | 1 | **[play]** Quick Shot looses two arrows at 60% each; the second goes to another enemy within 3 tiles of the target if there is one |
-| 4 | `wayfinder_fletch_piercing_point` | Piercing Point | 3 | crit chance +2% / +4% / +6% |
+| 4 | `wayfinder_fletch_piercing_point` | Duelist's Eye | 3 | damage to casters +5% / +10% / +15% |
 | 4 | `wayfinder_fletch_steady_breath` | Steady Breath | 2 | Aimed Shot cast -0.25 / -0.5 s |
 | 4 | `wayfinder_fletch_called_shot` | Called Shot | 3 | Aimed Shot damage +6% / +12% / +18% |
 | 5 | `wayfinder_fletch_long_road_shot` | Long Road Shot | 1 | **[play]** Aimed Shot is instant and usable while moving; its cooldown becomes 12 s and it costs 45 Focus |
 | 5 | `wayfinder_fletch_thread_the_needle` | Thread the Needle | 1 | **[play]** Quick Shot flies on through its target and hits every enemy on a 9-tile line |
 
-### 4.2 Snare (traps and control)
+### 4.2 Snare (traps and control; the strength branch: run them down)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `wayfinder_snare_hardened_briar` | Hardened Briar | 3 | Briar Trap damage +20% / +40% / +60% |
@@ -208,11 +228,11 @@ Margin, Semicolon); **Wet Ink 8 / Quill 3** (pack clearing: Smudge, Wet Signatur
 | 3 | `wayfinder_snare_thrown_snare` | Thrown Snare | 1 | **[play]** Briar Trap is thrown to a spot up to 8 tiles away and arms where it lands |
 | 4 | `wayfinder_snare_thornbite` | Thornbite | 3 | rooted targets take +5% / +10% / +15% from your shots |
 | 4 | `wayfinder_snare_bramble_patch` | Bramble Patch | 3 | a sprung trap leaves a 2-tile briar patch that slows 30% for 4 / 6 / 8 s |
-| 4 | `wayfinder_snare_long_bramble` | Long Bramble | 2 | an unsprung trap lasts 60 / 90 s |
+| 4 | `wayfinder_snare_long_bramble` | Run to Ground | 2 | damage to fast foes +5% / +10% more (on top of Quarry) |
 | 5 | `wayfinder_snare_snarecraft` | Snarecraft | 1 | **[play]** Pinning Shot plants a briar where it hits: 1 s later, if the target is still within 1 tile of that spot, it is rooted 4 s |
 | 5 | `wayfinder_snare_hedge_wall` | Hedge Wall | 1 | **[play]** Light Foot leaves a 3-tile briar hedge where you stood: it blocks movement for 5 s (enemies must walk round) |
 
-### 4.3 Roadwise (movement and survival)
+### 4.3 Roadwise (movement and survival; the flavor branch)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `wayfinder_roadwise_footsure` | Footsure | 3 | move speed +3% / +6% / +9% |
@@ -235,11 +255,11 @@ explorer).
 
 ## 5. Inkblade
 
-### 5.1 Edge (marks and finishers)
+### 5.1 Edge (marks and finishers; the strength branch: silence casters)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `inkblade_edge_fine_edge` | Fine Edge | 3 | Nick damage +5% / +10% / +15% |
-| 1 | `inkblade_edge_ambidexter` | Ambidexter | 2 | off-hand hits deal 55% / 60% (from 50%) |
+| 1 | `inkblade_edge_ambidexter` | Throat Cut | 2 | damage to casters +8% / +16% more (on top of Cut the Word) |
 | 2 | `inkblade_edge_quick_hands` | Quick Hands | 3 | Focus regen +0.5 / +1.0 / +1.5 per second |
 | 2 | `inkblade_edge_deep_spill` | Deep Spill | 2 | Spill damage +8% / +16% |
 | 3 | `inkblade_edge_running_ink` | Running Ink | 1 | **[play]** Ink Marks stack to 5 (from 3) and last 30 s. Bigger, rarer finishers |
@@ -250,7 +270,7 @@ explorer).
 | 5 | `inkblade_edge_inkstorm` | Inkstorm | 1 | **[play]** Spill spins: it hits every enemy within 2 tiles for full damage, using the marks on your target |
 | 5 | `inkblade_edge_last_word` | Last Word | 1 | **[play]** Spill with 3 or more marks on a target under 25% HP deals +100%, and refunds all Focus if it kills |
 
-### 5.2 Shade (stealth and openers)
+### 5.2 Shade (stealth and openers; the flavor branch)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `inkblade_shade_quiet_feet` | Quiet Feet | 3 | Fade move speed penalty -13% / -7% / 0% (from -20%) |
@@ -265,7 +285,7 @@ explorer).
 | 5 | `inkblade_shade_between_the_lines` | Between the Lines | 1 | **[play]** after you kill a target, if no enemy has hit you in the last 3 s, you are in Fade again at once. Chain kills from the dark |
 | 5 | `inkblade_shade_inkdouble` | Inkdouble | 1 | **[play]** Inkstep leaves an ink double where you stood; it taunts your target for 3 s |
 
-### 5.3 Blot (ink over time)
+### 5.3 Blot (ink over time; the counter branch: armored foes, since bleeds ignore plating)
 | tier | id | name | ranks | effect per rank |
 |---|---|---|---|---|
 | 1 | `inkblade_blot_seeping_cut` | Seeping Cut | 3 | Bleed Line damage +10% / +20% / +30% |
@@ -276,7 +296,7 @@ explorer).
 | 3 | `inkblade_blot_ink_poison` | Ink Poison | 1 | **[play]** each auto-attack hit has a 20% chance to apply Ink Poison: slow 30% and `3 + L` damage over 6 s |
 | 4 | `inkblade_blot_spreading_stain` | Spreading Stain | 3 | Bleed Line ticks heal you for 3% / 6% / 9% of their damage |
 | 4 | `inkblade_blot_black_tide` | Black Tide | 2 | Spill deals +10% / +20% to a target under your Bleed Line |
-| 4 | `inkblade_blot_lasting_mark` | Lasting Mark | 3 | Ink Marks last +5 / +10 / +15 s |
+| 4 | `inkblade_blot_lasting_mark` | Find the Seam | 3 | your weapon hits ignore 25% / 50% / 75% of a foe's plating |
 | 5 | `inkblade_blot_blot_out` | Blot Out | 1 | **[play]** when a target under your Bleed Line dies, the Bleed Line (time left) and your marks jump to the nearest enemy within 5 tiles |
 | 5 | `inkblade_blot_ink_veins` | Ink Veins | 1 | **[play]** Bleed Line deals +25% and the target leaves an ink trail for its duration; enemies walking on it are slowed 40% |
 

@@ -108,11 +108,14 @@ export const MOB_ABILITIES = {
 };
 
 const T = (o) => o;
+// traits (class identity pass, PROGRESSION mobTraits): armored, caster, fast, heavy, tough. Kind 'caster' and kind 'armored' carry
+// their trait without listing it (Ink Blot, Barrow Shade, the wraiths and the Watch Lamp are casters; the Tower Sentinel and the
+// Sentinel of the Long Watch are armored).
 // loot.table entries: { item, chance, quest?, minLevel? }; gear and junk rolls are generic (PROGRESSION 4.6, items.js DROP_RULES)
 export const MOBS = {
   ink_slime: T({ name: 'Ink Slime', level: [1, 4], family: 'ooze', kind: 'normal', behavior: 'passive', aggroRadius: 0, speed: 40, wander: 2, flee: null,
     abilities: [], loot: { junk: 'slime_ink', table: [{ item: 'quills_copy', chance: 0.5, quest: 'wm_copied_twice', minLevel: 3 }] } }),
-  moss_scarab: T({ name: 'Moss Scarab', level: [2, 11], family: 'insect', kind: 'normal', behavior: 'passive', aggroRadius: 0, speed: 48, wander: 2, flee: null,
+  moss_scarab: T({ name: 'Moss Scarab', level: [2, 11], family: 'insect', kind: 'normal', traits: ['armored'], behavior: 'passive', aggroRadius: 0, speed: 48, wander: 2, flee: null,
     names: { 11: 'Moor Scarab' }, abilities: [{ id: 'mob_shell_up' }], loot: { junk: 'scarab_shell', table: [] } }),
   briar_wolf: T({ name: 'Briar Wolf', level: [3, 5], family: 'beast', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: 0.2, social: true,
     abilities: [{ id: 'mob_wolf_lunge', chance: 1, cooldown: 8 }], loot: { junk: 'wolf_pelt', table: [] } }),
@@ -120,17 +123,17 @@ export const MOBS = {
     abilities: [{ id: 'mob_thorn_hide' }], loot: { junk: 'thorny_pelt', table: [{ item: 'thornback_hide', chance: 0.6, quest: 'wm_rhythm_of_the_forge' }] } }),
   ink_blot: T({ name: 'Ink Blot', level: [5, 7], family: 'ooze', kind: 'caster', behavior: 'aggressive', aggroRadius: 80, speed: 60, wander: 1, flee: null,
     abilities: [{ id: 'mob_ink_spit' }], loot: { junk: 'blot_residue', table: [] } }),
-  fold_ram: T({ name: 'Fold Ram', level: [6, 7], family: 'beast', kind: 'normal', behavior: 'passive', aggroRadius: 0, speed: 72, wander: 3, flee: null,
+  fold_ram: T({ name: 'Fold Ram', level: [6, 7], family: 'beast', kind: 'normal', traits: ['heavy'], behavior: 'passive', aggroRadius: 0, speed: 72, wander: 3, flee: null,
     abilities: [{ id: 'mob_ram_charge' }], loot: { junk: 'tangled_wool', table: [{ item: 'fold_fleece', chance: 1.0, quest: 'dn_name_in_the_hem' }] } }),
   gorse_crow: T({ name: 'Gorse Crow', level: [8, 8], family: 'beast', kind: 'weak', behavior: 'flees', aggroRadius: 48, speed: 80, wander: 2, flee: 0.5, flying: true,
     fleeRule: { at: 0.5, distance: 160, returnTo: 'spawn' }, abilities: [], loot: { junk: 'crow_feather', table: [{ item: 'pocket_button', chance: 1.0, quest: 'dn_eleven_pockets' }] } }),
   barrow_shade: T({ name: 'Barrow Shade', level: [8, 9], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 60, wander: 3, flee: null,
     abilities: [{ id: 'mob_chilling_touch' }], loot: { junk: 'grave_dust', table: [] } }),
-  mist_wolf: T({ name: 'Mist Wolf', level: [10, 12], family: 'beast', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: 0.2, social: true,
+  mist_wolf: T({ name: 'Mist Wolf', level: [10, 12], family: 'beast', kind: 'normal', traits: ['fast'], behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: 0.2, social: true,
     abilities: [{ id: 'mob_mist_veil' }], loot: { junk: 'mist_pelt', table: [] } }),
-  gorse_boar: T({ name: 'Gorse Boar', level: [11, 12], family: 'beast', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: null,
+  gorse_boar: T({ name: 'Gorse Boar', level: [11, 12], family: 'beast', kind: 'normal', traits: ['heavy', 'tough'], behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: null,
     abilities: [{ id: 'mob_boar_charge', cooldown: 12 }], loot: { junk: 'boar_hide', table: [{ item: 'boar_tusk', chance: 0.7, quest: 'mo_peat_and_tusk' }] } }),
-  page_wraith: T({ name: 'Page Wraith', level: [12, 13], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 3, flee: null, flying: true,
+  page_wraith: T({ name: 'Page Wraith', level: [12, 13], family: 'spirit', kind: 'caster', traits: ['fast'], behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 3, flee: null, flying: true,
     abilities: [{ id: 'mob_paper_cut' }, { id: 'mob_scatter', cooldown: 10 }], loot: { junk: 'torn_page', table: [] } }),
   ink_wraith: T({ name: 'Ink Wraith', level: [13, 13], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 3, flee: null, flying: true,
     abilities: [{ id: 'mob_ink_tide' }], loot: { junk: 'ink_wisp', table: [] } }),

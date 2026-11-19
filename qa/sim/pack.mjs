@@ -104,6 +104,7 @@ const BOTS = {
       const other = v.alive.find((m) => m !== t && !held(m) && dpx(m, p) <= 48);
       if (other) return { ab: 'inkblade_ink_in_the_eyes', target: other };
     }
+    if (dpx(t, p) > 40 && v.can('inkblade_inkstep', t)) return { ab: 'inkblade_inkstep', target: t };   // a caster stepped away
     const around = v.alive.filter((m) => dpx(m, t) <= 32).length;
     if (around >= 1 && (n < 3 || t.cast) && v.can('inkblade_inkstep', t)) return { ab: 'inkblade_inkstep', target: t };
     if (n >= 3 && v.knows('inkblade_bleed_line') && !auraOn(t, 'inkblade_bleed_line', p.id) && t.hp > t.hpMax * 0.4 && v.can('inkblade_bleed_line', t)) return { ab: 'inkblade_bleed_line', target: t };
@@ -114,7 +115,7 @@ const BOTS = {
 };
 
 /** One fight. pack: number of foes (1 = a single normal foe; 2 or 3 = a tagged pack). */
-export function fight(cls, level, seed, { pack = 1, talents = null, keepEvents = false } = {}) {
+export function fight(cls, level, seed, { pack = 1, talents = null, keepEvents = false, foe = 'brute' } = {}) {
   const ranged = !!RANGED[cls];
   const px = 40, py = 15;
   const { world, pid, p } = duelWorld({ seed, cls, level, x: px, y: py, talents });
@@ -122,7 +123,7 @@ export function fight(cls, level, seed, { pack = 1, talents = null, keepEvents =
   const spots = [[0, 0], [0, 1], [1, 0]];
   for (let i = 0; i < pack; i++) {
     const [ox, oy] = spots[i];
-    const m = addMob(world, `brute_${level}`, px + (ranged ? 8 : 2) + ox, py + oy, pack > 1 ? { pack, group: 'test_pack' } : {});
+    const m = addMob(world, `${foe}_${level}`, px + (ranged ? 8 : 2) + ox, py + oy, pack > 1 ? { pack, group: 'test_pack' } : {});
     if (!ranged) { m.x = p.x + (20 + 12 * ox) * SUB; m.y = p.y + 12 * oy * SUB; }
     foes.push(m);
   }
@@ -148,6 +149,13 @@ export function fight(cls, level, seed, { pack = 1, talents = null, keepEvents =
       world.enqueue(pid, { t: 'cast', ability: 'wayfinder_briar_trap' }); trapDone = true;
     } else if (cls === 'wayfinder' && !p.cast && v.near(32).length && v.near(32).every(held) && v.can('wayfinder_light_foot')) {
       world.enqueue(pid, { t: 'cast', ability: 'wayfinder_light_foot' });       // off the GCD
+    }
+    // melee: walk back into reach of a foe that stepped away (a caster's Step Away, class identity pass); the Inkblade
+    // Insteps to it instead when Inkstep is up (its bot below)
+    if (!ranged && !p.cast) {
+      const gap = dpx(tgt, p);
+      if (gap > 34 && !(cls === 'inkblade' && v.can('inkblade_inkstep', tgt))) world.enqueue(pid, { t: 'move', dx: Math.abs(tgt.x - p.x) > 4 * SUB ? Math.sign(tgt.x - p.x) : 0, dy: Math.abs(tgt.y - p.y) > 4 * SUB ? Math.sign(tgt.y - p.y) : 0 });
+      else if (p.mx || p.my) world.enqueue(pid, { t: 'move', dx: 0, dy: 0 });
     }
     // ranged kiting: once everything in reach is held (root, stun, blind), step back for up to 1.5 s
     const reach = cls === 'mender' ? 120 : 136;                                 // walk into range of the main spell

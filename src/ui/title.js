@@ -202,7 +202,19 @@ export function drawCreate(ctx, env, st, regions, act, t) {
   const dl = g.wrap(desc, D.w - 18);
   dl.slice(0, 2).forEach((ln, i) => g.text(ctx, i === 1 && dl.length > 2 ? g.clip(ln + ' ' + dl.slice(2).join(' '), D.w - 18) : ln, D.x + 9, y + i * 11, 'white'));
   y += 26;
-  g.text(ctx, `Resource: ${ci.resource}.  ${(ci.gear || '').split('.')[0]}.`, D.x + 9, y, 'gray'); y += 15;
+  g.text(ctx, `Resource: ${ci.resource}.  ${(ci.gear || '').split('.')[0]}.`, D.x + 9, y, 'gray'); y += 13;
+  // class identity pass: one strength line and one weakness line (classes.js identity)
+  if (ci.strong || ci.weak) {
+    const lw = Math.max(g.textW('Strong: '), g.textW('Weak: '));
+    const lab = (word, text, color) => {
+      g.text(ctx, word, D.x + 9, y, color);
+      g.text(ctx, g.clip(text || '', D.w - 18 - lw), D.x + 9 + lw, y, 'white');
+      y += 11;
+    };
+    lab('Strong:', ci.strong, 'green');
+    lab('Weak:', ci.weak, 'red');
+    y += 3;
+  }
   g.text(ctx, 'First abilities', D.x + 9, y, 'gold'); y += 13;
   for (const aid of ci.abilities.filter((a) => (abilityInfo(a) || {}).learnLevel <= 1)) {
     const a = abilityInfo(aid);

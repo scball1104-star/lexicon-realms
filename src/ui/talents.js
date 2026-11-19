@@ -64,7 +64,10 @@ export function drawTalents(ctx, env, m, st, regions, act) {
     const b = tree.branches.find((o) => o.id === col.branch);
     g.window(ctx, col.x, col.y, col.w, col.h, 'thin', 'blue', 0.55);
     g.text(ctx, b.name, col.mid, P.y + 53, 'gold', { large: true, align: 'center' });
-    g.text(ctx, `${per[b.id] || 0} pts`, col.mid, P.y + 70, 'gray', { align: 'center' });
+    // class identity pass: the branch's purpose (talents.js branches[].purpose) and the points spent in it
+    const KCOL = { strength: 'green', counter: 'orange', flavor: 'cream' };
+    if (b.purpose) g.text(ctx, g.clip(`${b.purpose}  ${per[b.id] || 0} ${(per[b.id] || 0) === 1 ? 'pt' : 'pts'}`, col.w - 6), col.mid, P.y + 70, KCOL[b.kind] || 'gray', { align: 'center' });
+    else g.text(ctx, `${per[b.id] || 0} pts`, col.mid, P.y + 70, 'gray', { align: 'center' });
     // connectors: node -> bus -> next tier (lit when the next tier is open in this branch)
     const byTier = [];
     for (const n of col.nodes) (byTier[n.tier - 1] || (byTier[n.tier - 1] = [])).push(n);

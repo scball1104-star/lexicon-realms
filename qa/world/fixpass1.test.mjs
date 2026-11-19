@@ -461,7 +461,7 @@ export const tests = [
     eq(lv.firstTalentAt, 5, 'talents start at 5');
   } },
   // ------------------------------------------------------------------------------------------- bug 15 (survival gap)
-  { name: 'bug 15: the Inkblade Spill heals 7% of health per mark (5% before the combat role pass); the Wayfinder Quick Shot Hobbles (30% slow, 3 s)', fn() {
+  { name: 'bug 15: the Inkblade Spill heals 8% of health per mark (5% before the combat role pass, 7% before the class identity pass); the Wayfinder Quick Shot Hobbles (30% slow, 3 s)', fn() {
     const w = createWorld({ seed: 41, content: C });
     calm(w);
     const s = freeNear('valley', 12, 46, 2);
@@ -476,7 +476,7 @@ export const tests = [
     const ev = run(w);
     const h = ev.find((e) => e.type === 'heal' && e.src === id && e.dst === id && e.ability === 'inkblade_spill');
     assert(h, 'Spill healed the Inkblade');
-    eq(h.amount, Math.round(0.21 * p.hpMax), '3 marks = 21% of health');
+    eq(h.amount, Math.round(0.24 * p.hpMax), '3 marks = 24% of health');
     const id2 = w.addPlayer({ name: 'Way', cls: 'wayfinder', zone: 'valley', x: s[0], y: s[1], level: 5 });
     w.enqueue(id2, { t: 'target', id: m.id });
     w.enqueue(id2, { t: 'cast', ability: 'wayfinder_quick_shot', target: m.id });

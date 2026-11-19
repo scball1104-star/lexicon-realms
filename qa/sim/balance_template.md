@@ -88,10 +88,10 @@ What changed is in CLASSES.md 6.1 (kits) and PROGRESSION.md 3.3 (packs). This se
 | warden | 6 | 290 | 8.4 | 15% | 16.0 | 14.4 to 16.9 | 27% (27%) | 0 / 0 | yes / NO |
 | warden | 10 | 380 | 9.6 | 20% | 18.9 | 18.1 to 19.3 | 38% (38%) | 0 / 0 | yes / yes |
 | warden | 15 | 490 | 10.8 | 25% | 19.4 | 19.2 to 20.2 | 43% (43%) | 0 / 0 | yes / yes |
-| mender | 3 | 170 | 8.0 | 0% | 22.5 | 20.4 to 22.8 | 22% (30%) | 0 / 0 | yes / yes |
-| mender | 6 | 220 | 9.8 | 3% | 25.0 | 24.6 to 26.1 | 30% (37%) | 0 / 0 | yes / yes |
-| mender | 10 | 290 | 11.4 | 0% | 27.8 | 27.8 to 28.0 | 0% (22%) | 0 / 0 | yes / yes |
-| mender | 15 | 370 | 13.3 | 1% | 28.0 | 28.0 to 28.0 | 0% (25%) | 0 / 0 | yes / yes |
+| mender | 3 | 170 | 8.0 | 0% | 20.4 | 20.4 to 20.4 | 16% (27%) | 0 / 0 | yes / yes |
+| mender | 6 | 220 | 9.8 | 2% | 21.7 | 20.7 to 22.8 | 20% (31%) | 0 / 0 | yes / yes |
+| mender | 10 | 290 | 11.0 | 0% | 25.7 | 24.4 to 26.4 | 0% (22%) | 0 / 0 | yes / yes |
+| mender | 15 | 370 | 11.4 | 0% | 27.4 | 25.9 to 28.0 | 0% (25%) | 0 / 0 | yes / yes |
 | scribe | 3 | 150 | 10.2 | 25% | 20.1 | 20.1 to 20.1 | 53% (53%) | 0 / 0 | yes / yes |
 | scribe | 6 | 200 | 9.7 | 26% | 20.4 | 19.6 to 20.6 | 56% (56%) | 0 / 0 | yes / yes |
 | scribe | 10 | 270 | 10.8 | 32% | 20.5 | 18.4 to 21.8 | 74% (74%) | 0 / 0 | yes / yes |
@@ -101,17 +101,17 @@ What changed is in CLASSES.md 6.1 (kits) and PROGRESSION.md 3.3 (packs). This se
 | wayfinder | 10 | 290 | 13.2 | 22% | 28.9 | 29.0 to 29.0 | 53% (53%) | 0 / 0 | yes / yes |
 | wayfinder | 15 | 380 | 13.6 | 26% | 30.4 | 29.0 to 32.0 | 75% (75%) | 0 / 0 | yes / yes |
 | inkblade | 3 | 170 | 6.3 | 4% | 18.1 | 17.6 to 19.3 | 8% (17%) | 0 / 0 | yes / yes |
-| inkblade | 6 | 220 | 9.3 | 0% | 22.3 | 20.8 to 23.0 | 21% (32%) | 0 / 0 | yes / yes |
-| inkblade | 10 | 290 | 10.4 | 7% | 24.6 | 24.0 to 25.5 | 7% (32%) | 0 / 0 | yes / yes |
-| inkblade | 15 | 380 | 11.7 | 15% | 28.7 | 25.5 to 30.0 | 41% (54%) | 0 / 0 | yes / yes |
+| inkblade | 6 | 220 | 9.3 | 0% | 22.3 | 20.8 to 23.0 | 20% (32%) | 0 / 0 | yes / yes |
+| inkblade | 10 | 290 | 10.4 | 4% | 24.6 | 24.0 to 25.5 | 4% (30%) | 0 / 0 | yes / yes |
+| inkblade | 15 | 380 | 11.7 | 12% | 28.7 | 25.5 to 30.0 | 36% (53%) | 0 / 0 | yes / yes |
 
 | class | one foe: mean hp lost | 3-pack: mean worst point | vs Warden (one / pack) |
 |---|---|---|---|
 | warden | 17% | 31% | 1.00x / 1.00x |
-| mender | 1% | 29% | 0.07x / 0.92x |
+| mender | 1% | 26% | 0.03x / 0.84x |
 | scribe | 30% | 63% | 1.75x / 2.02x |
 | wayfinder | 15% | 44% | 0.88x / 1.40x |
-| inkblade | 7% | 34% | 0.39x / 1.08x |
+| inkblade | 5% | 33% | 0.30x / 1.05x |
 
 60 seeded runs per cell. One foe in band: 20 of 20. 3-pack in band (18 to 35 s; 12 to 30 s at levels 1 to 4; no deaths): 19 of 20.
 <!-- PACK:END -->

@@ -534,7 +534,8 @@ export function createCombat(C) {
     let critChance = 0;
     if (info.canCrit !== false && src.kind === 'player') critChance = (src.derived.crit || 0) + stats.mod(src, 'crit', ctx).add;
     let blockChance = 0;
-    if (info.melee !== false && !info.periodic && dst.derived && dst.derived.block > 0 && (info.melee || ability === 'auto' || src.kind === 'mob') && inFront(dst, src)) {
+    // the heavy trait (class identity pass): its blows cannot be blocked
+    if (!(src.mob && src.mob.unblockable) && info.melee !== false && !info.periodic && dst.derived && dst.derived.block > 0 && (info.melee || ability === 'auto' || src.kind === 'mob') && inFront(dst, src)) {
       blockChance = dst.derived.block + stats.mod(dst, 'block', { attacker: src }).add;
     }
     const roll = rng.next();
@@ -546,6 +547,12 @@ export function createCombat(C) {
       const arm = (dst.stats && dst.stats.armor) || 0;
       if (arm > 0) amount *= 1 - Math.min(PC.armor.cap, arm / (arm + PC.armor.perLevel * (src.level || 1) + PC.armor.flat));
       if (dst.mob && dst.mob.physReduce) amount *= 1 - dst.mob.physReduce;
+    }
+    // the armored trait's plating (class identity pass): a flat cut off every weapon hit, never off damage over time
+    if (school === 'physical' && !info.noArmor && dst.mob && dst.mob.plating && !info.periodic) {
+      const owner = src.kind === 'object' ? get(src.owner) : src;
+      const seam = owner ? Math.min(1, Math.max(0, stats.mod(owner, 'platingIgnore').add)) : 0;     // Find the Seam
+      amount = Math.max(1, amount - dst.mob.plating * (1 - seam));
     }
     amount *= stats.mod(dst, 'damageTaken', { attacker: src, ability, school }).mul;
     let blockedAmt = 0;
@@ -617,6 +624,11 @@ export function createCombat(C) {
     if (dst.kind === 'player' && !info.periodic && isHostile(src, dst)) {
       const r = (data.classes[dst.cls] || {}).resource;
       if (r && r.onHitTaken) gainRes(dst, r.kind, r.onHitTaken);
+      // the heavy trait (class identity pass): each heavy blow knocks some of that resource out of you (the Warden's Resolve)
+      if (src.mob && src.mob.drain && dst.res && src.mob.drain[dst.res.kind] && amount + absorbed > 0) {
+        const loss = Math.max(0, src.mob.drain[dst.res.kind] - stats.mod(dst, 'drainResist').add);       // Unshaken
+        dst.res.cur = Math.max(0, dst.res.cur - loss);
+      }
       if (res.result === 'block' && r && r.onBlock) gainRes(dst, r.kind, r.onBlock + stats.mod(dst, 'blockResolve').add);
     }
     // procs
@@ -705,6 +717,14 @@ export function createCombat(C) {
     // immunities
     for (const f of flags) {
       if (immuneTo(dst, f)) { emit({ type: 'damage', src: src.id, dst: dst.id, ability: def.id, school: 'physical', amount: 0, crit: false, result: 'immune', absorbed: 0, blocked: 0, overkill: 0, periodic: false }); return null; }
+    }
+    // the fast trait (class identity pass): roots and slows on a fast foe last snareMult as long; the caster's (or the trap
+    // owner's) 'snareFast' gives back that share of the lost time (the Wayfinder's Quarry: all of it; Fine Print: half or all)
+    if (dur != null && def.kind === 'debuff' && dst.mob && dst.mob.snareMult != null && (flags.includes('root') || flags.includes('slow'))) {
+      const owner = src.kind === 'object' ? get(src.owner) : src;
+      const hold = owner ? Math.min(1, Math.max(0, stats.mod(owner, 'snareFast').add)) : 0;
+      const k = dst.mob.snareMult + (1 - dst.mob.snareMult) * hold;
+      if (k < 1) dur = Math.max(1, Math.round(dur * k));
     }
     if (isElite(dst) && def.kind === 'debuff') {
       if (def.eliteImmune) { emit({ type: 'damage', src: src.id, dst: dst.id, ability: def.id, school: 'physical', amount: 0, crit: false, result: 'immune', absorbed: 0, blocked: 0, overkill: 0, periodic: false }); return null; }
@@ -896,7 +916,8 @@ export function createCombat(C) {
       if (d > 0) { const [vx, vy] = unitTo(src, t, src.dir); setForced(src, vx, vy, d, timeOf(d), ctx.onArrive); }
     } else if (fx.kind === 'blink') {
       const from = ctx.attacker || t;
-      const [vx, vy] = from && from !== src ? unitTo(from, src, src.dir) : facingVec(src);
+      // Away from whoever we fight. A self-cast blink has no attacker, and a mob faces its foe, so back off.
+      const [vx, vy] = from && from !== src ? unitTo(from, src, src.dir) : facingVec(src).map((v) => -v);
       const zone = C.zoneOf(src);
       for (const k of [1, 0.75, 0.5, 0.25]) {
         const x = Math.round(src.x + vx * fx.distance * k * SUB), y = Math.round(src.y + vy * fx.distance * k * SUB);
@@ -1114,6 +1135,7 @@ export function createCombat(C) {
       e.inCombat = inC;
       if (inC) {
         e.sitting = 0;
+        e.combatSince = now();                       // class identity pass: the Mender's Long Light reads how long a fight has run
         // Resolve classes walk into a fight with a little in hand (CLASSES 7 resource.combatStart, critique 6): with Bash's
         // +15 the first Strike is ready on the second press
         const r = (data.classes[e.cls] || {}).resource;

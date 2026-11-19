@@ -58,6 +58,7 @@ export function createAi(C) {
     return b;
   }
   const abilityOf = (entry) => data.abilities[entry.id] || null;
+
   /** Passive mob abilities (Thorn Hide): applied at spawn and on every respawn. */
   function applyPassives(m) {
     for (const entry of template(m).abilities || []) {
@@ -161,6 +162,7 @@ export function createAi(C) {
     const t = template(m);
     let pxs = t.speed != null ? t.speed : (m.mob.kind === 'armored' ? A.armoredSpeed : A.speed);
     if (mode === 'flee') pxs = A.fleeSpeed;
+    if (m.mob && m.mob.speedMult) pxs *= m.mob.speedMult;          // the fast trait (class identity pass)
     return pxToSub(pxs);
   }
   function steer(m, tx, ty, speed, stopAt = 0) {

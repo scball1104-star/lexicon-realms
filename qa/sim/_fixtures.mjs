@@ -3,6 +3,7 @@
 import { createWorld, TILE } from '../../src/sim/index.js';
 import { CLASSES } from '../../src/data/classes.js';
 import { ABILITIES, MOB_ABILITIES } from '../../src/data/abilities.js';
+import { MOB_ABILITIES as WORLD_MOB_ABILITIES } from '../../src/data/mobs.js';
 import { TALENTS } from '../../src/data/talents.js';
 import { PROGRESSION, WEAPON_TYPES } from '../../src/data/progression.js';
 
@@ -37,6 +38,13 @@ export function fixtureMobs() {
   for (let L = 1; L <= 15; L++) {
     m[`dummy_${L}`] = { id: `dummy_${L}`, name: `Test Foe ${L}`, level: L, sprite: 'briar_wolf', faction: 'hostile', family: 'test', behavior: 'passive', wander: 0 };
     m[`brute_${L}`] = { id: `brute_${L}`, name: `Test Brute ${L}`, level: L, sprite: 'briar_wolf', faction: 'hostile', family: 'brute', wander: 0 };
+    // one foe per trait (class identity pass, qa/sim/matchup.mjs): the brute with that one trait (the caster is kind 'caster')
+    for (const tr of ['armored', 'fast', 'heavy', 'tough']) {
+      m[`${tr}_${L}`] = { id: `${tr}_${L}`, name: `Test ${tr} ${L}`, level: L, sprite: 'briar_wolf', faction: 'hostile', family: `t_${tr}`, wander: 0, traits: [tr] };
+    }
+    // the caster casts the Barrow Shade's Chilling Touch (a bolt that slows 30%): most content casters slow (Ink Spit, Ink Tide)
+    m[`caster_${L}`] = { id: `caster_${L}`, name: `Test Caster ${L}`, level: L, kind: 'caster', sprite: 'ink_slime', faction: 'hostile', family: 't_caster', wander: 0,
+      abilities: [{ id: 'mob_chilling_touch' }] };
   }
   m.caster_5 = { id: 'caster_5', name: 'Test Shade', level: 5, kind: 'caster', sprite: 'ink_slime', faction: 'hostile', family: 'shade', wander: 0 };
   m.armored_8 = { id: 'armored_8', name: 'Test Construct', level: 8, kind: 'armored', sprite: 'moss_scarab', faction: 'hostile', family: 'construct', wander: 0 };
@@ -46,6 +54,8 @@ export function fixtureMobs() {
     abilities: [{ id: 'mob_lunge', chance: 1, cooldown: 8 }] };
   m.lamp_14 = { id: 'lamp_14', name: 'Test Lamp', level: 14, kind: 'caster', sprite: 'ink_slime', faction: 'hostile', family: 'sentinel', wander: 0,
     abilities: [{ id: 'mob_mend', chance: 1, cooldown: 6 }] };
+  m.wraith_12 = { id: 'wraith_12', name: 'Test Wraith', level: 12, kind: 'caster', traits: ['fast'], sprite: 'ink_slime', faction: 'hostile', family: 'spirit', wander: 0,
+    abilities: [{ id: 'mob_scatter', cooldown: 10 }] };
   return m;
 }
 export { curveHp };
@@ -64,7 +74,7 @@ export function fixtureContent({ spawns = [], items = null } = {}) {
     zones: { arena }, zoneNames: { arena: 'Test Arena' },
     mobs: fixtureMobs(), npcs: FIXTURE_NPCS, spawns, items,
     start: { zone: 'arena', x: 5, y: 25 },
-    classes: CLASSES, abilities: ABILITIES, mobAbilities: MOB_ABILITIES, talents: TALENTS, progression: PROGRESSION, weaponTypes: WEAPON_TYPES,
+    classes: CLASSES, abilities: ABILITIES, mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES }, talents: TALENTS, progression: PROGRESSION, weaponTypes: WEAPON_TYPES,
   };
 }
 

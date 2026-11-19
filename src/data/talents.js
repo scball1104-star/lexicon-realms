@@ -24,7 +24,11 @@ function tree(cls, branches, nodes) {
 
 // ---------------------------------------------------------------------------------------------------------- Warden
 const W = (b, t, s, n, r, txt, br, p) => node('warden', b, t, s, n, r, txt, br, p);
-const warden = tree('warden', [{ id: 'bulwark', name: 'Bulwark' }, { id: 'oathblade', name: 'Oathblade' }, { id: 'lantern', name: 'Lantern' }], [
+// Branches (class identity pass, Scott 2026-11-19: "Skills can make super-strengths or compensate for weaknesses"): every class
+// has a strength branch (push its strength further), a counter branch (patch its weakness) and a flavor branch; `purpose` is
+// the few words the talents window shows under the branch name (CLASSES.md, strengths and weaknesses).
+const warden = tree('warden', [{ id: 'bulwark', name: 'Bulwark', kind: 'strength', purpose: 'Strength: hold the pack' },
+  { id: 'oathblade', name: 'Oathblade', kind: 'counter', purpose: 'Counter: heavy hitters' }, { id: 'lantern', name: 'Lantern', kind: 'flavor', purpose: 'Flavor: light and aid' }], [
   W('bulwark', 1, 'iron_skin', 'Iron Skin', 3, 'Armor +4% / +8% / +12%.', ranks(3, (r) => ({ mods: [mod('armor', { mul: pct(1 + 0.04 * r) })] }))),
   W('bulwark', 1, 'steady_shield', 'Steady Shield', 3, 'Block chance +3% / +6% / +9%.', ranks(3, (r) => ({ mods: [mod('block', { add: pct(0.03 * r) })] }))),
   W('bulwark', 2, 'stout_heart', 'Stout Heart', 2, 'Max health +3% / +6%.', ranks(2, (r) => ({ mods: [mod('maxHp', { mul: pct(1 + 0.03 * r) })] }))),
@@ -52,7 +56,8 @@ const warden = tree('warden', [{ id: 'bulwark', name: 'Bulwark' }, { id: 'oathbl
       procs: [{ on: 'block', chance: 1, effects: [{ type: 'cooldown', to: 'self', ability: 'warden_shield_bash', reset: true }] }] }], true),
 
   W('oathblade', 1, 'keen_edge', 'Keen Edge', 3, 'Crit chance +2% / +4% / +6%.', ranks(3, (r) => ({ mods: [mod('crit', { add: pct(0.02 * r) })] }))),
-  W('oathblade', 1, 'weapon_weight', 'Weapon Weight', 2, 'Auto-attack damage +5% / +10%.', ranks(2, (r) => ({ mods: [dmgUp('auto', 0.05 * r)] }))),
+  // class identity pass: Weapon Weight and Bright Steel became the heavy-hitter counters (ids kept)
+  W('oathblade', 1, 'weapon_weight', 'Unshaken', 2, 'A heavy blow knocks 7 / 0 Resolve out of you (from 15).', ranks(2, (r) => ({ mods: [mod('drainResist', { add: [8, 15][r - 1] })] }))),
   W('oathblade', 2, 'follow_through', 'Follow Through', 3, 'Strike has a 10% / 20% / 30% chance to refund 10 Resolve.',
     ranks(3, (r) => ({ procs: [{ on: 'cast', ability: 'warden_strike', chance: pct(0.1 * r), effects: [{ type: 'resource', to: 'self', kind: 'resolve', amount: 10 }] }] }))),
   W('oathblade', 2, 'rising_wrath', 'Rising Wrath', 2, 'Auto-attack hits give +2 / +4 more Resolve.', ranks(2, (r) => ({ mods: [mod('autoResolve', { add: 2 * r })] }))),
@@ -62,7 +67,8 @@ const warden = tree('warden', [{ id: 'bulwark', name: 'Bulwark' }, { id: 'oathbl
     [{ procs: [{ on: 'cast', ability: 'warden_strike', chance: 1, effects: [{ type: 'aura', to: 'self', aura: { id: 'warden_momentum', name: 'Momentum', icon: 'talent_momentum',
       kind: 'buff', duration: 4, maxStacks: 5, refresh: 'stack', mods: [{ stat: 'damageDone', mul: 1.08, ability: 'warden_strike', perStack: true }] } }] }] }], true),
   W('oathblade', 4, 'clear_mind', 'Clear Mind', 3, 'Sweeping Blow cooldown -1 / -2 / -3 s.', ranks(3, (r) => ({ modAbility: [abl('warden_sweeping_blow', 'cooldown', { add: -r })] }))),
-  W('oathblade', 4, 'bright_steel', 'Bright Steel', 2, 'Strike damage +6% / +12%.', ranks(2, (r) => ({ mods: [dmgUp('warden_strike', 0.06 * r)] }))),
+  W('oathblade', 4, 'bright_steel', 'Brace', 2, 'Heavy hitters deal 10% / 20% less damage to you.',
+    ranks(2, (r) => ({ mods: [mod('damageTaken', { mul: pct(1 - 0.1 * r) }, { when: { attackerTrait: 'heavy' } })] }))),
   W('oathblade', 4, 'finishing_cut', 'Finishing Cut', 3, 'Strike deals +10% / +20% / +30% to targets under 35% health.',
     ranks(3, (r) => ({ mods: [dmgUp('warden_strike', 0.1 * r, { targetHpBelow: 0.35 })] }))),
   W('oathblade', 5, 'oathbreaker', 'Oathbreaker', 1, 'Shield Bash spends all Resolve above 20 and deals +2% damage per Resolve spent; its stun becomes 1.5 s.',
@@ -93,7 +99,8 @@ const warden = tree('warden', [{ id: 'bulwark', name: 'Bulwark' }, { id: 'oathbl
 
 // ---------------------------------------------------------------------------------------------------------- Mender
 const M = (b, t, s, n, r, txt, br, p) => node('mender', b, t, s, n, r, txt, br, p);
-const mender = tree('mender', [{ id: 'hearth', name: 'Hearth' }, { id: 'kindling', name: 'Kindling' }, { id: 'bell', name: 'Bell' }], [
+const mender = tree('mender', [{ id: 'hearth', name: 'Hearth', kind: 'strength', purpose: 'Strength: outlast anything' },
+  { id: 'bell', name: 'Bell', kind: 'counter', purpose: 'Counter: packs' }, { id: 'kindling', name: 'Kindling', kind: 'flavor', purpose: 'Flavor: the healing fire' }], [
   M('hearth', 1, 'gentle_hands', 'Gentle Hands', 3, 'Mend heals +4% / +8% / +12%.', ranks(3, (r) => ({ mods: [mod('healingDone', { mul: pct(1 + 0.04 * r) }, { ability: 'mender_mend' })] }))),
   M('hearth', 1, 'quick_words', 'Quick Words', 2, 'Mend cast -0.15 / -0.3 s.', ranks(2, (r) => ({ modAbility: [abl('mender_mend', 'castTime', { add: pct(-0.15 * r) })] }))),
   M('hearth', 2, 'spoken_for', 'Spoken For', 3, 'Warding Word absorbs +10% / +20% / +30%.', ranks(3, (r) => ({ modAbility: [abl('mender_warding_word', 'effects.#ward.aura.absorb', { mul: pct(1 + 0.1 * r) })] }))),
@@ -104,7 +111,9 @@ const mender = tree('mender', [{ id: 'hearth', name: 'Hearth' }, { id: 'kindling
     [{ modAbility: [abl('mender_warding_word', 'effects.#ward.aura.onBreak', { push: { type: 'heal', to: 'holder', pctOfAbsorb: 0.3, canCrit: false, if: { holderIsCaster: true } } })] }], true),
   M('hearth', 4, 'quiet_mind', 'Quiet Mind', 3, 'In-combat mana regen +10% / +20% / +30%.', ranks(3, (r) => ({ mods: [mod('manaRegen', { mul: pct(1 + 0.1 * r) })] }))),
   M('hearth', 4, 'deep_well', 'Deep Well', 2, 'Max mana +5% / +10%.', ranks(2, (r) => ({ mods: [mod('manaMax', { mul: pct(1 + 0.05 * r) })] }))),
-  M('hearth', 4, 'bell_of_rest', 'Bell of Rest', 3, 'Chorus cooldown -2 / -4 / -6 s.', ranks(3, (r) => ({ modAbility: [abl('mender_chorus', 'cooldown', { add: -2 * r })] }))),
+  // class identity pass: Bell of Rest became a long-fight node (id kept); the Chorus cooldown moved to the Bell's Toll
+  M('hearth', 4, 'bell_of_rest', 'Long Vigil', 3, 'After 8 s in a fight, in-combat mana regen +15% / +30% / +45%.',
+    ranks(3, (r) => ({ mods: [mod('manaRegen', { mul: pct(1 + 0.15 * r) }, { when: { inCombatFor: 8 } })] }))),
   M('hearth', 5, 'hearthfire', 'Hearthfire', 1, 'Mend becomes instant with a 6 s cooldown. Heal on the run.',
     [{ modAbility: [abl('mender_mend', 'castTime', { set: 0 }), abl('mender_mend', 'cooldown', { set: 6 })] }], true),
   M('hearth', 5, 'many_names', 'Many Names', 1, 'When a Steady Name tick lands on a target at full health, the rest of the heal moves to the most injured ally within 8 tiles.',
@@ -131,7 +140,8 @@ const mender = tree('mender', [{ id: 'hearth', name: 'Hearth' }, { id: 'kindling
   M('bell', 2, 'still_air', 'Still Air', 3, 'An enemy that hits a target under your Warding Word attacks 10% / 20% / 30% slower for 4 s.',
     ranks(3, (r) => ({ modAbility: [abl('mender_warding_word', 'effects.#ward.aura.onHitTaken', { push: { type: 'aura', to: 'attacker', aura: { id: 'mender_still_air', name: 'Still Air', icon: 'talent_still_air',
       kind: 'debuff', duration: 4, mods: [{ stat: 'attackSpeed', mul: pct(1 / (1 + 0.1 * r)) }] } } })] }))),
-  M('bell', 2, 'toll', 'Toll', 2, 'Chorus damage +15% / +30%.', ranks(2, (r) => ({ mods: [dmgUp('mender_chorus', 0.15 * r)] }))),
+  M('bell', 2, 'toll', 'Toll', 2, 'Chorus damage +15% / +30% and its cooldown -3 / -6 s.',
+    ranks(2, (r) => ({ mods: [dmgUp('mender_chorus', 0.15 * r)], modAbility: [abl('mender_chorus', 'cooldown', { add: -3 * r })] }))),
   M('bell', 3, 'alarm_bell', 'Alarm Bell', 1, 'Chorus becomes instant with a 30 s cooldown and knocks every enemy in range 3 tiles away from you.',
     [{ modAbility: [abl('mender_chorus', 'castTime', { set: 0 }), abl('mender_chorus', 'cooldown', { set: 30 }),
       abl('mender_chorus', 'effects', { push: { type: 'move', key: 'knock', to: 'enemies', kind: 'knockback', distance: 48, time: 0.25 } })] }], true),
@@ -150,7 +160,8 @@ const mender = tree('mender', [{ id: 'hearth', name: 'Hearth' }, { id: 'kindling
 
 // ---------------------------------------------------------------------------------------------------------- Scribe
 const S = (b, t, s, n, r, txt, br, p) => node('scribe', b, t, s, n, r, txt, br, p);
-const scribe = tree('scribe', [{ id: 'quill', name: 'Quill' }, { id: 'margin', name: 'Margin' }, { id: 'wet_ink', name: 'Wet Ink' }], [
+const scribe = tree('scribe', [{ id: 'quill', name: 'Quill', kind: 'strength', purpose: 'Strength: ink through armor' },
+  { id: 'margin', name: 'Margin', kind: 'counter', purpose: 'Counter: fast foes' }, { id: 'wet_ink', name: 'Wet Ink', kind: 'flavor', purpose: 'Flavor: spreading ink' }], [
   S('quill', 1, 'sharp_nib', 'Sharp Nib', 3, 'Inkbolt damage +4% / +8% / +12%.', ranks(3, (r) => ({ mods: [dmgUp('scribe_inkbolt', 0.04 * r)] }))),
   S('quill', 1, 'fast_hand', 'Fast Hand', 2, 'Inkbolt cast -0.1 / -0.2 s.', ranks(2, (r) => ({ modAbility: [abl('scribe_inkbolt', 'castTime', { add: pct(-0.1 * r) })] }))),
   S('quill', 2, 'bold_type', 'Bold Type', 3, 'Spell crit chance +2% / +4% / +6%.', ranks(3, (r) => ({ mods: [mod('crit', { add: pct(0.02 * r) }, { school: 'spell' })] }))),
@@ -162,7 +173,9 @@ const scribe = tree('scribe', [{ id: 'quill', name: 'Quill' }, { id: 'margin', n
     [{ procs: [{ on: 'crit', ability: 'scribe_scrawl', chance: 1, effects: [{ type: 'cooldown', to: 'self', ability: 'scribe_scrawl', reset: true },
       { type: 'aura', to: 'self', aura: { id: 'scribe_exclamation', name: 'Exclamation', icon: 'talent_exclamation', kind: 'buff', duration: 10, consumeOn: { cast: 'scribe_inkbolt' },
         mods: [{ stat: 'castTime', mul: 0, ability: 'scribe_inkbolt' }] } }] }] }], true),
-  S('quill', 4, 'underscore', 'Underscore', 3, 'Underline damage +10% / +20% / +30%.', ranks(3, (r) => ({ mods: [dmgUp('scribe_underline', 0.1 * r)] }))),
+  // class identity pass: Underscore (it repeated Wet Ink's Seeping) became Etch, the armor strength node (id kept)
+  S('quill', 4, 'underscore', 'Etch', 3, 'Your spells deal +5% / +10% / +15% to armored foes.',
+    ranks(3, (r) => ({ mods: [mod('damageDone', { mul: pct(1 + 0.05 * r) }, { school: 'spell', when: { targetTrait: 'armored' } })] }))),
   S('quill', 4, 'clean_copy', 'Clean Copy', 2, 'Inkbolt mana cost -5% / -10%.', ranks(2, (r) => ({ modAbility: [abl('scribe_inkbolt', 'cost.amount', { mul: pct(1 - 0.05 * r) })] }))),
   S('quill', 4, 'final_draft', 'Final Draft', 3, 'Spell damage +10% / +20% / +30% against targets under 30% health.',
     ranks(3, (r) => ({ mods: [mod('damageDone', { mul: pct(1 + 0.1 * r) }, { school: 'spell', when: { targetHpBelow: 0.3 } })] }))),
@@ -174,7 +187,9 @@ const scribe = tree('scribe', [{ id: 'quill', name: 'Quill' }, { id: 'margin', n
   S('margin', 1, 'blotting_paper', 'Blotting Paper', 2, 'Damage taken -3% / -6% while you are not casting.',
     ranks(2, (r) => ({ mods: [mod('damageTaken', { mul: pct(1 - 0.03 * r) }, { when: { notCasting: true } })] }))),
   S('margin', 2, 'long_pause', 'Long Pause', 3, 'Full Stop root +1 / +2 / +3 s.', ranks(3, (r) => ({ modAbility: [abl('scribe_full_stop', 'effects.#root.aura.duration', { add: r })] }))),
-  S('margin', 2, 'tight_bracket', 'Tight Bracket', 2, 'Bracket lasts +3 / +6 s.', ranks(2, (r) => ({ modAbility: [abl('scribe_bracket', 'effects.#hold.aura.duration', { add: 3 * r })] }))),
+  // class identity pass: Tight Bracket became Fine Print, the fast-foe counter (id kept)
+  S('margin', 2, 'tight_bracket', 'Fine Print', 2, 'Your roots and slows hold a fast foe for 75% / 100% of their time (from 50%).',
+    ranks(2, (r) => ({ mods: [mod('snareFast', { add: pct(0.5 * r) })] }))),
   S('margin', 3, 'blank_margin', 'Blank Margin', 1, 'Full Stop also shields you for 15% max health for 8 s, and its cooldown is 10 s.',
     [{ modAbility: [abl('scribe_full_stop', 'cooldown', { set: 10 }), abl('scribe_full_stop', 'effects', { push: { type: 'aura', key: 'shield', to: 'self',
       aura: { id: 'scribe_blank_margin', name: 'Blank Margin', icon: 'full_stop', kind: 'buff', duration: 8, absorb: { pctMaxHp: 0.15 } } } })] }], true),
@@ -216,15 +231,19 @@ const scribe = tree('scribe', [{ id: 'quill', name: 'Quill' }, { id: 'margin', n
 // ---------------------------------------------------------------------------------------------------------- Wayfinder
 const Y = (b, t, s, n, r, txt, br, p) => node('wayfinder', b, t, s, n, r, txt, br, p);
 const SHOTS = ['auto', 'wayfinder_quick_shot', 'wayfinder_pinning_shot', 'wayfinder_aimed_shot', 'wayfinder_volley'];
-const wayfinder = tree('wayfinder', [{ id: 'fletch', name: 'Fletch' }, { id: 'snare', name: 'Snare' }, { id: 'roadwise', name: 'Roadwise' }], [
+const wayfinder = tree('wayfinder', [{ id: 'snare', name: 'Snare', kind: 'strength', purpose: 'Strength: run them down' },
+  { id: 'fletch', name: 'Fletch', kind: 'counter', purpose: 'Counter: casters' }, { id: 'roadwise', name: 'Roadwise', kind: 'flavor', purpose: 'Flavor: the open road' }], [
   Y('fletch', 1, 'true_aim', 'True Aim', 3, 'Quick Shot damage +5% / +10% / +15%.', ranks(3, (r) => ({ mods: [dmgUp('wayfinder_quick_shot', 0.05 * r)] }))),
-  Y('fletch', 1, 'draw_weight', 'Draw Weight', 2, 'Auto Shot damage +5% / +10%.', ranks(2, (r) => ({ mods: [dmgUp('auto', 0.05 * r)] }))),
+  // class identity pass: Draw Weight and Piercing Point became the caster counters (ids kept)
+  Y('fletch', 1, 'draw_weight', 'Hush Arrow', 2, 'Quick Shot interrupts a cast (the spell is locked 3 s); once every 10 / 6 s.',
+    ranks(2, (r) => ({ procs: [{ on: 'hit', ability: 'wayfinder_quick_shot', chance: 1, icd: [10, 6][r - 1], when: { targetCasting: true }, effects: [{ type: 'interrupt', to: 'target', lockout: 3 }] }] }))),
   Y('fletch', 2, 'long_eye', 'Long Eye', 3, 'Range of shots and Auto Shot +1 / +2 / +3 tiles.', ranks(3, (r) => ({ mods: [mod('range', { add: 16 * r }, { ability: SHOTS })] }))),
   Y('fletch', 2, 'fletchers_pace', "Fletcher's Pace", 2, 'Focus regen +0.5 / +1.0 per second.', ranks(2, (r) => ({ mods: [mod('focusRegen', { add: pct(0.5 * r) })] }))),
   Y('fletch', 3, 'running_shot', 'Running Shot', 1, 'Auto Shot fires while you move, at 70% damage while moving.', [{ script: 'running_shot' }], true),
   Y('fletch', 3, 'double_nock', 'Double Nock', 1, 'Quick Shot looses two arrows at 60% each; the second goes to another enemy within 3 tiles of the target if there is one.',
     [{ script: 'double_nock', modAbility: [abl('wayfinder_quick_shot', 'effects.#hit.mult', { set: 0.6 })] }], true),
-  Y('fletch', 4, 'piercing_point', 'Piercing Point', 3, 'Crit chance +2% / +4% / +6%.', ranks(3, (r) => ({ mods: [mod('crit', { add: pct(0.02 * r) })] }))),
+  Y('fletch', 4, 'piercing_point', "Duelist's Eye", 3, 'Damage to casters +5% / +10% / +15%.',
+    ranks(3, (r) => ({ mods: [mod('damageDone', { mul: pct(1 + 0.05 * r) }, { when: { targetTrait: 'caster' } })] }))),
   Y('fletch', 4, 'steady_breath', 'Steady Breath', 2, 'Aimed Shot cast -0.25 / -0.5 s.', ranks(2, (r) => ({ modAbility: [abl('wayfinder_aimed_shot', 'castTime', { add: -0.25 * r })] }))),
   Y('fletch', 4, 'called_shot', 'Called Shot', 3, 'Aimed Shot damage +6% / +12% / +18%.', ranks(3, (r) => ({ mods: [dmgUp('wayfinder_aimed_shot', 0.06 * r)] }))),
   Y('fletch', 5, 'long_road_shot', 'Long Road Shot', 1, 'Aimed Shot is instant and usable while moving; its cooldown becomes 12 s and it costs 45 Focus.',
@@ -247,7 +266,9 @@ const wayfinder = tree('wayfinder', [{ id: 'fletch', name: 'Fletch' }, { id: 'sn
   Y('snare', 4, 'bramble_patch', 'Bramble Patch', 3, 'A sprung trap leaves a 2-tile briar patch that slows 30% for 4 / 6 / 8 s.',
     ranks(3, (r) => ({ modAbility: [abl('wayfinder_briar_trap', 'effects.#trap.object.effects', { push: { type: 'summon', to: 'self', object: { id: 'wayfinder_bramble_patch', sprite: 'zone_bramble', at: 'here',
       armTime: 0, duration: 2 + 2 * r, max: 3, radius: 32, inside: [{ type: 'aura', aura: { id: 'wayfinder_bramble_slow', name: 'Brambles', icon: 'briar_trap', kind: 'debuff', duration: 0.25, flags: ['slow'], mods: [{ stat: 'slow', add: 0.3 }] } }] } } })] }))),
-  Y('snare', 4, 'long_bramble', 'Long Bramble', 2, 'An unsprung trap lasts 60 / 90 s.', ranks(2, (r) => ({ modAbility: [abl('wayfinder_briar_trap', 'effects.#trap.object.duration', { set: 30 + 30 * r })] }))),
+  // class identity pass: Long Bramble became Run to Ground, a Quarry node (id kept)
+  Y('snare', 4, 'long_bramble', 'Run to Ground', 2, 'Damage to fast foes +5% / +10% more (on top of Quarry).',
+    ranks(2, (r) => ({ mods: [mod('damageDone', { mul: pct(1 + 0.05 * r) }, { when: { targetTrait: 'fast' } })] }))),
   Y('snare', 5, 'snarecraft', 'Snarecraft', 1, 'Pinning Shot plants a briar where it hits: 1 s later, if the target is still within 1 tile of that spot, it is rooted 4 s.',
     [{ script: 'snarecraft' }], true),
   Y('snare', 5, 'hedge_wall', 'Hedge Wall', 1, 'Light Foot leaves a 3-tile briar hedge where you stood: it blocks movement for 5 s (enemies must walk round).',
@@ -279,9 +300,12 @@ const wayfinder = tree('wayfinder', [{ id: 'fletch', name: 'Fletch' }, { id: 'sn
 
 // ---------------------------------------------------------------------------------------------------------- Inkblade
 const I = (b, t, s, n, r, txt, br, p) => node('inkblade', b, t, s, n, r, txt, br, p);
-const inkblade = tree('inkblade', [{ id: 'edge', name: 'Edge' }, { id: 'shade', name: 'Shade' }, { id: 'blot', name: 'Blot' }], [
+const inkblade = tree('inkblade', [{ id: 'edge', name: 'Edge', kind: 'strength', purpose: 'Strength: silence casters' },
+  { id: 'blot', name: 'Blot', kind: 'counter', purpose: 'Counter: armored foes' }, { id: 'shade', name: 'Shade', kind: 'flavor', purpose: 'Flavor: the shadows' }], [
   I('edge', 1, 'fine_edge', 'Fine Edge', 3, 'Nick damage +5% / +10% / +15%.', ranks(3, (r) => ({ mods: [dmgUp('inkblade_nick', 0.05 * r)] }))),
-  I('edge', 1, 'ambidexter', 'Ambidexter', 2, 'Off-hand hits deal 55% / 60% (from 50%).', ranks(2, (r) => ({ mods: [mod('offHand', { add: pct(0.05 * r) })] }))),
+  // class identity pass: Ambidexter became Throat Cut, a caster strength node; Lasting Mark became Find the Seam (ids kept)
+  I('edge', 1, 'ambidexter', 'Throat Cut', 2, 'Damage to casters +8% / +16% more (on top of Cut the Word).',
+    ranks(2, (r) => ({ mods: [mod('damageDone', { mul: pct(1 + 0.08 * r) }, { when: { targetTrait: 'caster' } })] }))),
   I('edge', 2, 'quick_hands', 'Quick Hands', 3, 'Focus regen +0.5 / +1.0 / +1.5 per second.', ranks(3, (r) => ({ mods: [mod('focusRegen', { add: pct(0.5 * r) })] }))),
   I('edge', 2, 'deep_spill', 'Deep Spill', 2, 'Spill damage +8% / +16%.', ranks(2, (r) => ({ mods: [dmgUp('inkblade_spill', 0.08 * r)] }))),
   I('edge', 3, 'running_ink', 'Running Ink', 1, 'Ink Marks stack to 5 (from 3) and last 30 s. Bigger, rarer finishers.',
@@ -328,7 +352,8 @@ const inkblade = tree('inkblade', [{ id: 'edge', name: 'Edge' }, { id: 'shade', 
     ranks(3, (r) => ({ mods: [mod('leech', { add: pct(0.03 * r) }, { ability: 'inkblade_bleed_line', periodic: true })] }))),
   I('blot', 4, 'black_tide', 'Black Tide', 2, 'Spill deals +10% / +20% to a target under your Bleed Line.',
     ranks(2, (r) => ({ mods: [dmgUp('inkblade_spill', 0.1 * r, { targetAura: 'inkblade_bleed_line', fromSelf: true })] }))),
-  I('blot', 4, 'lasting_mark', 'Lasting Mark', 3, 'Ink Marks last +5 / +10 / +15 s.', ranks(3, (r) => ({ mods: [mod('comboDuration', { add: 5 * r })] }))),
+  I('blot', 4, 'lasting_mark', 'Find the Seam', 3, "Your weapon hits ignore 25% / 50% / 75% of a foe's plating.",
+    ranks(3, (r) => ({ mods: [mod('platingIgnore', { add: pct(0.25 * r) })] }))),
   I('blot', 5, 'blot_out', 'Blot Out', 1, 'When a target under your Bleed Line dies, the Bleed Line (time left) and your marks jump to the nearest enemy within 5 tiles.', [{ script: 'blot_out' }], true),
   I('blot', 5, 'ink_veins', 'Ink Veins', 1, 'Bleed Line deals +25% and the target leaves an ink trail for its duration; enemies walking on it are slowed 40%.',
     [{ mods: [dmgUp('inkblade_bleed_line', 0.25)], script: 'ink_veins' }], true),

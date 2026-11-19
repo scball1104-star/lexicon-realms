@@ -33,7 +33,8 @@ export const PROGRESSION = {
     normal: { hp: 1, damage: 1 },
     weak: { hp: 0.6, damage: 0.7 },
     caster: { hp: 0.85, damage: 0.7, bolt: { castTime: 2.0, range: 112, mult: 1.6 } },
-    armored: { hp: 1.1, damage: 1, physReduce: 0.3, speedMult: 0.7, slowFloor: 0.3 },
+    // class identity pass: the old flat 30% physical cut is now the `armored` trait's plating (mobTraits below)
+    armored: { hp: 1.1, damage: 1, physReduce: 0, speedMult: 0.7, slowFloor: 0.3 },
     elite: { hp: 2.5, damage: 1.3 },
   },
   // Packs (combat role pass, 2026-11-19): a camp tagged as a pack in src/data/packs.js pulls as one fight, and each member
@@ -42,6 +43,24 @@ export const PROGRESSION = {
   packs: {
     2: { hp: 0.85, damage: 0.75, xp: 0.85 },
     3: { hp: 0.66, damage: 0.5, xp: 0.65 },
+  },
+  // Foe traits (class identity pass, Scott 2026-11-19: "Each class should have its own unique strength(s) and weakness(es)").
+  // A mob template lists `traits`; kind 'armored' and kind 'caster' carry their trait too. Each trait is a rule the sim reads
+  // (src/sim/stats.js recalcMob, src/sim/combat.js dealDamage and mobAttack, src/sim/ai.js speedOf):
+  //   armored  plating: every weapon hit (physical, not over time) loses base + perLevel x level flat. Many small hits
+  //            (daggers) lose the most, one big hit the least; spells, bleeds and traps over time ignore it.
+  //   caster   stands off and casts a bolt (kind 'caster', mobKinds above). Spells ignore armor and block, so a caster
+  //            duels a hero whose defense is distance or a shield.
+  //   fast     moves speedMult x as fast; roots and slows on it last snareMult as long (the Wayfinder's Quarry holds it fully).
+  //   heavy    swings `swing` x slower for `damage` x as much (the same damage per second); its blows cannot be blocked
+  //            and each one knocks `drain` of that resource out of the hero it hits (Resolve: the Warden).
+  //   tough    hp and damage multipliers (a lone hard foe); xp multiplies kill XP.
+  mobTraits: {
+    armored: { plating: { base: 1, perLevel: 0.6 } },
+    caster: {},
+    fast: { speedMult: 1.4, snareMult: 0.5 },
+    heavy: { swing: 1.8, damage: 1.8, unblockable: true, drain: { resolve: 15 } },
+    tough: { hp: 1.6, damage: 1.15, xp: 1.5 },
   },
   // Mob AI (3.2). Distances in px.
   mobAi: {

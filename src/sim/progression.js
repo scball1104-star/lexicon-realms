@@ -30,6 +30,7 @@ export function createProgression(C) {
     if (t.xp != null) kind = 1;
     const pk = m.spawn && m.spawn.pack && P.packs ? P.packs[m.spawn.pack] : null;
     if (pk && pk.xp != null) kind *= pk.xp;           // a pack member is a lighter foe (combat role pass)
+    for (const tr of (m.mob && m.mob.traits) || []) { const d = (P.mobTraits || {})[tr]; if (d && d.xp != null) kind *= d.xp; }   // a tough foe (class identity pass)
     return Math.round(base * gm * kind);
   }
 

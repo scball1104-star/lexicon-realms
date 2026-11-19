@@ -570,17 +570,17 @@ export const DESIGN_DATA = {
     {
      "id": "bulwark",
      "name": "Bulwark",
-     "focus": "defense"
+     "focus": "defense; the strength branch: hold the pack"
     },
     {
      "id": "oathblade",
      "name": "Oathblade",
-     "focus": "damage"
+     "focus": "damage; the counter branch: heavy hitters"
     },
     {
      "id": "lantern",
      "name": "Lantern",
-     "focus": "sustain and support"
+     "focus": "sustain and support; the flavor branch"
     }
    ],
    "talents": {
@@ -722,10 +722,10 @@ export const DESIGN_DATA = {
      "tier": 1,
      "maxRanks": 2,
      "requires": null,
-     "name": "Weapon Weight",
-     "icon": "icon_sword",
+     "name": "Unshaken",
+     "icon": "icon_fury",
      "play": false,
-     "text": "auto-attack damage +5% / +10%"
+     "text": "a heavy blow knocks 7 / 0 Resolve out of you (from 15)"
     },
     "warden_oathblade_follow_through": {
      "id": "warden_oathblade_follow_through",
@@ -788,10 +788,10 @@ export const DESIGN_DATA = {
      "tier": 4,
      "maxRanks": 2,
      "requires": null,
-     "name": "Bright Steel",
+     "name": "Brace",
      "icon": "icon_star",
      "play": false,
-     "text": "Strike damage +6% / +12%"
+     "text": "heavy hitters deal 10% / 20% less damage to you"
     },
     "warden_oathblade_finishing_cut": {
      "id": "warden_oathblade_finishing_cut",
@@ -943,17 +943,17 @@ export const DESIGN_DATA = {
     {
      "id": "hearth",
      "name": "Hearth",
-     "focus": "healing"
+     "focus": "healing; the strength branch: outlast anything"
     },
     {
      "id": "kindling",
      "name": "Kindling",
-     "focus": "damage, the solo branch"
+     "focus": "damage, the solo branch; the flavor branch"
     },
     {
      "id": "bell",
      "name": "Bell",
-     "focus": "protection and control"
+     "focus": "protection and control; the counter branch: packs"
     }
    ],
    "talents": {
@@ -1051,10 +1051,10 @@ export const DESIGN_DATA = {
      "tier": 4,
      "maxRanks": 3,
      "requires": null,
-     "name": "Bell of Rest",
-     "icon": "icon_gear",
+     "name": "Long Vigil",
+     "icon": "icon_ether",
      "play": false,
-     "text": "Chorus cooldown -2 / -4 / -6 s"
+     "text": "after 8 s in a fight, in-combat mana regen +15% / +30% / +45%"
     },
     "mender_hearth_hearthfire": {
      "id": "mender_hearth_hearthfire",
@@ -1228,9 +1228,9 @@ export const DESIGN_DATA = {
      "maxRanks": 2,
      "requires": null,
      "name": "Toll",
-     "icon": "icon_star",
+     "icon": "icon_gear",
      "play": false,
-     "text": "Chorus damage +15% / +30%"
+     "text": "Chorus damage +15% / +30% and its cooldown -3 / -6 s"
     },
     "mender_bell_alarm_bell": {
      "id": "mender_bell_alarm_bell",
@@ -1316,17 +1316,17 @@ export const DESIGN_DATA = {
     {
      "id": "quill",
      "name": "Quill",
-     "focus": "single target"
+     "focus": "single target; the strength branch: ink through armor"
     },
     {
      "id": "margin",
      "name": "Margin",
-     "focus": "control and defense"
+     "focus": "control and defense; the counter branch: fast foes"
     },
     {
      "id": "wet_ink",
      "name": "Wet Ink",
-     "focus": "damage over time and areas"
+     "focus": "damage over time and areas; the flavor branch"
     }
    ],
    "talents": {
@@ -1402,10 +1402,10 @@ export const DESIGN_DATA = {
      "tier": 4,
      "maxRanks": 3,
      "requires": null,
-     "name": "Underscore",
-     "icon": "icon_sword",
+     "name": "Etch",
+     "icon": "icon_armor",
      "play": false,
-     "text": "Underline damage +10% / +20% / +30%"
+     "text": "your spells deal +5% / +10% / +15% to armored foes"
     },
     "scribe_quill_clean_copy": {
      "id": "scribe_quill_clean_copy",
@@ -1490,10 +1490,10 @@ export const DESIGN_DATA = {
      "tier": 2,
      "maxRanks": 2,
      "requires": null,
-     "name": "Tight Bracket",
-     "icon": "icon_magic",
+     "name": "Fine Print",
+     "icon": "icon_stun",
      "play": false,
-     "text": "Bracket lasts +3 / +6 s"
+     "text": "your roots and slows hold a fast foe for 75% / 100% of their time (from 50%)"
     },
     "scribe_margin_blank_margin": {
      "id": "scribe_margin_blank_margin",
@@ -1689,17 +1689,17 @@ export const DESIGN_DATA = {
     {
      "id": "fletch",
      "name": "Fletch",
-     "focus": "shots"
+     "focus": "shots; the counter branch: casters"
     },
     {
      "id": "snare",
      "name": "Snare",
-     "focus": "traps and control"
+     "focus": "traps and control; the strength branch: run them down"
     },
     {
      "id": "roadwise",
      "name": "Roadwise",
-     "focus": "movement and survival"
+     "focus": "movement and survival; the flavor branch"
     }
    ],
    "talents": {
@@ -1720,10 +1720,10 @@ export const DESIGN_DATA = {
      "tier": 1,
      "maxRanks": 2,
      "requires": null,
-     "name": "Draw Weight",
-     "icon": "icon_sword",
+     "name": "Hush Arrow",
+     "icon": "icon_magic",
      "play": false,
-     "text": "Auto Shot damage +5% / +10%"
+     "text": "Quick Shot interrupts a cast (the spell is locked 3 s); once every 10 / 6 s"
     },
     "wayfinder_fletch_long_eye": {
      "id": "wayfinder_fletch_long_eye",
@@ -1775,10 +1775,10 @@ export const DESIGN_DATA = {
      "tier": 4,
      "maxRanks": 3,
      "requires": null,
-     "name": "Piercing Point",
-     "icon": "icon_star",
+     "name": "Duelist's Eye",
+     "icon": "icon_magic",
      "play": false,
-     "text": "crit chance +2% / +4% / +6%"
+     "text": "damage to casters +5% / +10% / +15%"
     },
     "wayfinder_fletch_steady_breath": {
      "id": "wayfinder_fletch_steady_breath",
@@ -1918,10 +1918,10 @@ export const DESIGN_DATA = {
      "tier": 4,
      "maxRanks": 2,
      "requires": null,
-     "name": "Long Bramble",
-     "icon": "icon_leaf",
+     "name": "Run to Ground",
+     "icon": "icon_sword",
      "play": false,
-     "text": "an unsprung trap lasts 60 / 90 s"
+     "text": "damage to fast foes +5% / +10% more (on top of Quarry)"
     },
     "wayfinder_snare_snarecraft": {
      "id": "wayfinder_snare_snarecraft",
@@ -2073,17 +2073,17 @@ export const DESIGN_DATA = {
     {
      "id": "edge",
      "name": "Edge",
-     "focus": "marks and finishers"
+     "focus": "marks and finishers; the strength branch: silence casters"
     },
     {
      "id": "shade",
      "name": "Shade",
-     "focus": "stealth and openers"
+     "focus": "stealth and openers; the flavor branch"
     },
     {
      "id": "blot",
      "name": "Blot",
-     "focus": "ink over time"
+     "focus": "ink over time; the counter branch: armored foes, since bleeds ignore plating"
     }
    ],
    "talents": {
@@ -2104,10 +2104,10 @@ export const DESIGN_DATA = {
      "tier": 1,
      "maxRanks": 2,
      "requires": null,
-     "name": "Ambidexter",
+     "name": "Throat Cut",
      "icon": "icon_magic",
      "play": false,
-     "text": "off-hand hits deal 55% / 60% (from 50%)"
+     "text": "damage to casters +8% / +16% more (on top of Cut the Word)"
     },
     "inkblade_edge_quick_hands": {
      "id": "inkblade_edge_quick_hands",
@@ -2423,10 +2423,10 @@ export const DESIGN_DATA = {
      "tier": 4,
      "maxRanks": 3,
      "requires": null,
-     "name": "Lasting Mark",
-     "icon": "icon_quill",
+     "name": "Find the Seam",
+     "icon": "icon_magic",
      "play": false,
-     "text": "Ink Marks last +5 / +10 / +15 s"
+     "text": "your weapon hits ignore 25% / 50% / 75% of a foe's plating"
     },
     "inkblade_blot_blot_out": {
      "id": "inkblade_blot_blot_out",

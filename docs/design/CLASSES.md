@@ -9,6 +9,40 @@ numbers here win over any placeholder numbers in code.
 
 ---
 
+## Strengths and weaknesses (class identity pass, 2026-11-19)
+
+Scott (2026-11-19): "Each class should have its own unique strength(s) and weakness(es). Skills can make super-strengths
+or compensate for weaknesses." and "No need to stick to canon, focus instead of making an excellent game."
+
+Every class has one headline strength and one headline weakness, each a rule in the sim, each tested by a foe trait
+(PROGRESSION.md `mobTraits`, src/data/progression.js). Every trait is one class's strength and another's weakness. The
+class card on the creation screen shows the two lines in the "card line" column. Talents: one branch pushes the strength,
+one counters the weakness, one is flavor (TALENTS.md 0.1).
+
+| class | strong against | weak against | card lines | how it is encoded |
+|---|---|---|---|---|
+| Warden | packs | heavy hitters | Strong: Packs. Every hit taken feeds Resolve. / Weak: Heavy hitters. They drain your Resolve. | strength: Resolve +3 per hit taken, Sweeping Blow, Guard threat, block (all existing). Weakness: the `heavy` trait's blows cannot be blocked and each knocks 15 Resolve out of the hero it hits (only the Warden runs on Resolve) |
+| Mender | long fights, a lone tough foe | packs | Strong: Long fights. Your light burns hotter. / Weak: Packs. Every hit pushes your casts back. | strength: new passive **Long Light**, her damage +10% after 8 s in a fight and +20% after 16 s, on top of Brand's heal. Weakness: cast pushback per hit taken (0.6 below), one area spell (Chorus, 20 s) and Brand one foe at a time |
+| Scribe | armored foes | fast foes | Strong: Armored foes. Ink ignores plating. / Weak: Fast foes. Your roots last half as long. | strength: spells ignore the `armored` trait's plating (it cuts weapon hits only) and armored foes walk slowly. Weakness: the `fast` trait, 1.4x move speed and roots and slows on it last half as long |
+| Wayfinder | fast foes | casters | Strong: Fast foes. +25% damage, full snares. / Weak: Casters. They stand off and duel you. | strength: new passive **Quarry**, +25% damage to fast foes and her roots and slows hold them their full time. Weakness: a caster stands at bolt range and casts, so slows, traps and distance do nothing and mail does not stop spells |
+| Inkblade | casters | armored foes | Strong: Casters. +30% damage; hits break spells. / Weak: Armored foes. Plating eats dagger hits. | strength: new passive **Cut the Word**, +30% damage to casters, and a hit on a foe that is casting breaks the spell (once per 4 s, no lockout), with Inkstep's interrupt. Weakness: the `armored` trait's plating takes a flat `1 + 0.6 L` off every weapon hit, so many small dagger hits lose the most |
+
+Foe traits (data in PROGRESSION `mobTraits`; the families that carry them are in src/data/mobs.js):
+
+| trait | rule | families |
+|---|---|---|
+| `armored` | each weapon hit (physical, not over time) loses `1 + 0.6 L` flat; bleeds, traps over time and spells do not. Replaces the old flat 30% cut of kind 'armored' | Moss Scarab (2 to 11), Tower Sentinel, Sentinel of the Long Watch |
+| `caster` | kind 'caster' (unchanged): stands at bolt range and casts | Ink Blot, Barrow Shade, Page Wraith, Ink Wraith, Watch Lamp |
+| `fast` | 1.4x move speed; roots and slows on it last half as long (Quarry and Fine Print give that back) | Mist Wolf (10 to 12), Page Wraith |
+| `heavy` | swings 1.8x slower for 1.8x the damage (same damage per second); never blocked; each blow drains 15 Resolve | Fold Ram (6 to 7), Gorse Boar (11 to 12) |
+| `tough` | 1.6x health, 1.15x damage, 1.5x kill XP | Gorse Boar |
+| pack | (combat role pass, src/data/packs.js) | the tagged camps |
+
+Measured in BALANCE.md, "Class identity pass": each headline costs or gains about 12 to 37% against the field, every
+class keeps its plain one-foe and pack bands, and no trait fight killed a bot.
+
+---
+
 ## 0. Shared combat rules (every class reads these)
 
 ### 0.1 Units
@@ -279,7 +313,7 @@ Auto-attack: both daggers, 1.6 s each; the off hand deals 50%.
 | id | name | learn | cost (focus) | cast | cooldown | gcd | range | effect | threat |
 |---|---|---|---|---|---|---|---|---|---|
 | `inkblade_nick` | Nick | 1 | 30 | instant | none | on | 1.5 | `0.9 * W + 2 + 1.2 * L` physical, **+1 Ink Mark** | x1 |
-| `inkblade_spill` | Spill | 1 | 25 | instant | none | on | 1.5 | needs 1+ mark: `(4 + 1.8 * L + 0.1 * AP)` per mark, consumes all marks; heals you 7% of your max health per mark spilled | x1 |
+| `inkblade_spill` | Spill | 1 | 25 | instant | none | on | 1.5 | needs 1+ mark: `(4 + 1.8 * L + 0.1 * AP)` per mark, consumes all marks; heals you 8% of your max health per mark spilled | x1 |
 | `inkblade_fade` | Fade | 3 | none | instant | 6 (starts when you leave combat) | on | self | stealth, out of combat only: move speed -20%, enemies notice you only within 1.5 tiles (+0.5 per level they are above you). Your first attack from Fade deals +50% and adds +1 extra Ink Mark. Any attack or damage ends it | none |
 | `inkblade_inkstep` | Inkstep | 6 | 25 | instant | 8 | on | 8 | step through the shadows to the tile behind the target, **interrupt** its cast (locked 3 s) and **cut every enemy within 2 tiles of it** (max 4) for `0.6 * W + 2 + L`; they are **Smudged** (deal 20% less damage) for 10 s; +1 Ink Mark on your target, and your next Nick within 3 s adds +1 extra mark | x1 |
 | `inkblade_bleed_line` | Bleed Line | 10 | 25 | instant | none | on | 1.5 | needs 1+ mark: DoT 12 s, 6 ticks, total `(5 + 2.2 * L + 0.12 * AP)` per mark, consumes all marks | x1 |
@@ -299,13 +333,13 @@ Notes
 
 ## 6. How the five differ (the solo picture)
 
-| class | kills with | survives by | a bad pull of three | travel tool |
-|---|---|---|---|---|
-| Warden | steady Strike/Bash, Sweep for packs | plate, block, Second Wind, Oath of Iron | stands in it and Sweeps (from 3) | Taunt pulls things to you (10) |
-| Mender | Brand + Kindle | Brand self-heal, Mend, Warding Word (10) | Chorus (6), Mend through it, Ward self | none; the safest walker because she heals |
-| Scribe | Inkbolt burst | never being touched: Scrawl, Full Stop, Bracket | Full Stop, walk out, Scatter Letters on the clump | none |
-| Wayfinder | shots at range, traps | distance: Pinning Shot, Briar Trap, Light Foot | trap catches the pack, Light Foot out, Volley (14) | Light Foot over a gap |
-| Inkblade | marks and finishers | choosing fights: Fade, Inkstep's Smudge, Spill heals, Ink in the Eyes (14) | Inkstep the pack, Spill fast, Ink in the Eyes on one (14) | Fade past a camp |
+| class | kills with | survives by | a bad pull of three | travel tool | strong / weak (identity pass) |
+|---|---|---|---|---|---|
+| Warden | steady Strike/Bash, Sweep for packs | plate, block, Second Wind, Oath of Iron | stands in it and Sweeps (from 3) | Taunt pulls things to you (10) | packs / heavy hitters |
+| Mender | Brand + Kindle | Brand self-heal, Mend, Warding Word (10) | Chorus (6), Mend through it, Ward self | none; the safest walker because she heals | long fights / packs |
+| Scribe | Inkbolt burst | never being touched: Scrawl, Full Stop, Bracket | Full Stop, walk out, Scatter Letters on the clump | none | armored / fast |
+| Wayfinder | shots at range, traps | distance: Pinning Shot, Briar Trap, Light Foot | trap catches the pack, Light Foot out, Volley (14) | Light Foot over a gap | fast / casters |
+| Inkblade | marks and finishers | choosing fights: Fade, Inkstep's Smudge, Spill heals, Ink in the Eyes (14) | Inkstep the pack, Spill fast, Ink in the Eyes on one (14) | Fade past a camp | casters / armored |
 
 Time to kill a same-level foe is 9.7 to 13.5 s for every class at levels 1, 8 and 15 (PROGRESSION.md 9). A 3-pack
 (BALANCE.md, "Combat role pass") takes 16 to 31 s at levels 6 to 15 (18 to 31 s for all but the Warden at 6).

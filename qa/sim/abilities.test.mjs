@@ -135,7 +135,9 @@ export const tests = [
     const ticks = dmgOf(ev, undefined).filter((e) => e.periodic && e.src === pid);
     eq(ticks.length, 6, 'six ticks');
     const per = (14 + 5 * 8 + 0.6 * p.derived.sp) / 6;
-    for (const t of ticks) eq(t.amount, crit(t, per), 'tick size');
+    // the Mender's Long Light passive (class identity pass): damage +10% after 8 s in the fight, +20% after 16 s
+    const long = (tk) => { const sec = (tk - p.combatSince) / 20; return (sec >= 8 ? 1.1 : 1) * (sec >= 16 ? 1.1 : 1); };
+    for (const t of ticks) eq(t.amount, crit(t, per * long(t.tick)), 'tick size');
     // refresh it, then Kindle: heals 25% of the hit
     free(world, p);
     castNow(world, pid, 'mender_brand', m.id); free(world, p);

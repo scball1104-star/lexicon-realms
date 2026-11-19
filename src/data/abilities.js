@@ -254,11 +254,11 @@ export const ABILITIES = {
     effects: [
       { type: 'damage', key: 'hit', amount: lv(4, 1.8), coef: { stat: 'ap', k: 0.1 }, scaleCombo: true, school: 'physical', canCrit: true },
       // fix pass 1 (PLAYTEST_BOT bug 15): the Inkblade's cheap self-heal: each mark spilled gives back 7% of your health
-      // (5% in fix pass 1; 7% since the combat role pass, the Inkblade still died most in the questbot)
-      { type: 'heal', key: 'drink', to: 'self', pctMaxHp: 0.07, scaleCombo: true, canCrit: false, noThreat: true, ability: 'inkblade_spill' },
+      // (5% in fix pass 1; 7% in the combat role pass; 8% in the class identity pass, the Inkblade still died most in the questbot)
+      { type: 'heal', key: 'drink', to: 'self', pctMaxHp: 0.08, scaleCombo: true, canCrit: false, noThreat: true, ability: 'inkblade_spill' },
       { type: 'combo', key: 'consume', consume: true },
     ],
-    text: 'Pop every Ink Mark for {dmg} per mark. Each mark spilled heals you for 7% of your health.',
+    text: 'Pop every Ink Mark for {dmg} per mark. Each mark spilled heals you for 8% of your health.',
   },
   inkblade_fade: {
     id: 'inkblade_fade', name: 'Fade', icon: 'fade', cls: 'inkblade', learnLevel: 3, school: 'shadow',

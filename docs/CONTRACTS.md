@@ -883,3 +883,15 @@ mouse, prints `INTEGRATE_DONE:`), `python qa/integrate/phone.py` (844x390 phone,
 - Pack members take the `PROGRESSION.packs` multipliers on health, damage and XP (pair 0.85 / 0.75 / 0.85, three 0.66 / 0.5 / 0.65). Pulling one member pulls its camp within 6 tiles.
 - `enemies_near_holder` target lists honour `maxTargets`.
 - Ability tooltips carry `lines` (plain-language number lines: damage or healing per hit, damage per second, area and foe limit, control effects).
+
+## Class identity pass additions (2026-11-19, LIVE)
+
+Scott, 2026-11-19: "Each class should have its own unique strength(s) and weakness(es). Skills can make super-strengths or compensate for weaknesses."
+
+- Mob templates may list `traits` (`armored`, `caster`, `fast`, `heavy`, `tough`); kind `armored` and kind `caster` carry their trait without listing it. Every trait is a rule in `PROGRESSION.mobTraits`.
+- `recalcMob` turns traits into fields on `e.mob`: `traits`, `plating` (flat cut off each physical non-periodic hit, `base + perLevel x L`), `speedMult`, `snareMult` (root and slow duration share), `unblockable`, `drain` (`{ resourceKind: amount }` knocked out per hit), and the tough hp, damage and xp multipliers. The old `mobKinds.armored.physReduce` is 0.
+- `classes[cls].passives = { mods, procs }` apply to every hero of the class (`src: 'class'`), talents or not. `classes[cls].identity = { strong, weak }` is the two lines the class card shows.
+- New mod stats: `platingIgnore` (share of plating skipped, 0 to 1), `snareFast` (share of the fast trait's lost snare time given back, 0 to 1), `drainResist` (flat off a heavy drain).
+- New `when` conditions: `targetTrait`, `attackerTrait`, `targetCasting`, `inCombatFor` (seconds; reads `e.combatSince`, set when a hero enters combat).
+- Talent branches carry `kind` (`strength`, `counter` or `flavor`, one of each per class) and `purpose` (at most 28 characters, shown in the talents window).
+- A move effect `kind: 'blink'` cast on self with no attacker goes away from where the mob faces (its foe), not toward it.

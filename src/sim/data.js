@@ -35,6 +35,12 @@ export function createData(content) {
       if (fx.script) c.scripts.add(fx.script);
       for (const p of fx.modAbility || []) (c.patches[p.id] = c.patches[p.id] || []).push(p);
     }
+    // class passives (class identity pass): every hero of the class has them, talents or not (CLASSES.md strengths table)
+    const pas = (classes[e.cls] || {}).passives;
+    if (pas) {
+      for (const m of pas.mods || []) c.mods.push({ ...m, src: 'class' });
+      for (const p of pas.procs || []) c.procs.push({ ...p, src: 'class' });
+    }
     cache.set(e.id, c);
     return c;
   }

@@ -44,6 +44,11 @@ export function createStats(C) {
         case 'holderIsCaster': if (!ctx.holder || ctx.holder.id !== (ctx.caster && ctx.caster.id)) return false; break;
         case 'absorbUsed': if (!!ctx.absorbUsed !== v) return false; break;
         case 'melee': if (!!ctx.melee !== v) return false; break;
+        // class identity pass: the target carries a foe trait (PROGRESSION mobTraits), or is casting
+        case 'targetTrait': if (!t || !t.mob || !(t.mob.traits || []).includes(v)) return false; break;
+        case 'attackerTrait': if (!ctx.attacker || !ctx.attacker.mob || !(ctx.attacker.mob.traits || []).includes(v)) return false; break;
+        case 'targetCasting': if (!t || !!t.cast !== v) return false; break;
+        case 'inCombatFor': if (!e.inCombat || C.state.tick - (e.combatSince || 0) < v * TICK_HZ) return false; break;
         default: return false;
       }
     }
@@ -167,6 +172,18 @@ export function createStats(C) {
     // a camp that pulls as a pack (PROGRESSION packs, combat role pass): each member is lighter, the pack is about 1.6 to 2 foes
     const pk = e.spawn && e.spawn.pack && P.packs ? P.packs[e.spawn.pack] : null;
     if (pk) { hpM *= pk.hp; dmgM *= pk.damage; }
+    // foe traits (class identity pass, PROGRESSION mobTraits): the template's `traits`, plus the trait its kind carries
+    const traits = [...new Set([...(t.traits || []), ...kinds.filter((k) => k === 'armored' || k === 'caster')])].sort();
+    let swingM = 1, speedM = 1, plating = 0, unblockable = false, drain = null, snareMult = null;
+    for (const tr of traits) {
+      const d = (P.mobTraits || {})[tr];
+      if (!d) continue;
+      hpM *= d.hp || 1; dmgM *= d.damage || 1; swingM *= d.swing || 1; speedM *= d.speedMult || 1;
+      if (d.plating) plating += Math.round(d.plating.base + d.plating.perLevel * L);
+      if (d.unblockable) unblockable = true;
+      if (d.drain) drain = { ...(drain || {}), ...d.drain };
+      if (d.snareMult != null) snareMult = d.snareMult;
+    }
     const kind = kinds.find((k) => k !== 'elite') || 'normal';
     const c = P.mobCurve;
     // a template with a single fixed level may give its own numbers; a family with a level range uses the curve
@@ -181,8 +198,8 @@ export function createStats(C) {
     }
     e.stats = { str: 0, agi: 0, int: 0, spi: 0, sta: 0, armor: (fixed && t.armor) || 0 };
     e.derived = { ap: 0, sp: 0, crit: 0, block: 0, hpMax };
-    e.mob = { kind, kinds, elite, damage: dmg, attackSpeed: t.attackSpeed || c.attackSpeed, school: t.school || 'physical',
-      physReduce, family: t.family || e.template };
+    e.mob = { kind, kinds, elite, damage: dmg, attackSpeed: (t.attackSpeed || c.attackSpeed) * swingM, school: t.school || 'physical',
+      physReduce, family: t.family || e.template, traits, plating, speedMult: speedM, unblockable, drain, snareMult };
     e.hpMax = hpMax;
     if (e.hp > hpMax || e.hp <= 0 || e.hp == null) e.hp = hpMax;
   }

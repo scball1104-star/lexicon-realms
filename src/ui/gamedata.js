@@ -51,7 +51,8 @@ export function setGameData({ classes, abilities, talents, hasIcon = () => true 
       abilities: c.abilities ? c.abilities.map((a) => a.id || a) : d.abilities,
       resource: (c.resource && c.resource.kind) || d.resource,
       base: d.base || c.base, growth: d.growth || c.perLevel,
-      role: d.role || c.role, plays: d.plays, lore: d.lore, kit: d.kit || c.role, gear: d.gear || `Armor: ${c.armor}.` };
+      role: d.role || c.role, plays: d.plays, lore: d.lore, kit: d.kit || c.role, gear: d.gear || `Armor: ${c.armor}.`,
+      strong: (c.identity && c.identity.strong) || d.strong || null, weak: (c.identity && c.identity.weak) || d.weak || null };
     for (const a of c.abilities || []) if (a.id && a.level && merged.abilities[a.id]) merged.abilities[a.id] = { ...merged.abilities[a.id], learnLevel: a.level };
   }
   for (const [id, a] of Object.entries(abilities || {})) {

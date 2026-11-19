@@ -26,8 +26,8 @@ kill a same-level normal foe 8 to 14 s, solo-able (no bot deaths).
 | warden | 8 | 458 | 330 | 9.5 | 9.1 to 9.7 | 12.1 | 19% | 21% | 24% |  | 0 | yes |
 | warden | 15 | 835 | 490 | 11.0 | 9.6 to 12.0 | 12.3 | 25% | 28% | 28% |  | 0 | yes |
 | mender | 1 | 110 | 130 | 7.8 | 6.5 to 8.3 | 12.4 | 11% | 12% | 15% | 44 / 215 | 0 | yes |
-| mender | 8 | 458 | 250 | 11.5 | 11.7 to 11.7 | 11.9 | 7% | 10% | 28% | 163 / 425 | 0 | yes |
-| mender | 15 | 835 | 370 | 13.5 | 11.7 to 14.5 | 13.5 | 12% | 16% | 42% | 273 / 635 | 0 | yes |
+| mender | 8 | 458 | 250 | 11.2 | 9.8 to 11.7 | 11.9 | 5% | 8% | 28% | 157 / 425 | 0 | yes |
+| mender | 15 | 835 | 370 | 11.6 | 11.7 to 11.7 | 13.5 | 8% | 11% | 42% | 254 / 635 | 0 | yes |
 | scribe | 1 | 110 | 120 | 10.8 | 8.2 to 11.6 | 12.4 | 16% | 17% | 16% | 53 / 245 | 0 | yes |
 | scribe | 8 | 458 | 230 | 11.6 | 11.7 to 11.7 | 13.4 | 39% | 41% | 38% | 168 / 485 | 0 | yes |
 | scribe | 15 | 835 | 340 | 12.8 | 11.7 to 13.4 | 13.4 | 53% | 57% | 46% | 302 / 725 | 0 | yes |
@@ -104,10 +104,10 @@ What changed is in CLASSES.md 6.1 (kits) and PROGRESSION.md 3.3 (packs). This se
 | warden | 6 | 290 | 8.4 | 15% | 16.0 | 14.4 to 16.9 | 27% (27%) | 0 / 0 | yes / NO |
 | warden | 10 | 380 | 9.6 | 20% | 18.9 | 18.1 to 19.3 | 38% (38%) | 0 / 0 | yes / yes |
 | warden | 15 | 490 | 10.8 | 25% | 19.4 | 19.2 to 20.2 | 43% (43%) | 0 / 0 | yes / yes |
-| mender | 3 | 170 | 8.0 | 0% | 22.5 | 20.4 to 22.8 | 22% (30%) | 0 / 0 | yes / yes |
-| mender | 6 | 220 | 9.8 | 3% | 25.0 | 24.6 to 26.1 | 30% (37%) | 0 / 0 | yes / yes |
-| mender | 10 | 290 | 11.4 | 0% | 27.8 | 27.8 to 28.0 | 0% (22%) | 0 / 0 | yes / yes |
-| mender | 15 | 370 | 13.3 | 1% | 28.0 | 28.0 to 28.0 | 0% (25%) | 0 / 0 | yes / yes |
+| mender | 3 | 170 | 8.0 | 0% | 20.4 | 20.4 to 20.4 | 16% (27%) | 0 / 0 | yes / yes |
+| mender | 6 | 220 | 9.8 | 2% | 21.7 | 20.7 to 22.8 | 20% (31%) | 0 / 0 | yes / yes |
+| mender | 10 | 290 | 11.0 | 0% | 25.7 | 24.4 to 26.4 | 0% (22%) | 0 / 0 | yes / yes |
+| mender | 15 | 370 | 11.4 | 0% | 27.4 | 25.9 to 28.0 | 0% (25%) | 0 / 0 | yes / yes |
 | scribe | 3 | 150 | 10.2 | 25% | 20.1 | 20.1 to 20.1 | 53% (53%) | 0 / 0 | yes / yes |
 | scribe | 6 | 200 | 9.7 | 26% | 20.4 | 19.6 to 20.6 | 56% (56%) | 0 / 0 | yes / yes |
 | scribe | 10 | 270 | 10.8 | 32% | 20.5 | 18.4 to 21.8 | 74% (74%) | 0 / 0 | yes / yes |
@@ -117,17 +117,17 @@ What changed is in CLASSES.md 6.1 (kits) and PROGRESSION.md 3.3 (packs). This se
 | wayfinder | 10 | 290 | 13.2 | 22% | 28.9 | 29.0 to 29.0 | 53% (53%) | 0 / 0 | yes / yes |
 | wayfinder | 15 | 380 | 13.6 | 26% | 30.4 | 29.0 to 32.0 | 75% (75%) | 0 / 0 | yes / yes |
 | inkblade | 3 | 170 | 6.3 | 4% | 18.1 | 17.6 to 19.3 | 8% (17%) | 0 / 0 | yes / yes |
-| inkblade | 6 | 220 | 9.3 | 0% | 22.3 | 20.8 to 23.0 | 21% (32%) | 0 / 0 | yes / yes |
-| inkblade | 10 | 290 | 10.4 | 7% | 24.6 | 24.0 to 25.5 | 7% (32%) | 0 / 0 | yes / yes |
-| inkblade | 15 | 380 | 11.7 | 15% | 28.7 | 25.5 to 30.0 | 41% (54%) | 0 / 0 | yes / yes |
+| inkblade | 6 | 220 | 9.3 | 0% | 22.3 | 20.8 to 23.0 | 20% (32%) | 0 / 0 | yes / yes |
+| inkblade | 10 | 290 | 10.4 | 4% | 24.6 | 24.0 to 25.5 | 4% (30%) | 0 / 0 | yes / yes |
+| inkblade | 15 | 380 | 11.7 | 12% | 28.7 | 25.5 to 30.0 | 36% (53%) | 0 / 0 | yes / yes |
 
 | class | one foe: mean hp lost | 3-pack: mean worst point | vs Warden (one / pack) |
 |---|---|---|---|
 | warden | 17% | 31% | 1.00x / 1.00x |
-| mender | 1% | 29% | 0.07x / 0.92x |
+| mender | 1% | 26% | 0.03x / 0.84x |
 | scribe | 30% | 63% | 1.75x / 2.02x |
 | wayfinder | 15% | 44% | 0.88x / 1.40x |
-| inkblade | 7% | 34% | 0.39x / 1.08x |
+| inkblade | 5% | 33% | 0.30x / 1.05x |
 
 60 seeded runs per cell. One foe in band: 20 of 20. 3-pack in band (18 to 35 s; 12 to 30 s at levels 1 to 4; no deaths): 19 of 20.
 <!-- PACK:END -->
@@ -189,3 +189,114 @@ Semicolon (keeps the new Full Stop damage). TALENTS.md notes both.
   the elite Sentinel of the Long Watch (the bot has no strategy for it, OPEN_QUESTIONS Q5) and bots grinding next to its
   tower; the rest are page wraiths at 11 to 13. Not tuned in this pass: the elite fight and the bot's play past 10 are
   the next step.
+
+## Class identity pass (2026-11-19): strengths, weaknesses, foe traits
+
+Scott (2026-11-19): "Each class should have its own unique strength(s) and weakness(es). Skills can make super-strengths
+or compensate for weaknesses." The headlines and their rules are in CLASSES.md ("Strengths and weaknesses"); the foe
+traits in PROGRESSION `mobTraits` (src/data/progression.js).
+
+### Method
+
+- `node qa/sim/matchup.mjs` (30 seeded runs per cell, the pack.mjs bots, design gear, no talents): each class at levels 6,
+  10 and 15 against one same-level foe with a single trait (the plain test foe plus that trait; the caster casts the Barrow
+  Shade's slowing bolt) and against a 3-pack. Each number is a multiple of the class's own plain one-foe fight (time,
+  health lost; health floors at 10% of max so a Mender who loses 1% does not read as infinite). The pack row is against
+  two plain foes in a row.
+- Some foes cost everyone (a tough foe takes every class about 1.7x as long), so the second table compares each class to
+  the field: its mean of time and health on that row over the five classes' mean. A strength is clearly below the field,
+  a weakness clearly above. The brief's target: about 20 to 40% either way.
+
+### Result
+
+<!-- MATCHUP:START (written by node qa/sim/matchup.mjs; do not hand-edit) -->
+Each class against each foe, as a multiple of its own plain one-foe fight (time / health lost; health floors at 10% of max; pack: against two plain foes in a row):
+
+| class | pack: time / health | armored: time / health | caster: time / health | fast: time / health | heavy: time / health | tough: time / health |
+|---|---|---|---|---|---|---|
+| warden | 0.94x / 0.89x **S** | 1.22x / 1.19x | 0.85x / 0.84x | 1.00x / 1.00x | 1.54x / 1.63x **W** | 1.70x / 1.86x |
+| mender | 1.15x / 2.61x **W** | 1.00x / 1.00x | 0.87x / 1.00x | 0.98x / 1.00x | 0.97x / 1.00x | 1.71x / 1.00x **S** |
+| scribe | 1.04x / 1.06x | 1.00x / 1.00x **S** | 0.90x / 1.29x | 1.04x / 1.39x **W** | 0.98x / 1.32x | 1.55x / 1.92x |
+| wayfinder | 1.17x / 1.53x | 1.14x / 1.22x | 0.87x / 1.89x **W** | 0.70x / 0.89x **S** | 0.99x / 1.36x | 1.78x / 2.34x |
+| inkblade | 1.21x / 2.81x | 1.44x / 1.20x **W** | 0.59x / 1.16x **S** | 1.00x / 1.00x | 1.00x / 1.14x | 1.71x / 1.26x |
+
+The same against the field (the class's mean of time and health, divided by the five classes' mean on that row; + means that foe costs this class more than it costs the field):
+
+| class | pack | armored | caster | fast | heavy | tough | strong: vs field | weak: vs field |
+|---|---|---|---|---|---|---|---|---|
+| warden | -37% **S** | +6% | -18% | +0% | +33% **W** | +6% | pack -37% | heavy +33% |
+| mender | +31% **W** | -12% | -9% | -1% | -18% | -19% **S** | tough -19% | pack +31% |
+| scribe | -27% | -12% **S** | +7% | +22% **W** | -4% | +3% | armored -12% | fast +22% |
+| wayfinder | -6% | +3% | +34% **W** | -21% **S** | -2% | +22% | fast -21% | caster +34% |
+| inkblade | +39% | +16% **W** | -15% **S** | +0% | -10% | -12% | caster -15% | armored +16% |
+
+The same fights in seconds and health lost (pack: worst point), mean of levels 6, 10, 15:
+
+| class | plain: s / hp lost | pack: s / hp lost | armored: s / hp lost | caster: s / hp lost | fast: s / hp lost | heavy: s / hp lost | tough: s / hp lost |
+|---|---|---|---|---|---|---|---|
+| warden | 9.7 / 20% | 18.1 / 36% | 11.8 / 24% | 8.3 / 17% | 9.7 / 20% | 15.0 / 33% | 16.5 / 38% |
+| mender | 10.7 / 1% | 24.8 / 26% | 10.7 / 1% | 9.3 / 1% | 10.5 / 1% | 10.4 / 0% | 18.4 / 3% |
+| scribe | 10.7 / 32% | 22.2 / 66% | 10.7 / 32% | 9.7 / 41% | 11.2 / 44% | 10.5 / 42% | 16.6 / 61% |
+| wayfinder | 12.1 / 19% | 28.1 / 53% | 13.5 / 23% | 10.6 / 36% | 8.5 / 15% | 11.9 / 27% | 21.2 / 40% |
+| inkblade | 10.5 / 6% | 25.3 / 39% | 15.1 / 12% | 6.2 / 8% | 10.5 / 6% | 10.4 / 8% | 17.9 / 13% |
+
+30 seeded runs per cell, levels 6, 10, 15.
+<!-- MATCHUP:END -->
+
+### Reading it
+
+- Every headline shows, against the field: Warden pack -37% / heavy +33%; Mender tough -19% / pack +31%; Scribe armored
+  -12% / fast +22%; Wayfinder fast -21% / casters +34%; Inkblade casters -15% / armored +16%. Against its own plain fight
+  each weakness costs the class 30 to 90% on time or health (Warden heavy 1.54x time and 1.63x health, Inkblade armored
+  1.44x time, Scribe fast 1.39x health, Wayfinder casters 1.89x health, Mender packs 2.6x health but only 26% at the
+  worst point, still the lowest of the five). The Scribe's armor strength is the mildest: she pays nothing on plating
+  where the field pays 14 to 44% in time, but plating is kept light so the Inkblade's weakness stays a cost, not a wall.
+- Second costs that are not headlines (honest list): the Inkblade's pack row (+39%) is mostly his tiny plain-fight loss
+  (8%) on the floor of the ratio, his worst point in a pack is 40%, middle of the field; the Wayfinder pays against tough
+  foes (+22%, no healing); physical classes all pay a little on plating.
+- Plain one-foe and 3-pack bands are unchanged (the PACK table above was rerun: 20 of 20 and 19 of 20, the Warden at 6
+  still clears a pack under the 18 s floor as before; duel.mjs: 15 of 15). The Mender's plain fights are up to 2 s
+  faster at level 15 (13.5 to 11.6 s in duel.mjs) from Long Light.
+- No bot died in any trait fight.
+
+### Data and rule changes in this pass
+
+| where | was | now | why |
+|---|---|---|---|
+| PROGRESSION `mobTraits` (new) | none | armored, caster, fast, heavy, tough (CLASSES.md table) | foes that test each class |
+| `mobKinds.armored.physReduce` | 0.3 | 0 (the armored trait's plating instead) | a flat cut punishes many small hits, not every physical class alike |
+| mobs.js `traits` | none | Moss Scarab armored; Fold Ram heavy; Mist Wolf fast; Gorse Boar heavy and tough; Page Wraith fast | each class meets its strength and weakness while questing |
+| classes.js `passives` (new) | none | Mender Long Light, Wayfinder Quarry, Inkblade Cut the Word | strengths that the existing kit did not already make |
+| classes.js `identity` (new) | none | the card's Strong and Weak lines | the creation screen |
+| talents | see TALENTS.md 0.1 | ten nodes renamed and rewritten (ids kept), Toll also takes 3 / 6 s off Chorus | strength, counter and flavor branches |
+| qa/sim/pack.mjs | melee bots never moved | melee bots walk back into reach | a foe that moves off a melee hero |
+
+### In the field (questbot)
+
+`node qa/bot/questbot.mjs --seeds 1,2,3,4,5,6`, level 1 to 10 on the real content, the same bot (its talent branch is
+unchanged: Warden Oathblade, Mender Kindling, Scribe Quill, Wayfinder Fletch, Inkblade Edge). 30 of 30 reached 10, no
+crashes, no errors; 6 invariant notes, all the known `node_never_gives` (hay, a stone rubbing).
+
+| class | deaths per run, seeds 1 to 3: last pass -> now | seeds 1 to 6 now | min to 10, seeds 1 to 3: last pass -> now | top killers (6 runs) |
+|---|---|---|---|---|
+| warden | 5.3 -> 4.0 | 4.5 | 39.4 -> 40.2 | Barrow Shade 7, Briar Wolf 6, Ink Blot 4, Thornback 4, Fold Ram 2 |
+| mender | 0.3 -> 0.7 | 0.3 | 37.6 -> 33.8 | one each |
+| scribe | 6.0 -> 4.3 | 5.0 | 45.3 -> 44.2 | Mist Wolf 9 (fast), Ink Blot 7, Thornback 4, Fold Ram 3 |
+| wayfinder | 6.0 -> 7.0 | 5.5 | 46.3 -> 46.2 | Fold Ram 10 (heavy), Ink Blot 7, Thornback 5 |
+| inkblade | 6.7 -> 7.7 | 7.0 | 41.4 -> 38.6 | Thornback 12, Barrow Shade 10, Ink Blot 7, Page Wraith 5 |
+
+- Deaths swing 4 to 13 per run between seeds for the same class (any change reshuffles every pull), so differences under
+  about 1.5 per run are noise. Spill's heal went from 7% to 8% of health per mark in this pass: without it the Inkblade
+  ran 9.5 deaths per run over 6 seeds (traits off entirely: 8.3).
+- The Scribe now dies most to Mist Wolves (fast packs at 10), her weakness meeting her; the Wayfinder's top killer is the
+  heavy Fold Ram (6 to 7), not her headline weakness: big slow blows on a bot that never kites. Left open below.
+- The bot does not use Fade, kite, or pick fights; the Inkblade's caster deaths are pulls of two or three casters before
+  Inkstep (6), not one caster.
+
+### Open
+
+- Fold Ram (heavy) is the Wayfinder's top killer in the questbot. A kiting player meets it at range; if it reads as unfair
+  in play, drop `heavy` from the ram (the Warden still meets the Gorse Boar at 11 to 12).
+- A Step Away rule for casters (step 4 tiles back when struck in melee) was tried and taken out: it raised Warden field
+  deaths from about 6 to 9 per run. Found on the way: a self-cast `blink` (the Page Wraith's Scatter) moves the mob along
+  its facing, toward the hero, not away; left as it was.
