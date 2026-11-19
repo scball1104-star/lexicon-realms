@@ -31,6 +31,16 @@ function button(ctx, env, regions, r, label, on, { scheme = 'blue', color = 'cre
   if (enabled) regions.push({ rect: r, kind: 'button', on, label });
 }
 
+function drawFullscreenHelp(ctx, env, st, regions) {
+  const { g } = env;
+  const lines = ['To play full screen on an iPhone:', '1. Tap the Share button in your browser.', '2. Choose Add to Home Screen, then Add.', '3. Open Lexicon Realms from your home screen.', 'A hero made in the browser does not carry over.'];
+  const w = 300, h = 34 + lines.length * 16 + 30, x = Math.floor((W - w) / 2), y = Math.floor((H - h) / 2);
+  g.window(ctx, x, y, w, h, 'thin', 'blue', 0.97);
+  lines.forEach((ln, i) => g.text(ctx, ln, x + 14, y + 14 + i * 16, i === 0 ? 'gold' : (i === lines.length - 1 ? 'dim' : 'cream')));
+  const bh = Math.max(20, env.L.minHit || 0);
+  button(ctx, env, regions, { x: x + w - 84, y: y + h - bh - 8, w: 74, h: bh }, 'Got it', () => { st.fsHelp = false; });
+}
+
 export function drawTitle(ctx, env, st, regions, act, t) {
   const { g } = env;
   drawBackdrop(ctx, env, 40);
@@ -43,6 +53,7 @@ export function drawTitle(ctx, env, st, regions, act, t) {
   const sub = 'A questing tale in the world of Lexicon Quest';
   g.scrim(ctx, Math.floor((W - g.textW(sub)) / 2) - 6, ly + logo.height + 6, g.textW(sub) + 12, 14, 150);
   g.text(ctx, sub, W / 2, ly + logo.height + 8, 'cream', { align: 'center' });
+  if (st.fsHelp) { drawFullscreenHelp(ctx, env, st, regions); return; }
   const bh = Math.max(22, env.L.minHit || 0), bw = 170;
   const x = Math.floor((W - bw) / 2);
   let y = 196;
@@ -51,6 +62,10 @@ export function drawTitle(ctx, env, st, regions, act, t) {
   button(ctx, env, regions, { x, y, w: bw, h: bh }, 'New Character', () => act.go('create'), { large: !chars.length, enabled: !act.store.full() });
   y += bh + 8;
   if (act.store.full()) g.text(ctx, `All ${MAX_CHARS} hero slots are used. Delete one to make another.`, W / 2, y, 'orange', { align: 'center' });
+  if (env.L.touch && act.canFullscreen && act.canFullscreen()) {
+    const fh = Math.max(18, env.L.minHit || 0);
+    button(ctx, env, regions, { x: W - 96, y: 8, w: 88, h: fh }, 'Full screen', () => act.fullscreen());
+  }
   const hint = env.L.touch ? 'Tap to begin' : 'Press Enter';
   g.scrim(ctx, Math.floor((W - g.textW(hint)) / 2) - 6, 322, g.textW(hint) + 12, 14, 150);
   if (Math.floor(t * 1.5) % 2 === 0) g.text(ctx, hint, W / 2, 324, 'gold', { align: 'center' });

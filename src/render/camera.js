@@ -44,13 +44,18 @@ export function layoutFor(devW, devH, zoom = 1, VW = 640, VH = 360, opts = {}) {
   const dispW = devW, dispH = devH;
   const viewW = Math.ceil(dispW / ws), viewH = Math.ceil(dispH / ws);
   const dpr = opts.dpr || 1;
+  // the HUD stays inside the safe area (notch, rounded corners, home bar); the world still fills the whole screen
+  const ins = opts.inset || {};
+  const il = ins.l || 0, it = ins.t || 0, ir = ins.r || 0, ib = ins.b || 0;
+  const sW = Math.max(VW, devW - il - ir), sH = Math.max(Math.min(devH, 200), devH - it - ib);
+  const sfit = Math.max(1, Math.floor(Math.min(sW / VW, sH / VH)));
   let base;
-  if (opts.hud === 'win') base = fit;
+  if (opts.hud === 'win') base = sfit;
   else {
-    base = Math.max(fit, Math.round(dpr * 1.75));
-    while (base > fit && Math.floor(devH / base) < 200) base--;     // keep room for the HUD (at least 200 HUD px tall)
+    base = Math.max(sfit, Math.round(dpr * 1.75));
+    while (base > sfit && Math.floor(sH / base) < 200) base--;     // keep room for the HUD (at least 200 HUD px tall)
   }
-  const hudW = Math.floor(devW / base), hudH = Math.floor(devH / base);
-  const ox = Math.floor((devW - hudW * base) / 2), oy = Math.floor((devH - hudH * base) / 2);
+  const hudW = Math.floor(sW / base), hudH = Math.floor(sH / base);
+  const ox = Math.min(devW - hudW * base, il) + Math.floor((sW - hudW * base) / 2), oy = Math.min(devH - hudH * base, it) + Math.floor((sH - hudH * base) / 2);
   return { base, ws, dispW, dispH, ox, oy, wox: 0, woy: 0, viewW, viewH, VW, VH, hudW, hudH, touch: true, hud: opts.hud || 'big' };
 }

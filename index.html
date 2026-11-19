@@ -2,15 +2,28 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Realms">
+  <meta name="theme-color" content="#0b0a12">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="assets/ui/icon_180.png">
+  <link rel="icon" href="assets/ui/icon_192.png">
   <title>Lexicon Realms</title>
   <style>
-    html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-    canvas#game { display: block; width: 100vw; height: 100vh; image-rendering: pixelated; image-rendering: crisp-edges; cursor: default; }
+    html, body { margin: 0; width: 100%; height: 100%; background: #0b0a12; overflow: hidden; overscroll-behavior: none; touch-action: none; }
+    /* height follows the VISIBLE viewport (100vh on phones includes the area under the browser bars); main.js also
+       sets the exact pixel size from visualViewport */
+    canvas#game { position: fixed; left: 0; top: 0; display: block; width: 100vw; height: 100vh; height: 100dvh; image-rendering: pixelated; image-rendering: crisp-edges; cursor: default; }
+    #safe { position: fixed; left: 0; top: 0; width: 0; height: 0; visibility: hidden; pointer-events: none;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
   </style>
 </head>
 <body>
   <canvas id="game" tabindex="0"></canvas>
+  <div id="safe"></div>
   <script type="module" src="src/main.js"></script>
 </body>
 </html>

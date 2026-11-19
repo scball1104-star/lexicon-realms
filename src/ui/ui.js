@@ -80,6 +80,24 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (mode === 'create') { st.name = ''; nameInput.value = ''; st.cls = null; st.look = 0; if (!st.metrics.touch) act.focusName(); }
       else { nameInput.blur(); st.nameFocus = false; }
     },
+    /** Phone full screen: the Fullscreen API where the browser has it (Android, iPad); an iPhone browser has none, so
+     *  the title shows how to add the game to the home screen, which opens it with no browser bars. */
+    canFullscreen() {
+      if (typeof document === 'undefined' || typeof window === 'undefined') return false;
+      const standalone = window.navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches);
+      return !standalone && !(document.fullscreenElement || document.webkitFullscreenElement);
+    },
+    fullscreen() {
+      const d = document, el = d.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req && (d.fullscreenEnabled || d.webkitFullscreenEnabled)) {
+        try {
+          const p = req.call(el, { navigationUI: 'hide' });
+          const lock = () => { try { const o = screen.orientation; if (o && o.lock) o.lock('landscape').catch(() => {}); } catch { /* not offered */ } };
+          if (p && p.then) p.then(lock, () => { st.fsHelp = true; }); else lock();
+        } catch { st.fsHelp = true; }
+      } else st.fsHelp = true;
+    },
     focusName() { nameInput.value = st.name || ''; nameInput.focus({ preventScroll: true }); st.nameFocus = true; },
     create() {
       const r = store.add({ name: st.name, cls: st.cls, look: st.look });
@@ -402,7 +420,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (st.mode !== 'game') {
       const r = topRegion(x, y);
       if (r && r.on) r.on(button);
-      else if (st.mode === 'title' && !r) { if (store.list().length) act.go('select'); else act.go('create'); }
+      else if (st.mode === 'title' && !r && !st.fsHelp) { if (store.list().length) act.go('select'); else act.go('create'); }
       if (st.mode === 'create' && (!r || r.kind !== 'name_field')) { nameInput.blur(); st.nameFocus = false; }
       return true;
     }

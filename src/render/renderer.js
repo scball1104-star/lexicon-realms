@@ -145,7 +145,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
 
   function draw(prevSnap, snap, alpha, view) {
     const tStart = performance.now();
-    layout = layoutFor(canvas.width, canvas.height, view.zoom || 1, { touch: !!view.touch, hud: view.hud || 'big', dpr: view.dpr || 1 });
+    layout = layoutFor(canvas.width, canvas.height, view.zoom || 1, { touch: !!view.touch, hud: view.hud || 'big', dpr: view.dpr || 1, inset: view.inset });
     ensureWorldBuffer();
     ensureHudBuffers();
     const zoneId = view.zone;

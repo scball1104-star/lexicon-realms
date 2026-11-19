@@ -29,13 +29,27 @@ const TILE = 16;
 async function boot() {
   const q = new URLSearchParams(location.search);
   const canvas = document.getElementById('game');
+  // Size the canvas to the VISIBLE viewport (phones: 100vh runs under the browser's bars, so the bottom of the screen
+  // was cut off). Safe-area insets (notch, home bar) are measured from a CSS probe so the HUD stays clear of them.
+  const safeProbe = document.getElementById('safe');
+  const insets = { l: 0, t: 0, r: 0, b: 0 };
   const fit = () => {
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(window.innerWidth * dpr);
-    canvas.height = Math.round(window.innerHeight * dpr);
+    const vv = window.visualViewport;
+    const w = Math.round(vv ? vv.width : window.innerWidth), h = Math.round(vv ? vv.height : window.innerHeight);
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    if (safeProbe) {
+      const cs = getComputedStyle(safeProbe), px = (k) => Math.round((parseFloat(cs[k]) || 0) * dpr);
+      insets.l = px('paddingLeft'); insets.t = px('paddingTop'); insets.r = px('paddingRight'); insets.b = px('paddingBottom');
+    }
+    window.scrollTo(0, 0);
   };
   fit();
   window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', () => setTimeout(fit, 250));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
 
   const assets = await loadAssets(MANIFEST);
   const content = buildContent();
@@ -200,6 +214,7 @@ async function boot() {
     // before a hero exists the world still draws (behind the title art) at the start zone
     view.zone = me ? me.zone : content.start.zone; view.followId = playerId; view.targetId = me ? me.target : null; view.time = nowMs / 1000;
     view.dpr = window.devicePixelRatio || 1; view.hud = ui.hudMode;
+    view.inset = ui.mode === 'game' ? insets : null;   // title screens: the art covers the notch strips too
     renderer.draw(prev, snap, alpha, view);
     const dpr = window.devicePixelRatio || 1;
     ui.setMetrics({ cssPerHud: renderer.layout.base / dpr });
