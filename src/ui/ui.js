@@ -45,7 +45,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const st = {
     mode: 'title', open: new Set(), hover: null, regions: [], toast: null, chatScroll: 0, trackerCollapsed: false,
     confirm: null, rebinding: null, talentSel: null, questSel: null, mapZone: null, joystick: null, pressed: null,
-    name: '', nameFocus: false, cls: null, look: 0, err: null, selId: null, charId: null, longTip: null,
+    name: '', nameFocus: false, cls: null, look: 0, err: null, selId: null, charId: null, longTip: null, itemPick: null,
     drag: null, metrics: { cssPerHud: 1, touch }, now: 0,
     dialog: null, untracked: new Set(), trained: new Set(), hint: null, levelUp: null, quiet: { text: null, t: -99 }, chatFade: 0,
   };
@@ -134,10 +134,10 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     },
     dismissHint() { st.hint = null; },
     toggle(id) {
-      if (st.open.has(id)) { act.close(id); return; }
+      if (st.open.has(id)) { act.close(id); st.itemPick = null; return; }
       if (CENTER.includes(id)) for (const c of CENTER) st.open.delete(c);
       if (st.metrics.touch) st.open.clear();         // one window at a time on a phone
-      st.open.add(id); st.confirm = null;
+      st.open.add(id); st.confirm = null; st.itemPick = null;
       if (id === 'map') st.mapZone = null;
     },
     learnTalent(id) {

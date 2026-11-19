@@ -10,6 +10,7 @@
 //
 // Headless drivers (qa/shot.py, qa/ui/ui_shots.py, qa/integrate/) use window.__realms: press/release keys, inject
 // intents, step ticks, read snapshots; window.__realms.ui is the UI controller.
+import { bagAdd } from './sim/loot.js';
 import { createWorld, TICK_HZ } from './sim/index.js';
 import { buildContent } from './data/maps/index.js';
 import { loadAssets, MANIFEST } from './core/assets.js';
@@ -256,6 +257,8 @@ async function boot() {
       xp(n) { if (playerId != null) world.grantXp(playerId, n, 'quest'); },
       level(L) { if (playerId != null) world.setLevel(playerId, L); },
       gold(n) { const e = world.get(playerId); if (e) e.gold = (e.gold || 0) + n; },
+      /** a bag item for drivers (phone item-card check): an item id from content.items */
+      item(id, qty = 1) { const e = world.get(playerId); if (e) return bagAdd(e, id, qty, null, content); return 0; },
       hp(n) { const e = world.get(playerId); if (e && !e.dead) e.hp = Math.max(1, Math.min(e.hpMax, n)); },
     };
   }

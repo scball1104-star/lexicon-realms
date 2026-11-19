@@ -30,6 +30,7 @@ export function helpSections(binds) {
       ['Gold !', 'A quest to take', ''],
       ['Gold ?', 'Ready to hand in', ''],
       ['Grey ! or ?', 'Later, or still in progress', ''],
+      ['Item info', 'Point at it in Bags', 'Tap it; tap again to use'],
       ['Quest log', `${k(b, 'quests')}, or click the tracker`, '! button, or tracker'],
     ] },
     { title: 'Menus and view', rows: [

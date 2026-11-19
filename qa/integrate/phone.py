@@ -174,7 +174,22 @@ def run():
 
         # ---- bags and talents from the top menu bar
         ph.tap_region(kind='menu_button', id='bags', wait=0.4)
-        ph.shot('phone_08_bags', 'bags window (tap an item to use it)')
+        ph.shot('phone_08_bags', 'bags window')
+        # a tap on a bag item opens the pinned item card (stats, compare, Equip/Use, Close); it does not use the item
+        # a slime does not always drop loot: put a piece of gear in the bag so the card has stats and a compare to show
+        gear = ph.ev("Object.keys(window.__realms.content.items || {}).find((k) => (window.__realms.content.items[k] || {}).slot === 'chest')")
+        assert gear and ph.ev(f'window.__realms.dev.item({json.dumps(gear)})') > 0, 'gave a chest piece'
+        ph.ev('window.__realms.redraw()')
+        time.sleep(0.3)
+        labels = ph.ev('__drv.labels()')
+        first = next((l for l in reversed(labels) if isinstance(l, str) and l.startswith('bag:')), None)
+        assert first, f'a bag item to tap; labels {labels}'
+        ph.tap_region(label=first, wait=0.4)
+        labels = ph.ev('__drv.labels()')
+        assert 'card:close' in labels, f'item card opened; labels {labels}'
+        ph.shot('phone_08b_item_card', 'item card after one tap on a bag item')
+        ph.tap_region(label='card:close', wait=0.3)
+        assert 'card:close' not in ph.ev('__drv.labels()'), 'Close shuts the card'
         ph.tap_region(kind='menu_button', id='talents', wait=0.4)
         ph.shot('phone_09_talents', 'talents window on the phone')
         ph.tap_region(kind='menu_button', id='talents', wait=0.3)

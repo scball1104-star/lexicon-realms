@@ -4,7 +4,7 @@
 import { menuRect, bagGrid } from './layout.js';
 import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, resourceLabel } from './gamedata.js';
 import { drawMarkers } from './minimap.js';
-import { drawAreas } from './hud.js';
+import { drawAreas, drawTooltip } from './hud.js';
 import { ACTIONS, effectiveBinds, keyLabel } from './keymap.js';
 
 const SLOT_ICON = { head: 'icon_helm', chest: 'icon_armor', legs: 'icon_mantle', feet: 'icon_boots', main: 'icon_sword', off: 'icon_shield', hands: 'icon_charm', trinket: 'icon_star' };
@@ -90,9 +90,21 @@ export function drawCharacter(ctx, env, m, st, regions, act) {
     const it = m.equip[slot];
     itemSlot(ctx, env, sr, it, SLOT_ICON[slot]);
     regions.push({ rect: { x: sr.x, y: sr.y, w: Math.max(sz, env.L.minHit || 0), h: pitch }, kind: 'equip', slot,
-      tip: it ? itemTooltip(it, 'Right-click to take off') : { title: SLOT_NAME[slot], sub: 'Empty' },
-      on: (btn) => { if (it && (btn === 2 || env.L.touch)) act.unequip(slot); } });
+      tip: it ? itemTooltip(it, env.L.touch ? null : 'Right-click to take off') : { title: SLOT_NAME[slot], sub: 'Empty' },
+      on: (btn) => {
+        if (!env.L.touch) { if (it && btn === 2) act.unequip(slot); return; }
+        if (!it) { st.itemPick = null; return; }
+        if (samePick(st.itemPick, 'equip', slot, it)) { st.itemPick = null; act.unequip(slot); return; }
+        st.itemPick = { kind: 'equip', key: slot, id: it.uid != null ? it.uid : it.item };
+      } });
+    if (it && env.L.touch && samePick(st.itemPick, 'equip', slot, it)) g.outline(ctx, sr.x, sr.y, sr.x + sr.w - 1, sr.y + sr.h - 1, '#ffd34d');
   });
+  // the pinned item card (touch): right of the character window
+  if (env.L.touch && st.itemPick && st.itemPick.kind === 'equip') {
+    const it = m.equip[st.itemPick.key];
+    if (!samePick(st.itemPick, 'equip', st.itemPick.key, it)) st.itemPick = null;
+    else { const slot = st.itemPick.key; itemCard(ctx, env, st, regions, itemTooltip(it, null), r.x + r.w + 6, r.y, 'Take off', () => { st.itemPick = null; act.unequip(slot); }); }
+  }
   gear(GEAR_LEFT, r.x + 9);
   gear(GEAR_RIGHT, r.x + 9 + sz + 6);
   // stats
@@ -113,6 +125,27 @@ export function drawCharacter(ctx, env, m, st, regions, act) {
   g.text(ctx, `${Number(m.gold).toLocaleString('en-US')} gold`, sx + 15, y, 'gold');
   if (!m.stats) g.text(ctx, 'Base stats from the class table. Gear is not counted yet.', r.x + 9, r.y + r.h - 18, 'dim');
 }
+
+// ---------------------------------------------------------------- item card (touch)
+// On a phone a tap on a bag or worn item opens this card: the full tooltip, pinned where the finger is not, with the
+// action as a button. A second tap on the same item does the action at once. (Scott 2026-11-19: "On mobile, how can I
+// tell what the items in my bag and what stats they have? It's difficult right now.")
+function itemCard(ctx, env, st, regions, tip, x, y, label, onAct) {
+  const { g, L } = env;
+  const bh = Math.max(20, L.minHit || 0), gap = 4;
+  const box = drawTooltip(g, ctx, tip, x, y, { W: L.W, H: L.H - bh - gap });
+  const by = box.y + box.h + gap;
+  regions.push({ rect: { x: box.x, y: box.y, w: box.w, h: box.h + gap + bh }, kind: 'window', id: 'item_card' });
+  const bw = Math.floor((box.w - gap) / 2);
+  const btns = [[label, 'forest', onAct], ['Close', 'slate', () => { st.itemPick = null; }]].filter((b) => b[0]);
+  btns.forEach(([text, tone, on], k) => {
+    const w = btns.length === 1 ? box.w : bw, bx = box.x + k * (bw + gap);
+    g.window(ctx, bx, by, w, bh, 'thin', tone, 0.97);
+    g.text(ctx, text, bx + w / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+    regions.push({ rect: { x: bx, y: by, w, h: bh }, kind: 'button', label: `card:${text.toLowerCase()}`, on: () => { on(); } });
+  });
+}
+const samePick = (pk, kind, key, it) => pk && pk.kind === kind && pk.key === key && pk.id === (it && (it.uid != null ? it.uid : it.item));
 
 // ---------------------------------------------------------------- bags
 
@@ -135,8 +168,25 @@ export function drawBags(ctx, env, m, st, regions, act) {
     itemSlot(ctx, env, c, it, null);
     const touchHint = env.L.touch ? 'Tap to' : 'Right-click to';
     if (it) regions.push({ rect: c, kind: 'bag', i: c.i, tip: itemTooltip(it, itemInfo(it).slot ? `${touchHint} equip` : itemInfo(it).use ? `${touchHint} use` : null, itemInfo(it).slot ? (m.equip[itemInfo(it).slot] || null) : undefined),
-      on: (btn) => { if (btn === 2 || env.L.touch) act.useItem(c.i); }, label: `bag:${c.i}` });
+      on: (btn) => {
+        if (!env.L.touch) { if (btn === 2) act.useItem(c.i); return; }
+        if (samePick(st.itemPick, 'bag', c.i, it)) { st.itemPick = null; act.useItem(c.i); return; }
+        st.itemPick = { kind: 'bag', key: c.i, id: it.uid != null ? it.uid : it.item };
+      }, label: `bag:${c.i}` });
+    if (it && env.L.touch && samePick(st.itemPick, 'bag', c.i, it)) g.outline(ctx, c.x, c.y, c.x + c.w - 1, c.y + c.h - 1, '#ffd34d');
   });
+  // the pinned item card (touch): left of the bags window
+  if (env.L.touch && st.itemPick && st.itemPick.kind === 'bag') {
+    const i = st.itemPick.key, it = bag.items[i];
+    if (!samePick(st.itemPick, 'bag', i, it)) st.itemPick = null;
+    else {
+      const info = itemInfo(it) || {};
+      const vendor = st.dialog && st.dialog.page === 'vendor';
+      const label = vendor ? (info.value && info.kind !== 'quest' ? `Sell (${info.value}g)` : null) : info.slot || it.kind === 'bag' ? 'Equip' : info.use ? 'Use' : null;
+      const tip = itemTooltip(it, null, info.slot ? (m.equip[info.slot] || null) : undefined);
+      if (tip) itemCard(ctx, env, st, regions, tip, Math.max(4, r.x - 220), r.y, label, () => { st.itemPick = null; act.useItem(i); });
+    }
+  }
   g.icon(ctx, 'icon_gold', r.x + 10, r.y + r.h - 18);
   g.text(ctx, `${Number(m.gold).toLocaleString('en-US')} gold`, r.x + 25, r.y + r.h - 19, 'gold');
   if (used >= n) g.text(ctx, 'Bags full', r.x + r.w - 10, r.y + r.h - 19, 'red', { align: 'right' });
