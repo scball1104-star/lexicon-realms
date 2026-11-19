@@ -1,0 +1,220 @@
+{
+ "image": "abilities24.png",
+ "size": [
+  24,
+  24
+ ],
+ "frames": {
+  "warden_auto": [
+   0,
+   0,
+   24,
+   24
+  ],
+  "warden_strike": [
+   24,
+   0,
+   24,
+   24
+  ],
+  "warden_shield_bash": [
+   48,
+   0,
+   24,
+   24
+  ],
+  "warden_taunt": [
+   72,
+   0,
+   24,
+   24
+  ],
+  "warden_second_wind": [
+   96,
+   0,
+   24,
+   24
+  ],
+  "warden_sweeping_blow": [
+   120,
+   0,
+   24,
+   24
+  ],
+  "warden_oath_of_iron": [
+   144,
+   0,
+   24,
+   24
+  ],
+  "mender_auto": [
+   0,
+   24,
+   24,
+   24
+  ],
+  "mender_kindle": [
+   24,
+   24,
+   24,
+   24
+  ],
+  "mender_mend": [
+   48,
+   24,
+   24,
+   24
+  ],
+  "mender_brand": [
+   72,
+   24,
+   24,
+   24
+  ],
+  "mender_warding_word": [
+   96,
+   24,
+   24,
+   24
+  ],
+  "mender_steady_name": [
+   120,
+   24,
+   24,
+   24
+  ],
+  "mender_chorus": [
+   144,
+   24,
+   24,
+   24
+  ],
+  "scribe_auto": [
+   0,
+   48,
+   24,
+   24
+  ],
+  "scribe_inkbolt": [
+   24,
+   48,
+   24,
+   24
+  ],
+  "scribe_scrawl": [
+   48,
+   48,
+   24,
+   24
+  ],
+  "scribe_full_stop": [
+   72,
+   48,
+   24,
+   24
+  ],
+  "scribe_underline": [
+   96,
+   48,
+   24,
+   24
+  ],
+  "scribe_scatter_letters": [
+   120,
+   48,
+   24,
+   24
+  ],
+  "scribe_bracket": [
+   144,
+   48,
+   24,
+   24
+  ],
+  "wayfinder_auto": [
+   0,
+   72,
+   24,
+   24
+  ],
+  "wayfinder_quick_shot": [
+   24,
+   72,
+   24,
+   24
+  ],
+  "wayfinder_pinning_shot": [
+   48,
+   72,
+   24,
+   24
+  ],
+  "wayfinder_briar_trap": [
+   72,
+   72,
+   24,
+   24
+  ],
+  "wayfinder_light_foot": [
+   96,
+   72,
+   24,
+   24
+  ],
+  "wayfinder_aimed_shot": [
+   120,
+   72,
+   24,
+   24
+  ],
+  "wayfinder_volley": [
+   144,
+   72,
+   24,
+   24
+  ],
+  "inkblade_auto": [
+   0,
+   96,
+   24,
+   24
+  ],
+  "inkblade_nick": [
+   24,
+   96,
+   24,
+   24
+  ],
+  "inkblade_spill": [
+   48,
+   96,
+   24,
+   24
+  ],
+  "inkblade_fade": [
+   72,
+   96,
+   24,
+   24
+  ],
+  "inkblade_ink_in_the_eyes": [
+   96,
+   96,
+   24,
+   24
+  ],
+  "inkblade_bleed_line": [
+   120,
+   96,
+   24,
+   24
+  ],
+  "inkblade_inkstep": [
+   144,
+   96,
+   24,
+   24
+  ]
+ },
+ "note": "ids = CLASSES.md ability ids, plus <class>_auto (auto-attack). Cooldown sweep is drawn by the UI over the icon."
+}

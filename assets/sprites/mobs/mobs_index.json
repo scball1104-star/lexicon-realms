@@ -1,0 +1,446 @@
+{
+ "note": "Lexicon Realms mob atlases (build: python tools/art/build_mobs.py). lq = the closest Lexicon Quest field sprite (and battle sprite) the world agent mapped before these existed.",
+ "mobs": {
+  "briar_wolf": {
+   "atlas": "briar_wolf.json",
+   "name": "Briar Wolf",
+   "family": "beast",
+   "cell": [
+    40,
+    32
+   ],
+   "origin": [
+    20,
+    31
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:briar_wolf",
+    "battle": "enemies_battle:briar_wolf"
+   },
+   "variant_of": null
+  },
+  "thornback_wolf": {
+   "atlas": "thornback_wolf.json",
+   "name": "Thornback Wolf",
+   "family": "beast",
+   "cell": [
+    40,
+    32
+   ],
+   "origin": [
+    20,
+    31
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:thornback_wolf",
+    "battle": "enemies_battle:thornback_wolf"
+   },
+   "variant_of": null
+  },
+  "mist_wolf": {
+   "atlas": "mist_wolf.json",
+   "name": "Mist Wolf",
+   "family": "beast",
+   "cell": [
+    40,
+    32
+   ],
+   "origin": [
+    20,
+    31
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:mist_wolf",
+    "battle": "enemies_battle:mist_wolf"
+   },
+   "variant_of": null
+  },
+  "gorse_boar": {
+   "atlas": "gorse_boar.json",
+   "name": "Gorse Boar",
+   "family": "beast",
+   "cell": [
+    40,
+    32
+   ],
+   "origin": [
+    20,
+    31
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": null,
+    "battle": null,
+    "closest": "enemies_field:briar_wolf (a beast of the same size; LQ has no boar)"
+   },
+   "variant_of": null
+  },
+  "fold_ram": {
+   "atlas": "fold_ram.json",
+   "name": "Fold Ram",
+   "family": "beast",
+   "cell": [
+    40,
+    32
+   ],
+   "origin": [
+    20,
+    31
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "x1_npcs:animal_sheep_tufted",
+    "battle": null
+   },
+   "variant_of": null
+  },
+  "ink_slime": {
+   "atlas": "ink_slime.json",
+   "name": "Ink Slime",
+   "family": "ooze",
+   "cell": [
+    28,
+    24
+   ],
+   "origin": [
+    14,
+    23
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:ink_slime",
+    "battle": "enemies_battle:ink_slime"
+   },
+   "variant_of": null
+  },
+  "ink_slime_deep": {
+   "atlas": "ink_slime_deep.json",
+   "name": "Ink Slime (levels 3-4)",
+   "family": "ooze",
+   "cell": [
+    28,
+    24
+   ],
+   "origin": [
+    14,
+    23
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:ink_slime",
+    "battle": "enemies_battle:ink_slime"
+   },
+   "variant_of": "ink_slime"
+  },
+  "ink_blot": {
+   "atlas": "ink_blot.json",
+   "name": "Ink Blot",
+   "family": "ooze",
+   "cell": [
+    28,
+    28
+   ],
+   "origin": [
+    14,
+    27
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:ink_blot",
+    "battle": "enemies_battle:ink_blot"
+   },
+   "variant_of": null
+  },
+  "moss_scarab": {
+   "atlas": "moss_scarab.json",
+   "name": "Moss Scarab",
+   "family": "insect",
+   "cell": [
+    28,
+    22
+   ],
+   "origin": [
+    14,
+    21
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:moss_scarab",
+    "battle": "enemies_battle:moss_scarab"
+   },
+   "variant_of": null
+  },
+  "moss_scarab_moor": {
+   "atlas": "moss_scarab_moor.json",
+   "name": "Moor Scarab",
+   "family": "insect",
+   "cell": [
+    28,
+    22
+   ],
+   "origin": [
+    14,
+    21
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:moss_scarab",
+    "battle": "enemies_battle:moss_scarab"
+   },
+   "variant_of": "moss_scarab"
+  },
+  "gorse_crow": {
+   "atlas": "gorse_crow.json",
+   "name": "Gorse Crow",
+   "family": "beast",
+   "cell": [
+    32,
+    32
+   ],
+   "origin": [
+    16,
+    31
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": null,
+    "battle": null,
+    "closest": "enemies_field:glint_wisp (a small flyer; LQ has no crow)"
+   },
+   "variant_of": null
+  },
+  "page_wraith": {
+   "atlas": "page_wraith.json",
+   "name": "Page Wraith",
+   "family": "spirit",
+   "cell": [
+    32,
+    40
+   ],
+   "origin": [
+    16,
+    39
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:page_wraith",
+    "battle": "enemies_battle:page_wraith"
+   },
+   "variant_of": null
+  },
+  "ink_wraith": {
+   "atlas": "ink_wraith.json",
+   "name": "Ink Wraith",
+   "family": "spirit",
+   "cell": [
+    32,
+    40
+   ],
+   "origin": [
+    16,
+    39
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:ink_wraith",
+    "battle": "enemies_battle:ink_wraith"
+   },
+   "variant_of": null
+  },
+  "barrow_shade": {
+   "atlas": "barrow_shade.json",
+   "name": "Barrow Shade",
+   "family": "spirit",
+   "cell": [
+    32,
+    40
+   ],
+   "origin": [
+    16,
+    39
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "x1_enemies_field:barrow_shade",
+    "battle": "x1_enemies_battle:barrow_shade"
+   },
+   "variant_of": null
+  },
+  "tower_sentinel": {
+   "atlas": "tower_sentinel.json",
+   "name": "Tower Sentinel",
+   "family": "construct",
+   "cell": [
+    40,
+    44
+   ],
+   "origin": [
+    20,
+    43
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:glass_sentinel",
+    "battle": "enemies_battle:glass_sentinel",
+    "closest": "x1_enemies_field:millstone_golem (stone construct)"
+   },
+   "variant_of": null
+  },
+  "sentinel_long_watch": {
+   "atlas": "sentinel_long_watch.json",
+   "name": "Sentinel of the Long Watch",
+   "family": "construct",
+   "cell": [
+    64,
+    64
+   ],
+   "origin": [
+    32,
+    63
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:echo_warden",
+    "battle": "bosses_battle:echo_warden",
+    "closest": "x1_bosses_battle:millstone_golem (the X1 elite construct)"
+   },
+   "variant_of": null
+  },
+  "watch_lamp": {
+   "atlas": "watch_lamp.json",
+   "name": "Watch Lamp",
+   "family": "construct",
+   "cell": [
+    24,
+    44
+   ],
+   "origin": [
+    12,
+    43
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": null,
+    "battle": null,
+    "closest": "props:lamp_post_lit (+ lamp_glow)"
+   },
+   "variant_of": null
+  }
+ }
+}

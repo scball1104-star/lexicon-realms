@@ -59,7 +59,67 @@ LQ outline rule), `tools/art/build_chars.py` (classes, looks, poses, atlas). Add
 
 Build: `python tools/art/build_fx.py`.
 
+### Mobs (wave 2): `assets/sprites/mobs/`
+
+One atlas per mob id of ZONES_QUESTS 2.3 / 3.1 / 4.1, plus two colour tiers. Same shape as the player atlases:
+`frames` `{anim}_{dir}_{i}` -> `[x, y, w, h]`, `anims` `{anim}_{dir}` -> `{frames, fps, loop}`, `cell`, `origin` = the
+feet point (`[w/2, h-1]`), `hitFrame.attack = 1`, `windupFrame.attack = 0`, `points` (attack/cast/special frames:
+`mouth`, `hand`, `cast` = projectile spawn, `lamp` = cone apex), `emissive` (glow-only sheet) where the mob glows,
+and `notes` / `flying` / `hover` / `stationary` where they apply. Rows: down, left, right, up (right = mirrored left).
+Every mob: `idle` 2, `walk` 4, `attack` 3 (0 wind-up, 1 strike, 2 recover), `hurt` 1, `death` 3 (2 = dither fade).
+Extras: `cast` 2 (casters, loops while casting), `special` 2 (a named telegraph).
+`mobs_index.json` lists them all with the closest LQ sprite (`lq`), for the world agent's mapping table.
+
+| mob id | cell | extras | closest LQ sprite (field / battle) |
+|---|---|---|---|
+| `ink_slime` (+ `ink_slime_deep`, levels 3-4) | 28x24 | | `enemies_field:ink_slime` / `enemies_battle:ink_slime` |
+| `ink_blot` | 28x28 | cast (ink_spit) | `enemies_field:ink_blot` / `enemies_battle:ink_blot` |
+| `moss_scarab` (+ `moss_scarab_moor`, the Moor Scarab) | 28x22 | special = shell_up | `enemies_field:moss_scarab` |
+| `briar_wolf` | 40x32 | | `enemies_field:briar_wolf` / `enemies_battle:briar_wolf` |
+| `thornback_wolf` | 40x32 | | `enemies_field:thornback_wolf` |
+| `mist_wolf` | 40x32 | emissive crystals | `enemies_field:mist_wolf` |
+| `fold_ram` | 40x32 | special = ram_charge | `x1_npcs:animal_sheep_tufted` (no LQ ram) |
+| `gorse_boar` | 40x32 | special = boar_charge paw | none; closest `enemies_field:briar_wolf` |
+| `gorse_crow` | 32x32 | flying, hover 8 | none; closest `enemies_field:glint_wisp` |
+| `barrow_shade` | 32x40 | cast (chilling_touch) | `x1_enemies_field:barrow_shade` / `x1_enemies_battle:barrow_shade` |
+| `page_wraith` | 32x40 | cast (paper_cut) | `enemies_field:page_wraith` |
+| `ink_wraith` | 32x40 | cast (ink_tide) | `enemies_field:ink_wraith` |
+| `tower_sentinel` | 40x44 | special = lamp_sweep | `enemies_field:glass_sentinel` (or `x1_enemies_field:millstone_golem`) |
+| `watch_lamp` | 24x44 | cast (kindle_watch), stationary | none; closest `props:lamp_post_lit` + `lamp_glow` |
+| `sentinel_long_watch` (ELITE) | 64x64 | special = Lamp Sweep | `enemies_field:echo_warden` / `bosses_battle:echo_warden` |
+
+Build: `python tools/art/build_mobs.py [id]` (all four wave-2 builders together take about 10 s). Code: `tools/art/mobkit.py` (shaded-shape pixel kit:
+ellipsoids, capsules, polygons lit from the upper left, LQ outline rule), `mob_rigs.py` (quadruped rig: wolves, boar,
+ram), `mob_rigs2.py` (ooze, scarab, crow, wraith, construct, lamp), `mob_defs.py` (palettes sampled from the LQ field
+sprite of the same creature, cells, extras, LQ mapping). Add a colour tier by one `mob(...)` line with a new palette.
+`python tools/art/zoom_mob.py <id> [frames...]` writes `out/_zoom_mob.png`.
+
+### Icons (wave 2): `assets/icons/`
+
+| File | What |
+|---|---|
+| `abilities16.png/json`, `abilities24.png/json` | the 30 abilities (ids = CLASSES.md 7) + `<class>_auto`; class-coloured bevel frames (warden blue, mender green, scribe cyan, wayfinder russet, inkblade violet). 24 is the bar size; the UI draws the cooldown sweep |
+| `talents16.png/json` | all 162 nodes (ids = TALENTS.md). Class frame, branch background (1st crimson, 2nd forest, 3rd midnight), gold frame on tier-5 capstones, gold corner notch on [play] nodes, a corner badge on rank themes (up, clock, star, chev, plus, down, x2). The builder asserts no two nodes of one class share glyph+badge |
+| `talent_emblems24.png/json` | 15 branch emblems `<class>_<branch>` |
+| `items16.png/json` | `weapon_<sword, shield, staff, rod, quill, bell, book, bow, dagger, daggers>`, `armor_<head, chest, legs, feet, hands>_<plate, mail, leather, cloth>`, `armor_trinket`, `potion`, `hi_potion`, `ether`, `hi_ether`, `antidote`, `honey_roll`, bags (`travel_satchel`, `drovers_pack`, `loom_bag`), `gold`, `slime_ink`, and the ZONES_QUESTS 5.6 quest items. Neutral slate frame: the UI tints it by rarity |
+| `realms_logo.png/json` | the "Lexicon Realms" title logo (314x63, 1x; draw at 3x). Kept here because the art lane owns this folder; the UI lane may copy it to `assets/ui` |
+
+Build: `python tools/art/build_icons.py`, `python tools/art/build_logo.py`. Glyphs: `tools/art/icon_glyphs.py` (each
+glyph is drawn in normalised coordinates, so one design renders at 16 and 24). Logo letters: DejaVu Serif Bold,
+vendored with its licence in `tools/art/fonts/`.
+
+### Portraits (wave 2): `assets/portraits/portraits.png/json`
+
+`<class>_look<n>` 32x32 (LQ `<name>_32` scale, the player frame) and `<class>_look<n>_64` (creation preview). Painted at
+128 px and box-reduced like LQ's, on LQ's portrait blue with the pale top-left rim; skin, hair and outfit ramps are the
+look's own from `build_chars.py`. Build: `python tools/art/build_portraits.py`.
+
 ### Previews: `tools/art/out/`
+
+Wave 2: `mob_<id>_4x.png` (every frame of a mob at 4x), `mobs_overview_3x.png` (every mob beside the Warden on grass),
+`icons_abilities16.png`, `icons_abilities24.png`, `icons_talents_<class>.png`, `icons_talent_emblems24.png`,
+`icons_items16.png` (each at 4x and 1x, on dark and on the HUD window blue), `portraits_vs_sprites.png`, `logo_3x.png`,
+`ref/` (LQ reference crops). Wave 1:
 
 `<class>_contact.png` (every frame at 4x), `lineup_1x_3x.png` (all 15 looks beside LQ's hero, Mira and
 Bram at 1x and 3x on LQ grass), `lineup_actions_3x.png` (attack strike and cast, down and left),
@@ -133,22 +193,15 @@ the `x1_*` maps (downs, highmoor, larchhill, mill, millrace), plus interiors (`i
 
 ## 3. Missing for phase 1
 
-Ordered by how soon the build needs it.
+Ordered by how soon the build needs it. Items 1 to 5 and the logo half of 9 were made in wave 2 (section 1);
+what is left of them is listed here.
 
-1. **Mob field sprites for real-time combat.** LQ field enemies have only 2 frames facing left. Each phase-1
-   mob needs 4-dir (or left + mirror) walk, attack wind-up and hit, hurt, death. About 8 to 10 families for
-   two zones and 15 levels, e.g. ink slime, briar wolf (+ alpha elite), moss scarab, bookmite swarm, page wraith,
-   bandit or poacher humanoid (reuse the player paper doll), barrow shade, millstone golem (elite), a boar or
-   stag (plain wildlife), crows. Plus 2 colour tiers per family for level bands.
-2. **Ability icons**: 30 (5 classes x 6), 24x24 or 20x20 for the ability bar, plus a cooldown-sweep mask and an
-   auto-attack icon. LQ's 12 px icons are too small and too few.
-3. **Talent icons**: 5 classes x 3 branches x 5 tiers = up to 75 (many can be recolours within a branch) plus
-   3 branch emblems per class (15).
-4. **Character-creation portraits**: 15 (one per class look), LQ portrait scale, so creation and the player
-   frame show who you made. Optional: a 5-class emblem set for the class picker.
-5. **Item icons**: weapon types per class (sword, shield, staff, quill, tome, bow, daggers), armor slots (head,
-   chest, legs, feet, hands, ring), consumables, quest items, gold. Gear on the character is not shown (one look
-   per sheet); equipping does not change the sprite in phase 1.
+1. ~~Mob sprites~~ done (17 atlases). Left: second colour tiers for the wolves, boar, crow and wraiths (one
+   `mob(...)` line each); a briar alpha if a design ever asks for it.
+2. ~~Ability icons~~ done. Left: nothing; the cooldown sweep is drawn by the UI.
+3. ~~Talent icons~~ done (162 + 15 emblems).
+4. ~~Portraits~~ done (15, 32 and 64). Optional still: a 5-class emblem set for the class picker.
+5. ~~Item icons~~ done. Left: unique icons for named rare rewards (they use the weapon-type icon for now).
 6. **More FX**: hit sparks (physical, holy, ink), shield block flash, root/snare vines, stun stars, slow (ink drip),
    cast-bar channel loops per school, mob death puff, loot sparkle, respawn lantern glow, quest-giver "!" and "?"
    markers (LQ emotes can stand in), target ring under the selected unit (friendly / hostile / neutral colours).
@@ -156,7 +209,7 @@ Ordered by how soon the build needs it.
    cover the characters.
 8. **HUD art** per the approved stills: player/target frames, cast bar, XP bar, minimap frame, quest tracker,
    ability bar slots. LQ windows and fonts cover most of it; the frames and bars are new.
-9. **Realms logo and title backdrop.**
+9. ~~Realms logo~~ done (`assets/icons/realms_logo.png`). Left: the title backdrop.
 10. **Music** for anything the LQ themes do not fit (a Realms title theme, a combat loop that is not a
     turn-based battle theme).
 
@@ -168,3 +221,17 @@ Ordered by how soon the build needs it.
   cheat but reads).
 - `dead` is the down stand rotated 90 degrees, not a hand-drawn lying pose.
 - Robes walk the LQ way (feet swap, hem sway, no bob), so Mender and Scribe walks are subtle.
+
+## Weak spots in the wave 2 art (known)
+
+- Mobs are code-sculpted from shaded shapes, not hand-pixeled like LQ's grids: they read and stay on-model in colour
+  and silhouette, but are softer than LQ's field sprites. The side views are the strongest; front and back views of
+  the four-legged beasts are the weakest (the wolves read a little like seated dogs from the front).
+- The crow is small (LQ has no crow to follow); its down-stroke wing reads thin.
+- Wraith side views: the near sleeve hangs as a straight bar. The death "empty robe" pile is small.
+- The ram's horns are tiny in profile; wool is flat in the side view.
+- Hurt frames are a recoil pose only; the renderer should flash the sprite white for the hit.
+- Talent icons at 16 px: a few busy glyphs (bell with sound waves, three scrolls, ink veins, crossed swords) are
+  muddy at 1x; the corner badges carry the difference between rank themes of one glyph.
+- Portraits are painted procedurally, simpler than LQ's painted portraits (no hair strands or cloth folds); good at
+  32 px, plain at 64.

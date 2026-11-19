@@ -1,0 +1,8 @@
+{
+ "image": "realms_logo.png",
+ "size": [
+  314,
+  63
+ ],
+ "note": "Title-screen logo, 1x pixel art: draw at an integer scale, nearest neighbour (3x at 1080p). Lives in assets/icons because the art lane owns that folder; the UI lane may copy it to assets/ui."
+}

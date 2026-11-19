@@ -1,0 +1,99 @@
+{
+ "image": "talent_emblems24.png",
+ "size": [
+  24,
+  24
+ ],
+ "frames": {
+  "warden_bulwark": [
+   0,
+   0,
+   24,
+   24
+  ],
+  "warden_oathblade": [
+   24,
+   0,
+   24,
+   24
+  ],
+  "warden_lantern": [
+   48,
+   0,
+   24,
+   24
+  ],
+  "mender_hearth": [
+   0,
+   24,
+   24,
+   24
+  ],
+  "mender_kindling": [
+   24,
+   24,
+   24,
+   24
+  ],
+  "mender_bell": [
+   48,
+   24,
+   24,
+   24
+  ],
+  "scribe_quill": [
+   0,
+   48,
+   24,
+   24
+  ],
+  "scribe_margin": [
+   24,
+   48,
+   24,
+   24
+  ],
+  "scribe_wet_ink": [
+   48,
+   48,
+   24,
+   24
+  ],
+  "wayfinder_fletch": [
+   0,
+   72,
+   24,
+   24
+  ],
+  "wayfinder_snare": [
+   24,
+   72,
+   24,
+   24
+  ],
+  "wayfinder_roadwise": [
+   48,
+   72,
+   24,
+   24
+  ],
+  "inkblade_edge": [
+   0,
+   96,
+   24,
+   24
+  ],
+  "inkblade_shade": [
+   24,
+   96,
+   24,
+   24
+  ],
+  "inkblade_blot": [
+   48,
+   96,
+   24,
+   24
+  ]
+ }
+}

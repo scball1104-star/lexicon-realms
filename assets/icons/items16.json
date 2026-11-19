@@ -1,0 +1,322 @@
+{
+ "image": "items16.png",
+ "size": [
+  16,
+  16
+ ],
+ "frames": {
+  "weapon_sword": [
+   0,
+   0,
+   16,
+   16
+  ],
+  "weapon_shield": [
+   16,
+   0,
+   16,
+   16
+  ],
+  "weapon_staff": [
+   32,
+   0,
+   16,
+   16
+  ],
+  "weapon_rod": [
+   48,
+   0,
+   16,
+   16
+  ],
+  "weapon_quill": [
+   64,
+   0,
+   16,
+   16
+  ],
+  "weapon_bell": [
+   80,
+   0,
+   16,
+   16
+  ],
+  "weapon_book": [
+   96,
+   0,
+   16,
+   16
+  ],
+  "weapon_bow": [
+   112,
+   0,
+   16,
+   16
+  ],
+  "weapon_dagger": [
+   128,
+   0,
+   16,
+   16
+  ],
+  "weapon_daggers": [
+   144,
+   0,
+   16,
+   16
+  ],
+  "potion": [
+   160,
+   0,
+   16,
+   16
+  ],
+  "hi_potion": [
+   176,
+   0,
+   16,
+   16
+  ],
+  "ether": [
+   0,
+   16,
+   16,
+   16
+  ],
+  "hi_ether": [
+   16,
+   16,
+   16,
+   16
+  ],
+  "antidote": [
+   32,
+   16,
+   16,
+   16
+  ],
+  "honey_roll": [
+   48,
+   16,
+   16,
+   16
+  ],
+  "travel_satchel": [
+   64,
+   16,
+   16,
+   16
+  ],
+  "drovers_pack": [
+   80,
+   16,
+   16,
+   16
+  ],
+  "loom_bag": [
+   96,
+   16,
+   16,
+   16
+  ],
+  "gold": [
+   112,
+   16,
+   16,
+   16
+  ],
+  "slime_ink": [
+   128,
+   16,
+   16,
+   16
+  ],
+  "stray_hen": [
+   144,
+   16,
+   16,
+   16
+  ],
+  "pells_crate": [
+   160,
+   16,
+   16,
+   16
+  ],
+  "quills_copy": [
+   176,
+   16,
+   16,
+   16
+  ],
+  "thornback_hide": [
+   0,
+   32,
+   16,
+   16
+  ],
+  "fold_fleece": [
+   16,
+   32,
+   16,
+   16
+  ],
+  "ink_soaked_hay": [
+   32,
+   32,
+   16,
+   16
+  ],
+  "pocket_button": [
+   48,
+   32,
+   16,
+   16
+  ],
+  "boar_tusk": [
+   64,
+   32,
+   16,
+   16
+  ],
+  "chime_piece": [
+   80,
+   32,
+   16,
+   16
+  ],
+  "odos_chime_word": [
+   96,
+   32,
+   16,
+   16
+  ],
+  "armor_head_plate": [
+   112,
+   32,
+   16,
+   16
+  ],
+  "armor_head_mail": [
+   128,
+   32,
+   16,
+   16
+  ],
+  "armor_head_leather": [
+   144,
+   32,
+   16,
+   16
+  ],
+  "armor_head_cloth": [
+   160,
+   32,
+   16,
+   16
+  ],
+  "armor_chest_plate": [
+   176,
+   32,
+   16,
+   16
+  ],
+  "armor_chest_mail": [
+   0,
+   48,
+   16,
+   16
+  ],
+  "armor_chest_leather": [
+   16,
+   48,
+   16,
+   16
+  ],
+  "armor_chest_cloth": [
+   32,
+   48,
+   16,
+   16
+  ],
+  "armor_legs_plate": [
+   48,
+   48,
+   16,
+   16
+  ],
+  "armor_legs_mail": [
+   64,
+   48,
+   16,
+   16
+  ],
+  "armor_legs_leather": [
+   80,
+   48,
+   16,
+   16
+  ],
+  "armor_legs_cloth": [
+   96,
+   48,
+   16,
+   16
+  ],
+  "armor_feet_plate": [
+   112,
+   48,
+   16,
+   16
+  ],
+  "armor_feet_mail": [
+   128,
+   48,
+   16,
+   16
+  ],
+  "armor_feet_leather": [
+   144,
+   48,
+   16,
+   16
+  ],
+  "armor_feet_cloth": [
+   160,
+   48,
+   16,
+   16
+  ],
+  "armor_hands_plate": [
+   176,
+   48,
+   16,
+   16
+  ],
+  "armor_hands_mail": [
+   0,
+   64,
+   16,
+   16
+  ],
+  "armor_hands_leather": [
+   16,
+   64,
+   16,
+   16
+  ],
+  "armor_hands_cloth": [
+   32,
+   64,
+   16,
+   16
+  ],
+  "armor_trinket": [
+   48,
+   64,
+   16,
+   16
+  ]
+ },
+ "note": "neutral slate frame; the UI tints the frame by rarity (LQ colours). armor_<slot>_<plate|mail|leather|cloth>; weapon_<type>."
+}

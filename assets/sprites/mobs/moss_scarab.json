@@ -1,0 +1,657 @@
+{
+ "image": "moss_scarab.png",
+ "mob": "moss_scarab",
+ "name": "Moss Scarab",
+ "family": "insect",
+ "cell": [
+  28,
+  22
+ ],
+ "origin": [
+  14,
+  21
+ ],
+ "anchor_note": "origin = feet point (ground row) in every frame; draw at (x - 14, y - 21), integer positions, nearest neighbour",
+ "layout": "one row per dir (down, left, right, up); columns idle 0-1, walk 0-3, attack 0-2, hurt 0-0, death 0-2, special 0-1. Right is the mirrored left.",
+ "hitFrame": {
+  "attack": 1
+ },
+ "windupFrame": {
+  "attack": 0
+ },
+ "frames": {
+  "idle_down_0": [
+   0,
+   0,
+   28,
+   22
+  ],
+  "idle_down_1": [
+   28,
+   0,
+   28,
+   22
+  ],
+  "walk_down_0": [
+   56,
+   0,
+   28,
+   22
+  ],
+  "walk_down_1": [
+   84,
+   0,
+   28,
+   22
+  ],
+  "walk_down_2": [
+   112,
+   0,
+   28,
+   22
+  ],
+  "walk_down_3": [
+   140,
+   0,
+   28,
+   22
+  ],
+  "attack_down_0": [
+   168,
+   0,
+   28,
+   22
+  ],
+  "attack_down_1": [
+   196,
+   0,
+   28,
+   22
+  ],
+  "attack_down_2": [
+   224,
+   0,
+   28,
+   22
+  ],
+  "hurt_down_0": [
+   252,
+   0,
+   28,
+   22
+  ],
+  "death_down_0": [
+   280,
+   0,
+   28,
+   22
+  ],
+  "death_down_1": [
+   308,
+   0,
+   28,
+   22
+  ],
+  "death_down_2": [
+   336,
+   0,
+   28,
+   22
+  ],
+  "special_down_0": [
+   364,
+   0,
+   28,
+   22
+  ],
+  "special_down_1": [
+   392,
+   0,
+   28,
+   22
+  ],
+  "idle_left_0": [
+   0,
+   22,
+   28,
+   22
+  ],
+  "idle_left_1": [
+   28,
+   22,
+   28,
+   22
+  ],
+  "walk_left_0": [
+   56,
+   22,
+   28,
+   22
+  ],
+  "walk_left_1": [
+   84,
+   22,
+   28,
+   22
+  ],
+  "walk_left_2": [
+   112,
+   22,
+   28,
+   22
+  ],
+  "walk_left_3": [
+   140,
+   22,
+   28,
+   22
+  ],
+  "attack_left_0": [
+   168,
+   22,
+   28,
+   22
+  ],
+  "attack_left_1": [
+   196,
+   22,
+   28,
+   22
+  ],
+  "attack_left_2": [
+   224,
+   22,
+   28,
+   22
+  ],
+  "hurt_left_0": [
+   252,
+   22,
+   28,
+   22
+  ],
+  "death_left_0": [
+   280,
+   22,
+   28,
+   22
+  ],
+  "death_left_1": [
+   308,
+   22,
+   28,
+   22
+  ],
+  "death_left_2": [
+   336,
+   22,
+   28,
+   22
+  ],
+  "special_left_0": [
+   364,
+   22,
+   28,
+   22
+  ],
+  "special_left_1": [
+   392,
+   22,
+   28,
+   22
+  ],
+  "idle_right_0": [
+   0,
+   44,
+   28,
+   22
+  ],
+  "idle_right_1": [
+   28,
+   44,
+   28,
+   22
+  ],
+  "walk_right_0": [
+   56,
+   44,
+   28,
+   22
+  ],
+  "walk_right_1": [
+   84,
+   44,
+   28,
+   22
+  ],
+  "walk_right_2": [
+   112,
+   44,
+   28,
+   22
+  ],
+  "walk_right_3": [
+   140,
+   44,
+   28,
+   22
+  ],
+  "attack_right_0": [
+   168,
+   44,
+   28,
+   22
+  ],
+  "attack_right_1": [
+   196,
+   44,
+   28,
+   22
+  ],
+  "attack_right_2": [
+   224,
+   44,
+   28,
+   22
+  ],
+  "hurt_right_0": [
+   252,
+   44,
+   28,
+   22
+  ],
+  "death_right_0": [
+   280,
+   44,
+   28,
+   22
+  ],
+  "death_right_1": [
+   308,
+   44,
+   28,
+   22
+  ],
+  "death_right_2": [
+   336,
+   44,
+   28,
+   22
+  ],
+  "special_right_0": [
+   364,
+   44,
+   28,
+   22
+  ],
+  "special_right_1": [
+   392,
+   44,
+   28,
+   22
+  ],
+  "idle_up_0": [
+   0,
+   66,
+   28,
+   22
+  ],
+  "idle_up_1": [
+   28,
+   66,
+   28,
+   22
+  ],
+  "walk_up_0": [
+   56,
+   66,
+   28,
+   22
+  ],
+  "walk_up_1": [
+   84,
+   66,
+   28,
+   22
+  ],
+  "walk_up_2": [
+   112,
+   66,
+   28,
+   22
+  ],
+  "walk_up_3": [
+   140,
+   66,
+   28,
+   22
+  ],
+  "attack_up_0": [
+   168,
+   66,
+   28,
+   22
+  ],
+  "attack_up_1": [
+   196,
+   66,
+   28,
+   22
+  ],
+  "attack_up_2": [
+   224,
+   66,
+   28,
+   22
+  ],
+  "hurt_up_0": [
+   252,
+   66,
+   28,
+   22
+  ],
+  "death_up_0": [
+   280,
+   66,
+   28,
+   22
+  ],
+  "death_up_1": [
+   308,
+   66,
+   28,
+   22
+  ],
+  "death_up_2": [
+   336,
+   66,
+   28,
+   22
+  ],
+  "special_up_0": [
+   364,
+   66,
+   28,
+   22
+  ],
+  "special_up_1": [
+   392,
+   66,
+   28,
+   22
+  ]
+ },
+ "anims": {
+  "idle_down": {
+   "frames": [
+    "idle_down_0",
+    "idle_down_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_down": {
+   "frames": [
+    "walk_down_0",
+    "walk_down_1",
+    "walk_down_2",
+    "walk_down_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_down": {
+   "frames": [
+    "attack_down_0",
+    "attack_down_1",
+    "attack_down_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_down": {
+   "frames": [
+    "hurt_down_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_down": {
+   "frames": [
+    "death_down_0",
+    "death_down_1",
+    "death_down_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "special_down": {
+   "frames": [
+    "special_down_0",
+    "special_down_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "idle_left": {
+   "frames": [
+    "idle_left_0",
+    "idle_left_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_left": {
+   "frames": [
+    "walk_left_0",
+    "walk_left_1",
+    "walk_left_2",
+    "walk_left_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_left": {
+   "frames": [
+    "attack_left_0",
+    "attack_left_1",
+    "attack_left_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_left": {
+   "frames": [
+    "hurt_left_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_left": {
+   "frames": [
+    "death_left_0",
+    "death_left_1",
+    "death_left_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "special_left": {
+   "frames": [
+    "special_left_0",
+    "special_left_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "idle_right": {
+   "frames": [
+    "idle_right_0",
+    "idle_right_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_right": {
+   "frames": [
+    "walk_right_0",
+    "walk_right_1",
+    "walk_right_2",
+    "walk_right_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_right": {
+   "frames": [
+    "attack_right_0",
+    "attack_right_1",
+    "attack_right_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_right": {
+   "frames": [
+    "hurt_right_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_right": {
+   "frames": [
+    "death_right_0",
+    "death_right_1",
+    "death_right_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "special_right": {
+   "frames": [
+    "special_right_0",
+    "special_right_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "idle_up": {
+   "frames": [
+    "idle_up_0",
+    "idle_up_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_up": {
+   "frames": [
+    "walk_up_0",
+    "walk_up_1",
+    "walk_up_2",
+    "walk_up_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_up": {
+   "frames": [
+    "attack_up_0",
+    "attack_up_1",
+    "attack_up_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_up": {
+   "frames": [
+    "hurt_up_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_up": {
+   "frames": [
+    "death_up_0",
+    "death_up_1",
+    "death_up_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "special_up": {
+   "frames": [
+    "special_up_0",
+    "special_up_1"
+   ],
+   "fps": 6,
+   "loop": true
+  }
+ },
+ "points": {
+  "attack_left_0": {
+   "mouth": [
+    10,
+    18
+   ]
+  },
+  "attack_left_1": {
+   "mouth": [
+    5,
+    18
+   ]
+  },
+  "attack_left_2": {
+   "mouth": [
+    7,
+    18
+   ]
+  },
+  "special_left_0": {
+   "mouth": [
+    8,
+    18
+   ]
+  },
+  "special_left_1": {
+   "mouth": [
+    8,
+    18
+   ]
+  },
+  "attack_right_0": {
+   "mouth": [
+    17,
+    18
+   ]
+  },
+  "attack_right_1": {
+   "mouth": [
+    22,
+    18
+   ]
+  },
+  "attack_right_2": {
+   "mouth": [
+    20,
+    18
+   ]
+  },
+  "special_right_0": {
+   "mouth": [
+    19,
+    18
+   ]
+  },
+  "special_right_1": {
+   "mouth": [
+    19,
+    18
+   ]
+  }
+ },
+ "notes": "special = shell_up (tucked into its shell, -30% damage taken 4 s).",
+ "lq": {
+  "field": "enemies_field:moss_scarab",
+  "battle": "enemies_battle:moss_scarab"
+ }
+}

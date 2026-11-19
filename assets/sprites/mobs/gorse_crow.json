@@ -1,0 +1,592 @@
+{
+ "image": "gorse_crow.png",
+ "mob": "gorse_crow",
+ "name": "Gorse Crow",
+ "family": "beast",
+ "cell": [
+  32,
+  32
+ ],
+ "origin": [
+  16,
+  31
+ ],
+ "anchor_note": "origin = feet point (ground row) in every frame; draw at (x - 16, y - 31), integer positions, nearest neighbour",
+ "layout": "one row per dir (down, left, right, up); columns idle 0-1, walk 0-3, attack 0-2, hurt 0-0, death 0-2. Right is the mirrored left.",
+ "hitFrame": {
+  "attack": 1
+ },
+ "windupFrame": {
+  "attack": 0
+ },
+ "frames": {
+  "idle_down_0": [
+   0,
+   0,
+   32,
+   32
+  ],
+  "idle_down_1": [
+   32,
+   0,
+   32,
+   32
+  ],
+  "walk_down_0": [
+   64,
+   0,
+   32,
+   32
+  ],
+  "walk_down_1": [
+   96,
+   0,
+   32,
+   32
+  ],
+  "walk_down_2": [
+   128,
+   0,
+   32,
+   32
+  ],
+  "walk_down_3": [
+   160,
+   0,
+   32,
+   32
+  ],
+  "attack_down_0": [
+   192,
+   0,
+   32,
+   32
+  ],
+  "attack_down_1": [
+   224,
+   0,
+   32,
+   32
+  ],
+  "attack_down_2": [
+   256,
+   0,
+   32,
+   32
+  ],
+  "hurt_down_0": [
+   288,
+   0,
+   32,
+   32
+  ],
+  "death_down_0": [
+   320,
+   0,
+   32,
+   32
+  ],
+  "death_down_1": [
+   352,
+   0,
+   32,
+   32
+  ],
+  "death_down_2": [
+   384,
+   0,
+   32,
+   32
+  ],
+  "idle_left_0": [
+   0,
+   32,
+   32,
+   32
+  ],
+  "idle_left_1": [
+   32,
+   32,
+   32,
+   32
+  ],
+  "walk_left_0": [
+   64,
+   32,
+   32,
+   32
+  ],
+  "walk_left_1": [
+   96,
+   32,
+   32,
+   32
+  ],
+  "walk_left_2": [
+   128,
+   32,
+   32,
+   32
+  ],
+  "walk_left_3": [
+   160,
+   32,
+   32,
+   32
+  ],
+  "attack_left_0": [
+   192,
+   32,
+   32,
+   32
+  ],
+  "attack_left_1": [
+   224,
+   32,
+   32,
+   32
+  ],
+  "attack_left_2": [
+   256,
+   32,
+   32,
+   32
+  ],
+  "hurt_left_0": [
+   288,
+   32,
+   32,
+   32
+  ],
+  "death_left_0": [
+   320,
+   32,
+   32,
+   32
+  ],
+  "death_left_1": [
+   352,
+   32,
+   32,
+   32
+  ],
+  "death_left_2": [
+   384,
+   32,
+   32,
+   32
+  ],
+  "idle_right_0": [
+   0,
+   64,
+   32,
+   32
+  ],
+  "idle_right_1": [
+   32,
+   64,
+   32,
+   32
+  ],
+  "walk_right_0": [
+   64,
+   64,
+   32,
+   32
+  ],
+  "walk_right_1": [
+   96,
+   64,
+   32,
+   32
+  ],
+  "walk_right_2": [
+   128,
+   64,
+   32,
+   32
+  ],
+  "walk_right_3": [
+   160,
+   64,
+   32,
+   32
+  ],
+  "attack_right_0": [
+   192,
+   64,
+   32,
+   32
+  ],
+  "attack_right_1": [
+   224,
+   64,
+   32,
+   32
+  ],
+  "attack_right_2": [
+   256,
+   64,
+   32,
+   32
+  ],
+  "hurt_right_0": [
+   288,
+   64,
+   32,
+   32
+  ],
+  "death_right_0": [
+   320,
+   64,
+   32,
+   32
+  ],
+  "death_right_1": [
+   352,
+   64,
+   32,
+   32
+  ],
+  "death_right_2": [
+   384,
+   64,
+   32,
+   32
+  ],
+  "idle_up_0": [
+   0,
+   96,
+   32,
+   32
+  ],
+  "idle_up_1": [
+   32,
+   96,
+   32,
+   32
+  ],
+  "walk_up_0": [
+   64,
+   96,
+   32,
+   32
+  ],
+  "walk_up_1": [
+   96,
+   96,
+   32,
+   32
+  ],
+  "walk_up_2": [
+   128,
+   96,
+   32,
+   32
+  ],
+  "walk_up_3": [
+   160,
+   96,
+   32,
+   32
+  ],
+  "attack_up_0": [
+   192,
+   96,
+   32,
+   32
+  ],
+  "attack_up_1": [
+   224,
+   96,
+   32,
+   32
+  ],
+  "attack_up_2": [
+   256,
+   96,
+   32,
+   32
+  ],
+  "hurt_up_0": [
+   288,
+   96,
+   32,
+   32
+  ],
+  "death_up_0": [
+   320,
+   96,
+   32,
+   32
+  ],
+  "death_up_1": [
+   352,
+   96,
+   32,
+   32
+  ],
+  "death_up_2": [
+   384,
+   96,
+   32,
+   32
+  ]
+ },
+ "anims": {
+  "idle_down": {
+   "frames": [
+    "idle_down_0",
+    "idle_down_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_down": {
+   "frames": [
+    "walk_down_0",
+    "walk_down_1",
+    "walk_down_2",
+    "walk_down_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_down": {
+   "frames": [
+    "attack_down_0",
+    "attack_down_1",
+    "attack_down_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_down": {
+   "frames": [
+    "hurt_down_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_down": {
+   "frames": [
+    "death_down_0",
+    "death_down_1",
+    "death_down_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "idle_left": {
+   "frames": [
+    "idle_left_0",
+    "idle_left_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_left": {
+   "frames": [
+    "walk_left_0",
+    "walk_left_1",
+    "walk_left_2",
+    "walk_left_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_left": {
+   "frames": [
+    "attack_left_0",
+    "attack_left_1",
+    "attack_left_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_left": {
+   "frames": [
+    "hurt_left_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_left": {
+   "frames": [
+    "death_left_0",
+    "death_left_1",
+    "death_left_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "idle_right": {
+   "frames": [
+    "idle_right_0",
+    "idle_right_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_right": {
+   "frames": [
+    "walk_right_0",
+    "walk_right_1",
+    "walk_right_2",
+    "walk_right_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_right": {
+   "frames": [
+    "attack_right_0",
+    "attack_right_1",
+    "attack_right_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_right": {
+   "frames": [
+    "hurt_right_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_right": {
+   "frames": [
+    "death_right_0",
+    "death_right_1",
+    "death_right_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "idle_up": {
+   "frames": [
+    "idle_up_0",
+    "idle_up_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_up": {
+   "frames": [
+    "walk_up_0",
+    "walk_up_1",
+    "walk_up_2",
+    "walk_up_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_up": {
+   "frames": [
+    "attack_up_0",
+    "attack_up_1",
+    "attack_up_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_up": {
+   "frames": [
+    "hurt_up_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_up": {
+   "frames": [
+    "death_up_0",
+    "death_up_1",
+    "death_up_2"
+   ],
+   "fps": 6,
+   "loop": false
+  }
+ },
+ "points": {
+  "attack_down_0": {
+   "mouth": [
+    18,
+    15
+   ]
+  },
+  "attack_down_1": {
+   "mouth": [
+    12,
+    22
+   ]
+  },
+  "attack_down_2": {
+   "mouth": [
+    15,
+    19
+   ]
+  },
+  "attack_left_0": {
+   "mouth": [
+    9,
+    14
+   ]
+  },
+  "attack_left_1": {
+   "mouth": [
+    3,
+    22
+   ]
+  },
+  "attack_left_2": {
+   "mouth": [
+    6,
+    18
+   ]
+  },
+  "attack_right_0": {
+   "mouth": [
+    22,
+    14
+   ]
+  },
+  "attack_right_1": {
+   "mouth": [
+    28,
+    22
+   ]
+  },
+  "attack_right_2": {
+   "mouth": [
+    25,
+    18
+   ]
+  },
+  "attack_up_0": {
+   "mouth": [
+    18,
+    15
+   ]
+  },
+  "attack_up_1": {
+   "mouth": [
+    12,
+    22
+   ]
+  },
+  "attack_up_2": {
+   "mouth": [
+    15,
+    19
+   ]
+  }
+ },
+ "hover": 8,
+ "flying": true,
+ "notes": "flying: the body is drawn ~8 px above the feet point in every frame (death 1-2 lie on the ground); draw the ground shadow at the origin. walk = the flight flap loop.",
+ "lq": {
+  "field": null,
+  "battle": null,
+  "closest": "enemies_field:glint_wisp (a small flyer; LQ has no crow)"
+ }
+}

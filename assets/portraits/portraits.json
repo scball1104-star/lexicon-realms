@@ -1,0 +1,186 @@
+{
+ "image": "portraits.png",
+ "frames": {
+  "warden_look1": [
+   0,
+   0,
+   32,
+   32
+  ],
+  "warden_look2": [
+   32,
+   0,
+   32,
+   32
+  ],
+  "warden_look3": [
+   64,
+   0,
+   32,
+   32
+  ],
+  "mender_look1": [
+   96,
+   0,
+   32,
+   32
+  ],
+  "mender_look2": [
+   128,
+   0,
+   32,
+   32
+  ],
+  "mender_look3": [
+   160,
+   0,
+   32,
+   32
+  ],
+  "scribe_look1": [
+   192,
+   0,
+   32,
+   32
+  ],
+  "scribe_look2": [
+   224,
+   0,
+   32,
+   32
+  ],
+  "scribe_look3": [
+   256,
+   0,
+   32,
+   32
+  ],
+  "wayfinder_look1": [
+   288,
+   0,
+   32,
+   32
+  ],
+  "wayfinder_look2": [
+   320,
+   0,
+   32,
+   32
+  ],
+  "wayfinder_look3": [
+   352,
+   0,
+   32,
+   32
+  ],
+  "inkblade_look1": [
+   384,
+   0,
+   32,
+   32
+  ],
+  "inkblade_look2": [
+   416,
+   0,
+   32,
+   32
+  ],
+  "inkblade_look3": [
+   448,
+   0,
+   32,
+   32
+  ],
+  "warden_look1_64": [
+   0,
+   32,
+   64,
+   64
+  ],
+  "warden_look2_64": [
+   64,
+   32,
+   64,
+   64
+  ],
+  "warden_look3_64": [
+   128,
+   32,
+   64,
+   64
+  ],
+  "mender_look1_64": [
+   192,
+   32,
+   64,
+   64
+  ],
+  "mender_look2_64": [
+   256,
+   32,
+   64,
+   64
+  ],
+  "mender_look3_64": [
+   320,
+   32,
+   64,
+   64
+  ],
+  "scribe_look1_64": [
+   384,
+   32,
+   64,
+   64
+  ],
+  "scribe_look2_64": [
+   448,
+   32,
+   64,
+   64
+  ],
+  "scribe_look3_64": [
+   512,
+   32,
+   64,
+   64
+  ],
+  "wayfinder_look1_64": [
+   576,
+   32,
+   64,
+   64
+  ],
+  "wayfinder_look2_64": [
+   640,
+   32,
+   64,
+   64
+  ],
+  "wayfinder_look3_64": [
+   704,
+   32,
+   64,
+   64
+  ],
+  "inkblade_look1_64": [
+   768,
+   32,
+   64,
+   64
+  ],
+  "inkblade_look2_64": [
+   832,
+   32,
+   64,
+   64
+  ],
+  "inkblade_look3_64": [
+   896,
+   32,
+   64,
+   64
+  ]
+ },
+ "note": "<class>_look<n> = 32x32 (LQ <name>_32 scale) for the player frame; _64 for the character-creation preview. Looks match assets/sprites/chars/<class>.json \"looks\"."
+}

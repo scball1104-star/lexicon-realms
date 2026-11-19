@@ -1,0 +1,982 @@
+{
+ "image": "talents16.png",
+ "size": [
+  16,
+  16
+ ],
+ "frames": {
+  "warden_bulwark_iron_skin": [
+   0,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_steady_shield": [
+   16,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_stout_heart": [
+   32,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_hold_the_line": [
+   48,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_challenge": [
+   64,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_rooted_stance": [
+   80,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_last_stand": [
+   96,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_rebuke": [
+   112,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_weathered": [
+   128,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_unbreakable": [
+   144,
+   0,
+   16,
+   16
+  ],
+  "warden_bulwark_shieldbearers_vow": [
+   160,
+   0,
+   16,
+   16
+  ],
+  "warden_oathblade_keen_edge": [
+   0,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_weapon_weight": [
+   16,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_follow_through": [
+   32,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_rising_wrath": [
+   48,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_sworn_strike": [
+   64,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_momentum": [
+   80,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_clear_mind": [
+   96,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_bright_steel": [
+   112,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_finishing_cut": [
+   128,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_oathbreaker": [
+   144,
+   16,
+   16,
+   16
+  ],
+  "warden_oathblade_sword_sworn": [
+   160,
+   16,
+   16,
+   16
+  ],
+  "warden_lantern_steady_flame": [
+   0,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_lantern_glow": [
+   16,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_warm_light": [
+   32,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_beacon": [
+   48,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_kept_name": [
+   64,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_lamp_in_the_dark": [
+   80,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_guiding_step": [
+   96,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_hearthward": [
+   112,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_dawnbringer": [
+   128,
+   32,
+   16,
+   16
+  ],
+  "warden_lantern_the_lantern_holds": [
+   144,
+   32,
+   16,
+   16
+  ],
+  "mender_hearth_gentle_hands": [
+   160,
+   32,
+   16,
+   16
+  ],
+  "mender_hearth_quick_words": [
+   0,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_spoken_for": [
+   16,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_hearthside": [
+   32,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_name_twice": [
+   48,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_kept_close": [
+   64,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_quiet_mind": [
+   80,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_deep_well": [
+   96,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_bell_of_rest": [
+   112,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_hearthfire": [
+   128,
+   48,
+   16,
+   16
+  ],
+  "mender_hearth_many_names": [
+   144,
+   48,
+   16,
+   16
+  ],
+  "mender_kindling_bright_coal": [
+   160,
+   48,
+   16,
+   16
+  ],
+  "mender_kindling_long_burn": [
+   0,
+   64,
+   16,
+   16
+  ],
+  "mender_kindling_hungry_flame": [
+   16,
+   64,
+   16,
+   16
+  ],
+  "mender_kindling_searing": [
+   32,
+   64,
+   16,
+   16
+  ],
+  "mender_kindling_firebrand": [
+   48,
+   64,
+   16,
+   16
+  ],
+  "mender_kindling_daze_of_light": [
+   64,
+   64,
+   16,
+   16
+  ],
+  "mender_kindling_bellows": [
+   80,
+   64,
+   16,
+   16
+  ],
+  "mender_kindling_ash_and_ember": [
+   96,
+   64,
+   16,
+   16
+  ],
+  "mender_kindling_pyre_word": [
+   112,
+   64,
+   16,
+   16
+  ],
+  "mender_kindling_flame_that_mends": [
+   128,
+   64,
+   16,
+   16
+  ],
+  "mender_bell_clear_voice": [
+   144,
+   64,
+   16,
+   16
+  ],
+  "mender_bell_ringing_ward": [
+   160,
+   64,
+   16,
+   16
+  ],
+  "mender_bell_still_air": [
+   0,
+   80,
+   16,
+   16
+  ],
+  "mender_bell_toll": [
+   16,
+   80,
+   16,
+   16
+  ],
+  "mender_bell_alarm_bell": [
+   32,
+   80,
+   16,
+   16
+  ],
+  "mender_bell_bell_hum": [
+   48,
+   80,
+   16,
+   16
+  ],
+  "mender_bell_shelter": [
+   64,
+   80,
+   16,
+   16
+  ],
+  "mender_bell_sounding": [
+   80,
+   80,
+   16,
+   16
+  ],
+  "mender_bell_ward_keeper": [
+   96,
+   80,
+   16,
+   16
+  ],
+  "mender_bell_bellward": [
+   112,
+   80,
+   16,
+   16
+  ],
+  "mender_bell_sanctuary_peal": [
+   128,
+   80,
+   16,
+   16
+  ],
+  "scribe_quill_sharp_nib": [
+   144,
+   80,
+   16,
+   16
+  ],
+  "scribe_quill_fast_hand": [
+   160,
+   80,
+   16,
+   16
+  ],
+  "scribe_quill_bold_type": [
+   0,
+   96,
+   16,
+   16
+  ],
+  "scribe_quill_heavy_stroke": [
+   16,
+   96,
+   16,
+   16
+  ],
+  "scribe_quill_run_on_sentence": [
+   32,
+   96,
+   16,
+   16
+  ],
+  "scribe_quill_exclamation": [
+   48,
+   96,
+   16,
+   16
+  ],
+  "scribe_quill_underscore": [
+   64,
+   96,
+   16,
+   16
+  ],
+  "scribe_quill_clean_copy": [
+   80,
+   96,
+   16,
+   16
+  ],
+  "scribe_quill_final_draft": [
+   96,
+   96,
+   16,
+   16
+  ],
+  "scribe_quill_capital_letter": [
+   112,
+   96,
+   16,
+   16
+  ],
+  "scribe_quill_footnote": [
+   128,
+   96,
+   16,
+   16
+  ],
+  "scribe_margin_wide_margin": [
+   144,
+   96,
+   16,
+   16
+  ],
+  "scribe_margin_blotting_paper": [
+   160,
+   96,
+   16,
+   16
+  ],
+  "scribe_margin_long_pause": [
+   0,
+   112,
+   16,
+   16
+  ],
+  "scribe_margin_tight_bracket": [
+   16,
+   112,
+   16,
+   16
+  ],
+  "scribe_margin_blank_margin": [
+   32,
+   112,
+   16,
+   16
+  ],
+  "scribe_margin_comma": [
+   48,
+   112,
+   16,
+   16
+  ],
+  "scribe_margin_indent": [
+   64,
+   112,
+   16,
+   16
+  ],
+  "scribe_margin_reread": [
+   80,
+   112,
+   16,
+   16
+  ],
+  "scribe_margin_steady_line": [
+   96,
+   112,
+   16,
+   16
+  ],
+  "scribe_margin_parenthetical": [
+   112,
+   112,
+   16,
+   16
+  ],
+  "scribe_margin_semicolon": [
+   128,
+   112,
+   16,
+   16
+  ],
+  "scribe_wet_ink_seeping": [
+   144,
+   112,
+   16,
+   16
+  ],
+  "scribe_wet_ink_spatter": [
+   160,
+   112,
+   16,
+   16
+  ],
+  "scribe_wet_ink_drying_slow": [
+   0,
+   128,
+   16,
+   16
+  ],
+  "scribe_wet_ink_splash": [
+   16,
+   128,
+   16,
+   16
+  ],
+  "scribe_wet_ink_smudge": [
+   32,
+   128,
+   16,
+   16
+  ],
+  "scribe_wet_ink_pooling_ink": [
+   48,
+   128,
+   16,
+   16
+  ],
+  "scribe_wet_ink_ink_to_paper": [
+   64,
+   128,
+   16,
+   16
+  ],
+  "scribe_wet_ink_inkwell": [
+   80,
+   128,
+   16,
+   16
+  ],
+  "scribe_wet_ink_overwrite": [
+   96,
+   128,
+   16,
+   16
+  ],
+  "scribe_wet_ink_wet_signature": [
+   112,
+   128,
+   16,
+   16
+  ],
+  "wayfinder_fletch_true_aim": [
+   128,
+   128,
+   16,
+   16
+  ],
+  "wayfinder_fletch_draw_weight": [
+   144,
+   128,
+   16,
+   16
+  ],
+  "wayfinder_fletch_long_eye": [
+   160,
+   128,
+   16,
+   16
+  ],
+  "wayfinder_fletch_fletchers_pace": [
+   0,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_fletch_running_shot": [
+   16,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_fletch_double_nock": [
+   32,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_fletch_piercing_point": [
+   48,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_fletch_steady_breath": [
+   64,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_fletch_called_shot": [
+   80,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_fletch_long_road_shot": [
+   96,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_fletch_thread_the_needle": [
+   112,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_snare_hardened_briar": [
+   128,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_snare_quick_set": [
+   144,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_snare_clinging_thorns": [
+   160,
+   144,
+   16,
+   16
+  ],
+  "wayfinder_snare_pinning_point": [
+   0,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_snare_trap_line": [
+   16,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_snare_thrown_snare": [
+   32,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_snare_thornbite": [
+   48,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_snare_bramble_patch": [
+   64,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_snare_long_bramble": [
+   80,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_snare_snarecraft": [
+   96,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_snare_hedge_wall": [
+   112,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_footsure": [
+   128,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_weathered": [
+   144,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_road_wit": [
+   160,
+   160,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_mile_eater": [
+   0,
+   176,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_path_sense": [
+   16,
+   176,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_second_breath": [
+   32,
+   176,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_field_dressing": [
+   48,
+   176,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_close_quarters": [
+   64,
+   176,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_steady_feet": [
+   80,
+   176,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_long_way_round": [
+   96,
+   176,
+   16,
+   16
+  ],
+  "wayfinder_roadwise_unseen_road": [
+   112,
+   176,
+   16,
+   16
+  ],
+  "inkblade_edge_fine_edge": [
+   128,
+   176,
+   16,
+   16
+  ],
+  "inkblade_edge_ambidexter": [
+   144,
+   176,
+   16,
+   16
+  ],
+  "inkblade_edge_quick_hands": [
+   160,
+   176,
+   16,
+   16
+  ],
+  "inkblade_edge_deep_spill": [
+   0,
+   192,
+   16,
+   16
+  ],
+  "inkblade_edge_running_ink": [
+   16,
+   192,
+   16,
+   16
+  ],
+  "inkblade_edge_second_cut": [
+   32,
+   192,
+   16,
+   16
+  ],
+  "inkblade_edge_keen_cut": [
+   48,
+   192,
+   16,
+   16
+  ],
+  "inkblade_edge_relentless": [
+   64,
+   192,
+   16,
+   16
+  ],
+  "inkblade_edge_twinned": [
+   80,
+   192,
+   16,
+   16
+  ],
+  "inkblade_edge_inkstorm": [
+   96,
+   192,
+   16,
+   16
+  ],
+  "inkblade_edge_last_word": [
+   112,
+   192,
+   16,
+   16
+  ],
+  "inkblade_shade_quiet_feet": [
+   128,
+   192,
+   16,
+   16
+  ],
+  "inkblade_shade_dim": [
+   144,
+   192,
+   16,
+   16
+  ],
+  "inkblade_shade_opening_line": [
+   160,
+   192,
+   16,
+   16
+  ],
+  "inkblade_shade_hold_breath": [
+   0,
+   208,
+   16,
+   16
+  ],
+  "inkblade_shade_unwritten": [
+   16,
+   208,
+   16,
+   16
+  ],
+  "inkblade_shade_blinding_spill": [
+   32,
+   208,
+   16,
+   16
+  ],
+  "inkblade_shade_slip": [
+   48,
+   208,
+   16,
+   16
+  ],
+  "inkblade_shade_shadow_hands": [
+   64,
+   208,
+   16,
+   16
+  ],
+  "inkblade_shade_ambush": [
+   80,
+   208,
+   16,
+   16
+  ],
+  "inkblade_shade_between_the_lines": [
+   96,
+   208,
+   16,
+   16
+  ],
+  "inkblade_shade_inkdouble": [
+   112,
+   208,
+   16,
+   16
+  ],
+  "inkblade_blot_seeping_cut": [
+   128,
+   208,
+   16,
+   16
+  ],
+  "inkblade_blot_stain": [
+   144,
+   208,
+   16,
+   16
+  ],
+  "inkblade_blot_thick_ink": [
+   160,
+   208,
+   16,
+   16
+  ],
+  "inkblade_blot_dark_pool": [
+   0,
+   224,
+   16,
+   16
+  ],
+  "inkblade_blot_inkwell_cut": [
+   16,
+   224,
+   16,
+   16
+  ],
+  "inkblade_blot_ink_poison": [
+   32,
+   224,
+   16,
+   16
+  ],
+  "inkblade_blot_spreading_stain": [
+   48,
+   224,
+   16,
+   16
+  ],
+  "inkblade_blot_black_tide": [
+   64,
+   224,
+   16,
+   16
+  ],
+  "inkblade_blot_lasting_mark": [
+   80,
+   224,
+   16,
+   16
+  ],
+  "inkblade_blot_blot_out": [
+   96,
+   224,
+   16,
+   16
+  ],
+  "inkblade_blot_ink_veins": [
+   112,
+   224,
+   16,
+   16
+  ]
+ },
+ "note": "ids = TALENTS.md node ids. Frame = class colour (gold on tier-5 capstones); background = branch (1st crimson, 2nd forest, 3rd midnight); gold corner notch = [play] node; corner badge marks a rank theme (up = bigger number, clock = cooldown/duration, star = crit/empowered, chev = speed, plus = heal, down = less, x2 = doubled)."
+}
