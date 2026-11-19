@@ -9,9 +9,16 @@
 // context and now holds only the floating combat numbers, nameplates and the HUD (drawn by src/ui exactly as with the
 // 2D renderer, through the same layout), so input, the HUD and every driver keep working unchanged.
 //
-// Camera: Diablo-style follow from the south, 56 degrees down, at three zoom distances (view.zoom 1, 1.5, 2). The camera
-// looks north, so screen up is world north (W walks up the screen as in 2D) and a point h px "above" a 2D anchor maps to
-// the same screen spot as a point h px north on the ground: anchorOf() returns that h, measured each frame by projection.
+// Camera: the approved action-RPG angle (mockups3d_hero still 3): 40 degrees down, following from the south, at three
+// zoom distances (view.zoom 1, 1.5, 2: 20, 13.3, 10 m; phones 10% further). It stays north-up, so screen up is world
+// north (W walks up the screen as in 2D and on the minimap) and a point h px "above" a 2D anchor maps to the same screen
+// spot as a point h px north on the ground: anchorOf() returns that h, measured each frame by projection. Picking,
+// devToWorld and worldToHud all go through the live camera, so they follow any angle.
+//
+// Cutaway: static scenery between the camera and the hero, and between the camera and the hero's target, fades to
+// about 25% (zone3d.js SEE). Bodies outside the view frustum are hidden and not animated (draw calls, CPU).
+// Zones next to the shown one are built in the background in small time slices and their shaders compiled before
+// they are needed, so walking into a zone does not stall.
 //
 // Quality: touch devices (or ?q3d=low, or view.fx 'low' for the post effects) drop shadows, bloom and the grade pass,
 // cap point lights at 2 (desktop 6), skip grass and flowers, and render at most 1.5 device px per css px.
@@ -30,14 +37,16 @@ import { createFx } from '../render/fx.js';
 import { isTouchDevice } from '../input/touch.js';
 import { BitmapFont } from '../core/font.js';
 import { createLoader, WINDOW_LIT } from './loader.js';
-import { buildZone, LAMP_GLASS, SEE } from './zone3d.js';
+import { buildZone, LAMP_GLASS, SEE, tickWater } from './zone3d.js';
 import { createActors } from './actors.js';
+import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
 
 const PX = 16;
-const PITCH = THREE.MathUtils.degToRad(56);
+const PITCH = THREE.MathUtils.degToRad(40);
 const FOV = 30;
-const DIST = 30;              // camera distance at zoom 1 (m); zoom 1.5 -> 20, zoom 2 -> 15
+const DIST = 20;              // camera distance at zoom 1 (m); zoom 1.5 -> 13.3, zoom 2 -> 10
+const PHONE_DIST = 1.1;       // phones sit a little further out (the screen is short)
 
 const GradeShader = {
   uniforms: { tDiffuse: { value: null }, vig: { value: 1.0 }, desat: { value: 0 }, tint: { value: new THREE.Vector3(1, 1, 1) } },
@@ -137,7 +146,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   });
 
   const state = { preload: null, ready: false, failed: null, zones: new Map(), building: new Map(), zoneId: null, playerId: null };
-  const idle = () => new Promise((r) => setTimeout(r, 0));
+  // a build slice waits for the next frame (the game keeps drawing between slices)
+  const idle = () => new Promise((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 0)));
   // everything in assets3d/manifest.json is used: load it all in the background (one progress number)
   state.preload = fetch('assets3d/manifest.json').then((r) => (r.ok ? r.json() : Promise.reject(new Error(`manifest ${r.status}`))))
     .then((man) => Promise.all([L.clips(), ...man.files.filter((f) => /\.(gltf|glb)$/.test(f) && !/^ual\//.test(f)).map((f) => L.gltf(f))]))
@@ -148,10 +158,14 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (state.zones.has(id)) return state.zones.get(id);
     if (!state.building.has(id) && zones[id] && state.ready) {
       const p = buildZone(L, zones[id], { tilesDb: assets.json('tiles'), quality, yieldFn: idle })
+        // compile its shaders before it is shown (parallel compile where the browser has it), so the first frame in
+        // the new zone does not stall on program links
+        .then((z) => (renderer.compileAsync ? renderer.compileAsync(z.group, camera, scene).catch(() => null) : null).then(() => z))
         .then((z) => {
           state.zones.set(id, z); state.building.delete(id);
-          // keep two zones built: the shown one and the last
-          for (const [k, v] of state.zones) if (k !== id && k !== state.zoneId && state.zones.size > 3) { v.dispose(); state.zones.delete(k); }
+          // keep the shown zone and its neighbours (the next walk), drop the rest
+          const keep = new Set([state.zoneId, id, ...((zones[state.zoneId] || {}).joins || []).map((j) => j.to)]);
+          for (const [k, v] of state.zones) if (!keep.has(k)) { v.dispose(); state.zones.delete(k); }
         })
         .catch((e) => { state.building.delete(id); state.failed = e; });
       state.building.set(id, p);
@@ -168,11 +182,37 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null, quality, info: null, camDist: null };   // camDist: drivers' close-up
   let lastNow = null;
   const focus = new THREE.Vector3();
+  const frustum = new THREE.Frustum(), projView = new THREE.Matrix4(), sph = new THREE.Sphere();
+  /** Is a body (feet at p, h m tall) in or near the view? A margin keeps edge bodies and their shadows in. */
+  const inView = (p, h) => { sph.center.set(p.x, p.y + h * 0.5, p.z); sph.radius = Math.max(1.0, h * 0.7) + 1.5; return frustum.intersectsSphere(sph); };
   const anchors = new Map();     // id -> { x, y, h (2D-equivalent px), dev: { fx, fy, hx, hy, hw } }
   let fallback = null;
   Object.defineProperty(dev, 'scene', { value: scene, enumerable: false });   // drivers and debugging only
+  Object.defineProperty(dev, 'see', { value: SEE, enumerable: false });
+  Object.defineProperty(dev, 'zonesBuilt', { get: () => [...state.zones.keys()], enumerable: false });
+  Object.defineProperty(dev, 'building', { get: () => state.building.size, enumerable: false });
   /** Drivers: what a body looks like now ({ kind, built, sig, spec }) or null. */
   dev.actor = (id) => { const a = actors.get(id); if (!a) return null; const b = a.body; return { kind: a.kind, built: !!b, sig: a.sig, building: a.building, type: b && b.type, spec: b && b.spec ? { parts: b.spec.parts, helm: b.spec.helm, cape: b.spec.cape, main: b.spec.main, off: b.spec.off } : null, anim: b && b.anim ? b.anim.name : null }; };
+
+  /** Drivers only: a row of foe bodies in front of the hero, for a look at every family at game zoom.
+   *  list: [{ template, sprite, elite, rank }]; pose: 'idle' | 'walk' | 'attack' (the attack replays every 1.6 s). */
+  let lineup = null;
+  dev.lineup = async (list, { pose = 'idle', gap = 2.0, dz = -2.2 } = {}) => {
+    dev.lineupClear();
+    const g = new THREE.Group(); g.name = 'lineup'; scene.add(g);
+    const bodies = await Promise.all(list.map((m) => createCreature(L, m.template, m.sprite || m.template, { elite: m.elite, rank: m.rank })));
+    bodies.forEach((b, i) => { b.o.position.set(focus.x + (i - (bodies.length - 1) / 2) * gap, 0, focus.z + dz); g.add(b.o); });
+    lineup = { g, bodies, pose };
+    return bodies.map((b) => b.family);
+  };
+  dev.lineupClear = () => { if (lineup) { scene.remove(lineup.g); lineup = null; } };
+  function animateLineup(now, dt) {
+    if (!lineup) return;
+    for (const b of lineup.bodies) {
+      const st = { t: now, moving: lineup.pose === 'walk', speed: 2, cast: false, attackT: lineup.pose === 'attack' ? Math.floor(now / 1.6) * 1.6 : null, hurtT: null, deadT: null };
+      b.update(dt, st);
+    }
+  }
 
   function useFallback(why) {
     if (fallback) return;
@@ -293,7 +333,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       if (shown) scene.remove(shown.group);
       shown = z;
       if (shown) scene.add(shown.group);
-      actors.clear();
+      actors.clear(view.followId);     // the hero keeps its body across zones (no rebuild on the step through)
     }
     state.zoneId = view.zone;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -309,22 +349,25 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const k = pe && pe.zone === meE.zone ? alpha : 1;
       focus.set(((pe ? pe.x : meE.x) + (meE.x - (pe ? pe.x : meE.x)) * k) / PX, 0, ((pe ? pe.y : meE.y) + (meE.y - (pe ? pe.y : meE.y)) * k) / PX);
     } else if (zone) { const ar = zone.arrival || [zone.w / 2, zone.h / 2]; focus.set(ar[0] + 0.5, 0, ar[1] + 0.5); }
-    actors.sync(prevSnap, snap, alpha, view.zone, now, dt, fx3, focus, 18 + 26 / (view.zoom || 1));
-    const me = view.followId != null ? actors.get(view.followId) : null;
-    // near a zone edge, build the next zone in the background so walking through is quick
-    if (meE && zone && !state.building.size) {
-      for (const j of zone.joins || []) {
-        if (!zones[j.to] || state.zones.has(j.to)) continue;
-        const dx = Math.max(j.x - focus.x, 0, focus.x - (j.x + j.w)), dz = Math.max(j.y - focus.z, 0, focus.z - (j.y + j.h));
-        if (Math.hypot(dx, dz) < 14) { zoneFor(j.to); break; }
-      }
-    }
-    const target = focus.clone().setY(1.0);
-    const dist = dev.camDist || (DIST * (layout.touch ? 0.8 : 1)) / (view.zoom || 1);   // phones sit a little closer
+    const target = focus.clone().setY(0.9);
+    const dist = dev.camDist || (DIST * (layout.touch ? PHONE_DIST : 1)) / (view.zoom || 1);
     camera.position.set(target.x, target.y + dist * Math.sin(PITCH), target.z + dist * Math.cos(PITCH));
     camera.lookAt(target);
     camera.updateMatrixWorld();
-    SEE.uCam.value.copy(camera.position); SEE.uFocus.value.copy(focus).setY(1.0); SEE.uSeeR.value = me ? 3.0 : 0;
+    frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    actors.sync(prevSnap, snap, alpha, view.zone, now, dt, fx3, focus, 14 + 18 / (view.zoom || 1), inView);
+    const me = view.followId != null ? actors.get(view.followId) : null;
+    // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
+    // a zone edge finds its neighbour ready
+    if (zone && !state.building.size) {
+      for (const j of zone.joins || []) { if (zones[j.to] && !state.zones.has(j.to)) { zoneFor(j.to); break; } }
+    }
+    const tgA = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
+    SEE.uCam.value.copy(camera.position);
+    SEE.uFocus.value.copy(me ? me.root.position : focus).setY(1.0); SEE.uSeeR.value = me ? 3.2 : 0;
+    if (tgA && tgA.e && !tgA.e.dead && tgA.kind !== 'object') { SEE.uFocus2.value.copy(tgA.root.position).setY(Math.min(1.2, tgA.height * 0.55)); SEE.uSeeR2.value = 1.9; } else SEE.uSeeR2.value = 0;
+    tickWater(now);
+    animateLineup(now, dt);
     renderer.info.reset();
     const sky = applySky(snap, view, zone, target);
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;

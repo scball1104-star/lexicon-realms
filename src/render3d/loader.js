@@ -37,7 +37,7 @@ export function createLoader(base = 'assets3d/') {
     });
   }
 
-  function gltf(rel, { shareMaterials = !/^(ubc|hair|mco|animals)\//.test(rel) } = {}) {
+  function gltf(rel, { shareMaterials = !/^(ubc|hair|mco|animals|monsters)\//.test(rel) } = {}) {
     if (!cache.has(rel)) {
       cache.set(rel, gl.loadAsync(base + rel).then((g) => { if (shareMaterials) share(g.scene); return g; }));
     }

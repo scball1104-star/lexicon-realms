@@ -25,6 +25,7 @@ PACKS = {
     'nature': ('Stylized Nature MegaKit (Quaternius, free tier)', 'Stylized Nature MegaKit', 'CC0 1.0'),
     'ual': ('Universal Animation Library (Quaternius, free tier)', 'Universal Animation Library', 'CC0 1.0'),
     'animals': ('Quaternius Animated Animal Pack via poly.pizza', None, 'CC0 1.0'),
+    'monsters': ('Quaternius Ultimate Monsters Bundle via poly.pizza', None, 'CC0 1.0'),
 }
 
 INV = {
@@ -49,6 +50,9 @@ INV = {
 }
 ANIMALS = {'Wolf': 'Animated-Animal-Pack/Wolf_P1gU3Qkr9r.glb', 'Deer': 'Animated-Animal-Pack/Deer_T6Cs7tmMHJ.glb'}
 ANIMAL_PAGES = {'Wolf': 'https://poly.pizza/m/P1gU3Qkr9r', 'Deer': 'https://poly.pizza/m/T6Cs7tmMHJ'}
+# CC0 monsters (poly.pizza). Only the Ghost Skull: the Orc models of that bundle are left out by Scott's decision.
+MONSTERS = {'Ghost_Skull': 'Ultimate-Monsters-Bundle/Ghost_Skull_TX8r9WBXpe.glb'}
+MONSTER_PAGES = {'Ghost_Skull': 'https://poly.pizza/m/TX8r9WBXpe'}
 CLIPS = ['Idle_Loop', 'Walk_Loop', 'Jog_Fwd_Loop', 'Sword_Attack', 'Sword_Idle', 'Spell_Simple_Shoot',
          'Spell_Simple_Idle_Loop', 'Hit_Chest', 'Death01', 'Sitting_Idle_Loop', 'Punch_Jab', 'Punch_Cross',
          'Crouch_Idle_Loop', 'Crouch_Fwd_Loop', 'Idle_Torch_Loop', 'Pistol_Aim_Neutral', 'Pistol_Shoot', 'Idle_Talking_Loop']
@@ -234,6 +238,8 @@ def write_licenses(total):
     lines += ['| `tex/` | textures of the packs above (each row below names its pack) | CC0 1.0 | as its pack |', '',
               'The two animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf ' + ANIMAL_PAGES['Wolf'] +
               ', Deer ' + ANIMAL_PAGES['Deer'] + '.', '',
+              'The Ghost Skull (the barrow shade) is a Quaternius model published on poly.pizza as CC0 1.0: ' +
+              MONSTER_PAGES['Ghost_Skull'] + '. The other foes are built in code (src/render3d/creatures.js).', '',
               'Total size: %.1f MB in %d files.' % (total / 1048576, len(files)), '',
               '## Files', '', '| File | Pack | License |', '|---|---|---|']
     for rel, src, pack in sorted(files):
@@ -243,7 +249,7 @@ def write_licenses(total):
 
 
 def main():
-    for d in list(INV) + ['ual', 'animals', 'tex']:
+    for d in list(INV) + ['ual', 'animals', 'monsters', 'tex']:
         p = os.path.join(OUT, d)
         if os.path.isdir(p):
             shutil.rmtree(p)
@@ -259,6 +265,11 @@ def main():
         src = os.path.join(POLY, rel)
         shutil.copyfile(src, os.path.join(OUT, 'animals', n + '.glb'))
         add_file('animals/' + n + '.glb', src, 'animals')
+    os.makedirs(os.path.join(OUT, 'monsters'), exist_ok=True)
+    for n, rel in MONSTERS.items():
+        src = os.path.join(POLY, rel)
+        shutil.copyfile(src, os.path.join(OUT, 'monsters', n + '.glb'))
+        add_file('monsters/' + n + '.glb', src, 'monsters')
     total = sum(os.path.getsize(os.path.join(OUT, f)) for f, _, _ in files)
     man = {'v': 1, 'bytes': total, 'files': sorted(f for f, _, _ in files)}
     with open(os.path.join(OUT, 'manifest.json'), 'w', encoding='utf-8', newline='\n') as f:

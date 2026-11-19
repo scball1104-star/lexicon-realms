@@ -22,11 +22,14 @@ three.js r170 (MIT) is vendored separately in `src/vendor/three/` with its licen
 | `nature/` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 | `D:\LQOnline\vendor_itch\x\Stylized Nature MegaKit` |
 | `ual/` | Universal Animation Library (Quaternius, free tier) | CC0 1.0 | `D:\LQOnline\vendor_itch\x\Universal Animation Library` |
 | `animals/` | Quaternius Animated Animal Pack via poly.pizza | CC0 1.0 | `D:\LQOnline\mockups3d_b\vendor\quaternius_polypizza` |
+| `monsters/` | Quaternius Ultimate Monsters Bundle via poly.pizza | CC0 1.0 | `D:\LQOnline\mockups3d_b\vendor\quaternius_polypizza` |
 | `tex/` | textures of the packs above (each row below names its pack) | CC0 1.0 | as its pack |
 
 The two animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf https://poly.pizza/m/P1gU3Qkr9r, Deer https://poly.pizza/m/T6Cs7tmMHJ.
 
-Total size: 22.2 MB in 272 files.
+The Ghost Skull (the barrow shade) is a Quaternius model published on poly.pizza as CC0 1.0: https://poly.pizza/m/TX8r9WBXpe. The other foes are built in code (src/render3d/creatures.js).
+
+Total size: 22.4 MB in 273 files.
 
 ## Files
 
@@ -86,6 +89,7 @@ Total size: 22.2 MB in 272 files.
 | `mco/Male_Ranger_Head_Hood.gltf` | Modular Character Outfits - Fantasy (Quaternius, free tier) | CC0 1.0 |
 | `mco/Male_Ranger_Legs.bin` | Modular Character Outfits - Fantasy (Quaternius, free tier) | CC0 1.0 |
 | `mco/Male_Ranger_Legs.gltf` | Modular Character Outfits - Fantasy (Quaternius, free tier) | CC0 1.0 |
+| `monsters/Ghost_Skull.glb` | Quaternius Ultimate Monsters Bundle via poly.pizza | CC0 1.0 |
 | `nature/Bush_Common.bin` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `nature/Bush_Common.gltf` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `nature/Bush_Common_Flowers.bin` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 |

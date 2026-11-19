@@ -4,17 +4,20 @@
 // footprint, and trees, bushes, rocks and props come from the Stylized Nature and Fantasy Props kits.
 //
 //   const z = await buildZone(L, zone, { tilesDb, quality, yieldFn })   tilesDb: assets/tiles/tiles.json
-//   z.group (add to the scene), z.lamps ([{ pos: Vector3, color, k }] light spots), z.glows (lamp halos), z.dispose()
+//   z.group (add to the scene), z.lamps ([{ pos: Vector3, color, k }] light spots), z.halo (lamp halos: .opacity), z.dispose()
 //
-// One world unit is one metre and one tile (16 px). Repeated models are instanced per 16 m chunk and one-off groups
+// One world unit is one metre and one tile (16 px). Repeated models are instanced per 48 m chunk and one-off groups
 // are merged per material per chunk, so the town is a few dozen draw calls and off-screen chunks are culled.
+// The ground is one plane with a splat shader: per-tile colour and class weights (grass, dirt, stone, sand) from the
+// tile data, tileable detail textures per class, noise-broken edges and large-scale colour patches. The build yields
+// to the frame loop every few milliseconds (yieldFn) so a zone can be built while the player walks.
 import * as THREE from '../vendor/three/three.module.min.js';
 import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtils.js';
 import { WINDOW_LIT } from './loader.js';
 import { dyeMaterial } from './hero.js';
-import { canvasTex, radial, seeded, woodTex } from './textures.js';
+import { canvasTex, groundDetail, radial, waterNormal, woodTex } from './textures.js';
 
-const CH = 16;   // chunk size (m)
+const CH = 48;   // chunk size (m): the town is one chunk, the big fields a few
 const FLOOR_H = 3.12;
 
 // ground colours per terrain id (linear-ish sRGB hex); unknown ids fall back to the zone's `under`
@@ -35,18 +38,28 @@ const MAT = {
   stone: new THREE.MeshStandardMaterial({ color: '#6a655e', roughness: 0.95, flatShading: true }),
   darkStone: new THREE.MeshStandardMaterial({ color: '#46423e', roughness: 0.95, flatShading: true }),
   hay: new THREE.MeshStandardMaterial({ color: '#c8a050', roughness: 1 }),
-  water: new THREE.MeshStandardMaterial({ color: '#3d6f8c', roughness: 0.06, metalness: 0.1, transparent: true, opacity: 0.78 }),
-  shallow: new THREE.MeshStandardMaterial({ color: '#6aa0b0', roughness: 0.08, metalness: 0.05, transparent: true, opacity: 0.5 }),
-  ink: new THREE.MeshStandardMaterial({ color: '#2a1a50', roughness: 0.05, metalness: 0.2, emissive: '#3a1a7a', emissiveIntensity: 0.25, transparent: true, opacity: 0.85 }),
+  water: new THREE.MeshStandardMaterial({ color: '#3d6f8c', roughness: 0.12, metalness: 0.1, transparent: true, opacity: 0.8, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.55, 0.55) }),
+  shallow: new THREE.MeshStandardMaterial({ color: '#6aa0b0', roughness: 0.14, metalness: 0.05, transparent: true, opacity: 0.55, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.35, 0.35) }),
+  ink: new THREE.MeshStandardMaterial({ color: '#2a1a50', roughness: 0.08, metalness: 0.2, emissive: '#3a1a7a', emissiveIntensity: 0.25, transparent: true, opacity: 0.88, normalMap: waterNormal(), normalScale: new THREE.Vector2(0.4, 0.4) }),
   cloth: new THREE.MeshStandardMaterial({ color: '#8a3a2a', roughness: 0.9 }),
   fire: new THREE.MeshBasicMaterial({ color: '#ffb050' }),
 };
 export const LAMP_GLASS = MAT.glass;
+// water ripples: one shared normal map scrolled every frame (the renderer calls tickWater with the fx clock)
+const RIPPLE = waterNormal();
+RIPPLE.repeat.set(0.25, 0.25);
+/** Scroll the water ripples (t: seconds). */
+export function tickWater(t) { RIPPLE.offset.set(t * 0.011, t * 0.017); }
 
 
-// See-through: static scenery between the camera and the player is dithered away in a soft cylinder, so trees, roofs
-// and walls never hide the hero (the 3D take on the 2D canopy fade). Shadows are untouched (depth pass unpatched).
-export const SEE = { uCam: { value: new THREE.Vector3() }, uFocus: { value: new THREE.Vector3() }, uSeeR: { value: 2.6 } };
+// See-through, the action-RPG cutaway: static scenery between the camera and the hero (and the hero's target) is
+// faded to about 25% coverage inside a soft cone that widens toward them, so canopies, roofs and walls never hide the
+// fight. Ordered (Bayer 4x4) dithering stands in for alpha so merged and instanced meshes need no sorting. The ground
+// layer (below 0.3 m) never fades. Shadows are untouched (the depth pass is not patched).
+export const SEE = {
+  uCam: { value: new THREE.Vector3() }, uFocus: { value: new THREE.Vector3() }, uSeeR: { value: 2.8 },
+  uFocus2: { value: new THREE.Vector3() }, uSeeR2: { value: 0 },
+};
 const patched = new WeakSet();
 function seeThrough(mat) {
   if (patched.has(mat)) return;
@@ -56,6 +69,7 @@ function seeThrough(mat) {
   mat.onBeforeCompile = (sh, r) => {
     if (prev) prev(sh, r);
     Object.assign(sh.uniforms, SEE);
+    if (sh.vertexShader.includes('vLrW')) return;   // a clone that copied an already patched hook (tinted kit pieces)
     sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
 varying vec3 vLrW;`)
       .replace('#include <project_vertex>', `#include <project_vertex>
@@ -65,16 +79,23 @@ varying vec3 vLrW;`)
       #endif
         vLrW = (modelMatrix * lrW).xyz; }`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-varying vec3 vLrW; uniform vec3 uCam; uniform vec3 uFocus; uniform float uSeeR;`)
+varying vec3 vLrW; uniform vec3 uCam; uniform vec3 uFocus; uniform float uSeeR; uniform vec3 uFocus2; uniform float uSeeR2;
+float lrB2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
+float lrBayer(vec2 a) { return lrB2(0.5 * a) * 0.25 + lrB2(a); }
+float lrCover(vec3 P, vec3 F, float R) {
+  if (R <= 0.0) return 1.0;
+  vec3 d = F - uCam; float L = length(d); vec3 n = d / L; float t = dot(P - uCam, n);
+  if (t <= 0.0 || t > L - 0.45) return 1.0;
+  float Rt = R * smoothstep(0.2, 0.75, t / L);
+  return mix(0.25, 1.0, smoothstep(Rt * 0.55, Rt, length(P - (uCam + n * t))));
+}`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
-      { vec3 d = uFocus - uCam; float L = length(d); vec3 n = d / L; float t = dot(vLrW - uCam, n);
-        if (t > 0.0 && t < L - 0.6 && vLrW.y > 0.35) {
-          float r = length(vLrW - (uCam + n * t));
-          float R = uSeeR * smoothstep(0.35, 0.85, t / L);
-          if (r < R) { vec2 q = mod(floor(gl_FragCoord.xy), 2.0); if (q.x == q.y || r < R * 0.7) discard; }
-        } }`);
+      if (vLrW.y > 0.3) {
+        float lrC = min(lrCover(vLrW, uFocus, uSeeR), lrCover(vLrW, uFocus2, uSeeR2));
+        if (lrC < 0.999 && lrC <= lrBayer(gl_FragCoord.xy) + 0.001) discard;
+      }`);
   };
-  mat.customProgramCacheKey = () => (prevKey ? prevKey() : '') + '|lr_see';
+  mat.customProgramCacheKey = () => (prevKey ? prevKey() : '') + '|lr_see2';
   mat.needsUpdate = true;
 }
 
@@ -148,7 +169,7 @@ function makeBatcher(group, { shadows }) {
       g.applyMatrix4(m4);
       merge.get(k).geos.push(g);
     },
-    finish() {
+    async finish(step = null) {
       let calls = 0;
       for (const v of inst.values()) seeThrough(v.material);
       for (const v of merge.values()) seeThrough(v.material);
@@ -159,6 +180,7 @@ function makeBatcher(group, { shadows }) {
         im.computeBoundingSphere(); im.computeBoundingBox();
         im.castShadow = shadows && v.cast; im.receiveShadow = true;
         group.add(im); calls++;
+        if (step) await step();
       }
       for (const v of merge.values()) {
         // geometries must share attribute sets: add a white colour to those without one when any has it
@@ -178,6 +200,7 @@ function makeBatcher(group, { shadows }) {
         const m = new THREE.Mesh(geo, v.material);
         m.castShadow = shadows && v.cast; m.receiveShadow = true;
         group.add(m); calls++;
+        if (step) await step();
       }
       return calls;
     },
@@ -187,48 +210,92 @@ function makeBatcher(group, { shadows }) {
 const M4 = (x, y, z, ry = 0, sx = 1, sy = sx, sz = sx) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new THREE.Vector3(sx, sy, sz));
 
 // ---------- the ground ----------
-function paintGround(zone, terrainAt) {
+// ground class per terrain id: 0 grass (the default), 1 dirt, 2 stone, 3 sand
+const CLASS = {
+  dirt: 1, x1_peat: 1, x1_bracken: 1, cliff_stairs_top: 1, cliff_stairs_mid: 1, cliff_stairs_bot: 1,
+  plaza: 2, x1_drystone: 2, cliff_face: 2, x1_crag_face: 2, x1_crag_top: 2,
+  sand: 3, water: 3, shallow: 3, x1_tarn: 3, ink: 3,
+};
+const WORN = new THREE.Color('#3e3426');
+/** Per-tile colour and per-tile class weights, one pixel per tile (the shader smooths and breaks the edges). */
+function paintGround(zone, terrainAt, wear = null) {
   const W = zone.w, H = zone.h;
-  const P = Math.max(4, Math.min(8, Math.floor(2048 / Math.max(W, H))));
-  const small = document.createElement('canvas'); small.width = W; small.height = H;
-  const sg = small.getContext('2d');
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+  const col = mk(), wts = mk();
+  const cg = col.getContext('2d'), wg = wts.getContext('2d');
+  const ci = cg.createImageData(W, H), wi = wg.createImageData(W, H);
+  const c = new THREE.Color(), srgb = { r: 0, g: 0, b: 0 };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const id = terrainAt(x, y);
-    const c = new THREE.Color(GROUND[id] || GROUND[zone.under] || GROUND.grass);
-    const j = (hashXY(x, y, 7) - 0.5) * 0.08;
-    c.offsetHSL(0, 0, j);
-    sg.fillStyle = '#' + c.getHexString(); sg.fillRect(x, y, 1, 1);
+    const id = terrainAt(x, y), i = (y * W + x) * 4;
+    c.set(GROUND[id] || GROUND[zone.under] || GROUND.grass);
+    c.offsetHSL((hashXY(x, y, 3) - 0.5) * 0.02, (hashXY(x, y, 5) - 0.5) * 0.06, (hashXY(x, y, 7) - 0.5) * 0.07);
+    if (wear && wear[y * W + x] > 0) c.lerp(WORN, wear[y * W + x] * 0.45);
+    c.getRGB(srgb, THREE.SRGBColorSpace);
+    ci.data[i] = srgb.r * 255; ci.data[i + 1] = srgb.g * 255; ci.data[i + 2] = srgb.b * 255; ci.data[i + 3] = 255;
+    const k = CLASS[id] || 0;
+    wi.data[i] = k === 1 ? 255 : 0; wi.data[i + 1] = k === 2 ? 255 : 0; wi.data[i + 2] = k === 3 ? 255 : 0; wi.data[i + 3] = 255;
   }
-  return canvasTex(W * P, H * P, (g, w, h) => {
-    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-    g.drawImage(small, 0, 0, w, h);
-    const { R } = seeded(W * 131 + H);
-    const n = Math.min(160000, W * H * 10);
-    for (let i = 0; i < n; i++) {
-      const l = R(-1, 1);
-      g.fillStyle = l > 0 ? `rgba(200,210,150,${0.03 + l * 0.05})` : `rgba(10,14,8,${0.04 - l * 0.07})`;
-      g.fillRect(R(0, w), R(0, h), R(1, 2.5), R(1, 3));
-    }
-  });
+  cg.putImageData(ci, 0, 0); wg.putImageData(wi, 0, 0);
+  const tc = new THREE.CanvasTexture(col); tc.colorSpace = THREE.SRGBColorSpace;
+  const tw = new THREE.CanvasTexture(wts);
+  for (const t of [tc, tw]) { t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping; t.anisotropy = 4; }
+  return { color: tc, weights: tw };
 }
-let detailTex = null;
-function groundMaterial(map) {
-  if (!detailTex) {
-    detailTex = canvasTex(128, 128, (g, w, h) => {
-      g.fillStyle = '#808080'; g.fillRect(0, 0, w, h);
-      const { R } = seeded(99);
-      for (let i = 0; i < 2600; i++) { const v = Math.floor(R(70, 190)); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(R(0, w), R(0, h), R(1, 2), R(1, 4)); }
-    }, { srgb: false, repeat: [1, 1] });
-  }
-  const mat = new THREE.MeshStandardMaterial({ map, roughness: 0.97, metalness: 0 });
-  const U = { tDetail: { value: detailTex }, uRep: { value: new THREE.Vector2(1, 1) } };
+function groundMaterial({ color, weights }, W, H) {
+  const D = groundDetail();
+  const mat = new THREE.MeshStandardMaterial({ map: color, roughness: 0.96, metalness: 0 });
+  const U = { tW: { value: weights }, tGrass: { value: D.grass }, tDirt: { value: D.dirt }, tStone: { value: D.stone }, tSand: { value: D.sand }, tMacro: { value: D.macro }, uSize: { value: new THREE.Vector2(W, H) } };
   mat.userData.U = U;
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tDetail; uniform vec2 uRep;')
-      .replace('#include <map_fragment>', '#include <map_fragment>\n{ float d = texture2D(tDetail, vMapUv * uRep).r; diffuseColor.rgb *= 0.72 + d * 0.56; }');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tW, tGrass, tDirt, tStone, tSand, tMacro; uniform vec2 uSize;')
+      .replace('#include <map_fragment>', `
+      {
+        vec2 tc = vMapUv * uSize;                                   // tile coordinates (1 unit = 1 m)
+        vec4 mac = texture2D(tMacro, tc * 0.035);
+        vec4 jn = texture2D(tMacro, tc * 0.19 + vec2(0.31, 0.77));
+        vec2 uv = vMapUv + (jn.rg - 0.5) * 1.15 / uSize;            // noise-broken class edges
+        vec3 base = texture2D(map, uv).rgb;
+        vec3 w = smoothstep(0.28, 0.72, texture2D(tW, uv).rgb);
+        float wg = clamp(1.0 - w.r - w.g - w.b, 0.0, 1.0);
+        vec2 q = tc * 0.5;
+        vec3 det = texture2D(tGrass, q).rgb * wg + texture2D(tDirt, q * 0.85).rgb * w.r + texture2D(tStone, q * 0.6).rgb * w.g + texture2D(tSand, q).rgb * w.b;
+        det /= max(0.001, wg + w.r + w.g + w.b);
+        vec3 col = base * det * 2.0 * (0.8 + mac.r * 0.4);
+        col *= mix(vec3(1.0), vec3(1.14, 1.05, 0.7), smoothstep(0.5, 0.78, mac.g) * wg * 0.7);   // dry grass patches
+        col *= mix(vec3(1.0), vec3(0.78, 0.86, 0.74), smoothstep(0.55, 0.85, 1.0 - mac.g) * wg * 0.6); // lush dark patches
+        col = mix(col, vec3(dot(col, vec3(0.3, 0.59, 0.11))) * vec3(1.02, 1.0, 0.92), 0.2 * wg) * mix(1.0, 0.9, wg);       // less candy green
+        diffuseColor.rgb *= col;
+      }`);
   };
-  mat.customProgramCacheKey = () => 'lr_ground';
+  mat.customProgramCacheKey = () => 'lr_ground2';
+  return mat;
+}
+
+/** The zone's water surface: colour per kind from the mask, alpha fading at the shore, a foam line, scrolling ripples. */
+function waterMaterial(mask, W, H) {
+  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.1, metalness: 0.1, transparent: true, depthWrite: false, normalMap: RIPPLE, normalScale: new THREE.Vector2(0.5, 0.5) });
+  const U = { tWM: { value: mask }, tJit: { value: groundDetail().macro }, uSize: { value: new THREE.Vector2(W, H) } };
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 lrWorld; varying vec2 vWM; varying vec2 vWW;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWM = uv; vWW = lrWorld;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tWM, tJit; uniform vec2 uSize; varying vec2 vWM; varying vec2 vWW;')
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        vec4 j = texture2D(tJit, vWW * 0.17 + vec2(0.13, 0.61));
+        vec3 m = texture2D(tWM, vWM + (j.rg - 0.5) * 1.1 / uSize).rgb;
+        float a = max(m.r, max(m.g, m.b));
+        float edge = smoothstep(0.32, 0.6, a);
+        vec3 c = (vec3(0.11, 0.24, 0.31) * m.r + vec3(0.25, 0.42, 0.45) * m.g + vec3(0.13, 0.07, 0.24) * m.b) / max(0.001, m.r + m.g + m.b);
+        c *= mix(1.0, 0.7, smoothstep(0.75, 1.0, m.r));                    // deeper toward the middle
+        float foam = (1.0 - smoothstep(0.0, 0.16, abs(a - 0.47))) * (0.55 + 0.45 * j.b);
+        diffuseColor.rgb = mix(c, vec3(0.78, 0.84, 0.82), foam * 0.6);
+        diffuseColor.a = edge * mix(0.84, 0.6, m.g / max(0.001, a));
+        if (diffuseColor.a < 0.01) discard;
+      }`);
+  };
+  mat.customProgramCacheKey = () => 'lr_water2';
   return mat;
 }
 
@@ -389,6 +456,42 @@ function barrowMound(x, z, w) {
   return g;
 }
 
+/** Ground dressing from the tile data: grass clumps on open grass, pebbles, ferns and small stones along road edges.
+ *  All of it is small and low (never reads as a blocker) and keeps off decor footprints, water, cliffs and fences. */
+async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain }) {
+  const busy = new Uint8Array(W * H);
+  const mark = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) busy[y * W + x] = 1; };
+  for (const d of zone.decor || []) for (let dy = -1; dy <= 2; dy++) for (let dx = -1; dx <= 3; dx++) mark(d.x + dx, d.y + dy);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const id = legendAt[y][x]; if (id && !isTerrain(id)) mark(x, y); }   // fences, walls
+  for (const o of zone.overlays || []) if (!isTerrain(o.t) && !/^(tuft|pebbles|flowers)/.test(o.t)) mark(o.x, o.y);
+  const isGrass = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !CLASS[terr[y][x]] && !WATER.has(terr[y][x]) && !/cliff|ledge/.test(terr[y][x]);
+  const isRoad = (x, y) => x >= 0 && y >= 0 && x < W && y < H && CLASS[terr[y][x]] === 1;
+  const [grass, wisp, peb1, peb3, fern, rock] = await Promise.all(['nature/Grass_Common_Short.gltf', 'nature/Grass_Wispy_Tall.gltf', 'nature/Pebble_Round_1.gltf', 'nature/Pebble_Round_3.gltf', 'nature/Fern_1.gltf', 'nature/Rock_Medium_2.gltf'].map((u) => P(u)));
+  const hOf = (pr) => Math.max(0.05, pr.box.max.y - pr.box.min.y);
+  const put = (pr, x, z, h, ry, tint = null) => { const k = h / hOf(pr); B.instance(pr, M4(x, -pr.box.min.y * k, z, ry, k), { tint, cast: false }); };
+  const dense = quality.grass ? 1 : 0.35;     // phones: a third of the dressing
+  const moor = /moor/.test(zone.id) || zone.under === 'x1_moor_turf';
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (busy[y * W + x]) continue;
+      const r = (s) => hashXY(x, y, 40 + s);
+      if (isGrass(x, y)) {
+        const edge = isRoad(x - 1, y) || isRoad(x + 1, y) || isRoad(x, y - 1) || isRoad(x, y + 1);
+        if (edge && r(1) < 0.3 * dense) {           // the verge: pebbles, a fern, now and then a stone
+          const k = r(2);
+          if (k < 0.45) put(r(3) < 0.5 ? peb1 : peb3, x + r(4), y + r(5), 0.1 + r(6) * 0.1, r(7) * 6.28, '#b8b0a0');
+          else if (k < 0.8) put(fern, x + r(4), y + r(5), 0.35 + r(6) * 0.25, r(7) * 6.28, moor ? '#b8b090' : null);
+          else put(rock, x + r(4), y + r(5), 0.25 + r(6) * 0.2, r(7) * 6.28, '#9a9488');
+        } else if (r(8) < 0.16 * dense) {           // clumps on open grass
+          const n = 1 + Math.floor(r(9) * 3);
+          for (let i = 0; i < n; i++) put(r(10 + i) < 0.75 ? grass : wisp, x + r(13 + i), y + r(16 + i), (r(10 + i) < 0.75 ? 0.28 : 0.42) + r(19 + i) * 0.14, r(22 + i) * 6.28, moor ? '#c8c090' : null);
+        }
+      } else if (isRoad(x, y) && r(30) < 0.07 * dense) put(r(31) < 0.5 ? peb1 : peb3, x + r(32), y + r(33), 0.07 + r(34) * 0.06, r(35) * 6.28, '#c0b6a4');
+    }
+    await step();
+  }
+}
+
 /** Build one zone. */
 export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn = null } = {}) {
   const group = new THREE.Group(); group.name = `zone:${zone.id}`;
@@ -396,7 +499,10 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const B = makeBatcher(group, { shadows: !!quality.shadows });
   const lamps = [];
   const W = zone.w, H = zone.h;
-  const step = async () => { if (yieldFn) await yieldFn(); };
+  let waterTex = null;
+  // yield to the frame loop whenever this build has held the thread for a few milliseconds (no hitch while walking)
+  let slice = performance.now();
+  const step = async () => { if (yieldFn && performance.now() - slice > 5) { await yieldFn(); slice = performance.now(); } };
 
   // terrain per tile (legend + terrain overlays)
   const terr = [], legendAt = [];
@@ -414,30 +520,53 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const terrainAt = (x, y) => terr[y][x];
 
   // ground plane (map) + a wide apron so the map edge fades into fog
-  const gtex = paintGround(zone, terrainAt);
-  const gmat = groundMaterial(gtex);
-  gmat.userData.U.uRep.value.set(W / 2, H / 2);
+  // wear: trodden, darker ground hugging the buildings (and a little round every other decor piece)
+  const wear = new Float32Array(W * H);
+  {
+    const objs = (tilesDb && tilesDb.objects) || {};
+    for (const d of zone.decor || []) {
+      const meta = objs[d.t];
+      let x0 = d.x, y0 = d.y, x1 = d.x, y1 = d.y;
+      if (meta && Array.isArray(meta.footprint) && Array.isArray(meta.footprint[0])) { const xs = meta.footprint.map((p) => p[0]), ys = meta.footprint.map((p) => p[1]); x0 = d.x + Math.min(...xs); x1 = d.x + Math.max(...xs); y0 = d.y + Math.min(...ys); y1 = d.y + Math.max(...ys); }
+      const k = BUILDING[d.t] ? 0.55 : 0.25;
+      for (let y = y0 - 1; y <= y1 + 1; y++) for (let x = x0 - 1; x <= x1 + 1; x++) if (x >= 0 && y >= 0 && x < W && y < H) wear[y * W + x] = Math.max(wear[y * W + x], (x < x0 || x > x1 || y < y0 || y > y1) ? k : k * 1.2);
+    }
+  }
+  const gtex = paintGround(zone, terrainAt, wear);
+  const gmat = groundMaterial(gtex, W, H);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), gmat);
   ground.rotation.x = -Math.PI / 2; ground.position.set(W / 2, 0, H / 2); ground.receiveShadow = true;
   group.add(ground);
-  const apron = new THREE.Mesh(new THREE.PlaneGeometry(W + 160, H + 160), new THREE.MeshStandardMaterial({ color: new THREE.Color(GROUND[zone.under] || GROUND.grass).multiplyScalar(0.6), roughness: 1 }));
+  const apronMap = groundDetail().grass.clone(); apronMap.repeat.set((W + 160) / 2, (H + 160) / 2); apronMap.needsUpdate = true;
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(W + 160, H + 160), new THREE.MeshStandardMaterial({ map: apronMap, color: new THREE.Color(GROUND[zone.under] || GROUND.grass).multiplyScalar(1.25), roughness: 1 }));
   apron.rotation.x = -Math.PI / 2; apron.position.set(W / 2, -0.03, H / 2); apron.receiveShadow = true;
   group.add(apron);
   await step();
 
-  // water: one merged surface per kind
-  const waterGeo = { water: [], shallow: [], ink: [] };
+  // water: one plane over the zone; a per-tile mask (R deep water, G shallows, B ink) with noise-broken edges gives a
+  // soft shoreline and a pale foam line, and the shared ripple normal map scrolls (tickWater)
+  const wm = document.createElement('canvas'); wm.width = W; wm.height = H;
+  const wmg = wm.getContext('2d'), wmi = wmg.createImageData(W, H);
+  let wet = 0;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const t = terr[y][x];
-    const k = t === 'shallow' ? 'shallow' : t === 'ink' ? 'ink' : WATER.has(t) ? 'water' : null;
-    if (!k) continue;
-    const q = new THREE.PlaneGeometry(1, 1); q.rotateX(-Math.PI / 2); q.translate(x + 0.5, k === 'shallow' ? 0.02 : 0.03, y + 0.5);
-    waterGeo[k].push(q);
+    const t = terr[y][x], i = (y * W + x) * 4;
+    const k = t === 'shallow' ? 1 : t === 'ink' ? 2 : WATER.has(t) ? 0 : -1;
+    if (k >= 0) { wmi.data[i + k] = 255; wet++; }
+    wmi.data[i + 3] = 255;
   }
-  for (const [k, list] of Object.entries(waterGeo)) {
-    if (!list.length) continue;
-    const m = new THREE.Mesh(mergeGeometries(list), MAT[k]); m.receiveShadow = true; m.renderOrder = 1; group.add(m);
+  if (wet) {
+    wmg.putImageData(wmi, 0, 0);
+    const mt = new THREE.CanvasTexture(wm); mt.wrapS = mt.wrapT = THREE.ClampToEdgeWrapping;
+    const wmat = waterMaterial(mt, W, H);
+    const wgeo = new THREE.PlaneGeometry(W, H); wgeo.rotateX(-Math.PI / 2); wgeo.translate(W / 2, 0.035, H / 2);
+    const uv2 = wgeo.attributes.uv, ps2 = wgeo.attributes.position;
+    // uv: the mask lookup; lrWorld (world metres) breaks the shore edge
+    const uw = new Float32Array(uv2.count * 2); for (let i = 0; i < uv2.count; i++) { uw[i * 2] = ps2.getX(i); uw[i * 2 + 1] = ps2.getZ(i); }
+    wgeo.setAttribute('lrWorld', new THREE.BufferAttribute(uw, 2));
+    const wmesh = new THREE.Mesh(wgeo, wmat); wmesh.receiveShadow = true; wmesh.renderOrder = 1; group.add(wmesh);
+    waterTex = mt;
   }
+  await step();
 
   // cobbles on the plaza, planks on bridges
   const cob = await P('village/Floor_UnevenBrick.gltf');
@@ -537,7 +666,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     else if (/chain/.test(t)) B.mergeGroup(chainGate(cx, d.y + 0.5, fw));
     else if (t === 'x1_scarecrow') B.mergeGroup(scarecrow(d.x + 0.5, d.y + 0.5));
     else if (t === 'x1_roots_stile') jobs.push(placeModel('nature/TwistedTree_3.gltf', cx, d.y + 0.5, { h: 2.5, ry: 1 }));
-    if (++n % 60 === 0) { await Promise.all(jobs.splice(0)); await step(); }
+    if (++n % 20 === 0) { await Promise.all(jobs.splice(0)); await step(); }
   }
   await Promise.all(jobs.splice(0));
   // lantern posts (the respawn lanterns) are lamp posts too
@@ -560,16 +689,25 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     await Promise.all(jobs.splice(0));
   }
   await step();
-  const calls = B.finish();
+  await dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain });
+  await step();
+  const calls = await B.finish(step);
 
-  // lamp halos (additive sprites, brightened at night by the renderer)
-  const halo = new THREE.SpriteMaterial({ map: radial('rgba(255,225,170,1)', 'rgba(255,170,70,0.35)'), color: '#ffb35c', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 });
-  for (const l of lamps) { const s = new THREE.Sprite(halo); s.position.copy(l.pos); s.scale.setScalar(l.fire ? 2.0 : 1.3); group.add(s); }
+  // lamp halos: additive points (one draw call for every lamp, one for every fire), brightened at night by the renderer
+  const haloMats = [];
+  for (const fire of [false, true]) {
+    const ls = lamps.filter((l) => !!l.fire === fire);
+    if (!ls.length) continue;
+    const m = new THREE.PointsMaterial({ map: radial('rgba(255,225,170,1)', 'rgba(255,170,70,0.35)'), color: '#ffb35c', size: fire ? 2.0 : 1.3, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 });
+    const geo = new THREE.BufferGeometry().setFromPoints(ls.map((l) => l.pos));
+    const pts = new THREE.Points(geo, m); pts.renderOrder = 3; group.add(pts); haloMats.push(m);
+  }
+  const halo = { set opacity(v) { for (const m of haloMats) m.opacity = v; } };
   return {
     group, lamps, halo, calls,
     dispose() {
-      group.traverse((m) => { if (m.isMesh && !m.isInstancedMesh && m.geometry) m.geometry.dispose(); });
-      gtex.dispose();
+      group.traverse((m) => { if (((m.isMesh && !m.isInstancedMesh) || m.isPoints) && m.geometry) m.geometry.dispose(); });
+      gtex.color.dispose(); gtex.weights.dispose(); apronMap.dispose(); if (waterTex) waterTex.dispose();
     },
   };
 }

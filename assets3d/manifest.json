@@ -1,6 +1,6 @@
 {
 "v": 1,
-"bytes": 23228869,
+"bytes": 23461253,
 "files": [
 "animals/Deer.glb",
 "animals/Wolf.glb",
@@ -56,6 +56,7 @@
 "mco/Male_Ranger_Head_Hood.gltf",
 "mco/Male_Ranger_Legs.bin",
 "mco/Male_Ranger_Legs.gltf",
+"monsters/Ghost_Skull.glb",
 "nature/Bush_Common.bin",
 "nature/Bush_Common.gltf",
 "nature/Bush_Common_Flowers.bin",

@@ -6,6 +6,7 @@
 //   npcSpec(template, sprite)         -> spec   (townsfolk and trainers wear the same outfits)
 //   await dress(L, ch, spec, layer)   -> { lights: [{ obj, color, k }] }  weapons, helm, cape, rare effects onto an assembled body
 import * as THREE from '../vendor/three/three.module.min.js';
+import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtils.js';
 import { addCape, dyeMaterial } from './hero.js';
 import { radial, woodTex, leatherTex, woolTex, seeded } from './textures.js';
 
@@ -178,6 +179,32 @@ const M = {
   leather: (c) => new THREE.MeshStandardMaterial({ color: '#ffffff', map: leatherTex(c), roughness: 0.85 }),
 };
 const castAll = (g) => { g.traverse((m) => { if (m.isMesh) m.castShadow = true; }); return g; };
+/** Merge the rigid meshes of a code-built gear piece that look alike (same material kind, colour, map, side,
+ *  emissive) into one mesh each: a quiver of arrows is 3 draw calls instead of 37. Sprites and Points stay. */
+function compact(g) {
+  g.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), m4 = new THREE.Matrix4();
+  const groups = new Map(), drop = [];
+  g.traverse((m) => {
+    if (!m.isMesh) return;
+    const t = m.material;
+    const k = [t.type, t.color && t.color.getHexString(), t.map ? t.map.uuid : '', t.side, t.emissive ? t.emissive.getHexString() : '', t.emissiveIntensity || 0, t.metalness, t.roughness].join('|');
+    if (!groups.has(k)) groups.set(k, { mat: t, geos: [], cast: false });
+    const e = groups.get(k);
+    const geo = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone());
+    for (const n of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(n)) geo.deleteAttribute(n);
+    if (!geo.attributes.uv) geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
+    geo.applyMatrix4(m4.multiplyMatrices(inv, m.matrixWorld));
+    e.geos.push(geo); e.cast = e.cast || m.castShadow; drop.push(m);
+  });
+  for (const m of drop) { m.parent.remove(m); m.geometry.dispose(); }
+  for (const e of groups.values()) {
+    const geo = mergeGeometries(e.geos, false);
+    if (!geo) continue;
+    const mesh = new THREE.Mesh(geo, e.mat); mesh.castShadow = e.cast; mesh.receiveShadow = true; g.add(mesh);
+  }
+  return g;
+}
 
 async function propMesh(L, name, { dye = null, scale = 1 } = {}) {
   const g = await L.gltf(`props/${name}.gltf`, { shareMaterials: false });
@@ -225,7 +252,7 @@ export function helm(style = 'nasal', { color = '#a9b1bb', trim = '#c9a24c', glo
       g.add(new THREE.Mesh(geo, gold));
     }
   }
-  return castAll(g);
+  return compact(castAll(g));
 }
 export function dagger({ len = 0.46, glow = null, steel = '#c2c8cf' } = {}) {
   const g = new THREE.Group(); const bl = len * 0.62;
@@ -252,7 +279,7 @@ export function bow({ h = 1.32, wood = '#6b4527', glow = null } = {}) {
   const d = bot.clone().sub(top);
   const str = new THREE.Mesh(new THREE.CylinderGeometry(0.0025, 0.0025, d.length(), 4), new THREE.MeshBasicMaterial({ color: glow || '#d9d2c0' }));
   str.position.copy(top).addScaledVector(d, 0.5); g.add(str);
-  return castAll(g);
+  return compact(castAll(g));
 }
 export function arrowMesh({ len = 0.7, glow = null } = {}) {
   const g = new THREE.Group();
@@ -269,7 +296,7 @@ export function quiver({ n = 7 } = {}) {
   const body = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.05, 0.52, 10, 1, true), mat); body.position.y = 0.26; g.add(body);
   const rim = new THREE.Mesh(new THREE.TorusGeometry(0.065, 0.008, 6, 12), M.bronze()); rim.rotation.x = Math.PI / 2; rim.position.y = 0.52; g.add(rim);
   for (let i = 0; i < n; i++) { const a = arrowMesh({ len: 0.7 }); a.position.set(R(-0.035, 0.035), 0.0, R(-0.035, 0.035)); a.rotation.set(R(-0.08, 0.08), R(0, 6), R(-0.08, 0.08)); g.add(a); }
-  return castAll(g);
+  return compact(castAll(g));
 }
 const iron = () => new THREE.MeshStandardMaterial({ color: '#2a2522', roughness: 0.5, metalness: 0.7 });
 export function lanternStaff({ h = 1.75, light = '#ffc46b', glass = '#ffe2a8', k = 2.6 } = {}) {

@@ -9,6 +9,9 @@ Starts its own static server on a free 127.0.0.1 port (and stops it at the end),
   C desktop: a Warden fights a slime with right-click + 1 (melee swing, hit, death), then night in Willowmere
   D phone 844x390 at dpr 2 (touch): tap the ground to walk (3D devToWorld), tap a foe to target it (3D pick)
   E no WebGL: ?r=3d falls back to the 2D renderer with a console warning
+  F foe gallery: every foe family in a row at game zoom (renderer.dev.lineup), desktop, plus slimes on the phone
+  G cutaway and zone change: the hero behind the library (roof and walls fade around him), then a walk from
+    Willowmere into the valley with every frame time logged (the hitch check: no frame over 100 ms, few over 50 ms)
 Frame rate on desktop and phone (rAF window plus the uncapped probe). Screenshots in qa/out/r3d/.
 Prints R3D_DONE: ok=<bool> errors=<n> (machine-read sentinel).
 """
@@ -130,6 +133,11 @@ class Game:
         raise RuntimeError(f'walk timed out to {zone} {tx},{ty}; me {self.me()}')
 
     def fps(self, label, secs=4.0):
+        # measure a settled frame: no zone building in the background, and a fresh draw-time average
+        t0 = time.time()
+        while time.time() - t0 < 60 and self.ev('window.__realms.renderer.dev.building || 0'):
+            time.sleep(0.3)
+        self.ev('(() => { const s = window.__realms.renderer.dev.stats; s.n = 0; s.avg = 0; })()')
         time.sleep(secs)
         f = self.ev('window.__realms.fps()')
         m = self.ev('window.__realms.renderer.measure(30)')
@@ -348,6 +356,74 @@ def session_d(b):
     ctx.close()
 
 
+FOES = [['ink_slime', 'ink_slime_deep', 'ink_blot', 'moss_scarab', 'gorse_crow'],
+        ['briar_wolf', 'thornback_wolf', 'mist_wolf', 'fold_ram', 'gorse_boar'],
+        ['barrow_shade', 'page_wraith', 'ink_wraith', 'tower_sentinel', 'watch_lamp']]
+
+
+def session_f(b):
+    log('F: foe gallery at game zoom')
+    page = b.new_page(viewport={'width': 1600, 'height': 900})
+    hook(page)
+    g = Game(page, 'f')
+    g.boot('r=3d&dev=1&zone=willowmere&x=22&y=21&zoom=1.5&cls=warden&name=Ash')
+    for i, row in enumerate(FOES):
+        fams = g.ev('(l) => window.__realms.renderer.dev.lineup(l.map((t) => ({ template: t })), { pose: "idle" })', row)
+        assert len(fams) == len(row), f'every foe built: {fams}'
+        time.sleep(1.2)
+        g.shot(f'0{i + 1}_foes', f'{", ".join(row)} -> bodies {fams}')
+    g.ev('window.__realms.renderer.dev.lineup([{ template: "ink_slime" }, { template: "ink_blot" }, { template: "ink_wraith" }], { pose: "attack" })')
+    time.sleep(1.5)
+    g.shot('04_foes_attack', 'slime, blot and ink wraith mid attack (squash, lean, raised arms)')
+    g.ev('window.__realms.renderer.dev.lineupClear()')
+    page.close()
+    ctx = b.new_context(viewport={'width': 844, 'height': 390}, device_scale_factor=2, is_mobile=True, has_touch=True)
+    page = ctx.new_page()
+    hook(page)
+    g = Game(page, 'f')
+    g.boot('r=3d&dev=1&zone=willowmere&x=22&y=21&cls=scribe&name=Wren')
+    g.ev('window.__realms.renderer.dev.lineup([{ template: "ink_slime" }, { template: "page_wraith" }, { template: "briar_wolf" }], { pose: "idle", gap: 2.2 })')
+    time.sleep(1.2)
+    g.shot('05_phone_foes', 'phone 844x390: slime, page wraith, wolf read at phone zoom')
+    ctx.close()
+
+
+def session_g(b):
+    log('G: cutaway behind the library, then the walk into the valley (hitch check)')
+    page = b.new_page(viewport={'width': 1600, 'height': 900})
+    hook(page)
+    g = Game(page, 'g')
+    g.boot('r=3d&dev=1&zone=willowmere&x=36&y=14&cls=warden&name=Talia')
+    g.walk('willowmere', 37, 15, near=0)
+    time.sleep(0.8)
+    see = g.ev('(() => { const S = window.__realms.renderer.dev.see; return S ? { r: S.uSeeR.value, r2: S.uSeeR2.value } : null; })()')
+    assert see and see['r'] > 0, f'the cutaway is on around the hero: {see}'
+    g.shot('01_behind_library', f'the hero just north of the library: roof and wall fade to 25% around him {see}')
+    # the zone change: neighbours are prebuilt in the background; log every frame while crossing
+    t0 = time.time()
+    while time.time() - t0 < 60 and 'valley' not in g.ev('window.__realms.renderer.dev.zonesBuilt'):
+        time.sleep(0.3)
+    built = g.ev('window.__realms.renderer.dev.zonesBuilt')
+    log('  zones built before the walk', built)
+    g.walk('willowmere', 20, 27, near=0)
+    g.ev('''(() => { const L = window.__lrFrames = []; let prev = null;
+      const tick = (t) => { if (prev != null) { const p = window.__realms.player(); L.push([t, t - prev, p ? p.zone : null]); } prev = t; if (L.length < 4000) requestAnimationFrame(tick); };
+      requestAnimationFrame(tick); })()''')
+    g.walk('valley', 4, 52, near=1)
+    time.sleep(2.0)
+    fr = g.ev('window.__lrFrames')
+    sw = next((i for i, f in enumerate(fr) if f[2] == 'valley'), None)
+    assert sw is not None, 'walked into the valley'
+    win = [f[1] for f in fr[max(0, sw - 60): sw + 180]]
+    hm = {'framesAroundSwitch': len(win), 'maxMs': round(max(win), 1), 'over50ms': sum(1 for x in win if x > 50), 'over33ms': sum(1 for x in win if x > 33),
+          'p95ms': round(sorted(win)[int(len(win) * 0.95) - 1], 1), 'prebuilt': 'valley' in built}
+    metrics['zone_change_willowmere_to_valley'] = hm
+    log('  zone change frames', json.dumps(hm))
+    g.shot('02_valley_arrival', f'arrived in the valley: {hm}')
+    assert hm['maxMs'] < 100 and hm['over50ms'] <= 2, f'no hitch on the zone change: {hm}'
+    page.close()
+
+
 def session_e(pw):
     log('E: no WebGL -> the 2D renderer with a console warning')
     b = pw.chromium.launch(args=['--disable-webgl', '--disable-webgl2', '--disable-3d-apis'])
@@ -382,7 +458,7 @@ def run():
         with sync_playwright() as pw:
             b = pw.chromium.launch(args=GPU)
             try:
-                for s in (session_a, session_b, session_c, session_d):
+                for s in (session_a, session_b, session_c, session_d, session_f, session_g):
                     s(b)
             finally:
                 b.close()

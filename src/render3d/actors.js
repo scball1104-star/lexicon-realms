@@ -4,7 +4,9 @@
 // walk or run, attack, cast, hit, death, sit.
 //
 //   const A = createActors(scene, L, { items, quality })
-//   A.sync(prevSnap, snap, alpha, zoneId, now, dt, fx)   create / update / remove bodies, play animations
+//   A.sync(prevSnap, snap, alpha, zoneId, now, dt, fx, focus, reach, inView)   create / update / remove bodies, play
+//     animations; inView(pos, h) -> bool hides and freezes bodies outside the view (no draw calls, no skinning)
+//   Bodies are built a few per frame (nearest first, the hero always at once), so entering a busy zone does not stall.
 //   A.at(id, 'feet'|'chest'|'hand'|'head') -> Vector3 | null      A.list() -> [actor]
 import * as THREE from '../vendor/three/three.module.min.js';
 import { assemble } from './hero.js';
@@ -14,6 +16,7 @@ import { radial } from './textures.js';
 
 const PX = 16;
 const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
+const SHADOW_R = 9;          // m from the camera focus inside which bodies cast shadows
 const DIR_YAW = { down: 0, up: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 };
 const CLASS_IDLE = { warden: 'Sword_Idle', mender: 'Idle_Torch_Loop', scribe: 'Idle_Loop', wayfinder: 'Idle_Loop', inkblade: 'Idle_Loop' };
 const CLASS_COMBAT = { warden: 'Sword_Idle', mender: 'Idle_Torch_Loop', scribe: 'Spell_Simple_Idle_Loop', wayfinder: 'Pistol_Aim_Neutral', inkblade: 'Crouch_Idle_Loop' };
@@ -122,6 +125,9 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
     if (a.ph) { a.root.remove(a.ph); a.ph = null; }
     a.height = b.height;
     a.mats = b.type === 'hero' ? b.ch.mats : b.type === 'creature' ? b.c.mats : [];
+    // meshes built not to cast (glass, glow, puddles) keep that when the near-shadow switch flips
+    obj.traverse((m) => { if (m.isMesh && !m.castShadow) m.userData.noCast = true; });
+    a.castNear = null;
   }
   function detach(b) {
     const obj = b.type === 'hero' ? b.ch.o : b.type === 'creature' ? b.c.o : b.o;
@@ -131,30 +137,35 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
     // free what this body owns: cloned materials (heroes, beasts), and the code-built geometry of creatures and
     // capes; geometry shared with the loaded glTF files stays
     if (b.type === 'hero') { for (const m of b.ch.mats) m.dispose(); if (b.local) b.local.traverse((m) => { if (m.isMesh || m.isPoints) { m.geometry.dispose(); m.material.dispose(); } }); }
-    if (b.type === 'creature') { for (const m of b.c.mats) m.dispose(); if (b.c.family !== 'wolf' && b.c.family !== 'ram') b.c.o.traverse((m) => { if (m.isMesh) m.geometry.dispose(); }); }
+    if (b.type === 'creature') { for (const m of b.c.mats) m.dispose(); if (!/^(wolf|ram|shade)$/.test(b.c.family)) b.c.o.traverse((m) => { if (m.isMesh && !m.geometry.userData.shared) m.geometry.dispose(); }); }
   }
   function wantSig(e) {
     if (e.kind === 'player') return heroSpec(e.cls, e.look, e.equip, items).sig;
     return e.kind === 'npc' ? 'npc:' + e.template : e.kind === 'mob' ? 'mob' : 'obj';
   }
-  function create(e) {
+  function create(e, now = true) {
     const a = { id: e.id, kind: e.kind, root: new THREE.Group(), body: null, ph: null, yaw: DIR_YAW[e.dir] || 0, height: 1.7, mats: [], building: null, sig: null, e };
     a.ph = e.kind === 'object' ? null : placeholder(e.kind === 'mob' ? 0.9 : 1.7);
     if (a.ph) a.root.add(a.ph);
     layer.add(a.root);
     actors.set(e.id, a);
-    rebuild(a, e);
+    if (now) rebuild(a, e); else waiting.add(a);
     return a;
   }
+  const waiting = new Set();     // bodies not started yet (built a few per frame)
+  let inflight = 0;
   function rebuild(a, e) {
     const sig = wantSig(e);
     if (a.building === sig || (a.sig === sig && a.body)) return;
+    waiting.delete(a);
+    inflight++;
     a.building = sig;
     buildBody(a, e).then((b) => {
+      inflight--;
       if (!actors.has(a.id) || a.building !== sig) { if (b) detach(b); return; }
       a.building = null; a.sig = sig;
       attach(a, b);
-    }).catch((err) => { a.building = null; a.sig = sig; console.warn('Lexicon Realms 3D: could not build', e.kind, e.template || e.cls, err); });
+    }).catch((err) => { inflight--; a.building = null; a.sig = sig; console.warn('Lexicon Realms 3D: could not build', e.kind, e.template || e.cls, err); });
   }
   function remove(id) {
     const a = actors.get(id);
@@ -162,6 +173,7 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
     if (a.body) detach(a.body);
     layer.remove(a.root);
     actors.delete(id);
+    waiting.delete(a);
   }
 
   function heroAnim(a, e, st) {
@@ -197,7 +209,7 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
     an.play(b.spec.main && b.spec.main.kind === 'rod' ? 'Idle_Torch_Loop' : b.spec.main && b.spec.main.kind === 'sword' ? 'Sword_Idle' : 'Idle_Loop', { now });
   }
 
-  function sync(prevSnap, snap, alpha, zoneId, now, dt, fx, focus = null, reach = 40) {
+  function sync(prevSnap, snap, alpha, zoneId, now, dt, fx, focus = null, reach = 40, inView = null) {
     const prevById = new Map((prevSnap ? prevSnap.entities : []).map((e) => [e.id, e]));
     const seen = new Set();
     for (const e of snap.entities) {
@@ -212,7 +224,7 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
       let a = actors.get(e.id);
       if (focus) { const d = Math.hypot(e.x / PX - focus.x, e.y / PX - focus.z); if (d > (a ? reach + 8 : reach)) continue; }
       seen.add(e.id);
-      if (!a) a = create(e);
+      if (!a) a = create(e, e.kind === 'player' || !focus);
       a.e = e;
       if (a.body && a.body.type === 'hero' && e.kind === 'player') rebuild(a, e);
       const p = prevById.get(e.id);
@@ -236,11 +248,20 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
       }
       a.yaw = angLerp(a.yaw, want, Math.min(1, dt * 12));
       a.root.rotation.y = a.yaw;
+      // out of view: hidden, and its skinning, cape and effects wait (it picks up where it was when seen again)
+      const vis = !inView || inView(a.root.position, a.height || 1.7);
+      a.root.visible = vis;
+      if (a.body && a.body.local) a.body.local.visible = vis;
+      if (!vis) { a.frozen = (a.frozen || 0) + dt; continue; }
+      const fdt = Math.min(0.25, dt + (a.frozen || 0)); a.frozen = 0;
+      // shadows only from bodies near the camera focus (the hero's fight); far townsfolk skip the shadow pass
+      const near = !focus || !quality.shadows ? !!quality.shadows : Math.hypot(nx - focus.x, nz - focus.z) < SHADOW_R;
+      if (a.body && a.castNear !== near) { a.castNear = near; a.root.traverse((m) => { if (m.isMesh) m.castShadow = near && m.userData.noCast !== true; }); }
       const st = { t: now, moving, speed: a.speed, hints: fx.hints(e.id), cast: !!e.cast };
       const b = a.body;
       if (b && b.type === 'hero') {
         heroAnim(a, e, st);
-        b.ch.mixer.update(dt);
+        b.ch.mixer.update(fdt);
         // the library's sit is a chair sit: on open ground the body drops to sit on the grass
         const sy = b.anim.name === 'Sitting_Idle_Loop' ? -0.42 * (b.spec.scale || 1) : 0;
         b.ch.o.position.y += (sy - b.ch.o.position.y) * Math.min(1, dt * 8);
@@ -252,7 +273,7 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
       } else if (b && b.type === 'creature') {
         const h = st.hints || {};
         st.attackT = h.attackT0; st.hurtT = h.hurtT0; st.deadT = e.dead ? (corpses.get(e.id) >= 0 ? corpses.get(e.id) : now - 1) : null;
-        b.c.update(dt, st);
+        b.c.update(fdt, st);
         if (e.dead) {
           const age = now - (corpses.get(e.id) ?? now);
           const k = age > CORPSE_SECS - CORPSE_FADE ? Math.max(0, (CORPSE_SECS - age) / CORPSE_FADE) : 1;
@@ -264,6 +285,11 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
       }
     }
     for (const id of [...actors.keys()]) if (!seen.has(id)) remove(id);
+    // start the waiting bodies, nearest first, two at a time
+    if (waiting.size && inflight < 2) {
+      const list = [...waiting].sort((p, q) => (focus ? p.root.position.distanceToSquared(focus) - q.root.position.distanceToSquared(focus) : 0));
+      for (const a of list.slice(0, 2 - inflight)) rebuild(a, a.e);
+    }
   }
 
   const handBone = (a) => {
@@ -276,7 +302,8 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
     sync,
     list: () => [...actors.values()],
     get: (id) => actors.get(id) || null,
-    clear() { for (const id of [...actors.keys()]) remove(id); },
+    /** Remove every body except keepId's (the hero walks through a zone edge with its body). */
+    clear(keepId = null) { for (const id of [...actors.keys()]) if (id !== keepId) remove(id); },
     at(id, which = 'feet') {
       const a = actors.get(id);
       if (!a) return null;
