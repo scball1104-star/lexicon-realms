@@ -1,58 +1,37 @@
-// Import Lexicon Quest field maps into Lexicon Realms data modules (dev tool, run by hand; never at runtime).
+// Import a Lexicon Quest field map as a Lexicon Realms zone object (dev tool; never at runtime).
 //
-//   node tools/dev/import_lq_maps.mjs [mapId ...]      default: willowmere valley
+//   node tools/dev/import_lq_maps.mjs          rebuilds the whole world (same as node tools/maps/build_world.mjs)
 //
-// Reads D:\LexiconQuest\next (READ ONLY: this tool imports LQ's own map loader and collision builder, it writes
-// nothing there). Writes:
-//   src/data/maps/<id>.js     one plain data module per zone: LQ's ground rows, legend, overlays, decor, overhead,
-//                             a baked collision grid (rows of chars), the LQ exits as `joins`, NPC and enemy spots
-//   assets/tiles/tiles.json   LQ tiles.json trimmed to the ids the imported maps use (terrainOrder kept whole)
-//   assets/tiles/*.png        the tile sheets those ids live on, plus props.json/png (trees, lamps, wells ...)
+// `importLqMap(id)` reads D:\LexiconQuest\next (READ ONLY: it imports LQ's own map loader and collision builder and
+// writes nothing there) and returns the plain zone object: LQ's ground rows, legend, overlays, decor, overhead, a baked
+// collision grid, the LQ exits as `joins`, and LQ's NPC and enemy spots under `lq`. tools/maps/build_world.mjs calls it
+// for Willowmere (kept exactly as LQ draws it, plus the Realms patch: the west gate and the joins), generates the grown
+// valley, the Downs and the High Moor itself, then writes src/data/maps/*.js and the trimmed assets/tiles/tiles.json.
 //
 // Collision chars (docs/CONTRACTS.md section 6): '.' walk, '#' solid, '~' water (blocks), 'v' ledge south,
 // '>' ledge east, '<' ledge west (one-way: enterable only moving that way).
-// LQ's x1/x2 expansion edits are OFF in Node (their packs never load here), so every map imports as its baseline.
-import fs from 'node:fs';
+// LQ's x1/x2 expansion edits are OFF in Node (their packs never load here), so a map imports as its baseline.
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const LQ = 'D:/LexiconQuest/next';
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const ids = process.argv.slice(2).length ? process.argv.slice(2) : ['willowmere', 'valley'];
-
-const mc = await import(pathToFileURL(path.join(LQ, 'tools/maps/mapcheck.mjs')).href);
-const db = await mc.loadDb();
-
 const CODE_CHAR = { none: '.', solid: '#', water: '~', ledge_s: 'v', ledge_e: '>', ledge_w: '<', pit: '#', counter: '#', void: '#' };
 // Events that stand in the world as solid things. NPCs and enemies are sim entities in Realms, not map cells.
 const SOLID_EVENTS = new Set(['sign', 'object', 'chest']);
 
-const usedTiles = { terrains: new Set(), walls: new Set(), tiles: new Set(), objects: new Set() };
-const T = db.tiles;
-function noteId(id) {
-  if (!id) return;
-  if (T.terrains[id]) usedTiles.terrains.add(id);
-  else if (T.tiles[id]) usedTiles.tiles.add(id);
-  else if (T.objects[id]) usedTiles.objects.add(id);
-  else { const w = id.replace(/_(top|face)$/, ''); if (T.walls[w]) usedTiles.walls.add(w); }
+let mc = null, db = null;
+async function lq() {
+  if (!mc) { mc = await import(pathToFileURL(path.join(LQ, 'tools/maps/mapcheck.mjs')).href); db = await mc.loadDb(); }
+  return { mc, db };
 }
 
-const outDir = path.join(ROOT, 'src', 'data', 'maps');
-fs.mkdirSync(outDir, { recursive: true });
-
-for (const id of ids) {
+export async function importLqMap(id) {
+  const { mc, db } = await lq();
   const m = await mc.loadMap(id);
   const solidEvents = (m.events || []).filter((e) => SOLID_EVENTS.has(e.type) && e.solid !== false && e.if == null && e.ifNot == null);
   const grid = mc.buildGrid({ ...m, events: solidEvents }, db);
   if (grid.errors.length) console.warn(`[${id}] grid warnings:\n  ` + grid.errors.slice(0, 10).join('\n  '));
   const collision = grid.code.map((row) => row.map((c) => CODE_CHAR[c] ?? '#').join(''));
-
-  for (const v of Object.values(m.legend)) noteId(v);
-  noteId(m.under);
-  for (const o of m.overlays || []) noteId(o.t);
-  for (const d of m.decor || []) noteId(d.t);
-  for (const o of m.overhead || []) noteId(o.t);
-
   const plain = (list) => (list || []).filter((o) => o && o.if == null && o.ifNot == null).map((o) => {
     const c = { t: o.t, x: o.x, y: o.y };
     for (const k of ['state', 'w', 'h', 'dx', 'dy']) if (o[k] != null) c[k] = o[k];
@@ -62,48 +41,22 @@ for (const id of ids) {
     const n = db.NPCS[e.id] || {};
     return { id: e.id, name: n.name || e.id, sprite: n.sprite || 'npc_farmer', x: e.x, y: e.y, dir: e.dir || 'down' };
   });
-  const enemies = (m.events || []).filter((e) => e.type === 'enemy' && e.if == null && e.ifNot == null)
-    .map((e) => ({ id: e.id, sprite: e.sprite, x: e.x, y: e.y }));
+  const enemies = (m.events || []).filter((e) => e.type === 'enemy' && e.if == null && e.ifNot == null).map((e) => ({ id: e.id, sprite: e.sprite, x: e.x, y: e.y }));
+  const doors = (m.events || []).filter((e) => e.type === 'door').map((e) => ({ id: e.id, x: e.x, y: e.y, to: e.to[0] }));
   const joins = (m.exits || []).map((e) => ({ x: e.x, y: e.y, w: e.w || 1, h: e.h || 1, to: e.to[0], tx: e.to[1], ty: e.to[2], dir: e.to[3] || 'down' }));
-
-  const mod = {
-    id: m.id || id,
-    name: m.name || id,
-    kind: m.area === 'town' ? 'town' : 'field',
-    source: `LexiconQuest next/src/data/maps/${id}.js (baseline, x1 off), imported ${new Date().toISOString().slice(0, 10)}`,
+  return {
+    id: m.id || id, name: m.name || id, kind: m.area === 'town' ? 'town' : 'field',
+    source: `LexiconQuest next/src/data/maps/${id}.js (baseline, x1 off)`,
     w: m.ground[0].length, h: m.ground.length,
     music: typeof m.music === 'string' ? m.music : null,
     lighting: m.lighting || { tint: 'none', dark: 0 },
-    under: m.under || 'grass',
-    legend: m.legend,
-    ground: m.ground,
-    overlays: plain(m.overlays),
-    decor: plain(m.decor),
-    overhead: plain(m.overhead),
-    collision,
-    joins,
-    lq: { npcs, enemies, marks: m.marks || {}, start: m.start || null },
+    under: m.under || 'grass', legend: m.legend, ground: m.ground,
+    overlays: plain(m.overlays), decor: plain(m.decor), overhead: plain(m.overhead),
+    collision, joins,
+    lq: { npcs, enemies, doors, marks: m.marks || {}, start: m.start || null },
   };
-  const body = `// GENERATED by tools/dev/import_lq_maps.mjs from Lexicon Quest (${id}). Do not hand-edit: change the importer and re-run.\n`
-    + `// Zone joins (\`joins\`) and spawns are data; see docs/CONTRACTS.md section 6.\n`
-    + `export default ${JSON.stringify(mod)};\n`;
-  fs.writeFileSync(path.join(outDir, `${id}.js`), body);
-  console.log(`wrote src/data/maps/${id}.js  ${mod.w}x${mod.h}  joins=${joins.length} npcs=${npcs.length} enemies=${enemies.length}`);
 }
 
-// ---------------------------------------------------------------- trimmed tiles.json + sheets
-const pick = (obj, set) => Object.fromEntries(Object.entries(obj).filter(([k]) => set.has(k)));
-const trimmed = {
-  version: T.version, tileSize: T.tileSize, source: 'LexiconQuest next/assets/tiles/tiles.json, trimmed by tools/dev/import_lq_maps.mjs',
-  collisionCodes: T.collisionCodes, terrainOrder: T.terrainOrder,
-  terrains: pick(T.terrains, usedTiles.terrains), walls: pick(T.walls, usedTiles.walls),
-  tiles: pick(T.tiles, usedTiles.tiles), objects: pick(T.objects, usedTiles.objects),
-};
-const sheets = new Set();
-for (const k of ['terrains', 'walls', 'tiles', 'objects']) for (const v of Object.values(trimmed[k])) sheets.add(v.sheet);
-const tilesOut = path.join(ROOT, 'assets', 'tiles');
-fs.mkdirSync(tilesOut, { recursive: true });
-fs.writeFileSync(path.join(tilesOut, 'tiles.json'), JSON.stringify(trimmed));
-for (const s of sheets) fs.copyFileSync(path.join(LQ, 'assets', 'tiles', s), path.join(tilesOut, s));
-for (const f of ['props.json', 'props.png']) fs.copyFileSync(path.join(LQ, 'assets', 'sprites', f), path.join(tilesOut, f));
-console.log(`tiles.json: ${Object.keys(trimmed.terrains).length} terrains, ${Object.keys(trimmed.walls).length} walls, ${Object.keys(trimmed.tiles).length} tiles, ${Object.keys(trimmed.objects).length} objects; sheets ${[...sheets].join(', ')}`);
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
+  await import(pathToFileURL(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'maps', 'build_world.mjs')).href);
+}

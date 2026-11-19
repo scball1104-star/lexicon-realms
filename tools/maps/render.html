@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Zone render</title>
+<body style="margin:0;background:#000">
+<script type="module">
+// Bakes one zone with the game's own tilemap baker (src/render/tilemap.js) and draws ground, y-sorted props and the
+// overhead layer to one canvas. tools/maps/render_maps.py drives it headless and saves PNGs.
+//   ?zone=valley            clean render
+//   &marks=1                plus the sim layer: areas (outlines), lanterns (yellow), spawns (red), npcs (cyan), nodes (green), hooks (magenta), joins (white)
+import { bakeZone } from '../../src/render/tilemap.js';
+const q = new URLSearchParams(location.search);
+const id = q.get('zone');
+const zone = (await import(`../../src/data/maps/${id}.js`)).default;
+const j = (p) => fetch(p).then((r) => r.json());
+const tiles = await j('../../assets/tiles/tiles.json');
+const props = (await j('../../assets/tiles/props.json')).objects;
+const names = new Set(['props']);
+for (const k of ['terrains', 'walls', 'tiles', 'objects']) for (const v of Object.values(tiles[k])) names.add(String(v.sheet).replace(/\.[^.]+$/, ''));
+const imgs = {};
+await Promise.all([...names].map((n) => new Promise((res, rej) => { const im = new Image(); im.onload = () => { imgs[n] = im; res(); }; im.onerror = () => rej(new Error('sheet ' + n)); im.src = `../../assets/tiles/${n}.png`; })));
+const baked = bakeZone(zone, { tiles, propsDb: props, img: (n) => imgs[n] });
+const c = document.createElement('canvas');
+c.width = baked.pixelW; c.height = baked.pixelH;
+const g = c.getContext('2d');
+g.imageSmoothingEnabled = false;
+g.drawImage(baked.ground[0], 0, 0);
+for (const p of baked.props) g.drawImage(p.img, p.sx, p.sy, p.w, p.h, p.dx, p.dy, p.w, p.h);
+g.drawImage(baked.overhead, 0, 0);
+if (q.get('marks') === '1') {
+  const T = 16;
+  g.lineWidth = 2;
+  g.font = 'bold 10px monospace';
+  for (const a of zone.areas || []) { g.strokeStyle = 'rgba(255,255,255,0.8)'; g.strokeRect(a.x * T, a.y * T, a.w * T, a.h * T); g.fillStyle = '#fff'; g.fillText(a.id, a.x * T + 3, a.y * T + 11); }
+  const dot = (x, y, col, r = 5) => { g.fillStyle = col; g.beginPath(); g.arc(x * T + 8, y * T + 8, r, 0, 7); g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1; g.stroke(); };
+  for (const s of zone.spawns || []) dot(s.x, s.y, '#ff3030', 4);
+  for (const s of zone.nodes || []) dot(s.x, s.y, '#30ff60', 4);
+  for (const s of zone.npcs || []) { dot(s.x, s.y, '#30e0ff', 5); g.fillStyle = '#30e0ff'; g.fillText(s.npc, s.x * T + 12, s.y * T + 4); }
+  for (const s of zone.lanterns || []) dot(s.x, s.y, '#ffe040', 6);
+  for (const s of zone.hooks || []) dot(s.x, s.y, '#ff40ff', 6);
+  for (const s of zone.joins || []) { g.strokeStyle = '#fff'; g.lineWidth = 3; g.strokeRect(s.x * T, s.y * T, s.w * T, s.h * T); }
+}
+window.__png = c.toDataURL('image/png');
+window.__size = [c.width, c.height];
+</script>

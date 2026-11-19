@@ -12,6 +12,7 @@ export const MANIFEST = {
     cliffs: 'assets/tiles/cliffs.png',
     town: 'assets/tiles/town.png',
     archive: 'assets/tiles/archive.png',
+    x1: 'assets/tiles/x1.png',          // Shepherd's Downs and the High Moor (Lexicon Quest x1 set; tools/maps/build_world.mjs copies it)
     props: 'assets/tiles/props.png',
     // placeholder sprites (Lexicon Quest field sprites)
     party_field: 'assets/sprites/lq/party_field.png',

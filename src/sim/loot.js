@@ -1,0 +1,224 @@
+// Loot, bags and item resolution (docs/design/PROGRESSION.md 4 and 6, docs/CONTRACTS.md 7.3 / 7.4). Pure: every random
+// choice goes through the seeded rng the caller passes (rng.next / rng.int / rng.chance). No imports from outside sim.
+//
+//   rollKill(ctx, mobEnt, player)        -> { gold, items: [{ item, qty, inst? }] }   a mob's drop for its tagger
+//   rollGear(ctx, { ilvl, source, cls }) -> { item, qty: 1, inst }                    one random gear piece
+//   rollAffixes(ctx, slot, ilvl, rarity) -> [{ id, value }]
+//   resolveItem(content, entry, cls)     -> the finished item: armor type, weapon type, stats (main resolved), armor, damage
+//   itemName(content, entry)             -> 'Keen Iron Sword of the Bear'
+//   bag helpers: bagCount(e, item), bagAdd(e, item, qty, inst, content) -> qty added, bagRemove(e, item, qty) -> qty removed,
+//                bagCapacity(e, content), bagFree(e, content)
+//
+// ctx = { content, rng, questNeeds(player, item) -> bool }. questNeeds says whether the player has an active quest that
+// still needs this item; a quest-item drop only rolls when it does (CONTRACTS 7.3 `quest` on a table entry).
+
+// ---------------------------------------------------------------- bags
+export function bagCapacity(e, content) {
+  const items = content.items || {};
+  let n = 0;
+  for (const b of e.bags || ['starter_satchel']) n += (items[b] && items[b].bagSlots) || 0;
+  return n || 12;
+}
+export function bagCount(e, item) {
+  let n = 0;
+  for (const s of e.bag || []) if (s.item === item) n += s.qty;
+  return n;
+}
+export function bagFree(e, content) { return bagCapacity(e, content) - (e.bag || []).length; }
+
+/** Add qty of item (stacking up to the item's `stack`). Instanced gear never stacks. Returns how many went in. */
+export function bagAdd(e, item, qty = 1, inst = null, content = null) {
+  if (!e.bag) e.bag = [];
+  const def = content && content.items ? content.items[item] : null;
+  const stack = inst ? 1 : (def ? def.stack || 1 : 20);
+  const cap = content ? bagCapacity(e, content) : Infinity;
+  let left = qty;
+  if (!inst) for (const s of e.bag) {
+    if (left <= 0) break;
+    if (s.item !== item || s.inst || s.qty >= stack) continue;
+    const k = Math.min(stack - s.qty, left);
+    s.qty += k; left -= k;
+  }
+  while (left > 0 && e.bag.length < cap) {
+    const k = Math.min(stack, left);
+    const slot = { item, qty: k };
+    if (inst) slot.inst = JSON.parse(JSON.stringify(inst));
+    e.bag.push(slot);
+    left -= k;
+  }
+  return qty - left;
+}
+
+/** Remove up to qty of item (from the last stacks first). Returns how many were removed. */
+export function bagRemove(e, item, qty = 1) {
+  if (!e.bag) return 0;
+  let left = qty;
+  for (let i = e.bag.length - 1; i >= 0 && left > 0; i--) {
+    const s = e.bag[i];
+    if (s.item !== item) continue;
+    const k = Math.min(s.qty, left);
+    s.qty -= k; left -= k;
+    if (s.qty <= 0) e.bag.splice(i, 1);
+  }
+  return qty - left;
+}
+
+// ---------------------------------------------------------------- weighted helpers
+function weighted(rng, table) {
+  const entries = Object.entries(table).filter(([, w]) => w > 0);
+  let total = 0;
+  for (const [, w] of entries) total += w;
+  let r = rng.next() * total;
+  for (const [k, w] of entries) { if (r < w) return k; r -= w; }
+  return entries[entries.length - 1][0];
+}
+
+// ---------------------------------------------------------------- affixes
+export function rollAffixes(ctx, slot, ilvl, rarity) {
+  const rar = (ctx.content.rarity || {})[rarity];
+  if (!rar || !rar.affixes || rar.affixes[1] === 0) return [];
+  const A = ctx.content.affixes;
+  const tier = Math.max(1, Math.min(5, Math.ceil(ilvl / 3)));
+  const want = ctx.rng.int(rar.affixes[0], rar.affixes[1]);
+  const out = [];
+  let pre = 0, suf = 0;
+  const pool = Object.keys(A).filter((id) => A[id].slots.includes(slot)).sort();
+  for (let guard = 0; out.length < want && guard < 40; guard++) {
+    const left = pool.filter((id) => !out.some((o) => o.id === id) && (A[id].kind === 'prefix' ? pre < rar.prefixMax : suf < rar.suffixMax));
+    if (!left.length) break;
+    const id = left[ctx.rng.int(0, left.length - 1)];
+    const [lo, hi] = A[id].values[tier - 1];
+    const value = Number.isInteger(lo) && Number.isInteger(hi) ? ctx.rng.int(lo, hi) : lo;
+    out.push({ id, value });
+    if (A[id].kind === 'prefix') pre++; else suf++;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- gear
+const ARMOR_SLOTS = ['head', 'chest', 'legs', 'feet', 'hands'];
+
+/** One random gear piece. source: 'normal' | 'weak' | 'elite' | 'caster' | 'armored' | 'chest_wood' ... ; cls biases 60% to the looter's class. */
+export function rollGear(ctx, { ilvl, source = 'normal', cls = null, rarity = null }) {
+  const C = ctx.content;
+  const rules = C.dropRules;
+  const rar = rarity || weighted(ctx.rng, (rules[source] || rules.normal).weights);
+  const slotKey = weighted(ctx.rng, rules.slotWeights);
+  const own = cls && C.classGear[cls] && ctx.rng.chance(rules.classBias) ? C.classGear[cls] : null;
+  let base;
+  if (slotKey === 'weapon') {
+    const types = own ? own.weapons.filter((t) => C.items[`gear_${t}`].slot !== 'off') : ['sword', 'bow', 'dagger', 'rod', 'quill'];
+    base = `gear_${types[ctx.rng.int(0, types.length - 1)]}`;
+  } else if (slotKey === 'off') {
+    const types = own ? own.weapons.filter((t) => C.items[`gear_${t}`].slot === 'off') : ['shield', 'bell', 'book'];
+    base = types.length ? `gear_${types[ctx.rng.int(0, types.length - 1)]}` : 'gear_dagger';
+  } else if (slotKey === 'trinket') base = 'gear_trinket';
+  else {
+    const armors = ['plate', 'mail', 'leather', 'cloth'];
+    const a = own ? own.armor : armors[ctx.rng.int(0, 3)];
+    base = `gear_${a}_${slotKey}`;
+  }
+  const slot = C.items[base].slot;
+  return { item: base, qty: 1, inst: { ilvl, rarity: rar, affixes: rollAffixes(ctx, slot, ilvl, rar) } };
+}
+
+// ---------------------------------------------------------------- a kill
+/** The drop of a dead mob for `player` (its tagger). Grey mobs (5+ levels below) give coin only. */
+export function rollKill(ctx, mob, player) {
+  const C = ctx.content;
+  const t = C.mobs[mob.template];
+  const out = { gold: 0, items: [] };
+  if (!t || !t.loot) return out;
+  const L = mob.level;
+  const [g0, g1] = t.loot.gold || [Math.floor(L / 3), L];
+  out.gold = ctx.rng.int(g0, Math.max(g0, g1));
+  if (player && L - player.level <= -5) return out;
+  // quest items: only while the player's quest still needs them
+  for (const e of t.loot.table || []) {
+    if (e.minLevel && L < e.minLevel) continue;
+    if (e.maxLevel && L > e.maxLevel) continue;
+    if (e.quest && !(ctx.questNeeds && ctx.questNeeds(player, e.item))) continue;
+    if (ctx.rng.chance(e.chance)) out.items.push({ item: e.item, qty: e.qty || 1 });
+  }
+  // junk
+  if (t.loot.junk && ctx.rng.chance(C.dropRules.junkChance)) out.items.push({ item: t.loot.junk, qty: 1 });
+  // gear
+  const kinds = Array.isArray(t.kind) ? t.kind : [t.kind || 'normal'];
+  const source = t.elite || kinds.includes('elite') ? 'elite' : kinds.includes('weak') ? 'weak' : 'normal';
+  const rule = C.dropRules[source];
+  if (ctx.rng.chance(rule.gearChance)) out.items.push(rollGear(ctx, { ilvl: L, source, cls: player ? player.cls : null }));
+  return out;
+}
+
+// ---------------------------------------------------------------- resolution
+/** The finished item for a bag/equip entry ({ item, inst? } or an id) as worn by a class. */
+export function resolveItem(content, entry, cls) {
+  const id = typeof entry === 'string' ? entry : entry.item;
+  const inst = typeof entry === 'string' ? null : entry.inst || null;
+  const def = content.items[id];
+  if (!def) return null;
+  const cg = (content.classGear || {})[cls] || null;
+  const ilvl = inst && inst.ilvl ? inst.ilvl : def.level;
+  const out = { ...def, stats: { ...(def.stats || {}) }, level: ilvl, reqLevel: Math.max(1, ilvl - 2), rarity: inst && inst.rarity ? inst.rarity : def.rarity };
+  // armor type: 'class' or a list resolve to the class's own (or the list's first)
+  if (def.kind === 'armor' && def.slot !== 'trinket') {
+    let a = (inst && inst.armorType) || def.armorType;
+    if (a === 'class') a = cg ? cg.armor : 'cloth';
+    else if (Array.isArray(a)) a = cg && a.includes(cg.armor) ? cg.armor : a[0];
+    out.armorType = a;
+    out.armor = armorValue(content, a, def.slot, ilvl);
+  }
+  if (def.kind === 'weapon') {
+    let w = (inst && inst.weaponType) || def.weaponType;
+    if (Array.isArray(w)) w = cg ? (w.find((x) => cg.weapons.includes(x)) || w[0]) : w[0];
+    out.weaponType = w;
+    const wt = content.weaponTypes[w];
+    if (wt && wt.speed) {
+      const dps = (2.2 + 0.85 * ilvl) * wt.mult;
+      const mean = dps * wt.speed;
+      out.damage = [Math.max(1, Math.round(mean * 0.8)), Math.max(2, Math.round(mean * 1.2))];
+      out.speed = wt.speed;
+    }
+    if (w === 'shield') out.armor = 8 + 4 * ilvl;
+  }
+  if (out.stats.main != null) {
+    const k = cg ? cg.main : 'sta';
+    out.stats[k] = (out.stats[k] || 0) + out.stats.main;
+    delete out.stats.main;
+  }
+  for (const a of (inst && inst.affixes) || []) {
+    const A = content.affixes[a.id];
+    if (!A) continue;
+    if (A.stat === 'armorPct') out.armor = Math.round((out.armor || 0) * (1 + a.value / 100));
+    else out.stats[A.stat] = (out.stats[A.stat] || 0) + a.value;
+  }
+  const sv = { two: 1.8, main: 1.5, chest: 1.2, off: 1, head: 1, legs: 1, feet: 0.8, hands: 0.8, trinket: 0.8 };
+  if (def.kind === 'weapon' || def.kind === 'armor') {
+    const rm = (content.rarity && content.rarity[out.rarity] && content.rarity[out.rarity].sellMult) || 1;
+    out.value = Math.max(1, Math.round((2 + 1.5 * ilvl) * (sv[def.slot] || 1) * rm));
+  }
+  if (def.kind === 'armor' && def.slot !== 'trinket' && out.armorType) out.icon = `armor_${def.slot}_${out.armorType}`;
+  if (def.kind === 'weapon' && out.weaponType) out.icon = `weapon_${out.weaponType}`;
+  out.name = itemName(content, { item: id, inst });
+  return out;
+}
+
+function armorValue(content, a, slot, ilvl) {
+  const A = content.armorTypes[a];
+  const share = { chest: 0.30, legs: 0.22, head: 0.18, feet: 0.16, hands: 0.14 }[slot];
+  if (!A || !share) return 0;
+  return Math.round((A.kit[0] + A.kit[1] * ilvl) * share);
+}
+
+export function itemName(content, entry) {
+  const id = typeof entry === 'string' ? entry : entry.item;
+  const inst = typeof entry === 'string' ? null : entry.inst;
+  const def = content.items[id];
+  if (!def) return id;
+  if (!inst || !inst.affixes || !inst.affixes.length) return def.name;
+  const pre = inst.affixes.filter((a) => content.affixes[a.id] && content.affixes[a.id].kind === 'prefix').map((a) => content.affixes[a.id].name);
+  const suf = inst.affixes.filter((a) => content.affixes[a.id] && content.affixes[a.id].kind === 'suffix').map((a) => content.affixes[a.id].name);
+  return [...pre, def.name, ...(suf.length ? [suf[0]] : [])].join(' ');
+}
+
+export const _armorSlots = ARMOR_SLOTS;
