@@ -52,69 +52,95 @@ world.enqueue(entityId, cmd)          // local
 
 | `t` | Fields | Effect | Events |
 |---|---|---|---|
-| `move` | `dx, dy` each -1, 0 or 1 | sets the held direction; the actor keeps walking until `stop` or a new `move` | none (position shows in the snapshot) |
+| `move` | `dx, dy` each -1, 0 or 1 | sets the held direction; the actor keeps walking until `stop` or a new `move`. Moving breaks a cast-time spell or channel (not Run-on Sentence) and stands you up | none (position shows in the snapshot) |
 | `stop` | | clears the held direction | none |
-| `target` | `id` (entity id or `null`) | sets or clears the target. Must be in the same zone and not self | `target`, or `cmd_reject` reason `bad_target` |
-| `cast` | `ability` (id) **or** `slot` (1..12), `target` (id or null, default = current target), `at` ({x, y} px, ground-targeted only) | starts an ability. `slot` resolves through the caster's `bar` array (section 3) | `cast_start`, `cast_stop`, `cast_fail`, later `damage`, `heal`, `aura_add` ... |
-| `interact` | `id` | talk to an NPC, loot a corpse, use a node. Range 40 px | `interact`, or `interact_fail` reason `range` |
-| `cancel` | | **SPEC.** cancel the current cast or channel | `cast_stop` reason `cancel` |
-| `cancel_aura` | `aura` | **SPEC.** drop a helpful aura on self (stealth, a stance) | `aura_remove` reason `cancel` |
-| `quest_accept` / `quest_turnin` | `quest`, `choice` (reward index) | **SPEC.** must be in range of the giver / turn-in NPC | `quest` |
-| `buy` / `sell` / `equip` / `unequip` / `use_item` / `learn_talent` / `respec` | see section 7 | **SPEC** | `inventory`, `talent` |
+| `target` | `id` (entity id or `null`) | sets or clears the target. Must be in the same zone and not self. A new target drops your Ink Marks; a non-hostile target stops auto-attack | `target`, or `cmd_reject` reason `bad_target` |
+| `cast` | `ability` (id) **or** `slot` (1..12), `target` (id or null, default = current target), `at` ({x, y} px, ground-targeted only) | starts an ability (section 5.7). `slot` resolves through the caster's `bar`. A physical ability at a foe (or any Wayfinder shot) also starts auto-attack | `cast_start`, `cast_stop`, `cast_fail`, `projectile`, `damage`, `heal`, `aura_add` ... (LIVE) |
+| `attack` | `id` (default target), `stop` | start (or stop) auto-attack on a hostile (right-click) | `target` if it changed (LIVE) |
+| `interact` | `id` | talk to an NPC (a trainer adds `trainer: { cls, offer, respecCost }` to the event; the quest module then emits `quest_dialog`), or use a quest node object. Range 40 px | `interact`, `quest_dialog`, or `interact_fail` reason `range` (LIVE) |
+| `cancel` | | cancel the current cast or channel | `cast_stop` reason `cancel` (LIVE) |
+| `cancel_aura` | `aura` | drop a helpful aura on self (stealth, a stance) | `aura_remove` reason `cancel` (LIVE) |
+| `sit` | | out of combat only: after 1 s, +6% max health and mana per second (Honey Roll: 10%) until you move | `sit` (LIVE) |
+| `train` | `ability`, `npc` (optional) | learn an ability at your class trainer (range 40 px): level and gold (PROGRESSION 6.3); it goes on the first free bar slot | `train` or `train_fail` reason `range`/`level`/`gold`/`known`/`unknown` (LIVE) |
+| `learn_talent` | `talent` | anywhere; needs a free point, the tier open in its branch, and ranks left | `talent` kind `learn`, or `talent_fail` reason `points`/`tier`/`max`/`requires`/`unknown` (LIVE) |
+| `unlearn_talent` | `talent`, `npc` (optional) | at your trainer: one rank back, refused if a deeper node needs it. Pays the respec price once per trainer visit | `respec_paid`, `talent` kind `unlearn`, or `talent_fail` reason `range`/`dependency`/`gold` (LIVE) |
+| `respec` | `npc` (optional) | at your trainer: refund every point. First respec free, then `10 + 5 x level` gold; one payment covers the visit | `respec_paid`, `talent` kind `respec` (LIVE) |
+| `quest_accept` / `quest_turnin` / `quest_abandon` | `quest`, `choice` (reward index) | the quest module (section 7.7) | `quest` (LIVE) |
+| `equip` | `bag` (bag index) or `item` | wear an item from the bag (class, required level, weapon and armor type checked; armor not in combat). A two-hand weapon clears the off hand; the old piece goes to the bag | `inventory` kind `equip`, or `inventory_fail` (LIVE) |
+| `unequip` | `slot` | back to the bag (needs a free slot) | `inventory` kind `unequip`, or `inventory_fail` reason `empty`/`bag_full` (LIVE) |
+| `use_item` | `bag` or `item` | a consumable's `use`: `heal_pct`, `mana_pct`, `rest_food` (sits you down), `dispel`; shared cooldown by `use.group` (`cd['item:<group>']`) | `heal`, `inventory` kind `use`, or `inventory_fail` reason `cooldown`/`full`/`level`/`not_usable` (LIVE) |
+| `buy` / `sell` | see section 7 | **SPEC** (vendor; the world lane) | `inventory` |
 
-A `cast` today is a **stub**: it checks the global cooldown, sets it, and emits `cast_start` then `cast_stop` with
-reason `stub`. The combat wave replaces the stub with section 5.
+Without combat content (no `classes` / `abilities` / `progression` in `content`), `cast` is the foundation stub: it
+checks the global cooldown and emits `cast_start` then `cast_stop` reason `stub`; mobs only wander.
 
 Unknown or malformed commands never throw: they emit `cmd_reject` with `reason` (`no_actor`, `bad_command`,
-`unknown_command`, `bad_target`, `dead`, `not_interactable`).
+`unknown_command`, `bad_target`, `dead`, `not_interactable`, `combat`, `no_aura`).
 
 ### 2.3 Replay log
 
 `main.js` keeps `[tick, entityId, cmd]` for the session (`window.__realms.commandLog`). Seed + `addPlayer` calls +
-this log reproduce the session exactly (`qa/tests/sim.test.mjs` proves it over 2,000 ticks).
+this log reproduce the session exactly (`qa/tests/sim.test.mjs` proves it over 2,000 ticks; `qa/sim/` over full fights
+of every class and a 4,000-tick five-player session on the real map).
+
+### 2.4 World API (LIVE)
+
+```js
+createWorld({ seed, content, systems })        // systems: optional [{ id, tick(world, events) }] run after each tick
+restoreWorld(json, content, systems)
+w.addPlayer({ name, cls, look, zone, x, y, level, xp, gold, talents, known, bar, bag, bags, equip, quests, questsDone,
+              nodesUsed, respecs, lantern, gearMode: 'items' | 'design', designGear })   // restores a saved character
+w.removePlayer(id)                              // log-out: mobs forget them; their traps and escorts go. Event `leave`
+w.grantXp(id, amount, reason = 'quest', extra)  // the one way to give XP from outside combat (quests, exploration)
+w.setLevel(id, L), w.learnAll(id), w.setTalents(id, talents)   // tests, the balance harness, a debug console
+w.spawnMob({ mob, zone, x, y, level, wander, respawn, temporary })
+w.emit(ev)                                      // a system adds an event to this tick
+w.quests                                        // the quest module (tracker, marker, status queries)
+w.internals                                     // rule modules, for tests and qa/sim/duel.mjs only
+```
+
+`gearMode` `items` (default when `content.items` exists) wears `equip` through `loot.js resolveItem`; `design` gives
+the PROGRESSION 9.1 expected kit at `designGear` (default: the player's level), used by the balance harness.
 
 ---
 
-## 3. Entity schema
+## 3. Entity schema (LIVE)
 
-Internal state is the same object minus a few internal fields; positions inside the sim are integer SUB units
+Internal state is the same object plus a few internal fields; positions inside the sim are integer SUB units
 (1/16 px). The snapshot (section 4) reports pixels.
 
 ```js
 {
   id: 11,                       // stable integer, never reused in a world
-  kind: 'player' | 'mob' | 'npc' | 'object',      // object: traps, nodes, corpses (SPEC)
+  kind: 'player' | 'mob' | 'npc' | 'object',      // object: placed traps and zones (`obj`), quest nodes (`node`)
   zone: 'willowmere',
   x: 328, y: 399,               // feet point, px (snapshot). Feet box: 10 px wide, 6 px deep above the feet
-  dir: 'down' | 'left' | 'right' | 'up',          // 4-way facing (sprites); `facing` angle may be added for 3D
+  dir: 'down' | 'left' | 'right' | 'up',
   moving: false,
   name: 'Scott', level: 1,
   faction: 'player' | 'hostile' | 'neutral' | 'friendly',
-  sprite: 'hero',               // render key (section 9)
-  template: 'briar_wolf',       // content id this entity came from (mob, npc), null for players
+  sprite: 'hero', template: 'briar_wolf',
   hp: 100, hpMax: 100,
-  res: { kind: 'mana', cur: 100, max: 100 } | null,   // kind: any class resource id (section 7.1)
-  combo: { target: 23, n: 2 } | null,                 // SPEC: Inkblade-style points on a target
-  stats: { str, agi, int, spi, sta, armor },          // base + gear + talents, recomputed on change (SPEC)
-  derived: { ap, sp, crit, haste, hit, dodge, parry, block, speed },   // SPEC
+  res: { kind: 'mana' | 'resolve' | 'focus', cur: 100, max: 100 } | null,   // cur may be fractional (regen per tick)
+  stats: { str, agi, int, spi, sta, armor },          // base + growth + gear + talents
+  derived: { ap, sp, crit, block, hpMax, gearSpeed },
   target: 23 | null,
   cast: { ability, target, at, startTick, endTick, kind: 'cast' | 'channel', nextTick } | null,
-  auras: [{ id, src, stacks, startTick, until, nextTick, absorb, data }],   // until = tick it ends (Infinity -> null)
-  cd: { warden_shield_slam: 312 },                    // ability id -> tick it is ready again
-  gcdUntil: 0,                                        // tick the global cooldown ends
+  auras: [{ id, src, stacks, startTick, until, nextTick, absorb, name, icon, kind, flags }],   // until null = no end
+  cd: { warden_shield_bash: 312, 'item:potion': 900 },  // id -> tick it is ready again
+  gcdUntil: 0,
   dead: false,
-  // players only
-  cls: 'warden', look: 0, xp: 0,
-  bar: ['warden_strike', ...],                        // SPEC: action bar, slot 1 = bar[0]
-  talents: { warden_bulwark_1: 2 },                   // SPEC: talent id -> ranks
-  bag: [{ item, qty }], equip: { main, off, head, chest, legs, feet, hands, trinket },   // SPEC
-  gold: 0, quests: { quest_id: { state, counts: [..] } }, lantern: { zone, x, y },     // SPEC
-  // mobs only (internal, not in the snapshot)
-  spawn: { zone, x, y }, ai: { mode, ... }, threat: { [entityId]: amount },
+  // players
+  cls, look, xp, xpToLevel, bar: ['warden_strike', ...], known: [...], talents: { id: ranks }, gold,
+  combo: { target, n, until } | null,                 // Inkblade Ink Marks on `target` (CLASSES 7)
+  lantern: { zone, id, x, y }, inCombat, autoOn, sitting,
+  bag: [{ item, qty, inst? }], bags: ['starter_satchel'], equip: { main, off, head, chest, legs, feet, hands, trinket },
+  quests: { id: { state, counts, escort? } }, questsDone: [ids],
+  // mobs (snapshot): elite, mobKind, rank: 'normal' | 'weak' | 'elite' | 'boss', aggro (target id while fighting), aiMode
+  // mobs (internal): spawn: { zone, x, y, level, respawn, night, temporary }, ai: { mode, target, ... }, threat: { id: n }
+  // objects (snapshot): owner, objType, radius, armed, until | node: { item, channel }
 }
 ```
-
-LIVE today: everything except the fields marked SPEC.
 
 ---
 
@@ -123,19 +149,24 @@ LIVE today: everything except the fields marked SPEC.
 `world.snapshot()` returns plain JSON (round trip tested):
 
 ```js
-{ v: 1, tick: 1234, entities: [ /* section 3 public fields, in id order */ ] }
+{ v: 2, tick: 1234, dayTime: 0.41, night: false,
+  entities: [ /* section 3 public fields, in id order */ ],
+  projectiles: [{ id, src, dst, ability, zone, x, y }],        // in flight (ability 'auto' for Auto Shot)
+  hud: { [playerId]: { /* section 10.1 */ } } }
 ```
 
-- Leaves out internal state: `ai`, `spawn`, `threat`, held move direction.
-- Players also carry `cls`, `look`, `xp`.
+- Leaves out internal state: `ai`, `spawn`, `threat` (a summary is in `hud.target.threat`), aura definitions, held move
+  direction. `STATE_VERSION` is 2 (combat state).
+- `dayTime` is the sim's clock (`src/sim/clock.js`: one day = 48,000 ticks from 7:40); `src/render/daycycle.js` reads
+  it first, so night spawns and the sky agree.
 - Phase 2 (net): the host sends the command stream plus a snapshot every N ticks and on join; clients interpolate
   between snapshots exactly as the local renderer does. A late joiner can instead take `world.serialize()` (full
-  state) and run the same commands (`restoreWorld(json, content)`, tested).
+  state) and run the same commands (`restoreWorld(json, content)`, tested mid-fight).
 - `world.hash()` (16 hex chars over the full state) is the desync check.
 
 ---
 
-## 5. Abilities and effects (SPEC, the combat wave builds this)
+## 5. Abilities and effects (LIVE, combat wave 2026-11-19: `src/data/abilities.js`, `src/sim/combat.js`)
 
 One schema for all five classes. An ability is a list of **effects** with a targeting rule; complex behaviour comes
 from composing effects and auras, never from per-ability code. Where code is truly needed, an effect may name a
@@ -209,8 +240,8 @@ aura: {
 }
 ```
 
-Crowd control light (DESIGN section 2) = `flags` `stun`, `root`, `slow` (with a `speed` mod). Diminishing returns:
-the same CC family on the same target within 15 s lasts 1, 1/2, 1/4, then immune (SPEC, sim-side).
+Crowd control light (DESIGN section 2) = `flags` `stun`, `root`, `slow` (with a `slow` add or a `speed` mul), `incap`. Diminishing
+returns: the same CC family on the same target within 15 s lasts 1, 1/2, 1/4, then immune (LIVE, 5.7).
 
 ### 5.4 Placed objects (traps and similar)
 
@@ -240,54 +271,138 @@ object: {
 | Wayfinder, bow + traps | `focus` (regen per tick) | shots = `requires weapon bow`, `projectile`, `damage weapon 1.0`; traps = `summon object` with `trigger`; disengage = `move leap` backwards |
 | Inkblade, twin daggers, stealth | `focus` + `combo` | stealth = `aura flags stealth breakOn action` + `speed mul 0.7`; openers `requires stealthed behind`; builders `combo add 1`; finishers `requires combo 1`, `bonus perCombo`, `combo consume`; poisons = `procs on hit` applying a `dispel poison` debuff |
 
-### 5.7 Combat rules the sim owns (SPEC)
+### 5.7 Combat rules the sim owns (LIVE: `src/sim/combat.js`, `ai.js`, `progression.js`, tests in `qa/sim/`)
 
-- Global cooldown 1.0 s (20 ticks), started at cast start. `gcd: false` skips it.
-- Auto-attack: a per-entity swing timer from the weapon's `speed`; starts when the player targets a hostile in
-  range and presses an attack ability or right-clicks it; stops on `target null` or a non-hostile target.
-- Hit table (one roll): miss, dodge, parry (melee, front only), block (shield, front only), crit, hit.
-- Threat: damage x 1 (x `threatMult`), healing x 0.5 split across mobs in combat with the healer.
-- Mob AI modes: `idle` / `walk` (LIVE wander), then `aggro` (radius by level gap), `chase`, `attack`, `leash` (back
-  to spawn at 40 tiles or 10 s out of reach, full heal, threat cleared), `flee` (some mobs, below 20 % HP).
-- Death (DESIGN): a dead player wakes at `lantern` (last one touched) after a short fade; nothing lost.
+- **GCD** 1.0 s (20 ticks), started at cast start; `gcd: false` skips it and does not start it.
+- **Casting**: validation order dead, stunned/incapacitated, silenced (non-physical), busy (already casting), toggle
+  off, GCD, cooldown/charges, target, `requires`, range, line of sight, resource, moving. Cast-time spells pay and
+  start their cooldown on completion; channels and instants at start. Moving breaks a cast-time spell or channel
+  (`cast_stop` `move`); a stun, incapacitate or silence breaks it (`interrupt`); damage pushes a cast back 0.25 s, at
+  most twice per cast (talents cut it, Warding Word stops it); an `interrupt` effect locks that spell 3 s.
+- **Range and sight**: feet point to feet point in px; line of sight samples the segment every 4 px against `'#'` cells
+  (water and ledges do not block).
+- **Projectiles** (`projectile.speed` px/s) home on the target; effects land on arrival; a dead target drops them.
+  Speeds: Kindle and Inkbolt 240, arrows and Auto Shot 480, mob bolts 200.
+- **Auto-attack**: per-hand swing timer from the weapon speed (Inkblade off hand 50% on its own timer); paused while
+  casting; Wayfinder Auto Shot (range 9) only while standing still. Warden +10 Resolve per auto hit.
+- **Hit table**: one roll: block (Warden only, front 180 degrees, melee: -50% damage, +5 Resolve), then crit (players
+  5% + mods, x1.5), else hit. Miss, dodge and parry are 0 (OPEN_QUESTIONS Q11).
+- **Mitigation**: physical damage x (1 - min(0.6, armor / (armor + 40 x attacker level + 100))); armored mobs a further
+  -30%; level gap -5% per level the target is above you, +5% below (max 4); rounded, never below 1; absorbs eat it next.
+- **Threat**: damage x ability `threatMult` x class `threatMult` (Warden Guard 1.5) x `threat` mods; healing 0.5 per
+  point split over the mobs holding the healer or the target; taunt = top +10% and a 3 s forced target (a caster stops
+  casting and walks in). A mob switches targets at 110% (challenger in melee) or 130% (beyond).
+- **CC**: stun, incapacitate (breaks on damage), root (breaks once it has taken 20% of max health), slow (highest wins;
+  armored mobs ignore slows under 30%). Diminishing returns per family (stun, root, incap): 1, 1/2, 1/4, immune, the
+  window resets 15 s after the last application. Elites take half stuns; `eliteDuration` / `eliteImmune` per aura.
+- **Stealth**: `flags: ['stealth']` with `breakOn: action, damage (, move)`; mobs notice a stealthed player within
+  24 px + 8 px per level they are above (talents shrink it). The first attack out of stealth carries `opener`.
+- **Combat state**: in combat while a mob holds you on its threat table or for 5 s after damage to or from you. Leaving
+  combat starts `cooldownFromCombatEnd` cooldowns (Fade). Events `combat { id, on }`.
+- **Regen**: mana 0.4 x Spirit per second in combat, twice out of combat, 6% of max sitting; Focus +5 / +10 per second;
+  Resolve -5 per second after 3 s out of combat; health +1% per second after 5 s out of combat, 6% sitting.
+- **Mob AI** modes: `idle` / `walk` / `home` (wander), `combat` (chase to 20 px, swing every `attackSpeed` s, use
+  abilities, casters stand and cast inside bolt range with sight and walk in without it, `stationary` mobs never move),
+  `flee` (once, at `flee` health, 4 s, toward a same-family friend that joins), `reset` (leash: 40 tiles from spawn
+  or 10 s without reaching or being hurt by its target; evading, full heal, threat cleared, walks home).
+  Aggro radius 80 px (or the template's) +-8 px per level of gap, 32 to 128, needs sight; `aggroRadius: 0` or
+  `behavior: 'passive'` only fights back. Social: an engaged mob pulls same-family mobs within 3 tiles that can see it.
+  Mob ability entries: `passive` (applied at spawn), `trigger: { hpBelow, once } | { onFlee } | { meleeHit } |
+  { hitFromRange }`, otherwise used when in range and off cooldown (`chance`, `cooldown` on the entry).
+- **Respawn**: at the spawn point and the spawn's own `level`, after `spawn.respawn` / template `respawn` / 90 s
+  (weak 60, elite 360); never while a player within 12 tiles is in combat. `temporary` adds (escort ambush, Order Given)
+  are removed instead. `night` spawns exist only at night by the sim clock (`src/sim/clock.js`).
+- **Zone scripts**: the Long Watch (moor `script.long_watch`, template `fight.odoChime`): while the Sentinel fights, Odo
+  rings every 20 s (`chime` event) and it is stunned 2 s; adds come from `script.long_watch.adds_from`.
+- **Death**: a dead player wakes 3 s later at the last lantern touched (within 1 tile of its cell), full health and
+  resource (Resolve 0), nothing lost; mobs drop them from their threat tables. A killed mob gives XP and loot to its
+  tagger (first player to hurt it), then feeds the quest module (section 7.7).
+- **XP**: `w.grantXp`; kill XP `(20 + 4 x mob level)` x the PROGRESSION 2.1 gap table x elite 2.5 / weak 0.6; levels
+  1 to 15 from `progression.xpToNext`; a level-up recomputes stats and refills health and mana; at 15, 1 gold per 50 XP.
+
+### 5.8 Schema additions (LIVE; OPEN_QUESTIONS Q10 accepted)
+
+- Numbers: `amount` / `cost.amount` may be `{ base, perLevel }` (at the caster's level), a number or `[min, max]`.
+  Damage and heal effects also take `weapon: k` (k x one weapon swing W), `coef: { stat: 'ap' | 'sp', k }`,
+  `mobHit: k` (k x the mob's swing), `pctMaxHp`, `pctOfDamage`, `pctOfHeal`, `pctOfAbsorb`, `scaleCombo` (x Ink Marks),
+  `mult`, `perHit` (x targets hit by this cast), `fromData` (a DoT sized from the hit that applied it), `noArmor`,
+  `noThreat`, `periodic`, `ability` (the id the event reports).
+- `to`: `target`, `self`, `caster`, `holder`, `attacker`, `enemies` / `allies` (the cast's `area`),
+  `enemies_near_holder` (`radius`), `other_near_target` (`radius`), `allies_near` (`radius`).
+- Ability fields: `selfMods` (conditional mods on the ability itself, e.g. Inkbolt -0.5 s at an Underlined target),
+  `toggle` (casting again removes its aura), `charges`, `keepsStealth`, `cooldownFromCombatEnd`, `area.shape: 'line'`
+  (`length`, `width`), `area.includeTarget`, `channel.walkSpeed`, `requires.combo / notMoving / outOfCombat /
+  targetNoAura`, `passive` and `trigger` (mob abilities).
+- Aura fields: `immune: ['stun' | 'slow' | 'knockback']`, `breakOn`, `ignoreOwnPeriodic`, `noRootBreak`, `drFamily`
+  (null = no DR), `eliteDuration`, `eliteImmune`, `limitPerCaster`, `opener: { bonus, combo }`, `comboBonus`,
+  `consumeOn: { cast }`, `scaleCombo`, `fromDamage`, `upkeep: { every }`, `onExpire`, `onBreak`, `onHitTaken`,
+  `procs` (`on: 'hitTaken'`, `fromCaster`), flags `nopushback`, `silence`, `taunted`, `untargetable`.
+- Mod stats: `armor`, `block`, `blockResolve`, `maxHp`, `crit` (`school: 'spell'` = any non-physical), `damageDone`,
+  `damageTaken`, `healingDone`, `healingTaken`, `threat`, `speed` (add and mul), `slow` (highest wins), `manaMax`,
+  `manaRegen`, `focusRegen`, `hpRegenPct`, `autoResolve`, `autoSpeed`, `attackSpeed` (mobs), `offHand`, `castTime`,
+  `cost`, `range`, `leech`, `comboMax`, `comboDuration`, `comboRefund`, `openerBonus`, `stealthNotice`, `noticeRange`,
+  `pushback`. Filters: `ability` (id or list; `'auto'` = auto-attack), `school`, `periodic`, `when`.
+- `when` / `if` conditions: `targetHpBelow`, `selfHpBelow`, `targetRooted`, `targetAura` (+ `fromSelf`), `attackerAura`,
+  `still` (s), `notCasting`, `outOfCombat`, `stealthed`, `opener`, `targetWithin` (px), `holderIsCaster`, `absorbUsed`,
+  `melee`.
+- Procs: `on: 'hit' | 'crit' | 'cast' | 'block' | 'damageTaken' | 'kill' | 'periodic' | 'heal' | 'trapRoot'`, `ability`,
+  `chance`, `icd`, `when`. An aura effect with `proc: 'trapRoot'` fires that proc for its caster.
+- Effects added: `summon` with `mob` (mob adds: `mob`, `level`, `count`, `from` = a zone script spot); `move` kinds
+  `leap` (`dir: 'back' | 'moving'`, else toward the target), `charge`, `blink_behind`, `blink`, `knockback`
+  (`distance`, `time` or `speed`); placed objects take `pulse` + `period` + `maxTargets`, `inside` / `insideAllies`
+  (applied every tick to units inside), `blocks` (mobs cannot walk in), `at: 'here'` (the trap's own spot).
+
+### 5.9 Talent scripts (play rules in `src/sim/scripts.js`, listed for review)
+
+`sworn_strike`, `oathbreaker`, `kept_name`, `the_lantern_holds` (Warden); `name_twice`, `many_names`, `firebrand`,
+`pyre_word`, `bellward` (Mender); `capital_letter`, `footnote`, `overwrite`, `smudge` (Scribe); `running_shot`,
+`double_nock`, `snarecraft`, `path_sense`, `unseen_road` (Wayfinder); `second_cut`, `last_word`, `unwritten`,
+`between_the_lines`, `inkdouble`, `blot_out`, `ink_veins` (Inkblade). Every other node is pure data (mods, ability
+patches, procs). Each script has a test in `qa/sim/talents.test.mjs`.
 
 ---
 
-## 6. Zone (map) data (LIVE for terrain, joins, collision; SPEC for the rest)
+## 6. Zone (map) data (LIVE: terrain, joins, collision, areas, lanterns, spawns, npcs, nodes, signs, hooks)
 
-One module per zone in `src/data/maps/<id>.js`, registered in `src/data/maps/index.js` (`ZONES`). The two phase-1
-maps are **generated** from Lexicon Quest by `tools/dev/import_lq_maps.mjs`; do not hand-edit them (re-run the tool).
-A hand-made zone may be written directly in the same shape.
+One module per zone in `src/data/maps/<id>.js`, registered in `src/data/maps/index.js` (`ZONES`). Every zone module is
+**generated** by `node tools/maps/build_world.mjs` (world wave, 2026-11-19); never hand-edit one, change the generator.
+Willowmere is Lexicon Quest's map as is plus a small Realms patch (west gate, joins, NPC spots); the valley (96 x 64),
+Shepherd's Downs (`downs`, 144 x 96) and the High Moor (`moor`, 160 x 100) come from `tools/maps/zone_<id>.mjs`.
+`tools/dev/import_lq_maps.mjs` now exports `importLqMap(id)` and, run directly, rebuilds the whole world.
 
 ```js
 export default {
   id: 'valley', name: 'Willowmere Valley', kind: 'town' | 'field' | 'interior',
-  w: 60, h: 40,                         // tiles
+  w: 96, h: 64,                         // tiles
   music: 'valley', lighting: { tint: 'none', dark: 0 },
-  // render-only (LQ tile format, docs in assets/tiles/README of Lexicon Quest)
+  // render-only (LQ tile format; ids resolve in assets/tiles/tiles.json, trimmed by the build; sheets include x1.png)
   under: 'grass', legend: { '.': 'grass', ... }, ground: ['....', ...],
   overlays: [{ t, x, y }], decor: [{ t, x, y, state? }], overhead: [{ t, x, y }],
   // sim
   collision: ['....##~~', ...],         // one char per tile: '.' walk, '#' solid, '~' water, 'v' '>' '<' one-way ledges (S, E, W)
   joins: [{ x, y, w, h, to: 'willowmere', tx, ty, dir }],   // stepping into the rect moves a player to (tx, ty) in `to`
-  // SPEC (the zones wave adds these; the importer keeps LQ's own spots under `lq` as references)
+  arrival: [1, 52],                     // a walkable cell; every quest spot is checked reachable from it (qa/world)
   levels: [1, 6],
-  areas: [{ id: 'old_mill', name: 'The Old Mill', x, y, w, h }],        // explore objectives + zone-name toasts
-  lanterns: [{ id: 'square', x: 22, y: 18 }],                           // respawn points (touch to bind)
-  spawns: [{ mob: 'briar_wolf', x, y, wander: 3, respawn: 60, group: 'den_a' }],
+  areas: [{ id, name, x, y, w, h, levels?: [a, b], safe?: true, banner?: false }],   // explore objectives + zone banner
+  lanterns: [{ id, name, x, y, post: [px, py], bound?: true }],   // (x, y): the walkable touch and respawn cell;
+                                        // post: the lit lamp_post decor (a light source); bound: bound at creation
+  spawns: [{ mob, level, x, y, wander, respawn, group, night?: true, leash? }],   // level is THIS spawn's level (a family
+                                        // like moss_scarab lives at 2 in the valley and 11 on the moor): respawns keep it
   npcs: [{ npc: 'mael', x, y, dir }],
-  nodes: [{ id: 'reeds_1', item: 'river_reed', x, y, respawn: 90 }],    // collect objectives
-  lq: { npcs, enemies, marks, start },  // imported reference spots from Lexicon Quest
+  nodes: [{ id, item, x, y, respawn, name, sprite, channel?: s, perPlayer?: true, at?: [x, y] }],   // collect nodes
+  signs: [{ id, x, y, text, hook? }],   // readable things (the sign decor is solid; read it from the next cell)
+  hooks: [{ id, to, x, y, text }],      // closed roads (OPEN_QUESTIONS Q19): a standing cell in front of the blocker
+  script: { long_watch: { elite, odo_post, adds_from, lamps, leash } },   // moor only: spots for the elite fight
+  lq: { npcs, enemies, doors, marks, start },   // willowmere only: LQ's own spots, for reference
 };
 ```
 
-Joins are data: a join whose `to` zone is not in `ZONES` is just the map edge. A new zone drops in by adding its
-module to `ZONES` and a join on each side. `qa/tests/architecture.test.mjs` checks that every join lands on a
-walkable tile and not inside the other side's join. The current joins: Willowmere south gate (20..21, 31) to the
-valley (1, 33); the valley west edge (0, 33..34) to Willowmere (20, 30); the valley east edge (59, 16..17) points at
-`east_road`, not loaded (Lexicon Quest's Episode 2 road), so it is an edge today.
-
----
+Joins are data: a join whose `to` zone is not in `ZONES` is just the map edge. Loaded joins: Willowmere south gate
+(20..21, 31) <-> valley west edge (0, 52..53); Willowmere west gate, Orchard Lane (0, 16..17) <-> Downs east edge
+(143, 42..43); valley west edge (0, 18..19) <-> Downs east edge (143, 20..21); Downs Ridge gap (74..77, 0) <-> moor south
+edge (74..81, 99). Closed, and walled so the edge cannot be reached: valley east -> `east_road` (the fallen oak), Downs
+south -> `x1_millrace` (Ferrick's chain) and `x1_larchhill` (the shut gate), moor east -> `x1_terrace` (the rooted stile).
+`qa/world/zones.test.mjs` checks every join both ways, reachability and the closed edges.
 
 ## 7. Data modules (SPEC, the design and content waves fill these)
 
@@ -301,136 +416,206 @@ content = { zones, zoneNames, classes, abilities, talents, mobs, items, quests, 
 `src/data/maps/index.js` `buildContent()` builds it today with PLACEHOLDER mobs, NPCs and spawns; when the files
 below exist, `buildContent()` imports them and the placeholders are deleted.
 
-### 7.1 `src/data/classes.js`
+### 7.1 `src/data/classes.js` (LIVE, combat wave)
+
+Copied from CLASSES.md section 7. Armor kinds `plate | mail | leather | cloth`; weapon types add `rod`, `quill`, `bell`,
+`book` (`src/data/progression.js WEAPON_TYPES`).
 
 ```js
 export const CLASSES = {
   warden: {
-    id: 'warden', name: 'Warden', role: 'tank', armor: 'heavy', weapons: ['sword', 'shield'],
-    resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 2, onHitDealt: 3, onHitTaken: 4 },
-    base: { hp: 120, str: 12, agi: 8, int: 4, spi: 5, sta: 12 },  perLevel: { hp: 14, str: 2, agi: 1, int: 0, spi: 1, sta: 2 },
-    hpPerSta: 10, apPerStr: 2, critPerAgi: 0.0005,
-    abilities: [{ id: 'warden_strike', level: 1 }, { id: 'warden_taunt', level: 2 }, ...],   // 6 by level 15
-    startBar: ['warden_strike'], talentTree: 'warden', looks: [{ id: 0, sprite: 'warden_a' }, ...],
-    startGear: { main: 'rusty_sword', off: 'plank_shield' },
+    id: 'warden', name: 'Warden', role: 'tank', armor: 'plate', weapons: ['sword', 'shield'],
+    resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 5, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5 },
+    // mana users: { kind: 'mana', maxBase: 50, maxPerInt: 15, start: 'max', regenPerSpi: 0.4, regenOocMult: 2, sitPct: 0.06 }
+    // focus users: { kind: 'focus', max: 100, start: 'max', regen: 5 }
+    base: { hp: 60, str: 12, agi: 7, int: 4, spi: 6, sta: 12 },   // base.hp = the flat hp bonus (60 Warden, 30 others)
+    perLevel: { hp: 0, str: 1.5, agi: 0.5, int: 0.2, spi: 0.4, sta: 1.5 },   // stat = floor(base + perLevel * (L - 1))
+    hpPerSta: 10, apPerStr: 2 /* or apPerAgi */, spPerInt, critBase: 0.05, blockBase: 0.10, threatMult: 1.5, mainStat: 'str',
+    autoNeedsStill /* Wayfinder */, offHandMult /* Inkblade */, combo: { max: 3, duration: 20 } /* Inkblade */,
+    auto: { weapon: 'sword', range: 40, projectile?, offHand? },
+    abilities: [{ id: 'warden_strike', level: 1 }, ...],     // learn levels 1, 1, 3, 6, 10, 14
+    startBar: ['warden_strike', 'warden_shield_bash'], talentTree: 'warden', trainer: 'holt',
+    startGear: { main: 'gate_sword', off: 'plank_shield', chest: 'padded_jerkin' }, looks: [{ id, sprite }],
   },
 };
 ```
 
-### 7.2 `src/data/talents.js`
+`src/data/progression.js PROGRESSION` holds every progression number the sim reads (XP table, kill XP and gap table,
+trainer costs, respec, talent tier step, the mob curve and kinds, mob AI distances, combat constants, rest, death,
+design gear). `content.progression` is required for combat.
+
+### 7.2 `src/data/talents.js` (LIVE, combat wave)
 
 ```js
 export const TALENTS = {
   warden: {
-    branches: [{ id: 'bulwark', name: 'Bulwark' }, { id: 'edge', name: 'Edge' }, { id: 'banner', name: 'Banner' }],
+    branches: [{ id: 'bulwark', name: 'Bulwark' }, { id: 'oathblade', name: 'Oathblade' }, { id: 'lantern', name: 'Lantern' }],
     talents: {
-      warden_bulwark_1: {
-        id, branch: 'bulwark', tier: 1,        // tier n unlocks at (n - 1) * 3 points spent in this branch
-        maxRanks: 3, requires: null | { talent: 'warden_bulwark_2', ranks: 3 },
-        name, icon, text: 'Reduces damage taken by {r*2}%.',
-        perRank: { mods: [{ stat: 'damageTaken', mul: 0.98 }] },           // multiplied per rank
-        // or grants: { ability: 'warden_shield_wall' } | { modAbility: { id, field: 'cooldown', add: -1 } } | { procs: [...] }
+      warden_bulwark_iron_skin: {
+        id, branch: 'bulwark', tier: 1,        // tier n unlocks at (n - 1) * 2 points spent in this branch (Q10)
+        maxRanks: 3, requires: null | { talent, ranks }, name, icon, text, play: false,   // play = a [play] node
+        byRank: [                              // the whole effect AT rank r is byRank[r - 1] (a rank replaces the last)
+          { mods: [{ stat: 'armor', mul: 1.04 }] }, { mods: [{ stat: 'armor', mul: 1.08 }] }, { mods: [{ stat: 'armor', mul: 1.12 }] },
+        ],
+        // a rank may hold: mods: [...] (5.8 stats), modAbility: [{ id, path, add | mul | set | push }], procs: [...], script
       },
     },
   },
 };
 ```
 
-Points: 1 per level from level 5 (11 at 15). Respec at a trainer for gold (`respec` command, cost table in classes).
+`modAbility.path` walks the ability's data with dots; `#key` picks an array element by its `key` (e.g.
+`effects.#stun.aura.duration`); `mul` on an object multiplies every number in it (`cost.amount`). 162 nodes, 60 [play].
+Points: 1 per level from level 5 (11 at 15). Respec at a trainer: first free, then `10 + 5 * level` (PROGRESSION 6.4).
 
-### 7.3 `src/data/mobs.js`
+### 7.3 `src/data/mobs.js` (LIVE, world wave)
 
 ```js
 export const MOBS = {
   briar_wolf: {
-    id, name: 'Briar Wolf', level: [2, 3], sprite: 'briar_wolf', faction: 'hostile', family: 'beast',
-    hp: 60, armor: 20, damage: [3, 5], attackSpeed: 2.0, school: 'physical',
-    aggroRadius: 96, leash: 640, speed: 72, wander: 3,   // px, px, px/s, tiles
-    flee: 0.2 | null, elite: false, abilities: [{ id: 'wolf_lunge', chance: 0.2, cooldown: 8 }],
-    xp: null,                        // null = the level formula
-    loot: { gold: [1, 4], table: [{ item: 'wolf_pelt', chance: 0.4, quest: 'pelts_for_tess' }, ...] },
+    id, name: 'Briar Wolf', level: [3, 5],          // the FAMILY's range; each spawn names its own level (section 6)
+    sprite: 'briar_wolf', spriteLq: 'briar_wolf',    // MOB_SPRITES: the Realms atlas (assets/sprites/mobs/) and the
+                                                     // closest LQ field enemy as fallback; a spawn carries `sprite`
+                                                     // (mobSprite(id, level): ink_slime_deep from 3, moss_scarab_moor from 10)
+    faction: 'hostile', family: 'beast', kind: 'normal' | 'weak' | 'caster' | 'armored' | ['elite', 'armored'],
+    behavior: 'aggressive' | 'passive' | 'flees' | 'elite', social?, flying?, stationary?, patrol?,
+    hp, damage, armor, attackSpeed,                  // at level[0]; mobStats(id, level) is the formula (PROGRESSION 3)
+    aggroRadius: 80, leash: 640, speed: 72, wander: 3, flee: 0.2 | null, elite: false, respawn: 90,
+    abilities: [{ id: 'mob_wolf_lunge', chance?, cooldown? }],   // mobs.js MOB_ABILITIES, merged over abilities.js
+                                                     // MOB_ABILITIES as content.mobAbilities (effects use `mobHit`)
+    xp: null,                                        // null = the level formula
+    loot: { gold: [1, 4], junk: 'wolf_pelt',         // junk 35% (PROGRESSION 6.1); gear by kind (items.js DROP_RULES)
+            table: [{ item: 'thornback_hide', chance: 0.6, quest: 'wm_rhythm_of_the_forge', minLevel? }], gear?: 'elite' },
+    // elite only: card, deathLine, script: 'long_watch', fight: { odoChime, lamps, adds }, hpOverride: 1945
   },
 };
+export function mobStats(id, level)   // { level, hp, damage, attackSpeed, armor, xp, gold }
 ```
 
-### 7.4 `src/data/items.js`
+### 7.4 `src/data/items.js` (LIVE, world wave)
+
+Rarity ids are Lexicon Quest's (OPEN_QUESTIONS Q9): `common` `#e8e8e8`, `magic` `#6f8cff`, `rare` `#ffd34d`,
+`legendary` `#ff8a2a`, `set` `#3cdc6a` (`RARITY`). No `uncommon`, no `epic`.
 
 ```js
 export const ITEMS = {
-  rusty_sword: {
-    id, name, icon, rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary',  // colors: LQ font.js NAMED_COLORS
-    kind: 'weapon' | 'armor' | 'consumable' | 'quest' | 'junk' | 'bag',
-    slot: 'main' | 'off' | 'two' | 'ranged' | 'head' | 'chest' | 'legs' | 'feet' | 'hands' | 'trinket' | null,
-    weaponType: 'sword' | 'shield' | 'dagger' | 'bow' | 'staff' | 'wand' | null,
-    damage: [3, 6], speed: 2.4, armor: 0, stats: { str: 1 }, level: 1, classes: null | ['warden'],
-    use: null | { ability: 'minor_heal_potion', cooldown: 60 }, stack: 1, value: 12, bagSlots: 0,
+  garricks_iron_rod: {
+    id, name, icon, rarity: 'magic', kind: 'weapon' | 'armor' | 'consumable' | 'quest' | 'junk' | 'bag',
+    slot: 'main' | 'off' | 'two' | 'head' | 'chest' | 'legs' | 'feet' | 'hands' | 'trinket' | null,
+    weaponType: 'sword' | 'shield' | 'dagger' | 'bow' | 'rod' | 'quill' | 'bell' | 'book' | ['rod', 'quill'],
+    armorType: 'plate' | 'mail' | 'leather' | 'cloth' | 'class' | ['mail', 'leather'],   // 'class' and lists resolve per class
+    damage: [3, 6], speed: 3.0, armor: 0 | null, stats: { int: 1, main?: 2, sp?, crit?, speed?, mana? },   // main = class stat
+    level: 6 /* ilvl */, reqLevel: 4, classes: null | ['mender', 'scribe'], reward?: true, base?: true,
+    use: null | { kind: 'heal_pct' | 'mana_pct' | 'rest_food' | 'dispel', amount, cooldown, group },
+    stack: 1, value: 12, price?: 4 /* vendor price of consumables and bags */, bagSlots: 0,
   },
 };
+// also RARITY, AFFIXES (PROGRESSION 4.7), DROP_RULES (4.6), WEAPON_TYPES, ARMOR_TYPES, CLASS_GEAR, BASE_GEAR
+// (gear_<armor>_<slot>, gear_<weapon>, gear_trinket: random drops and vendor stock; they always carry an instance)
 ```
 
-### 7.5 `src/data/quests.js`
+A bag slot is `{ item, qty, inst? }`; gear carries `inst: { ilvl, rarity, affixes: [{ id, value }], armorType?, weaponType? }`.
+`src/sim/loot.js` `resolveItem(content, slot, cls)` gives the finished item (armor, damage, resolved stats, affixes,
+value); a reward that "rolls to class" is fixed to the receiver's class when it is given. Vendors buy at `value`, sell
+at 4 x value (or `price`). `player.bags` = the bag item ids worn (default `['starter_satchel']`, 12 slots).
+
+### 7.5 `src/data/quests.js` (LIVE, world wave)
 
 ```js
 export const QUESTS = {
-  pelts_for_tess: {
-    id, name, level: 2, minLevel: 1, zone: 'valley',
-    giver: 'tess', turnIn: 'tess',                 // npc ids
-    requires: { quests: ['letter_for_mael'], cls: null, level: 1 },
-    chain: { id: 'valley_wolves', step: 1 },
-    objectives: [
-      { kind: 'kill', mob: 'briar_wolf', count: 6 },
-      { kind: 'collect', item: 'wolf_pelt', count: 4 },                         // drops or `nodes`
-      { kind: 'deliver', item: 'sealed_letter', to: 'holt' },                   // item given on accept
-      { kind: 'explore', zone: 'valley', area: 'old_mill' },
-      { kind: 'escort', npc: 'penny', to: { zone: 'valley', x: 40, y: 18, r: 3 }, fail: 'death' },
+  wm_cobbs_hens: {
+    id, num: 3, name, level: 2, minLevel: 1, zone: 'valley', giver: 'cobb', turnIn: 'cobb',
+    requires: { quests: ['wm_name_twice'], cls: null, level: 1 }, chain: { id: 'valley', step: 3 },
+    objectives: [   // every objective also has `label` (the tracker text)
+      { kind: 'kill', mob: 'briar_wolf', count: 8 },
+      { kind: 'collect', item: 'stray_hen', count: 5 },                          // mob drops or zone `nodes`
+      { kind: 'deliver', item: 'pells_crate', to: 'penny' },                     // the item is given on accept
+      { kind: 'explore', zone: 'valley', area: 'the_fork' },
+      { kind: 'escort', npc: 'lark_escort', from: { zone, x, y }, to: { zone, x, y, r }, fail: 'death',
+        ambush: [{ at: { x, y, r }, mobs: [{ mob, level }] }] },
       { kind: 'talk', npc: 'mael' },
     ],
-    rewards: { xp: 420, gold: 12, items: [], choice: ['tess_gloves', 'tess_cloak'] },
-    text: { offer: '...', progress: '...', complete: '...' },     // Lexicon Quest voice; no em dashes
-    giveOnAccept: [{ item: 'sealed_letter', qty: 1 }],
+    rewards: { xp: 350, gold: 13, items: [], choice: ['cobbs_old_boots'] }, rewardRarity: 'magic', elite?: true,
+    text: { offer, progress, complete }, giveOnAccept: [{ item, qty }], hook?: { lines: [...] },
   },
 };
+export const QUEST_ORDER = [/* 24 ids */];
+export const COMING_LATER = { id: 'east_road_later', name: 'The East Road', text: 'Coming later.' };
 ```
 
-### 7.6 `src/data/npcs.js`
+### 7.6 `src/data/npcs.js` (LIVE, world wave)
 
 ```js
 export const NPCS = {
   mael: { id, name: 'Elder Mael', sprite: 'npc_elder', title: null, faction: 'friendly',
-          roles: ['quest', 'trainer', 'vendor', 'innkeeper', 'flightless'], vendor: null | { items: [...] },
-          trainer: null | { cls: 'warden' }, talk: 'mael_idle', lq: 'mael' },
+          roles: ['quest' | 'trainer' | 'vendor' | 'innkeeper' | 'escort' | 'ambient'], vendor: null | { items: [{ item, ilvl? }] },
+          trainer: null | { cls: 'warden' }, innkeeper: false, escort?: { follow: 2, hpPct: 0.4 }, talk: ['line', ...], lq: 'mael' },
 };
 ```
 
-Lexicon Quest heroes and townsfolk (Mira, Bram, Elder Mael, Tess, Holt ...) are NPCs here; their names, looks and
-roles must match Lexicon Quest (`D:\LexiconQuest\next\src\data\npcs.js` and `docs/`).
+Placement lives in each zone's `npcs`. Sprites `npc_brindle`, `npc_tamsin`, `npc_odo` are in LQ's `x1_npcs` sheet, not
+yet copied into assets (art lane).
 
----
+### 7.7 Quest system wiring (`src/sim/quests.js`; world.js calls it) (LIVE: world.js calls every point below, combat wave)
 
-## 8. Events (LIVE where marked, else SPEC)
+`createQuests(Q)` with `Q = { state, content, emit, rng, get(id), ents(), grantXp(e, amount, reason, extra), addEntity(e),
+nextId(), spawnMob?(spec) }`. world.js calls it at these points (pure, deterministic; all state lives on entities):
+
+| world.js point | call |
+|---|---|
+| after `spawnContent()` | `QS.spawnObjects()` (every zone node becomes a `kind: 'object'` entity with `node: { item, ... }`) |
+| `interact` on an npc or an object | `QS.interact(player, target)` (an npc emits `quest_dialog`) |
+| `quest_accept` / `quest_turnin` / `quest_abandon` | `QS.accept(p, quest)` / `QS.turnIn(p, quest, choice)` / `QS.abandon(p, quest)` |
+| a mob dies (credit to its tagger) | `QS.onKill(player, mob)`, then `rollKill({ content, rng, questNeeds: QS.needsItem }, mob, player)` (loot.js) |
+| a player's bag changes (loot, vendor) | `QS.onBag(player)` |
+| after a player moves or changes zone | `QS.onMove(player)` (explore objectives, the `area` banner event) |
+| a player takes damage | `QS.onDamaged(player)` (breaks a node channel) |
+| once per tick, after entities | `QS.tick()` (node channels and respawns, escort follow, ambushes, arrival) |
+| HUD | `QS.marker(p, npcId)`: `'!'` available, `'?'` ready, `'!grey'` trivial (5+ levels under you), `'!soon'` too low, `'?grey'` in progress; `QS.tracker(p)` |
+
+Player fields: `quests: { id: { state: 'active' | 'ready', counts: [..], escort? } }`, `questsDone: [ids]`, `nodesUsed`,
+`area`, `questChannel`. Max 20 in the log. Quest XP goes through combat's `grantXp(e, amount, 'quest')` after the
+PROGRESSION 2.2 gap multiplier; without `Q.grantXp` the module emits the `xp` event instead (a one-line hook).
+Events: `quest` (accept, progress, complete, turnin, abandon, fail), `quest_dialog { npc, offers, turnins, progress, soon }`,
+`quest_hook { lines, later }`, `area { zone, area, name, levels, safe }`, `loot`, `gold`, `spawn` / `despawn` (nodes).
+
+## 8. Events (LIVE)
 
 `world.step()` returns the tick's events; every event has `tick` and `type`. `main.js` publishes them on the bus.
 
-| type | Fields | Status |
-|---|---|---|
-| `join` | `id, name` | LIVE |
-| `zone` | `id, from, to, x, y` (tiles) | LIVE |
-| `target` | `src, id` (null = cleared), `reason?: 'lost'` | LIVE |
-| `interact` / `interact_fail` | `src, id, npc` / `src, id, reason` | LIVE |
-| `cmd_reject` | `id, cmd, reason` | LIVE |
-| `cast_start` | `src, ability, target, castTicks` | LIVE (stub) |
-| `cast_stop` | `src, ability, target, reason: 'done' \| 'interrupt' \| 'move' \| 'cancel' \| 'stub'` | LIVE (stub) |
-| `cast_fail` | `src, ability, reason: 'gcd' \| 'cooldown' \| 'range' \| 'resource' \| 'los' \| 'requires' \| 'silenced' \| 'moving'` | LIVE (`gcd`) |
-| `damage` | `src, dst, ability \| 'auto', school, amount, crit, result: 'hit' \| 'miss' \| 'dodge' \| 'parry' \| 'block' \| 'immune', absorbed, blocked, overkill, periodic` | SPEC |
-| `heal` | `src, dst, ability, amount, overheal, crit, periodic` | SPEC |
-| `death` | `id, killer` | SPEC |
-| `xp` | `id, amount, source: 'kill' \| 'quest' \| 'explore'`; `level` event `id, level` on level-up | SPEC |
-| `loot` | `id, from, gold, items: [{ item, qty }]` | SPEC |
-| `quest` | `id (player), quest, kind: 'accept' \| 'progress' \| 'complete' \| 'turnin' \| 'abandon', objective, cur, need` | SPEC |
-| `aura_add` / `aura_remove` | `dst, src, aura, stacks, until` / `dst, aura, reason: 'expire' \| 'dispel' \| 'break' \| 'death' \| 'cancel'` | SPEC |
-| `threat` | `mob, top` (when the top of a mob's threat list changes) | SPEC |
-| `spawn` / `despawn` | `id, template, zone` | SPEC |
-| `lantern` | `id (player), zone, lantern` | SPEC |
+| type | Fields |
+|---|---|
+| `join` / `leave` | `id, name` / `id` |
+| `zone` | `id, from, to, x, y` (tiles) (also after a respawn in another zone) |
+| `target` | `src, id` (null = cleared), `reason?: 'lost'` |
+| `interact` / `interact_fail` | `src, id, npc, trainer?: { cls, offer: [{ ability, level, cost, known, canLearn }], respecCost }` / `src, id, reason` |
+| `cmd_reject` | `id, cmd, reason` |
+| `cast_start` | `src, ability, target, castTicks, channel?` (castTicks 0 = instant) |
+| `cast_stop` | `src, ability, target, reason: 'done' \| 'interrupt' \| 'move' \| 'cancel' \| 'target' \| 'resource' \| 'death' \| 'stub'` |
+| `cast_fail` | `src, ability, reason: 'gcd' \| 'cooldown' \| 'range' \| 'resource' \| 'los' \| 'requires' \| 'combo' \| 'silenced' \| 'stunned' \| 'moving' \| 'busy' \| 'combat' \| 'target' \| 'unknown' \| 'dead'` |
+| `projectile` | `id, src, dst, ability ('auto' for Auto Shot), speed` (px/s; the damage lands on arrival) |
+| `damage` | `src, dst, ability \| 'auto', school, amount, crit, result: 'hit' \| 'block' \| 'immune', absorbed, blocked, overkill, periodic` |
+| `heal` | `src, dst, ability, amount, overheal, crit, periodic` |
+| `aura_add` / `aura_remove` | `dst, src, aura, stacks, until, refresh?` / `dst, aura, src, reason: 'expire' \| 'dispel' \| 'break' \| 'death' \| 'cancel' \| 'consume' \| 'moved'` |
+| `combo` | `id, target, n` (Ink Marks) |
+| `leap` | `id, kind: 'leap' \| 'blink', dx, dy` |
+| `threat` | `mob, top` (when the top of a mob's threat list changes; `top: null` on reset) |
+| `evade` / `flee` / `yell` / `chime` | `id` / `id` / `id, text` / `id (the Sentinel), npc: 'odo'` |
+| `combat` | `id, on` (a player enters or leaves combat) |
+| `death` | `id, killer, template, kind, tagger` |
+| `respawn` | `id, zone, x, y (tiles), lantern` |
+| `cheat_death` | `id, talent` (The Lantern Holds) |
+| `xp` | `id, amount, source: 'kill' \| 'quest' \| 'explore', gold? (at the cap), mob?, quest?` |
+| `level` | `id, level, hpMax, talentPoints (free), trainable: [ability ids learnable at this level]` |
+| `gold` | `id, amount, total, source: 'loot' \| 'xp_cap' \| ...` |
+| `loot` | `id, from, gold, items: [{ item, qty, inst? }]` |
+| `train` / `train_fail` | `id, ability, cost, gold, npc` / `id, ability, reason` |
+| `talent` / `talent_fail` / `respec_paid` | `id, talent, ranks, kind: 'learn' \| 'unlearn' \| 'respec', free` / `id, talent, reason` / `id, cost, gold` |
+| `inventory` / `inventory_fail` | `id, kind: 'equip' \| 'unequip' \| 'use', slot?, item` / `id, cmd, item, reason` |
+| `sit` | `id, food?` |
+| `quest`, `quest_dialog`, `quest_hook`, `area` | section 7.7 |
+| `spawn` / `despawn` | `id, template, zone, kind ('mob' \| 'object'), owner?, x?, y?, radius?, reason?` (objects: traps, zones, hedges, ink trails, quest nodes; `reason: 'day'` for night mobs) |
+| `lantern` | `id (player), zone, lantern` (a new lantern bound) |
 
 ---
 
@@ -480,9 +665,50 @@ It never reads the sim or the renderer.
 }
 ```
 
-HUD layout target: the approved stills (`D:\LQOnline\mockups\out\still1_questing.png` and siblings). Note the stills
-draw HUD text at a finer pixel size than the 640x360 world; the HUD agent should decide whether the HUD layer runs
-at 2x (1280x720) and say so here.
+HUD layout target: the approved stills (`D:\LQOnline\mockups\out\still1_questing.png` and siblings).
+
+**Decided (HUD agent, 2026-11-19): the HUD layer stays 640x360, the same pixel density as the world. No 1280x720 layer.**
+The stills only look finer because the LQ font is small (1 px strokes, 7 px caps) next to chunky world art: their builder
+(`D:\LQOnline\mockups\lqui.py`, "all drawing is at 1x on a 640x360 frame", then a 3x nearest upscale) draws every HUD
+pixel at 640x360. So the HUD draws through `renderer.drawHud` at the base integer scale (3x at 1080p, 2x at 1280x720),
+matches the stills pixel for pixel, and keeps one pixel density (DESIGN 5.2). Pointer math: HUD px =
+(device px - layout.ox) / layout.base. Phone: 44 css px hit areas = `ceil(44 / (base / devicePixelRatio))` HUD px
+(`src/ui/layout.js` `hitPx`), so touch buttons grow in HUD px instead of the layer changing resolution.
+
+How the HUD gets the SPEC fields today: `src/ui/uivm.js` `buildHudModel(vm, snap, { state })` adds them under the names
+above, taking each from the view model when present and otherwise building it (bar from the class's learned abilities,
+range from snapshot positions, `xpToLevel` from PROGRESSION.md, minimap markers from the snapshot) or from the UI's local
+PLACEHOLDER state (quests, bag, equip, gold, talents). When `buildViewModel` grows a field, the HUD uses it with no change.
+Extra SPEC fields the HUD reads (same names): `bag: { size, items: [{ item, qty } | null] }`, `equip: { slot: { item } }`,
+`gold`, `talents: { id: ranks }` (also accepted on the player entity), `quests: [{ id, name, level, zone, state:
+'available'|'active', done, tracked, giver, turnIn, objectives: [{ text, cur, need }], rewards, text }]`, `stats`,
+target `elite` / `boss` (or `rank`). UI commands it sends (LIVE since the combat wave, section 2.2):
+`learn_talent {talent}`, `unlearn_talent {talent}` (new, one rank back), `respec`, `quest_abandon {quest}`,
+`equip {bagSlot, item}`, `unequip {slot}`, `use_item {bagSlot, item}`.
+
+### 10.1 The sim's HUD block (LIVE, combat wave): `snapshot.hud[playerId]`
+
+The sim builds everything rule-derived the HUD needs, already in seconds and fractions (`src/sim/hud.js`), so the HUD
+never re-derives a rule. `buildViewModel` should pass it through as `vm.hud` (wiring note in the combat report).
+
+```js
+{
+  id, gcdLeft, gcdTotal: 1,
+  cast: { ability, name, icon, kind: 'cast' | 'channel', frac, left, total, target } | null,   // channel frac runs down
+  res: { kind, cur, max },
+  auras: [{ id, name, icon, kind, stacks, left, total, src, mine, absorb, dispel }],             // left null = no end
+  bar: [{ slot, ability, name, icon, known, cdLeft, cdTotal, charges, cost, costKind, usable, inRange, castTime, offGcd }],
+  combo: { target, n, max, left } | null,            // Ink Marks (dots in the target frame)
+  counters: { capital, pyre: { target, n } } | null, // Capital Letter count ("the bar shows the count")
+  target: { id, name, level, kind, faction, hp, hpMax, dead, elite, mobKind, res, cast, auras, hostile, target,
+            threat: { pct (your threat as % of the top), top (you have aggro), aggro, list: [{ id, amount }] } } | null,
+  xp: { cur, need, level, cap }, talents: { total, spent, free, byBranch }, gold,
+  inCombat, autoOn, dead, respawnIn, lantern, sitting, showAggroRings (Path Sense), stats, derived,
+  quests: QS.tracker(player) rows, npcMarkers: { npcEntityId: '!' | '?' | '!grey' | '!soon' | '?grey' },
+}
+```
+
+The UI commands listed above are LIVE (section 2.2); `equip` / `use_item` accept `bagSlot` or `bag`.
 
 ---
 

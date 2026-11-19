@@ -10,14 +10,17 @@ import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const TEST_MS = 20000;
-const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'tests');
+const here = path.dirname(fileURLToPath(import.meta.url));
+// qa/tests (foundation, ui), qa/sim (combat, progression) and qa/world (zones, quests, loot)
+const DIRS = ['tests', 'sim', 'world'].map((d) => path.join(here, d)).filter((d) => fs.existsSync(d));
 const filters = process.argv.slice(2);
-const files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.mjs') && (!filters.length || filters.some((x) => f.includes(x)))).sort();
+const files = DIRS.flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith('.test.mjs') && (!filters.length || filters.some((x) => f.includes(x)))).sort().map((f) => path.join(dir, f)));
 
 let pass = 0, fail = 0;
 const t0 = Date.now();
 for (const f of files) {
-  const mod = await import(pathToFileURL(path.join(dir, f)).href);
+  const mod = await import(pathToFileURL(f).href);
+  const name = path.basename(f);
   for (const t of mod.tests || []) {
     const start = Date.now();
     try {
@@ -26,10 +29,10 @@ for (const f of files) {
         new Promise((_, rej) => setTimeout(() => rej(new Error(`timed out after ${TEST_MS} ms`)), TEST_MS).unref()),
       ]);
       pass++;
-      console.log(`  ok   ${f} :: ${t.name} (${Date.now() - start} ms)`);
+      console.log(`  ok   ${name} :: ${t.name} (${Date.now() - start} ms)`);
     } catch (e) {
       fail++;
-      console.log(`  FAIL ${f} :: ${t.name}\n       ${String(e && e.stack || e).split('\n').slice(0, 4).join('\n       ')}`);
+      console.log(`  FAIL ${name} :: ${t.name}\n       ${String(e && e.stack || e).split('\n').slice(0, 4).join('\n       ')}`);
     }
   }
 }

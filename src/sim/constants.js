@@ -22,3 +22,9 @@ export const TARGET_RANGE_PX = 640;    // a target further than this (or in anot
 // Collision chars written by tools/dev/import_lq_maps.mjs (docs/CONTRACTS.md section 6).
 export const WALK = '.';
 export const LEDGE_DIR = { v: [0, 1], '>': [1, 0], '<': [-1, 0] };
+
+// Day clock (shared with src/render/daycycle.js, which reads snapshot.dayTime): one day = 40 real minutes.
+export const DAY_TICKS = 48000;
+export const DAY_START = 0.32;          // a new world starts at about 7:40 in the morning
+export const NIGHT_FROM = 0.805;        // blue hour after dusk
+export const NIGHT_TO = 0.215;          // blue hour before dawn

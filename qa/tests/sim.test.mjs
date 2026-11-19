@@ -86,7 +86,7 @@ export const tests = [
       for (let i = 0; i < 200 && !zev; i++) zev = world.step().find((e) => e.type === 'zone');
       assert(zev, 'a zone event');
       eq(zev.from, 'willowmere'); eq(zev.to, 'valley'); eq(p.zone, 'valley');
-      eq(Math.floor(p.x / TILE), 1, 'arrival column'); eq(Math.floor((p.y - 1) / TILE), 33, 'arrival row');
+      eq(Math.floor(p.x / TILE), 1, 'arrival column'); eq(Math.floor((p.y - 1) / TILE), 52, 'arrival row (the grown valley: Willowmere opens on its south-west, ZONES_QUESTS 2.2)');
       world.enqueue(pid, { t: 'move', dx: -1, dy: 0 });
       let back = null;
       for (let i = 0; i < 100 && !back; i++) back = world.step().find((e) => e.type === 'zone');
@@ -110,20 +110,20 @@ export const tests = [
     },
   },
   {
-    name: 'commands: target / interact / cast stub / bad commands emit the contract events',
+    name: 'commands: target / interact / cast / bad commands emit the contract events (combat content loaded)',
     fn() {
       const { world, content } = newWorld(1);
       const pid = world.addPlayer({ name: 'K' });
-      const mael = world.state.ents.find((e) => e.kind === 'npc');
-      const wolf = world.state.ents.find((e) => e.kind === 'mob');
-      world.enqueue(pid, { t: 'target', id: wolf.id });          // other zone: rejected
+      const mael = world.state.ents.find((e) => e.kind === 'npc' && e.template === 'mael');
+      const far = world.state.ents.find((e) => e.kind === 'mob' && e.zone !== 'willowmere');
+      world.enqueue(pid, { t: 'target', id: far.id });           // other zone: rejected
       world.enqueue(pid, { t: 'interact', id: mael.id });        // too far
-      world.enqueue(pid, { t: 'cast', slot: 1 });
-      world.enqueue(pid, { t: 'cast', slot: 2 });                // GCD
+      world.enqueue(pid, { t: 'cast', slot: 1 });                // Strike: no hostile target
+      world.enqueue(pid, { t: 'cast', slot: 9 });                // empty slot
       world.enqueue(pid, { t: 'dance' });
       const ev = world.step();
       const types = ev.map((e) => e.type + (e.reason ? ':' + e.reason : ''));
-      eq(JSON.stringify(types), JSON.stringify(['cmd_reject:bad_target', 'interact_fail:range', 'cast_start', 'cast_stop:stub', 'cast_fail:gcd', 'cmd_reject:unknown_command']));
+      eq(JSON.stringify(types), JSON.stringify(['cmd_reject:bad_target', 'interact_fail:range', 'cast_fail:target', 'cast_fail:unknown', 'cmd_reject:unknown_command']));
       // walk next to Mael and talk
       const p = world.get(pid);
       p.x = mael.x - 20 * 16; p.y = mael.y;
@@ -133,6 +133,19 @@ export const tests = [
       assert(ev2.some((e) => e.type === 'interact' && e.npc === 'mael'), 'interact event');
       eq(p.target, mael.id);
       assert(content.zones.willowmere, 'content');
+    },
+  },
+  {
+    name: 'commands: without combat content the cast stub still checks the GCD (cast_start, cast_stop stub, cast_fail gcd)',
+    fn() {
+      const full = buildContent();
+      const content = { zones: full.zones, zoneNames: full.zoneNames, mobs: full.mobs, npcs: full.npcs, spawns: [], start: full.start };
+      const world = createWorld({ seed: 1, content });
+      const pid = world.addPlayer({ name: 'S' });
+      world.enqueue(pid, { t: 'cast', slot: 1 });
+      world.enqueue(pid, { t: 'cast', slot: 2 });
+      const types = world.step().map((e) => e.type + (e.reason ? ':' + e.reason : ''));
+      eq(JSON.stringify(types), JSON.stringify(['cast_start', 'cast_stop:stub', 'cast_fail:gcd']));
     },
   },
 ];
