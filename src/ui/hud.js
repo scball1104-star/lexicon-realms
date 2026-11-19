@@ -6,7 +6,7 @@ import { W, H, trackerRows, inRect } from './layout.js';
 import { drawMarkers } from './minimap.js';
 import { abilityInfo, abilityTooltip, classInfo, resourceWord, liveStats } from './gamedata.js';
 
-const MENU_ICON = { character: 'icon_helm', bags: 'icon_bag', quests: 'icon_quest', talents: 'icon_star', map: 'icon_scroll', menu: 'icon_gear' };
+const MENU_ICON = { character: 'icon_helm', bags: 'icon_bag', quests: 'icon_quest', talents: 'icon_star', map: 'icon_scroll', help: 'emote_question_0', menu: 'icon_gear' };
 /** Quest marks drawn in code (CRITIQUE_1 item 1): a gold ! (quest to take) or ? (ready to turn in), grey when trivial or
  *  in progress. 1 = fill, 2 = highlight, everything inside the outline box is outlined in ink. */
 const MARK_GLYPH = {
@@ -112,7 +112,9 @@ export function createHud(env) {
       const y = y0 + i * 12;
       if (lbl) g.icon(ctx, lbl, nx, y + 1); else g.text(ctx, txt, nx, y - 2, 'gold');
       g.gauge(ctx, nx + 12, y, gw, mx ? v / mx : 0, kind);
-      g.text(ctx, `${fmtInt(v)}/${fmtInt(mx)}`, right, y - 2, 'white', { align: 'right' });
+      // the resource bar names itself ("RE" read as nothing): 'Resolve 12/100'
+      const word = i === 1 && u.resWord ? u.resWord + ' ' : '';
+      g.text(ctx, `${word}${fmtInt(v)}/${fmtInt(mx)}`, right, y - 2, 'white', { align: 'right' });
     });
   }
 
@@ -309,6 +311,7 @@ export function createHud(env) {
     }
   }
 
+  const CLUSTER_WORD = { interact: 'Talk', next_target: 'Next', attack: 'Attack' };
   function touchControls(ctx, L, m, st, regions) {
     const bySlot = new Map(m.bar.map((s) => [s.slot, s]));
     for (const b of L.cluster) {
@@ -323,11 +326,13 @@ export function createHud(env) {
         // a small button (the phone's big HUD layer) shows the word alone, so the label never sits on the icon
         if (r.w >= 30) {
           if (b.id === 'interact') g.iconIn(ctx, 'prompt_talk_0', r.x, r.y - 3, r.w, r.h);
+          else if (b.id === 'attack') g.iconIn(ctx, 'icon_sword', r.x, r.y - 3, r.w, r.h);
           else g.iconIn(ctx, 'reticle_0', r.x, r.y - 3, r.w, r.h);
-          g.text(ctx, b.id === 'interact' ? 'Talk' : 'Next', r.x + r.w / 2, r.y + r.h - 12, 'cream', { align: 'center' });
-        } else g.text(ctx, b.id === 'interact' ? 'Talk' : 'Next', r.x + Math.floor(r.w / 2) + 1, r.y + Math.floor(r.h / 2) - 6, 'cream', { align: 'center' });
+          g.text(ctx, CLUSTER_WORD[b.id], r.x + r.w / 2, r.y + r.h - 12, 'cream', { align: 'center' });
+        } else if (b.id === 'attack') g.iconIn(ctx, 'icon_sword', r.x, r.y, r.w, r.h);   // the word does not fit a small button
+        else g.text(ctx, CLUSTER_WORD[b.id], r.x + Math.floor(r.w / 2) + 1, r.y + Math.floor(r.h / 2) - 6, 'cream', { align: 'center' });
       }
-      regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, ability: b.slot && bySlot.get(b.slot) ? bySlot.get(b.slot).ability : null });
+      regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, tip: b.id === 'attack' ? { title: 'Attack', sub: 'Auto-attack your target (the nearest foe if none)' } : undefined, ability: b.slot && bySlot.get(b.slot) ? bySlot.get(b.slot).ability : null });
     }
     const j = st.joystick;
     if (j) {

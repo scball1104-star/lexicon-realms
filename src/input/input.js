@@ -23,7 +23,7 @@ export const GCD_QUEUE_S = 0.4;        // a press in the last 0.4 s of the globa
 export const TALK_REACH_PX = 34;       // walking to an npc to talk stops this close (the sim's reach is 40)
 const DIR8 = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
 
-export function createInput(keyTarget, canvas, { abilities = {} } = {}) {
+export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } = {}) {
   const held = new Set();
   const pending = [];            // raw UI intents gathered between polls
   let lastMove = [0, 0];
@@ -151,6 +151,20 @@ export function createInput(keyTarget, canvas, { abilities = {} } = {}) {
           const i = order.indexOf(target);
           const next = i < 0 ? order[0] : order[(i + (it.back ? order.length - 1 : 1)) % order.length];
           if (next !== target) { target = next; out.push({ t: 'target', id: next }); }
+        } else if (it.k === 'attack') {
+          // the phone Attack button: auto-attack the target (the nearest foe when none is picked); out of weapon reach,
+          // walk in first (melee) so a thumb press always starts a fight
+          if (me.dead) continue;
+          let t = target != null ? snap.entities.find((o) => o.id === target) : null;
+          if (!t || t.kind !== 'mob' || t.faction !== 'hostile' || t.dead) {
+            const list = hostilesByDistance(snap, me);
+            if (!list.length) continue;
+            target = list[0]; out.push({ t: 'target', id: target });
+            t = snap.entities.find((o) => o.id === target);
+          }
+          out.push({ t: 'attack', id: t.id });
+          const reach = ((classes[me.cls] || {}).auto || {}).range || 24;
+          if (Math.hypot(t.x - me.x, t.y - me.y) > reach - 4) walkTo(Math.round(t.x), Math.round(t.y), Math.max(10, reach - 8), { t: 'attack', id: t.id });
         } else if (it.k === 'clear') {
           if (target != null) { target = null; out.push({ t: 'target', id: null }); }
         } else if (it.k === 'click' || it.k === 'rclick' || it.k === 'tap') {

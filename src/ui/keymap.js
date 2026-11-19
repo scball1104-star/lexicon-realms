@@ -21,10 +21,11 @@ export const ACTIONS = [
   { id: 'quests', label: 'Quest log', key: 'KeyL', group: 'Menus' },
   { id: 'talents', label: 'Talents', key: 'KeyN', group: 'Menus' },
   { id: 'map', label: 'World map', key: 'KeyM', group: 'Menus' },
+  { id: 'help', label: 'Help (all controls)', key: 'KeyH', group: 'Menus' },
   { id: 'menu', label: 'Menu / close', key: 'Escape', group: 'Menus', fixed: true },
 ];
 export const ACTION_BY_ID = Object.fromEntries(ACTIONS.map((a) => [a.id, a]));
-export const MENU_ACTIONS = ['character', 'bags', 'quests', 'talents', 'map'];
+export const MENU_ACTIONS = ['character', 'bags', 'quests', 'talents', 'map', 'help'];
 const MOVE_DEFAULT = { move_up: 'KeyW', move_down: 'KeyS', move_left: 'KeyA', move_right: 'KeyD' };
 
 /** Effective code for every action. */

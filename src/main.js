@@ -59,7 +59,7 @@ async function boot() {
   const joins = [];                    // [tick, spec]: addPlayer calls, replayable with commandLog (CONTRACTS 2.3)
 
   const renderer = createRenderer(canvas, assets, { zones: content.zones, abilities: { ...content.abilities, ...content.mobAbilities } });
-  const input = createInput(window, canvas, { abilities: content.abilities });
+  const input = createInput(window, canvas, { abilities: content.abilities, classes: content.classes });
   const bus = createBus();
   const font = new BitmapFont(assets.json('font'), assets.img('font'), { id: 'main' });
   const view = { zoom: ZOOMS.includes(Number(q.get('zoom'))) ? Number(q.get('zoom')) : 1, fx: 'high' };

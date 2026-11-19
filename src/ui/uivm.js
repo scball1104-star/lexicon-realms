@@ -5,7 +5,7 @@
 // snapshot (positions for range and the minimap) and from the UI's local PLACEHOLDER state (quests, bag, talents)
 // so the screens work end to end. The fields are named exactly as CONTRACTS section 10 lists them, so moving this
 // code into buildViewModel later changes no HUD code. See the report for the sim fields still needed.
-import { classInfo, abilityInfo, abilityCost, seconds, rangePx, xpToNext, talentPointsAt, resourceLabel, resourceGauge, questInfo, npcInfo } from './gamedata.js';
+import { classInfo, abilityInfo, abilityCost, seconds, rangePx, xpToNext, talentPointsAt, resourceWord, resourceLabel, resourceGauge, questInfo, npcInfo } from './gamedata.js';
 
 export const SLOT_KEYS = ['1', '2', '3', '4', '5', '6'];
 
@@ -159,7 +159,7 @@ export function buildHudModel(vm, snap, ctx = {}) {
 
   return {
     tick: vm.tick,
-    player: p ? { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resGauge: resourceGauge(resKind),
+    player: p ? { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resWord: resourceWord(resKind), resGauge: resourceGauge(resKind),
       xp: p.xp || 0, xpToLevel: xpNeed } : null,
     target, party: vm.party || [], zone: vm.zone, log: vm.log || [],
     bar: bar || [], castBar, quests, tracked, minimap,
@@ -218,7 +218,7 @@ function fromSimHud(vm, snap, ctx) {
   const xp = h.xp || {};
   return {
     tick: vm.tick, live: true,
-    player: { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resGauge: resourceGauge(resKind),
+    player: { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resWord: resourceWord(resKind), resGauge: resourceGauge(resKind),
       xp: xp.cur || 0, xpToLevel: xp.cap ? 0 : xp.need || 0, derived: h.derived, inCombat: h.inCombat, sitting: h.sitting, respawnIn: h.respawnIn },
     target, party: vm.party || [], zone: vm.zone, log: vm.log || [],
     bar, castBar, quests, tracked, minimap: meE ? { zone: meE.zone, x: meE.x, y: meE.y, markers, areas: places.areas, goal: places.goal } : null,

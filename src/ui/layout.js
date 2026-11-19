@@ -40,12 +40,12 @@ function touchLayout(minHit, LW, LH) {
   const W = LW, H = LH;
   const m = Math.max(minHit, 24);
   const mbX = 160, mbY = 2;
-  const mb = ['character', 'bags', 'quests', 'talents', 'map', 'menu'].map((id, i) => ({ id, x: mbX + i * m, y: mbY, w: m, h: m }));
+  const mb = ['character', 'bags', 'quests', 'talents', 'map', 'help', 'menu'].map((id, i) => ({ id, x: mbX + i * m, y: mbY, w: m, h: m }));
   // cluster: 6 abilities on two rows of three + Interact and Next Target, anchored to the lower right
   const p = m, right = W - 4, bottom = H - 14;
   const pos = [
     ['slot1', 3, 1], ['slot2', 2, 1], ['slot3', 1, 1], ['slot4', 3, 2], ['slot5', 2, 2], ['slot6', 1, 2],
-    ['interact', 0, 1], ['next_target', 0, 2],
+    ['interact', 0, 1], ['next_target', 0, 2], ['attack', -1, 2],
   ];
   const cluster = pos.map(([id, col, row]) => ({ id, x: right - (4 - col) * p, y: bottom - (3 - row) * p, w: p, h: p }))
     .map((b) => ({ ...b, slot: /^slot(\d)$/.test(b.id) ? Number(b.id.slice(4)) : null }));
@@ -64,7 +64,7 @@ function touchLayout(minHit, LW, LH) {
     bar: [],
     cast: { x: Math.floor((W - 150) / 2), y: Math.min(H - 64, clusterTop - 6), w: 150 },
     xp: { y: H - 10 },
-    chat: { x: 4, w: Math.min(170, W - 4 * p - 16), lines: 3, bottom: H - 16, passive: true },
+    chat: { x: 4, w: Math.min(170, W - 5 * p - 16), lines: 3, bottom: H - 16, passive: true },
     menuBar: mb, cluster,
   };
 }

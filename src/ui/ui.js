@@ -16,6 +16,7 @@ import { createHud, drawTooltip, drawQuestMark } from './hud.js';
 import { hudLayout, hitPx, inRect, menuRect, W, H } from './layout.js';
 import { buildHudModel } from './uivm.js';
 import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions } from './menus.js';
+import { drawHelp } from './help.js';
 import { drawTalents } from './talents.js';
 import { drawTitle, drawSelect, drawCreate } from './title.js';
 import { createCharStore, loadOptions, saveOptions, validateName } from './save.js';
@@ -26,7 +27,7 @@ import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, 
 import { demoState, demoLog } from './demo.js';
 
 const SIDE = ['character', 'bags'];
-const CENTER = ['talents', 'quests', 'map', 'menu'];
+const CENTER = ['talents', 'quests', 'map', 'menu', 'help'];
 
 export async function createUI({ canvas, font, zones, zoneNames = {}, storage = null, touch = false, hooks = {}, demo = null }) {
   const art = await loadUiArt({ font });
@@ -292,6 +293,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
           if (st.open.has('talents')) drawTalents(ctx, env, m, st, regions, act);
           if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
+          if (st.open.has('help')) drawHelp(ctx, env, st, regions, act, options.binds);
         });
         hud.menuBar(ctx, L, st, regions);
         if (st.hint) drawHint(ctx, L, regions);
@@ -309,6 +311,13 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     }
     if (st.hint && t - st.hint.t0 > 30) st.hint = null;
     if (st.levelUp && t - st.levelUp.t0 > 6) st.levelUp = null;
+    if (st.banner && st.banner.until > t && st.mode === 'game') {
+      const bw = Math.min(L.W - 8, Math.max(g.textW(st.banner.title), g.textW(st.banner.sub || '')) + 28), bh = st.banner.sub ? 32 : 20;
+      const bx = Math.floor((L.W - bw) / 2), by = L.touch ? Math.floor(L.H * 0.3) : 70;
+      g.window(ctx, bx, by, bw, bh, 'thin', 'ember', 0.97);
+      g.text(ctx, g.clip(st.banner.title, bw - 12), L.W / 2, by + 3, 'gold', { align: 'center' });
+      if (st.banner.sub) g.text(ctx, st.banner.sub, L.W / 2, by + 16, 'cream', { align: 'center' });
+    }
     if (st.toast && st.toast.until > t) {
       // above everything, clear of the npc window (CRITIQUE_1 item 20)
       const w = g.textW(st.toast.text) + 16;
@@ -368,8 +377,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   /** The one-time controls card for a new hero (desktop and phone versions). */
   function drawHint(ctx, L, regions) {
     const lines = L.touch
-      ? ['Left thumb: drag to walk, or tap the ground.', 'Tap a foe to target it. Tap a person or a ! to talk.', 'Right thumb: your skills, Talk and Next target.', 'Top buttons: character, bags, quests, talents, map.']
-      : ['WASD to walk. Tab or click to target a foe.', '1 to 6 to use skills. Right-click a foe to attack.', 'F or right-click to talk. X to sit and rest.', 'C B L N M: character, bags, quests, talents, map.'];
+      ? ['Left thumb: drag to walk, or tap the ground.', 'Tap a foe to target it. Tap a person or a ! to talk.', 'Right thumb: skills, sword (attack), Talk, Next.', 'Top buttons: character, bags, quests, talents, map.', 'The ? button lists every control.']
+      : ['WASD to walk. Tab or click to target a foe.', '1 to 6 to use skills. Right-click a foe to attack.', 'F or right-click to talk. X to sit and rest.', 'C B L N M: character, bags, quests, talents, map.', 'H lists every control.'];
     const bh = Math.max(14, L.minHit || 0);
     const w = 250, h = 22 + lines.length * 11 + 6 + bh + 6;      // the button has its own row (CRITIQUE_1 item 20)
     const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.max(L.minHit + 6, Math.floor((L.H - h) / 2) - 10) : 96;
@@ -437,6 +446,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       case 'interact': hooks.input && hooks.input.inject({ k: 'interact' }); st.pressed = 'interact'; return true;
       case 'mark': hooks.input && hooks.input.inject({ k: 'talk', id: r.id }); return true;
       case 'next_target': hooks.input && hooks.input.inject({ k: 'tab', back: false }); st.pressed = 'next_target'; return true;
+      case 'attack': hooks.input && hooks.input.inject({ k: 'attack' }); st.pressed = 'attack'; return true;
       case 'menu_button': act.toggle(r.id); return true;
       case 'minimap': act.toggle('map'); return true;
       case 'tracker_head': st.trackerCollapsed = !st.trackerCollapsed; return true;
@@ -597,6 +607,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         return;
       case 'quest':
         if (ev.id === me && ev.kind === 'complete') toast(`${(questInfoName(ev.quest))}: complete`, 2.5);
+        // turned in: a banner drawn above every window, the npc's included (it used to land behind the dialog)
+        if (ev.id === me && ev.kind === 'turnin') {
+          const bits = [ev.xp ? `+${ev.xp} XP` : '', ev.gold ? `+${ev.gold} gold` : ''].filter(Boolean);
+          st.banner = { title: `Quest complete: ${questInfoName(ev.quest)}`, sub: bits.join('   '), until: st.now + 3.5 };
+        }
         return;
       case 'lantern':
         if (ev.id === me) toast(`Lantern bound: ${ev.name || 'this lantern'}`, 3);
