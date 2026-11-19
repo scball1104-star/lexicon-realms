@@ -59,7 +59,10 @@ async function boot() {
   let playerId = null;                 // created by the title screen (or at once in dev mode, below)
   const joins = [];                    // [tick, spec]: addPlayer calls, replayable with commandLog (CONTRACTS 2.3)
 
-  const renderer = createRenderer(canvas, assets, { zones: content.zones, abilities: { ...content.abilities, ...content.mobAbilities } });
+  // ?r=3d: the 3D renderer (src/render3d/, same contract); it falls back to 2D with a console warning if WebGL fails
+  const rOpts = { zones: content.zones, abilities: { ...content.abilities, ...content.mobAbilities }, items: content.items };
+  const renderer = (q.get('r') === '3d' && await import('./render3d/renderer3d.js').then((m) => m.createRenderer3D(canvas, assets, rOpts))
+    .catch((e) => { console.warn('Lexicon Realms: 3D renderer unavailable, using 2D.', e); return null; })) || createRenderer(canvas, assets, rOpts);
   const input = createInput(window, canvas, { abilities: content.abilities, classes: content.classes });
   const bus = createBus();
   const font = new BitmapFont(assets.json('font'), assets.img('font'), { id: 'main' });
