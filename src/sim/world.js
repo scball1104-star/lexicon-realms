@@ -273,9 +273,10 @@ function wrap(state, content, rng, systems) {
         if (spec.equip) e.equip = JSON.parse(JSON.stringify(spec.equip));
         if (spec.talents) e.talents = { ...spec.talents };
         if (spec.known) for (const kid of spec.known) if (C.data.abilities[kid] && !e.known.includes(kid)) e.known.push(kid);
-        if (spec.bar) e.bar = spec.bar.filter((kid) => e.known.includes(kid)).slice(0, 12);
+        if (spec.bar) e.bar = spec.bar.filter((kid) => kid && e.known.includes(kid));   // a save carries 8 slots, empty ones null
         if (spec.lantern && content.zones[spec.lantern.zone]) e.lantern = { ...spec.lantern };
         C.b2.attach(e, spec);                      // Builds 2: the build from the save (save v2), or a new one
+        C.prog.fillBar(e);                         // 8 slots: a known skill left off a 6-slot bar takes a free slot
         C.stats.recalc(e);
         e.hp = e.hpMax;
         if (e.res && e.res.kind === 'mana') e.res.cur = e.res.max;

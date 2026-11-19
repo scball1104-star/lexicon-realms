@@ -21,7 +21,7 @@ export function helpSections(binds) {
     { title: 'Fighting', rows: [
       ['Pick a foe', `Click it, or ${k(b, 'next_target')}`, 'Tap it, or Next'],
       ['Attack', 'Right-click the foe', 'Sword button (bottom right)'],
-      ['Skills', `${k(b, 'slot1')} to ${k(b, 'slot6')}`, 'Skill buttons'],
+      ['Skills', `${k(b, 'slot1')} to ${k(b, 'slot8')}`, 'Skill buttons'],
       ['Skill info', 'Point at its icon', 'Hold its icon'],
       ['Cooldown', 'Shadow sweeps over the icon', 'Same'],
     ] },

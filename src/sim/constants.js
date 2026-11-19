@@ -24,6 +24,9 @@ export const WALK = '.';
 export const LEDGE_DIR = { v: [0, 1], '>': [1, 0], '<': [-1, 0] };
 
 // Day clock (shared with src/render/daycycle.js, which reads snapshot.dayTime): one day = 40 real minutes.
+// The skill bar: 8 slots, keys 1 to 8 (BUILDS_2 open question 4, Scott 2026-11-19 "yes to all"; was 6)
+export const BAR_SLOTS = 8;
+
 export const DAY_TICKS = 48000;
 export const DAY_START = 0.32;          // a new world starts at about 7:40 in the morning
 export const NIGHT_FROM = 0.805;        // blue hour after dusk

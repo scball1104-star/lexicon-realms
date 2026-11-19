@@ -7,7 +7,8 @@ export const W = 640, H = 360;
 /** HUD px that make 44 css px: cssPerHud = renderer base scale / devicePixelRatio. */
 export function hitPx(cssPerHud) { return Math.ceil(44 / Math.max(0.25, cssPerHud || 1)); }
 
-export const BAR = { n: 6, sz: 26, gap: 3, y: 318 };
+// 8 skill slots (BUILDS_2 open question 4, Scott 2026-11-19 "yes to all"): keys 1 to 8 on desktop, 8 buttons on a phone
+export const BAR = { n: 8, sz: 26, gap: 3, y: 318 };
 
 export function hudLayout({ touch = false, minHit = 15, W: LW = W, H: LH = H } = {}) {
   if (!touch) {
@@ -41,11 +42,13 @@ function touchLayout(minHit, LW, LH) {
   const m = Math.max(minHit, 24);
   const mbX = 160, mbY = 2;
   const mb = ['character', 'bags', 'quests', 'talents', 'map', 'help', 'menu'].map((id, i) => ({ id, x: mbX + i * m, y: mbY, w: m, h: m }));
-  // cluster: 6 abilities on two rows of three + Interact and Next Target, anchored to the lower right
+  // cluster: 8 skills, Attack, Talk and Next Target on two rows, anchored to the lower right. Skills 1 to 6 keep their
+  // old spots under the thumb (1 to 3 on top, 4 to 6 below), Talk and Next beside them; 7 sits over Attack and 8 at the
+  // outer end of the bottom row, so the cluster is six buttons wide and two tall
   const p = m, right = W - 4, bottom = H - 14;
   const pos = [
     ['slot1', 3, 1], ['slot2', 2, 1], ['slot3', 1, 1], ['slot4', 3, 2], ['slot5', 2, 2], ['slot6', 1, 2],
-    ['interact', 0, 1], ['next_target', 0, 2], ['attack', -1, 2],
+    ['interact', 0, 1], ['next_target', 0, 2], ['slot7', -1, 1], ['attack', -1, 2], ['slot8', -2, 2],
   ];
   const cluster = pos.map(([id, col, row]) => ({ id, x: right - (4 - col) * p, y: bottom - (3 - row) * p, w: p, h: p }))
     .map((b) => ({ ...b, slot: /^slot(\d)$/.test(b.id) ? Number(b.id.slice(4)) : null }));
@@ -64,7 +67,7 @@ function touchLayout(minHit, LW, LH) {
     bar: [],
     cast: { x: Math.floor((W - 150) / 2), y: Math.min(H - 64, clusterTop - 6), w: 150 },
     xp: { y: H - 10 },
-    chat: { x: 4, w: Math.min(170, W - 5 * p - 16), lines: 3, bottom: H - 16, passive: true },
+    chat: { x: 4, w: Math.min(170, W - 6 * p - 16), lines: 3, bottom: H - 16, passive: true },
     menuBar: mb, cluster,
   };
 }

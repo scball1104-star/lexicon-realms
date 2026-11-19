@@ -22,6 +22,7 @@ import { createRenderer } from './render/renderer.js';
 import { createInput } from './input/input.js';
 import { createTouch, isTouchDevice } from './input/touch.js';
 import { createUI } from './ui/ui.js';
+import { padBar } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
 
 const ZOOMS = [1, 1.5, 2];
@@ -141,7 +142,7 @@ async function boot() {
     // a dead hero saves at the lantern they will wake at
     const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : { zone: e.zone, tx: Math.floor(e.x / (TILE * 16)), ty: Math.floor((e.y - 1) / (TILE * 16)) };   // SUB -> tiles
     return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
-      bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: clone(e.bar), talents: clone(e.talents),
+      bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: padBar(e.bar), talents: clone(e.talents),
       quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
       ...(world.saveFields ? clone(world.saveFields(id)) || {} : {}) };
   }

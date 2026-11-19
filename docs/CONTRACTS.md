@@ -946,7 +946,7 @@ fixture flag off).
   ({ trait: fromLevel }, BUILDS_2_PLAY 3.3's solo answer to its class's struggle, read by `qa/sim/builds2.mjs --struggle`).
 - **Signature pick:** `RULES.signatureLevels` [10, 20, 35]. `B.picksOpen` adds `{ level: 10, options, signature: true, axis }`
   while the hero has fewer signatures than levels reached; `b2_pick { level: 10, ability }` takes one into `build.sigs`.
-  Only `ready` signatures are offered (the Mender's three are still data only).
+  Only `ready` signatures are offered (all fifteen are ready; the Mender's three were built 2026-11-19, below).
 - **+skill nodes:** a node rank may carry `grant: abilityId`; `data.talentInfo(e).grants` lists them and `B.syncGrants`
   (run on every change and on attach) learns them, records them in `build.granted`, and removes one (known and bar) when
   the node goes, unless a pick, a purchase or a signature also gives it. Event `b2_grant { id, ability, on }`.
@@ -994,11 +994,35 @@ fixture flag off).
 - **Gate:** `node qa/sim/builds2.mjs` covers all five classes (15 named builds x levels 1 to 15); `--struggle` checks each
   class's BUILDS_2_PLAY struggle foe on qa/sim/matchup.mjs's measure. Tests: `qa/sim/builds2_classes.test.mjs`.
 
+## Builds 2: the Mender's signatures and the 8-slot bar (2026-11-19, LIVE)
+
+- **Mender signatures** (`src/data/builds2.js` `MENDER_SIGNATURE_ABILITIES`, merged into `B2_ABILITIES`; chip
+  `signatureAxis: 'Hammers vs Water vs Spirit'`; each named build carries `signatures`):
+  - **Tolling Hammers**: a placed object with `script: 'b2_tolling_hammers'` and `hammers`, `from`, `reach`, `turn`,
+    `hitRadius`, `effects` (one hit). `src/sim/scripts_b2.js` `objectTick` (called from scripts.js `objectTick`) keeps it on
+    its owner, spirals the hammers out and lands `effects` once per hammer per foe; the hit is multiplied by the owner's
+    `healingDone` mul when above 1 ("every 1% of healing bonus adds 1%"). Per hit tuned to `1.8 + 0.78 L + 0.135 SP`
+    (BUILDS_2: `6 + 2.6 L + 0.45 SP`): a foe takes three hits a cast, about 90% of the design's one-hit number.
+  - **Riptide Step**: effect script `b2_riptide`; ability fields `flow: { distance, width, time }` and
+    `pass: { foes, allies }`. She flows the way she walks (else faces), stopping short of a wall (forced move); foes within
+    `width / 2` of the line get `pass.foes` (a 40% slow, 3 s), friends (not herself) `pass.allies` (a heal). Event
+    `b2_proc { what: 'riptide', hits }`.
+  - **Kindred Light**: a pet (`hpPct 0.4`, `holdThreat`) with the new pet field `owner: { every, effects }` (effects on the
+    owner every `every` s while she is hurt: 2% max health). A recast while the spirit is out refreshes its time and keeps
+    its health (`beforeFire` skip; `b2_proc { what: 'kindred_refresh' }`).
+  - Tooltips (`src/ui/gamedata.js`): `{dmg}` reads a pet's bite, `{heal}` reads `pass`; number lines for hammers, pets, `flow`.
+- **Skill bar: 8 slots** (BUILDS_2 open question 4, Scott "yes to all"). `BAR_SLOTS = 8` (`src/sim/constants.js`); `e.bar` is
+  the dense list of ids in slot order, at most 8; `prog.learn` puts a new skill in the first free slot. `prog.fillBar` on
+  `addPlayer`: a restored bar that was full at the old 6 slots takes the known skills it left off, in learn order. Desktop:
+  keys 1 to 8 (`keymap.js` `slot7`, `slot8`; `input.js` Digit1 to Digit8), `layout.js` `BAR.n = 8` (205..434 on the
+  640 layer). Phone: the cluster is six buttons wide, two tall: skills 1 to 6 where they were, Talk and Next beside them,
+  7 over Attack, 8 at the outer end of the bottom row; 44 css px; the chat narrows to fit. Save: `src/ui/save.js`
+  `BAR_SLOTS`, `padBar` (exactly 8 entries, `null` = empty); `main.js` saves `padBar(e.bar)`; v1 and old v2 bars pad on load.
+
 ### TODO (data only, later phases)
 
 - **Signatures 2 and 3** (levels 20 and 35): the pick rule is built; each class's other two signatures are real skills
-  already, but levels past 15 do not exist yet. The Mender's three signatures are `ready: false` (Tolling Hammers, Riptide
-  Step, Kindred Light): not built.
+  already, but levels past 15 do not exist yet.
 - **Grapple points** in zone maps (`grapple: true` objects) for Grapple Line's "pull yourself to a point"; today it targets
   foes only.
 - **Furnace Form's size +30%** and every signature's own look: the renderers draw them with existing fx (projectile, leap,
@@ -1010,5 +1034,5 @@ fixture flag off).
 - **Flourishes, class hooks (Ring Block, Bright Thread, Punctuate, Snap Draw, Clean Spill), setup states and cross-class
   combos, party keystones, Many Hands** (BUILDS_2_PLAY 2, 4): a later phase. Hook room left: node `byRank` effects take
   any extra field, and setup states can be auras on foes like `inkblade_marks`.
-- **Skill bar:** the HUD draws 6 slots; a 7th skill (the level 14 pick, a +skill node) is known but off the bar until the
-  bar grows to 7 at 10 and 8 at 20 (BUILDS_2 3.2, a HUD change in src/ui).
+- **Skill bar:** done, 8 slots from level 1 (above). BUILDS_2 3.2's "7 at 10, 8 at 20" unlock is not used: Scott approved
+  the 8-slot bar as one change.

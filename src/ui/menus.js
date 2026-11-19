@@ -474,7 +474,8 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   const r = { x: 60, y: 24, w: 520, h: 316 };
   frame(ctx, env, r, 'Options', regions, act, 'menu');
   const touch = env.L.touch;
-  const rowH = Math.max(12, env.L.minHit || 0);
+  // 22 key rows (8 skill keys) fit the window at 11 px a row on desktop; a phone shows the touch notes instead
+  const rowH = touch ? Math.max(12, env.L.minHit || 0) : 11;
   // ---- left: key bindings
   const kx = r.x + 10, kw = 250;
   if (!touch) {
@@ -495,7 +496,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   } else {
     g.text(ctx, 'Touch controls', kx, r.y + 30, 'gold');
     const lines = ['Left thumb: touch anywhere on the left half to walk.', 'Tap a foe to target it. Tap a person to talk.',
-      'Right thumb: abilities 1 to 6, Talk, Next target.', 'Hold an icon to read about it.', 'Key bindings live on the keyboard version.'];
+      'Right thumb: abilities 1 to 8, Talk, Next target.', 'Hold an icon to read about it.', 'Key bindings live on the keyboard version.'];
     lines.forEach((l, i) => g.text(ctx, l, kx, r.y + 46 + i * 12, 'white'));
   }
   // ---- right: sound and view

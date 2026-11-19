@@ -7,7 +7,7 @@
 //   G.train / G.learnTalent / G.unlearnTalent / G.respec   the commands
 //   G.talentPoints(e)                   { total, spent, free, byBranch }
 //   G.onDeath(dst, killer), G.tickPlayer(e), G.tickDeadMob(m)
-import { SUB, TILE } from './constants.js';
+import { SUB, TILE, BAR_SLOTS } from './constants.js';
 import { ticks as T } from './data.js';
 import { distPx, distPxXY } from './geom.js';
 
@@ -96,9 +96,19 @@ export function createProgression(C) {
   function cumulative(L) { let s = 0; for (let i = 1; i < L; i++) s += P.xpToNext[i]; return s; }
 
   // ------------------------------------------------------------------------------------------------ abilities and trainers
+  // a new skill goes to the first free bar slot (the bar is the list of ids in slot order, at most BAR_SLOTS)
   function learn(e, id) {
     if (!e.known.includes(id)) e.known.push(id);
-    if (!e.bar.includes(id) && e.bar.length < 6) e.bar.push(id);
+    if (!e.bar.includes(id) && e.bar.length < BAR_SLOTS) e.bar.push(id);
+  }
+  /**
+   * A restored hero: a bar that was full at the old 6 slots left a 7th known skill off it; those skills take the new
+   * free slots, in the order they were learned. A bar with room to spare was the player's own choice and stays as saved.
+   */
+  function fillBar(e) {
+    e.bar = e.bar.filter((id, i) => id && e.known.includes(id) && e.bar.indexOf(id) === i).slice(0, BAR_SLOTS);
+    if (e.bar.length < 6) return;
+    for (const id of e.known) if (e.bar.length < BAR_SLOTS && !e.bar.includes(id) && data.abilities[id]) e.bar.push(id);
   }
 
   function trainerCls(npc) {
@@ -350,6 +360,6 @@ export function createProgression(C) {
     if (from !== zone) emit({ type: 'zone', id: e.id, from, to: zone, x: tx, y: ty });
   }
 
-  return { grantXp, killXp, setLevel, xpToNext, cumulative, learn, train, trainerOffer, trainerCls, learnTalent, unlearnTalent, respec, respecCost,
+  return { grantXp, killXp, setLevel, xpToNext, cumulative, learn, fillBar, train, trainerOffer, trainerCls, learnTalent, unlearnTalent, respec, respecCost,
     talentPoints, onDeath, tickDeadMob, tickPlayer, bindStart, respawn, levelUp, onZoneEnter };
 }

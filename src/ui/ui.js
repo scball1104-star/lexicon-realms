@@ -14,7 +14,7 @@ import { createCharArt } from './charsprite.js';
 import { createMinimapBook } from './minimap.js';
 import { createHud, drawTooltip, drawQuestMark, drawGoalArrow } from './hud.js';
 import { arrowMode } from './questnav.js';
-import { hudLayout, hitPx, inRect, menuRect, W, H } from './layout.js';
+import { hudLayout, hitPx, inRect, menuRect, W, H, BAR } from './layout.js';
 import { buildHudModel } from './uivm.js';
 import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions } from './menus.js';
 import { drawHelp } from './help.js';
@@ -296,7 +296,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player && !m.player.dead) drawGoalPointer(ctx, m, L, t);
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
-      regions.push(...hud.draw(ctx, m, L, st, { log, fade, keyLabels: Array.from({ length: 6 }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
+      regions.push(...hud.draw(ctx, m, L, st, { log, fade, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
@@ -458,7 +458,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   function drawHint(ctx, L, regions) {
     const lines = L.touch
       ? ['Left thumb: drag to walk, or tap the ground.', 'Tap a foe to target it. Tap a person or a ! to talk.', 'Right thumb: skills, sword (attack), Talk, Next.', 'Top buttons: character, bags, quests, talents, map.', 'The ? button lists every control.']
-      : ['WASD to walk. Tab or click to target a foe.', '1 to 6 to use skills. Right-click a foe to attack.', 'F or right-click to talk. X to sit and rest.', 'C B L N M: character, bags, quests, talents, map.', 'H lists every control.'];
+      : ['WASD to walk. Tab or click to target a foe.', '1 to 8 to use skills. Right-click a foe to attack.', 'F or right-click to talk. X to sit and rest.', 'C B L N M: character, bags, quests, talents, map.', 'H lists every control.'];
     const bh = Math.max(14, L.minHit || 0);
     const w = 250, h = 22 + lines.length * 11 + 6 + bh + 6;      // the button has its own row (CRITIQUE_1 item 20)
     const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.max(L.minHit + 6, Math.floor((L.H - h) / 2) - 10) : 96;

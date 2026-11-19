@@ -1229,6 +1229,11 @@ export function createCombat(C) {
       if (t) step(t.x, t.y, Math.max(8, (pet.range || 24) - 6));
       else step(owner.x, owner.y, 20);
     }
+    // Builds 2 Kindred Light: the pet tends its owner every `owner.every` s (a heal only while she is hurt)
+    if (pet.owner && now() >= (ob.nextOwner || 0)) {
+      ob.nextOwner = now() + T(pet.owner.every || 2);
+      if (!owner.dead && owner.hp < owner.hpMax) runEffects(owner, pet.owner.effects, { caster: owner, target: owner, abId: def.id });
+    }
     if (!t || now() < ob.nextAct) return;
     if (distPx(o, t) > (pet.range || 24) + 2) return;
     ob.nextAct = now() + T(pet.period || 2);

@@ -13,6 +13,8 @@ export const ACTIONS = [
   { id: 'slot4', label: 'Ability 4', key: 'Digit4', group: 'Combat' },
   { id: 'slot5', label: 'Ability 5', key: 'Digit5', group: 'Combat' },
   { id: 'slot6', label: 'Ability 6', key: 'Digit6', group: 'Combat' },
+  { id: 'slot7', label: 'Ability 7', key: 'Digit7', group: 'Combat' },
+  { id: 'slot8', label: 'Ability 8', key: 'Digit8', group: 'Combat' },
   { id: 'next_target', label: 'Next target', key: 'Tab', group: 'Combat' },
   { id: 'interact', label: 'Interact', key: 'KeyF', group: 'Combat' },
   { id: 'sit', label: 'Sit / rest', key: 'KeyX', group: 'Combat' },

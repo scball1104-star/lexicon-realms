@@ -92,7 +92,44 @@ const BLESS = (id, name, icon, mods, text) => ({
   effects: [{ type: 'aura', key: 'bless', to: 'allies', aura: { id: 'mender_blessing', name, icon, kind: 'buff', dispel: 'magic', duration: 600, unique: 'per_caster', recalc: true, mods } }],
   text,
 });
+// The Mender's three signatures (BUILDS_2 4.2, the level 10 pick). Play rules in src/sim/scripts_b2.js: the hammers'
+// spiral (object script `b2_tolling_hammers`), the flow (`b2_riptide`), and the spirit's recast (refreshes its time).
+const MENDER_SIGNATURE_ABILITIES = {
+  mender_tolling_hammers: {
+    id: 'mender_tolling_hammers', name: 'Tolling Hammers', icon: 'icon_lantern', cls: 'mender', learnLevel: 10, school: 'light',
+    cost: { kind: 'mana', amount: lv(20, 3) }, castTime: 0, cooldown: 0, gcd: true, range: null, target: 'none', threatMult: 1,
+    // three hammers spiral out from her (they follow her as she walks) from 0.75 to 4.5 tiles over 3 s, a turn a second;
+    // each hammer hits each foe it passes once. Every 1% of healing bonus she carries adds 1% (src/sim/scripts_b2.js)
+    effects: [{ type: 'summon', key: 'hammers', object: { id: 'mender_tolling_hammers', name: 'Tolling Hammers', sprite: 'zone_peal', at: 'self', armTime: 0, duration: 3, max: 2,
+      script: 'b2_tolling_hammers', hammers: 3, from: 12, reach: 72, turn: 1, hitRadius: 16,
+      effects: [{ type: 'damage', key: 'hit', amount: lv(1.8, 0.78), coef: { stat: 'sp', k: 0.135 }, school: 'light', canCrit: true }] } }],
+    text: 'Three bell-hammers of light spiral out from you over 3 s. Each hits every foe it passes for {dmg}. Every 1% of healing bonus you carry adds 1% to them.',
+  },
+  mender_riptide_step: {
+    id: 'mender_riptide_step', name: 'Riptide Step', icon: 'icon_haste', cls: 'mender', learnLevel: 10, school: 'light',
+    cost: { kind: 'mana', amount: lv(8, 1) }, castTime: 0, cooldown: 12, gcd: true, range: null, target: 'none', threatMult: 0.5,
+    effects: [{ type: 'script', key: 'flow', name: 'b2_riptide', to: 'self' }],
+    // the flow: 7 tiles the way you walk (or face), 0.35 s; everything within 1.5 tiles of the line is passed
+    flow: { distance: 112, width: 48, time: 0.35 },
+    pass: {
+      foes: [{ type: 'aura', key: 'slow', aura: { id: 'mender_riptide_slow', name: 'Riptide', icon: 'icon_haste', kind: 'debuff', duration: 3, flags: ['slow'], mods: [{ stat: 'slow', add: 0.4 }] } }],
+      allies: [{ type: 'heal', key: 'heal', amount: lv(10, 4), coef: { stat: 'sp', k: 0.4 }, canCrit: true }],
+    },
+    text: 'Become water and flow 7 tiles the way you are walking. Foes you pass are slowed 40% for 3 s; friends you pass are healed for {heal}.',
+  },
+  mender_kindred_light: {
+    id: 'mender_kindred_light', name: 'Kindred Light', icon: 'icon_phoenix', cls: 'mender', learnLevel: 10, school: 'light',
+    cost: { kind: 'mana', amount: lv(15, 2) }, castTime: 1.5, cooldown: 10, gcd: true, range: null, target: 'none', threatMult: 0,
+    effects: [{ type: 'summon', key: 'spirit', object: { id: 'mender_kindred_light', name: 'Kindred Light', sprite: 'ink_double', at: 'self', armTime: 0, duration: 60, max: 1,
+      hpPct: 0.4, holdThreat: true,
+      pet: { period: 2, range: 24, speed: 96, fly: true, effects: [{ type: 'damage', amount: lv(3, 1.2), coef: { stat: 'sp', k: 0.2 }, school: 'light' }],
+        owner: { every: 2, effects: [{ type: 'heal', pctMaxHp: 0.02, canCrit: false, noThreat: true }] } } } }],
+    text: 'Call a light spirit for 60 s; calling it again refreshes its time. It has 40% of your health, draws the foes, hits for {dmg} every 2 s and heals you 2% of your max health every 2 s.',
+  },
+};
+
 export const B2_ABILITIES = {
+  ...MENDER_SIGNATURE_ABILITIES,
   ...WARDEN_ABILITIES, ...SCRIBE_ABILITIES, ...WAYFINDER_ABILITIES, ...INKBLADE_ABILITIES,
   mender_blessing_stone: BLESS('mender_blessing_stone', 'Blessing of Stone', 'icon_protect', [{ stat: 'armor', mul: 1.2 }],
     'You and friends within 8 tiles: armor +20% for 10 minutes. One Blessing at a time.'),
@@ -216,14 +253,14 @@ const MENDER_NODES = [
     { keystone: true }),
 ];
 
-// ------------------------------------------------------------------------------------------------ signatures (data only)
-// Phase 4 of the build order: named here so the talents screen can show what is coming. The sim never offers them yet.
+// ------------------------------------------------------------------------------------------------ signatures
+// The level 10 pick (BUILDS_2 4.2), built 2026-11-19: the skills are MENDER_SIGNATURE_ABILITIES above.
 const MENDER_SIGNATURES = [
-  { id: 'mender_tolling_hammers', name: 'Tolling Hammers', icon: 'icon_lantern', ready: false,
+  { id: 'mender_tolling_hammers', name: 'Tolling Hammers', icon: 'icon_lantern', ready: true,
     text: 'Three bell-hammers of light spiral out from you over 3 s and hit each foe they pass. Every 1% of healing bonus adds 1% to them.' },
-  { id: 'mender_riptide_step', name: 'Riptide Step', icon: 'icon_haste', ready: false,
+  { id: 'mender_riptide_step', name: 'Riptide Step', icon: 'icon_haste', ready: true,
     text: 'Become water and flow 7 tiles. Foes you pass are slowed 40%; friends you pass are healed.' },
-  { id: 'mender_kindred_light', name: 'Kindred Light', icon: 'icon_phoenix', ready: false,
+  { id: 'mender_kindred_light', name: 'Kindred Light', icon: 'icon_phoenix', ready: true,
     text: 'Summon a light spirit for 60 s. It takes threat, hits, and heals you 2% of max health every 2 s.' },
 ];
 
@@ -236,15 +273,15 @@ const MENDER_SIGNATURES = [
 const P = (track, slug) => `b2_mender_${track}_${slug}`;
 const rep = (id, n) => Array.from({ length: n }, () => id);
 const MENDER_BUILDS = [
-  { id: 'tidehammer', name: 'Tidehammer', line: 'Spin hammers through packs; healing power fuels the damage.', tracks: ['sunfire', 'bell', 'hearth'], signature: 'mender_tolling_hammers',
+  { id: 'tidehammer', name: 'Tidehammer', line: 'Spin hammers through packs; healing power fuels the damage.', tracks: ['sunfire', 'bell', 'hearth'], signature: 'mender_tolling_hammers', signatures: ['mender_tolling_hammers', 'mender_riptide_step', 'mender_kindred_light'],
     picks: { 1: 'mender_brand', 3: 'mender_chorus', 6: 'mender_blessing_stone' },
     path: [...rep(P('bell', 'clear_voice'), 2), ...rep(P('hearth', 'gentle_hands'), 2), ...rep(P('bell', 'toll'), 2), P('bell', 'wide_peal'),
       ...rep(P('sunfire', 'kindling'), 2), ...rep(P('sunfire', 'flare'), 2), P('sunfire', 'zealot'), P('sunfire', 'kindling'), ...rep(P('sunfire', 'sunburst'), 2)] },
-  { id: 'lamplighter', name: 'Lamplighter', line: 'Brand drains the foe while you outlast it; slow and nearly unkillable.', tracks: ['tide', 'dawnbrand', 'wardlight'], signature: 'mender_kindred_light',
+  { id: 'lamplighter', name: 'Lamplighter', line: 'Brand drains the foe while you outlast it; slow and nearly unkillable.', tracks: ['tide', 'dawnbrand', 'wardlight'], signature: 'mender_kindred_light', signatures: ['mender_kindred_light', 'mender_tolling_hammers', 'mender_riptide_step'],
     picks: { 1: 'mender_brand', 3: 'mender_steady_name', 6: 'mender_blessing_stone' },
     path: [...rep(P('tide', 'deep_well'), 2), ...rep(P('tide', 'long_vigil'), 2), P('wardlight', 'steadfast_ward'), ...rep(P('dawnbrand', 'searing_name'), 2),
       ...rep(P('dawnbrand', 'bright_drain'), 2), P('tide', 'undertow'), P('dawnbrand', 'pure_light'), P('wardlight', 'steadfast_ward'), P('tide', 'deep_well'), ...rep(P('tide', 'ebb'), 2)] },
-  { id: 'battle_mender', name: 'Battle Mender', line: 'A cloth brawler with a rod who heals off her own hits.', tracks: ['dawnbrand', 'wardlight', 'hearth'], signature: 'mender_riptide_step',
+  { id: 'battle_mender', name: 'Battle Mender', line: 'A cloth brawler with a rod who heals off her own hits.', tracks: ['dawnbrand', 'wardlight', 'hearth'], signature: 'mender_riptide_step', signatures: ['mender_riptide_step', 'mender_tolling_hammers', 'mender_kindred_light'],
     picks: { 1: 'mender_brand', 3: 'mender_steady_name', 6: 'mender_blessing_stone' }, melee: true,
     path: [...rep(P('wardlight', 'steadfast_ward'), 2), ...rep(P('wardlight', 'blessed_cloth'), 2), ...rep(P('dawnbrand', 'searing_name'), 2),
       ...rep(P('dawnbrand', 'bright_drain'), 2), P('wardlight', 'tideplate'), P('dawnbrand', 'bell_and_rod'),
@@ -260,6 +297,7 @@ export const BUILDS2 = {
     tracks: MENDER_TRACKS,
     nodes: Object.fromEntries(MENDER_NODES.map((n) => [n.id, n])),
     signatures: MENDER_SIGNATURES,
+    signatureAxis: 'Hammers vs Water vs Spirit',
     builds: MENDER_BUILDS,
     defaultBuild: 'tidehammer',          // "Let my trainer choose"
     // baseline strengths and weaknesses that are new in Builds 2 (BUILDS_2 4.2): S1 healing done +10%

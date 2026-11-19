@@ -1,7 +1,7 @@
 // Save v1 -> v2 (Builds 2, docs/design/BUILDS_2.md section 8). The rule that matters most: a v1 player who opens the game
 // after this ships never sees an empty hero list, and keeps everything they earned.
 import { assert, eq } from './_helpers.mjs';
-import { createCharStore, migrate, migrateCharV1, CHAR_KEY, SAVE_VERSION, STATE_VERSION, CLASS_IDS } from '../../src/ui/save.js';
+import { createCharStore, migrate, migrateCharV1, CHAR_KEY, SAVE_VERSION, STATE_VERSION, CLASS_IDS, BAR_SLOTS, padBar } from '../../src/ui/save.js';
 import { SKILL_PICKS } from '../../src/data/builds2.js';
 import { createWorld } from '../../src/sim/index.js';
 import { fixtureContent } from '../sim/_fixtures.mjs';
@@ -29,6 +29,37 @@ const v1Blob = (chars) => ({ v: 1, nextId: chars.length + 1, seq: 40, chars });
 
 export const tests = [
   {
+    name: 'save v2: the bar carries 8 slots; an old 6-slot bar pads with empty slots (v1 and v2 saves), and a full old bar takes the 7th skill on load',
+    fn() {
+      eq(BAR_SLOTS, 8);
+      deepEq(padBar(['a', 'b']), ['a', 'b', null, null, null, null, null, null], 'two skills, six empty slots');
+      deepEq(padBar(['a', null, 'c', 'd', 'e', 'f']), ['a', null, 'c', 'd', 'e', 'f', null, null], 'a gap stays a gap');
+      deepEq(padBar(null), Array(8).fill(null), 'no bar: eight empty slots');
+      eq(padBar(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']).length, 8, 'never more than 8');
+      // a v1 hero: padded on migration
+      const six = ['mender_kindle', 'mender_mend', 'mender_brand', 'mender_chorus', 'mender_warding_word', 'mender_steady_name'];
+      const v1 = migrate(v1Blob([v1Char(1, 'Ada', 'mender', v1State('mender', { level: 15, known: [...six, 'mender_blessing_stone'], bar: [...six] }))])).data;
+      deepEq(v1.chars[0].state.bar, [...six, null, null], 'v1: six skills then two empty slots');
+      // a v2 save written while the bar had 6 slots: padded on load, everything else as stored
+      const old = JSON.parse(JSON.stringify(v1)); old.chars[0].state.bar = [...six];
+      const r = migrate(JSON.stringify(old));
+      eq(r.bad, false);
+      deepEq(r.data.chars[0].state.bar, [...six, null, null], 'v2 6-slot bar: padded');
+      deepEq({ ...r.data.chars[0].state, bar: null }, { ...old.chars[0].state, bar: null }, 'nothing else changes');
+      // an 8-slot v2 save loads unchanged (the same object)
+      const same = migrate(JSON.stringify(v1));
+      deepEq(same.data, v1, 'an 8-slot save is unchanged');
+      // into the world: the empty slots drop out, and the 7th skill that the full 6-slot bar left off takes slot 7
+      const w = createWorld({ seed: 3, content: fixtureContent({ builds2: true }) });
+      const st = r.data.chars[0].state;
+      const pid = w.addPlayer({ name: 'Ada', cls: 'mender', level: 15, known: st.known, bar: st.bar, build: st.build });
+      const p = w.get(pid);
+      deepEq(p.bar.slice(0, 6), six, 'the six old slots keep their skills');
+      eq(p.bar[6], 'mender_blessing_stone', 'the 7th known skill is on the bar');
+      assert(p.bar.length <= 8, 'at most 8');
+    },
+  },
+  {
     name: 'save v2: v1 -> v2 for every class keeps the hero and adds a build with a flagged free respec',
     fn() {
       const chars = CLASS_IDS.map((cls, i) => v1Char(i + 1, `Hero${'abcde'[i]}`, cls, v1State(cls, { name: `Hero${'abcde'[i]}` })));
@@ -40,7 +71,8 @@ export const tests = [
         eq(c.migratedFrom, 1);
         eq(c.state.v, STATE_VERSION, 'state is v2');
         // everything the old state held is still there, field for field
-        for (const [k, v] of Object.entries(o.state)) if (k !== 'v') deepEq(c.state[k], v, `${o.cls} state.${k}`);
+        // (the bar grows to 8 slots: the same skills in the same slots, then empty ones)
+        for (const [k, v] of Object.entries(o.state)) if (k !== 'v') deepEq(c.state[k], k === 'bar' ? padBar(v) : v, `${o.cls} state.${k}`);
         const b = c.state.build;
         assert(b && b.ranks && Object.keys(b.ranks).length === 0, 'no ranks spent: every point refunded');
         eq(b.freeRespec, true, 'free respec'); eq(b.freeRespecWhy, 'builds2', 'flagged so the UI can say why');
@@ -65,7 +97,7 @@ export const tests = [
       const { data } = migrate(v1Blob([c0]));
       const c = data.chars[0];
       eq(c.hinted, true);
-      for (const k of ['gold', 'equip', 'bag', 'bags', 'quests', 'questsDone', 'qbag', 'pendingLoot', 'known', 'bar', 'auras', 'cdLeft', 'lantern', 'talents', 'respecs']) deepEq(c.state[k], st[k], k);
+      for (const k of ['gold', 'equip', 'bag', 'bags', 'quests', 'questsDone', 'qbag', 'pendingLoot', 'known', 'bar', 'auras', 'cdLeft', 'lantern', 'talents', 'respecs']) deepEq(c.state[k], k === 'bar' ? padBar(st[k]) : st[k], k);
       eq(c.x, 41); eq(c.y, 22); eq(c.zone, 'valley');
       const b = c.state.build;
       deepEq(b.legacyTalents, st.talents, 'old talents kept aside (they still drive today\'s screen while the flag is off)');

@@ -28,7 +28,7 @@ export const tests = [
       const L = hudLayout({ touch: false });
       eq(JSON.stringify(L.player), JSON.stringify({ x: 4, y: 4, w: 194, h: 46 }), 'player frame (still 1)');
       eq(JSON.stringify(L.target), JSON.stringify({ x: 204, y: 4, w: 150, h: 34 }), 'target frame (still 2)');
-      eq(L.bar.length, 6); eq(L.bar[0].x, 234); eq(L.bar[0].y, 318); eq(L.bar[5].x + L.bar[5].w, 405, 'bar centred: 234..405 (mockup x0 = (640 - 171) // 2)');
+      eq(L.bar.length, 8, '8 slots (BUILDS_2 open question 4)'); eq(L.bar[0].x, 205); eq(L.bar[0].y, 318); eq(L.bar[7].x + L.bar[7].w, 434, 'bar centred: 205..434 ((640 - 229) // 2)');
       eq(JSON.stringify(L.minimap), JSON.stringify({ x: 540, y: 18, w: 96, h: 64 }));
       const boxes = [L.player, L.target, L.minimap, L.party(0), L.party(1), L.party(2), ...L.bar];
       for (const b of boxes) assert(b.x >= 0 && b.y >= 0 && b.x + b.w <= W && b.y + b.h <= H, `inside the layer: ${JSON.stringify(b)}`);
@@ -48,8 +48,12 @@ export const tests = [
         const all = [...L.cluster, ...L.menuBar];
         for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert(!rectsOverlap(all[i], all[j]), `${all[i].id} overlaps ${all[j].id}`);
         assert(!rectsOverlap(L.menuBar[5], L.minimap), 'menu bar clear of the minimap');
-        eq(L.cluster.filter((b) => b.slot).length, 6, 'six ability buttons');
-        assert(L.cluster.some((b) => b.id === 'interact') && L.cluster.some((b) => b.id === 'next_target'), 'interact + next target');
+        eq(L.cluster.filter((b) => b.slot).length, 8, 'eight ability buttons');
+        eq(JSON.stringify(L.cluster.filter((b) => b.slot).map((b) => b.slot).sort()), JSON.stringify([1, 2, 3, 4, 5, 6, 7, 8]), 'slots 1 to 8');
+        assert(['interact', 'next_target', 'attack'].every((id) => L.cluster.some((b) => b.id === id)), 'interact + next target + attack');
+        const left = Math.min(...L.cluster.map((b) => b.x));
+        assert(left >= W / 2, `the cluster stays off the joystick half (left edge ${left})`);
+        assert(L.chat.x + L.chat.w <= left, 'the chat ends before the cluster');
       }
     },
   },
@@ -89,7 +93,7 @@ export const tests = [
       const snap = world.snapshot();
       const vm = buildViewModel(snap, pid, { zoneNames: { valley: 'Willowmere Valley' } });
       const m = buildHudModel(vm, snap, { state: { quests: [{ id: 'q', name: 'Q', objectives: [], state: 'available', giver: 'mael' }] } });
-      eq(m.bar.length, 6);
+      eq(m.bar.length, 8);
       eq(m.bar[0].ability, 'scribe_inkbolt'); eq(m.bar[1].ability, 'scribe_scrawl'); eq(m.bar[2].ability, null, 'level 3 ability not learned at 1');
       const me = snap.entities.find((e) => e.id === pid), t = snap.entities.find((e) => e.id === wolf.id);
       const d = Math.hypot(me.x - t.x, me.y - t.y);
@@ -251,6 +255,43 @@ export const tests = [
       }
       const d = layoutFor(1920, 1080, 1);
       eq(d.base, 3); eq(d.hudW, 640); eq(d.hudH, 360); eq(d.ox, 0);
+    },
+  },
+  {
+    name: 'skill bar 8: keys 1 to 8 by default; 7 and 8 rebind like the rest; Help names 1 to 8',
+    fn() {
+      const b = effectiveBinds({});
+      eq(b.slot7, 'Digit7'); eq(b.slot8, 'Digit8');
+      eq(routeKey('Digit7', true, {}).kind, 'pass', 'a default key passes to input (which casts slot 7)');
+      const o = rebind({}, 'slot8', 'KeyQ');
+      eq(effectiveBinds(o).slot8, 'KeyQ');
+      eq(JSON.stringify(routeKey('KeyQ', true, o).ops), JSON.stringify([['inject', { k: 'cast', slot: 8 }]]), 'a rebound key casts slot 8');
+      eq(routeKey('Digit8', true, o).kind, 'swallow', 'the old key stops casting');
+    },
+  },
+  {
+    name: 'skill bar 8: the phone cluster (8 skills, Attack, Talk, Next) fits 844x390 with and without notch insets, 44 css px, clear of the joystick half and the chat',
+    fn() {
+      const cases = [[844, 390, 3, {}], [844, 390, 3, { l: 141, r: 141, b: 63 }], [844, 390, 2, { l: 94, r: 94, b: 42 }], [932, 430, 3, { l: 177, r: 177, b: 63 }], [667, 375, 2, {}]];
+      for (const [w, h, dpr, inset] of cases) {
+        const L = layoutFor(Math.round(w * dpr), Math.round(h * dpr), 1.5, { touch: true, hud: 'big', dpr, inset });
+        const css = L.base / dpr;
+        const T = hudLayout({ touch: true, minHit: hitPx(css), W: L.hudW, H: L.hudH });
+        const tag = `${w}x${h}@${dpr}${inset.l ? ' notch' : ''}`;
+        eq(T.cluster.filter((b) => b.slot).length, 8, `8 skill buttons ${tag}`);
+        for (const b of T.cluster) {
+          assert(Math.min(b.w, b.h) * css >= 44 - 1e-9, `${b.id} is ${(b.w * css).toFixed(1)} css px ${tag}`);
+          assert(b.x >= 0 && b.y >= 0 && b.x + b.w <= L.hudW && b.y + b.h <= L.hudH, `${b.id} on screen ${tag}`);
+          assert(b.x >= L.hudW / 2, `${b.id} off the joystick half ${tag}`);
+          const chatBox = { x: T.chat.x, y: T.chat.bottom - (4 + 11 * T.chat.lines + 2), w: T.chat.w, h: 4 + 11 * T.chat.lines + 2 };
+          assert(!rectsOverlap(b, chatBox), `${b.id} clear of the chat ${tag}`);
+        }
+        const all = [...T.cluster, ...T.menuBar, T.minimap, T.player, T.target];
+        for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert(!rectsOverlap(all[i], all[j]), `${all[i].id || i} overlaps ${all[j].id || j} ${tag}`);
+        // the HUD layer itself stays inside the safe area (the notch side and the home bar)
+        assert(L.ox >= (inset.l || 0) && L.ox + L.hudW * L.base <= Math.round(w * dpr) - (inset.r || 0), `inside the safe area ${tag}`);
+        assert(L.oy + L.hudH * L.base <= Math.round(h * dpr) - (inset.b || 0), `above the home bar ${tag}`);
+      }
     },
   },
   {

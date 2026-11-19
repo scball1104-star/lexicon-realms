@@ -121,6 +121,11 @@ export function createB2Scripts(C) {
           }
         }
       }
+      // Kindred Light: calling the spirit while it is out refreshes its time (it keeps its health)
+      if (ab.id === 'mender_kindred_light') {
+        const sp = myObjects(e, 'mender_kindred_light')[0];
+        if (sp) { ctx.skip = true; sp.obj.until = now() + T(sp.obj.def.duration || 60); emit({ type: 'b2_proc', id: e.id, what: 'kindred_refresh', object: sp.id }); }
+      }
       if (ab.id === 'inkblade_spill' && e.b2Stored && t && has(e, 'b2_unwritten')) {
         const s = e.b2Stored; e.b2Stored = null;
         K().dealDamage(e, t, s.raw * 1.5, { ability: 'b2_unwritten', school: 'shadow', canCrit: true, threatMult: 1 });
@@ -166,9 +171,71 @@ export function createB2Scripts(C) {
       }
     },
 
+    /**
+     * Tolling Hammers (the Mender's signature): `def.hammers` hammers spiral out from the owner (they follow her) from
+     * `from` to `reach` px over the object's life, `turn` turns a second; each hammer hits each foe within `hitRadius` px
+     * of it once. Every 1% of healing bonus the owner carries adds 1% (a healing malus does not take any away).
+     */
+    objectTick(o, owner) {
+      const def = o.obj.def;
+      if (def.script !== 'b2_tolling_hammers') return false;
+      const ob = o.obj;
+      o.x = owner.x; o.y = owner.y; o.zone = owner.zone;
+      const life = T(def.duration || 3);
+      const born = ob.until - life;
+      const k = Math.max(0, Math.min(1, (now() - born) / life));
+      const rad = (def.from || 12) + ((def.reach || 72) - (def.from || 12)) * k;
+      const n = def.hammers || 3;
+      const ang0 = ((ob.spin ??= (owner.id * 0.37) % (Math.PI * 2))) + 2 * Math.PI * (def.turn || 1) * ((now() - born) / T(1));
+      ob.hit = ob.hit || Array.from({ length: n }, () => []);
+      const mult = Math.max(1, stats.mod(owner, 'healingDone', { ability: 'mender_tolling_hammers' }).mul);
+      const foes = K().unitsNear(o.x, o.y, o.zone, (def.reach || 72) + (def.hitRadius || 16), (u) => K().isHostile(owner, u)).sort((a, b) => a.id - b.id);
+      for (let h = 0; h < n; h++) {
+        const a = ang0 + (2 * Math.PI * h) / n;
+        const hx = o.x + Math.cos(a) * rad * SUB, hy = o.y + Math.sin(a) * rad * SUB;
+        for (const u of foes) {
+          if (u.dead || ob.hit[h].includes(u.id)) continue;
+          if (Math.hypot(u.x - hx, u.y - hy) / SUB > (def.hitRadius || 16)) continue;
+          ob.hit[h].push(u.id);
+          K().runEffects(owner, def.effects, { caster: owner, target: u, abId: 'mender_tolling_hammers', ab: { school: 'light', threatMult: 1 }, mult });
+        }
+      }
+      return true;
+    },
+
     /** Effect scripts. */
     run(name, src, r, args = {}, ctx = {}) {
       switch (name) {
+        case 'b2_riptide': {
+          // Riptide Step: flow `flow.distance` px the way she walks (or faces), stopping short of a wall; foes within
+          // `flow.width / 2` px of the line get `pass.foes`, friends `pass.allies` (not herself)
+          const ab = data.ability(src, 'mender_riptide_step');
+          if (!ab || !ab.flow) return;
+          let vx, vy;
+          if (src.mx || src.my) { const d = Math.hypot(src.mx, src.my); vx = src.mx / d; vy = src.my / d; }
+          else [vx, vy] = K().facingVec(src);
+          const zone = C.zoneOf(src);
+          let dist = 0;
+          for (let s = 8; s <= ab.flow.distance; s += 8) {
+            if (!C.boxFree(zone, Math.round(src.x + vx * s * SUB), Math.round(src.y + vy * s * SUB))) break;
+            dist = s;
+          }
+          const x0 = src.x, y0 = src.y, half = (ab.flow.width || 48) / 2;
+          const passed = (u) => {
+            const rx = (u.x - x0) / SUB, ry = (u.y - y0) / SUB;
+            const along = rx * vx + ry * vy;
+            return along >= -half && along <= dist + half && Math.abs(rx * vy - ry * vx) <= half;
+          };
+          const near = K().unitsNear(x0, y0, src.zone, dist + half, (u) => u !== src && !u.dead && passed(u)).sort((a, b) => a.id - b.id);
+          for (const u of near) {
+            if (K().isHostile(src, u)) K().runEffects(src, ab.pass.foes, { ab, abId: ab.id, caster: src, target: u });
+            else if (K().isFriendly(src, u) && u.kind !== 'npc' && u.kind !== 'object') K().runEffects(src, ab.pass.allies, { ab, abId: ab.id, caster: src, target: u });
+          }
+          if (dist > 0) K().setForced(src, vx, vy, dist, ab.flow.time || 0.35);
+          emit({ type: 'leap', id: src.id, kind: 'leap', dx: Math.round(vx * dist), dy: Math.round(vy * dist) });
+          emit({ type: 'b2_proc', id: src.id, what: 'riptide', hits: near.length });
+          return;
+        }
         case 'b2_grapple': {
           // Grapple Line: a small foe (not elite, not heavy) is pulled to the hero; anything bigger pulls the hero to it
           if (!r || r === src) return;

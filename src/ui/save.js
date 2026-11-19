@@ -27,6 +27,17 @@ export const MAX_CHARS = 6;
 export const NAME_MIN = 2, NAME_MAX = 12;
 export const CLASS_IDS = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
 export const LOOKS = 3;
+export const BAR_SLOTS = 8;                      // the skill bar (was 6): a save carries 8 slots, an empty slot is null
+
+/** A bar as saved: exactly BAR_SLOTS entries (ability id or null). An old 6-slot bar pads with empty slots. */
+export function padBar(bar) {
+  const ids = Array.isArray(bar) ? bar.slice(0, BAR_SLOTS).map((id) => (typeof id === 'string' && id ? id : null)) : [];
+  while (ids.length < BAR_SLOTS) ids.push(null);
+  return ids;
+}
+const barOk = (bar) => Array.isArray(bar) && bar.length === BAR_SLOTS;
+/** A hero's state with its bar at 8 slots (unchanged when it already is). */
+const withBar = (s) => (isObj(s) && Array.isArray(s.bar) && !barOk(s.bar) ? { ...s, bar: padBar(s.bar) } : s);
 
 /** Player names: letters only, 2 to 12, shown as Capitalised. Unique per PC (case-insensitive). */
 export function validateName(raw, existing = []) {
@@ -55,7 +66,7 @@ export function migrateCharV1(c) {
     const level = Math.max(1, (s.level | 0) || out.level);
     const build = buildFromV1({ cls: c.cls, level, xp: s.xp | 0, known: Array.isArray(s.known) ? s.known : [], talents: isObj(s.talents) ? s.talents : {},
       questsDone: Array.isArray(s.questsDone) ? s.questsDone : [] });
-    out.state = { ...s, v: STATE_VERSION, build };
+    out.state = { ...s, v: STATE_VERSION, build, ...(Array.isArray(s.bar) ? { bar: padBar(s.bar) } : {}) };
   } else {
     out.build = buildFromV1({ cls: c.cls, level: out.level, xp: out.xp });
   }
@@ -75,8 +86,9 @@ export function migrate(raw) {
   }
   if (o.v !== SAVE_VERSION) return { data: blank(), bad: true };       // newer or unknown: keep it aside, never clobber
   // already v2: loaded as stored (a valid blob comes back unchanged); only entries that cannot be a hero are dropped
-  const chars = o.chars.filter(validChar).slice(0, MAX_CHARS);
-  if (chars.length === o.chars.length && Number.isInteger(o.nextId) && o.nextId > Math.max(0, ...chars.map((c) => c.id | 0))) return { data: o, bad: false };
+  // a bar saved before the bar grew to 8 slots pads with empty slots (the hero's skills fill them when it loads)
+  const chars = o.chars.filter(validChar).slice(0, MAX_CHARS).map((c) => (c.state && withBar(c.state) !== c.state ? { ...c, state: withBar(c.state) } : c));
+  if (chars.length === o.chars.length && chars.every((c, i) => c === o.chars[i]) && Number.isInteger(o.nextId) && o.nextId > Math.max(0, ...chars.map((c) => c.id | 0))) return { data: o, bad: false };
   const nextId = Math.max(o.nextId | 0, 1 + Math.max(0, ...chars.map((c) => c.id | 0)));
   return { data: { ...o, nextId, chars }, bad: false };
 }

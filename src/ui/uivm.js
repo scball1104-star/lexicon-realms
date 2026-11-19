@@ -8,13 +8,13 @@
 import { classInfo, abilityInfo, abilityCost, seconds, rangePx, xpToNext, talentPointsAt, resourceWord, resourceLabel, resourceGauge, questInfo, npcInfo } from './gamedata.js';
 import { selectedQuest, questNav } from './questnav.js';
 
-export const SLOT_KEYS = ['1', '2', '3', '4', '5', '6'];
+export const SLOT_KEYS = ['1', '2', '3', '4', '5', '6', '7', '8'];   // 8 bar slots (src/ui/layout.js BAR.n)
 
 /** Ability ids on the bar: CONTRACTS `player.bar` when present, else the class's abilities learned by `level`. */
 export function defaultBar(cls, level) {
   const c = classInfo(cls);
   if (!c) return [];
-  return c.abilities.filter((id) => { const a = abilityInfo(id); return !a || (a.learnLevel || 1) <= level; }).slice(0, 6);
+  return c.abilities.filter((id) => { const a = abilityInfo(id); return !a || (a.learnLevel || 1) <= level; }).slice(0, SLOT_KEYS.length);
 }
 
 /** Objective places (CRITIQUE_1 item 9): the sim's tracker rows carry `where: [{ zone, x, y, r }]` in PIXELS (CONTRACTS

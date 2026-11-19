@@ -179,7 +179,8 @@ export function liveAbilityText(id, s) {
   if (!a || !a.text || !/[{}]/.test(a.text)) return null;
   const fxs = a.effects || [];
   const nested = [];
-  for (const f of fxs) if (f.object) nested.push(...(f.object.effects || []), ...(f.object.pulse || []));   // a trap's burst, a zone's pulse
+  for (const f of fxs) if (f.object) nested.push(...(f.object.effects || []), ...(f.object.pulse || []), ...((f.object.pet && f.object.pet.effects) || []));   // a trap's burst, a zone's pulse, a pet's bite
+  if (a.pass) nested.push(...(a.pass.foes || []), ...(a.pass.allies || []));        // Riptide Step: what she passes
   const find = (type) => fxs.find((f) => f.type === type && !f.aura) || nested.find((f) => f.type === type && !f.aura);
   const auraTick = (type) => {
     for (const f of fxs) {
@@ -268,6 +269,9 @@ function effectLines(fxs, s, out, where = '') {
         if (burst) out.push(`Area: ${tiles(burst.radius || 48)} around the foe that springs it, ${foes(burst.maxTargets || 0)}`);
         effectLines(o.effects, s, out, burst ? ' to each foe' : '');
       }
+      // Builds 2 Tolling Hammers (each hammer hits each foe once) and the pets (their bite)
+      if (o.hammers && o.effects) { out.push(`Area: ${o.hammers} hammers out to ${tiles(o.reach || 72)} around you over ${o.duration} sec`); for (const h of o.effects) { const r = h.type === 'damage' && effectRange(h, s); if (r) out.push(`Damage: ${fmtR(r)} per hammer to each foe it passes`); } }
+      if (o.pet && o.pet.effects) for (const p of o.pet.effects) { const r = p.type === 'damage' && effectRange(p, s); if (r) out.push(`Damage: ${fmtR(r)} every ${o.pet.period || 2} sec (its bite)`); }
       if (o.pulse && o.period) {
         const n = Math.max(1, Math.round(o.duration / o.period));
         out.push(`Area: ${tiles(o.radius)} around the spot, ${foes(o.maxTargets || 0)}, for ${o.duration} sec`);
@@ -302,6 +306,7 @@ export function abilityNumbers(a, s) {
   } else {
     effectLines(ab.effects, s, out, ab.area ? ' to each foe' : '');
   }
+  if (ab.pass) { if (ab.flow) out.push(`Flow: ${tiles(ab.flow.distance)}`); effectLines(ab.pass.foes, s, out); effectLines(ab.pass.allies, s, out); }
   return out;
 }
 

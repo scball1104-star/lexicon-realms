@@ -9,7 +9,7 @@
 //                   rest, all within TAB_RANGE_PX (Shift+Tab backwards). Fix wave 2026-11-19, CRITIQUE_1 item 11.
 //   left click      target the entity under the cursor
 //   right click     on an NPC: target + interact; on anything else: target
-//   1-6             { t:'cast', slot: n, target }
+//   1-8             { t:'cast', slot: n, target }
 //   Esc             clear target
 // Losing focus releases every key (no runaway walking).
 
@@ -39,7 +39,7 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
     if (!down) return;
     if (ev.code === 'Tab') { pending.push({ k: 'tab', back: ev.shiftKey }); ev.preventDefault(); return; }
     if (ev.code === 'Escape') { pending.push({ k: 'clear' }); return; }
-    const m = /^Digit([1-6])$/.exec(ev.code);
+    const m = /^Digit([1-8])$/.exec(ev.code);
     if (m) pending.push({ k: 'cast', slot: Number(m[1]) });
   };
   keyTarget.addEventListener('keydown', onKey(true));

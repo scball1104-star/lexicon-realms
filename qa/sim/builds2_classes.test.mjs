@@ -636,4 +636,125 @@ T('Inkblade: Cut the Word\'s cooldown follows Quick Cut; a Builds 2 hero\'s dodg
   assert(dodged > 20 && dodged < 60, `about 37% dodged (${dodged})`);
 });
 
+// ------------------------------------------------------------------------------------------------ the Mender's signatures
+T('Mender signatures: all three are built and offered at level 10 (the named builds take theirs), and each goes on the bar', () => {
+  const cd = BUILDS2.mender;
+  eq(cd.signatures.length, 3);
+  for (const s of cd.signatures) { eq(s.ready, true, s.id); assert(B2_ABILITIES[s.id], `${s.id} built`); assert(!/—/.test(B2_ABILITIES[s.id].text), `no em dash in ${s.id}`); }
+  for (const b of cd.builds) eq(b.signatures[0], b.signature, `${b.id} takes its own signature first`);
+  for (const s of cd.signatures) {
+    const { p, C } = H('mender', { level: 10 });
+    const sg = C.b2.picksOpen(p).find((x) => x.signature);
+    assert(sg && sg.options.length === 3, 'the level 10 signature pick is open with three options');
+    assert(C.b2.pick(p, { level: 10, ability: s.id }), `${s.id} taken`);
+    assert(p.known.includes(s.id) && p.bar.includes(s.id), `${s.id} known and on the bar`);
+    eq(C.b2.picksOpen(p).filter((x) => x.signature).length, 0, 'one signature at 10');
+  }
+});
+
+T('Tolling Hammers: three hammers spiral out over 3 s and hit each foe they pass once each; healing bonus adds to them, a healing malus takes nothing away', () => {
+  const h = H('mender', { known: ['mender_tolling_hammers'], mobs: [['brute_15', 11, 15], ['brute_15', 13, 16], ['brute_15', 20, 15]] });
+  const [a, b, far] = h.foes;
+  for (const f of h.foes) f.ai.mode = 'idle';
+  const ev = castNow(h.w, h.pid, 'mender_tolling_hammers');
+  assert(h.w.state.ents.find((o) => o.kind === 'object' && o.template === 'mender_tolling_hammers'), 'the hammers are out');
+  ev.push(...stepN(h.w, 70));
+  const hits = (m) => dmgTo(ev, m.id, (e) => e.ability === 'mender_tolling_hammers');
+  eq(hits(a).length, 3, 'a foe 1 tile away: one hit from each hammer');
+  eq(hits(b).length, 3, 'a foe 3 tiles away: one hit from each hammer');
+  eq(hits(far).length, 0, 'a foe 10 tiles away is out of reach');
+  assert(!h.w.state.ents.some((o) => o.kind === 'object' && o.template === 'mender_tolling_hammers'), 'gone after 3 s');
+  // the hammers follow her: cast, walk, and the spiral is centred where she is
+  const h2 = H('mender', { known: ['mender_tolling_hammers'] });
+  castNow(h2.w, h2.pid, 'mender_tolling_hammers');
+  h2.p.x += 3 * TILE; stepN(h2.w, 2);
+  const o2 = h2.w.state.ents.find((o) => o.kind === 'object' && o.template === 'mender_tolling_hammers');
+  eq(o2.x, h2.p.x, 'centred on her');
+  // healing bonus: the same hits with more healing are larger by the same share; a healing malus changes nothing
+  const raw = (heal) => {
+    const g = H('mender', { known: ['mender_tolling_hammers'], mobs: [['brute_15', 11, 15]] });
+    g.m.ai.mode = 'idle';
+    if (heal) g.C.combat.applyAura(g.p, g.p, { id: 'test_heal', name: 'Test', icon: 'icon_protect', kind: 'buff', duration: 60, mods: [{ stat: 'healingDone', mul: heal }] }, {});
+    const e2 = castNow(g.w, g.pid, 'mender_tolling_hammers'); e2.push(...stepN(g.w, 70));
+    const list = dmgTo(e2, g.m.id, (e) => e.ability === 'mender_tolling_hammers' && !e.crit).map((e) => e.amount + (e.absorbed || 0));
+    return { list, mul: g.C.stats.mod(g.p, 'healingDone', { ability: 'mender_tolling_hammers' }).mul };
+  };
+  const avg = (x) => x.reduce((s2, v) => s2 + v, 0) / x.length;
+  const base = raw(null), up = raw(1.3), down = raw(0.5);
+  assert(base.list.length && up.list.length && down.list.length, 'hits land');
+  assert(base.mul > 1, `the Mender's own +10% healing counts (${base.mul})`);
+  near(avg(up.list) / avg(base.list), up.mul / base.mul, 0.05, `healing x${(up.mul / base.mul).toFixed(2)}: hammers x${(avg(up.list) / avg(base.list)).toFixed(2)}`);
+  assert(down.mul < 1, 'the malus is a malus');
+  near(avg(down.list) / avg(base.list), 1 / base.mul, 0.05, 'a healing malus: the bare hammer, never less');
+});
+
+T('Riptide Step: she flows 7 tiles the way she walks; foes on the way are slowed 40% for 3 s, friends healed (not herself)', () => {
+  const h = H('mender', { known: ['mender_riptide_step'], mobs: [['brute_15', 13, 15], ['brute_15', 13, 19]] });
+  const [on, off] = h.foes;
+  for (const f of h.foes) f.ai.mode = 'idle';
+  const friend = h.w.get(h.w.addPlayer({ name: 'Ally', cls: 'warden', zone: 'arena', x: 15, y: 15 }));
+  friend.hp = Math.round(friend.hpMax / 2);
+  const x0 = h.p.x;
+  h.w.enqueue(h.pid, { t: 'move', dx: 1, dy: 0 });
+  const ev = castNow(h.w, h.pid, 'mender_riptide_step');
+  h.w.enqueue(h.pid, { t: 'move', dx: 0, dy: 0 });
+  ev.push(...stepN(h.w, 12));
+  near((h.p.x - x0) / SUB, 112, 12, `flowed 7 tiles (${((h.p.x - x0) / TILE).toFixed(1)})`);
+  const slow = aura(on, 'mender_riptide_slow', h.p.id);
+  assert(slow, 'the foe on the way is slowed'); eq(slow.def.duration, 3); near(slow.def.mods[0].add, 0.4, 1e-9, '40%');
+  assert(!aura(off, 'mender_riptide_slow'), 'a foe 4 tiles off the line is not');
+  eq(ofType(ev, 'heal', (e) => e.dst === friend.id && e.ability === 'mender_riptide_step').length, 1, 'the friend she passes is healed');
+  eq(ofType(ev, 'heal', (e) => e.dst === h.p.id && e.ability === 'mender_riptide_step').length, 0, 'not herself');
+  assert(h.p.cd.mender_riptide_step - h.w.tick > 20 * 10, '12 s cooldown');
+  // standing still, she flows the way she faces
+  const h3 = H('mender', { known: ['mender_riptide_step'] });
+  h3.p.dir = 'down'; const y0 = h3.p.y;
+  castNow(h3.w, h3.pid, 'mender_riptide_step'); stepN(h3.w, 12);
+  assert(h3.p.y > y0 + 4 * TILE, `standing: the way she faces (${((h3.p.y - y0) / TILE).toFixed(1)} tiles)`);
+});
+
+T('Kindred Light: a spirit with 40% of her health takes the foe\'s blows, hits her target and heals her 2% every 2 s; a recast refreshes it (one spirit)', () => {
+  const h = H('mender', { known: ['mender_kindred_light'], mobs: [['brute_15', 12, 15]] });
+  castNow(h.w, h.pid, 'mender_kindred_light'); for (let i = 0; i < 60 && h.p.cast; i++) h.w.step();
+  const sp = h.w.state.ents.find((o) => o.kind === 'object' && o.template === 'mender_kindred_light');
+  assert(sp, 'a spirit'); near(sp.hpMax, Math.round(h.p.hpMax * 0.4), 1, '40% of her health');
+  h.m.threat[h.p.id] = 50; h.w.internals.ai.engage(h.m, h.p);
+  h.p.hp = Math.round(h.p.hpMax * 0.5);
+  const ev = stepN(h.w, 120);
+  assert(dmgTo(ev, h.m.id, (e) => e.src === sp.id).length >= 2, 'the spirit hits the foe');
+  assert(dmgTo(ev, sp.id).length >= 1, 'the foe strikes the spirit');
+  eq(dmgTo(ev, h.p.id).length, 0, 'not her');
+  const heals = ofType(ev, 'heal', (e) => e.dst === h.p.id && e.ability === 'mender_kindred_light');
+  assert(heals.length >= 2 && heals.length <= 4, `a heal every 2 s (${heals.length} in 6 s)`);
+  const mul = h.C.stats.mod(h.p, 'healingDone', { ability: 'mender_kindred_light' }).mul;
+  near(heals[0].amount + (heals[0].overheal || 0), 0.02 * h.p.hpMax * mul, 2, '2% of max health');
+  // the recast (no foe this time): the same spirit, its time back to 60 s, its health kept
+  const g = H('mender', { known: ['mender_kindred_light'] });
+  castNow(g.w, g.pid, 'mender_kindred_light'); for (let i = 0; i < 60 && g.p.cast; i++) g.w.step();
+  const sp2 = g.w.state.ents.find((o) => o.kind === 'object' && o.template === 'mender_kindred_light');
+  stepN(g.w, 200); sp2.hp = Math.round(sp2.hpMax / 2);
+  const until0 = sp2.obj.until;
+  free(g.w, g.p); g.p.cd.mender_kindred_light = 0;
+  castNow(g.w, g.pid, 'mender_kindred_light'); for (let i = 0; i < 60 && g.p.cast; i++) g.w.step();
+  const all = g.w.state.ents.filter((o) => o.kind === 'object' && o.template === 'mender_kindred_light');
+  eq(all.length, 1, 'still one spirit'); eq(all[0].id, sp2.id, 'the same one');
+  assert(sp2.obj.until > until0 + 150, 'its time refreshed'); eq(sp2.hp, Math.round(sp2.hpMax / 2), 'its health is not');
+});
+
+T('skill bar: every named build at level 15 (picks, signature, path) has every skill it knows on the bar, at most 8', () => {
+  for (const cls of Object.keys(BUILDS2)) for (const b of BUILDS2[cls].builds) {
+    const d = duelWorld({ cls, level: 15, x: 10, y: 15, learnAll: false, builds2: true });
+    const { p, C } = d;
+    p.build.firstKill = true; p.build.leaning = b.id;
+    for (const lv of [1, 3, 6, 14]) if (b.picks[lv]) C.b2.pick(p, { level: lv, ability: b.picks[lv] });
+    for (const [lv, id] of Object.entries(b.buy || {})) { void lv; p.gold = 999; C.b2.buyBack(p, id); }
+    C.b2.pick(p, { level: 10, ability: b.signature });
+    for (const id of b.path) C.b2.learn(p, { node: id });
+    assert(p.bar.length <= 8, `${cls} ${b.id}: ${p.bar.length} on the bar`);
+    const off = p.known.filter((k) => !p.bar.includes(k));
+    eq(off.join(','), '', `${cls} ${b.id}: every known skill on the bar (${p.known.length} known)`);
+    if (p.known.length >= 7) assert(p.bar.length >= 7, `${cls} ${b.id}: 7 or more skills, all on the bar`);
+  }
+});
+
 export { tests };

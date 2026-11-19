@@ -282,6 +282,7 @@ export function createScripts(C) {
 
     /** Snarecraft: the planted briar roots the target if it is still within 1 tile of the spot 1 s later. */
     objectTick(o, owner) {
+      if (B2.objectTick(o, owner)) return;
       if (o.obj.def.id === 'wayfinder_snarecraft') {
         const t = get(o.obj.target);
         if (t && !t.dead && t.zone === o.zone && distPx(t, o) <= 16) {

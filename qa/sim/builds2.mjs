@@ -42,7 +42,7 @@ export function makeHero(build, level, seed = 1, { x = 40, y = 15 } = {}) {
   p.build.leaning = build.id;
   for (const lv of [1, 3, 6, 14]) if (level >= lv && build.picks[lv]) { if (!C.b2.pick(p, { level: lv, ability: build.picks[lv] })) throw new Error(`${build.id} L${level}: pick ${build.picks[lv]} refused`); }
   for (const [lv, id] of Object.entries(build.buy || {})) if (level >= Number(lv)) { p.gold = (p.gold || 0) + 200; if (C.b2.buyBack(p, id)) throw new Error(`${build.id} L${level}: cannot buy ${id}`); }
-  if (level >= 10 && build.signature && cls !== 'mender') { if (!C.b2.pick(p, { level: 10, ability: build.signature })) throw new Error(`${build.id} L${level}: signature ${build.signature} refused`); }
+  if (level >= 10 && build.signature) { if (!C.b2.pick(p, { level: 10, ability: build.signature })) throw new Error(`${build.id} L${level}: signature ${build.signature} refused`); }
   for (const id of build.path.slice(0, level)) if (!C.b2.learn(p, { node: id })) throw new Error(`${build.id} L${level}: cannot learn ${id} (${C.b2.whyNot(p, id)})`);
   C.stats.recalc(p); p.hp = p.hpMax; p.res.cur = p.res.kind === 'resolve' ? 0 : p.res.max;   // Resolve starts empty (the Warden)
   return d;
@@ -59,6 +59,9 @@ function bot(world, p, t, foes, build) {
   if (hp < 0.4 && can('mender_mend', p)) return { ab: 'mender_mend', target: p };
   if (hp < 0.75 && knows('mender_steady_name') && !auraOn(p, 'mender_steady_name', p.id) && can('mender_steady_name', p)) return { ab: 'mender_steady_name', target: p };
   if (alive.filter((m) => dpx(m, p) <= 96).length >= 2 && can('mender_chorus')) return { ab: 'mender_chorus' };
+  // signatures (level 10): the spirit back out if it fell; the hammers whenever a foe stands inside their reach
+  if (knows('mender_kindred_light') && !objs(world, p, 'mender_kindred_light').length && can('mender_kindred_light')) return { ab: 'mender_kindred_light' };
+  if (alive.some((m) => dpx(m, p) <= 64) && can('mender_tolling_hammers')) return { ab: 'mender_tolling_hammers' };
   if (knows('mender_brand')) {
     const bare = alive.find((m) => !auraOn(m, 'mender_brand', p.id) && dpx(m, p) <= 128);
     if (bare && can('mender_brand', bare)) return { ab: 'mender_brand', target: bare };
@@ -78,6 +81,8 @@ function menderFight(build, level, seed, { pack = 1 } = {}) {
   const melee = !!build.melee;
   if (p.known.some((k) => k.startsWith('mender_blessing'))) { const bl = p.known.find((k) => k.startsWith('mender_blessing')); world.enqueue(pid, { t: 'cast', ability: bl }); world.step(); world.step(); }
   for (let i = 0; i < 25; i++) world.step();
+  // the Lamplighter calls her spirit before the pull (as the Scribe writes her hounds)
+  if (p.known.includes('mender_kindred_light')) { world.enqueue(pid, { t: 'cast', ability: 'mender_kindred_light' }); for (let i = 0; i < 70 && (world.tick < p.gcdUntil || p.cast); i++) world.step(); world.step(); }
   const foes = [];
   const spots = [[0, 0], [0, 1], [1, 0]];
   for (let i = 0; i < pack; i++) {
@@ -89,10 +94,28 @@ function menderFight(build, level, seed, { pack = 1 } = {}) {
   if (pack > 1) for (const m of foes) { world.internals.stats.recalc(m); m.hp = m.hpMax; }
   p.hp = p.hpMax; p.res.cur = p.res.max;
   const hp0 = p.hpMax;
-  let tgt = foes[0], start = null, low = p.hp;
+  let tgt = foes[0], start = null, low = p.hp, holdUntil = -1;
   world.enqueue(pid, { t: 'target', id: tgt.id });
   if (melee) world.enqueue(pid, { t: 'attack', id: tgt.id });
+  const sigAb = (id) => world.internals.data.ability(p, id);
   for (let i = 0; i < MAX_TICKS && !p.dead && foes.some((m) => !m.dead); i++) {
+    // Riptide Step, hurt: flow away from the foe (it is slowed as she passes or leaves it), then stand and heal
+    if (p.known.includes('mender_riptide_step') && !p.cast && world.tick >= p.gcdUntil && p.hp < p.hpMax * 0.45
+      && world.internals.combat.cdReady(p, sigAb('mender_riptide_step')) && p.x > 14 * TILE) {
+      world.enqueue(pid, { t: 'move', dx: -1, dy: 0 });
+      world.enqueue(pid, { t: 'cast', ability: 'mender_riptide_step' });
+      world.enqueue(pid, { t: 'move', dx: 0, dy: 0 });
+      holdUntil = world.tick + 50;
+      const ev = world.step();
+      if (start == null && ev.some((e) => e.type === 'damage' && e.src === pid && e.amount > 0)) start = world.tick;
+      continue;
+    }
+    if (holdUntil > world.tick && !p.cast && world.tick >= p.gcdUntil) {
+      if (p.hp < p.hpMax * 0.9) world.enqueue(pid, { t: 'cast', ability: 'mender_mend', target: pid });
+      else if (world.internals.combat.cdReady(p, sigAb('mender_kindle'))) world.enqueue(pid, { t: 'cast', ability: 'mender_kindle', target: tgt.id });
+      world.step();
+      continue;
+    }
     if (tgt.dead) {
       tgt = foes.filter((m) => !m.dead).sort((a, b) => dpx(a, p) - dpx(b, p) || a.id - b.id)[0];
       world.enqueue(pid, { t: 'target', id: tgt.id });
@@ -109,7 +132,7 @@ function menderFight(build, level, seed, { pack = 1 } = {}) {
       if (pick) world.enqueue(pid, { t: 'cast', ability: pick.ab, ...(pick.target ? { target: pick.target.id } : {}) });
     }
     const ev = world.step();
-    if (start == null && ev.some((e) => e.type === 'damage' && e.src === pid && e.amount > 0)) start = world.tick;
+    if (start == null && ev.some((e) => e.type === 'damage' && e.amount > 0 && (e.src === pid || (world.get(e.src) && world.get(e.src).owner === pid)))) start = world.tick;
     low = Math.min(low, p.hp);
   }
   const won = foes.every((m) => m.dead);
