@@ -19,9 +19,9 @@ export const PROGRESSION = {
   questGap: { '2': 1.0, '3': 0.75, '4': 0.5, '5': 0.25 },
 
   // Builds 2 (docs/design/BUILDS_2.md, src/data/builds2.js, src/sim/builds2.js): six tracks, points from level 1, skill
-  // picks. OFF until Scott approves the new talents screen (its brief and stills: qa/out/builds2/). While off, every hero
-  // keeps today's talents below and nothing of Builds 2 is reachable in play. `classes`: the classes it covers when on.
-  builds2: { enabled: false, classes: ['mender'] },
+  // picks. ON for the Mender since Scott approved the talents screen stills (2026-11-19, "Ok. Approved."; qa/out/builds2/).
+  // `classes`: the classes it covers. Every other class keeps today's talents below.
+  builds2: { enabled: true, classes: ['mender'] },
 
   // Talents (TALENTS 0, PROGRESSION 8).
   talents: { firstLevel: 5, pointsPerLevel: 1, tierStep: 2 },     // tier n opens at (n - 1) * tierStep points in its branch

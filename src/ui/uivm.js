@@ -225,5 +225,7 @@ function fromSimHud(vm, snap, ctx) {
     talents: (meE && meE.talents) || {}, talentPoints: { total: h.talents.total, spent: h.talents.spent, free: h.talents.free },
     bag: h.bag || { size: 12, items: [] }, equip: h.equip || {}, gold: h.gold || 0,
     stats: h.stats ? { ...h.stats, derived: h.derived } : null, buyback: h.buyback || [], combo: h.combo, questBag: h.questBag || [], pendingLoot: h.pendingLoot || [],
+    // Builds 2 (null for a class on today's talents): the sim's points, gold star, open picks, respec cost, and the build itself
+    builds2: h.builds2 ? { ...h.builds2, build: (meE && meE.build) || null } : null,
   };
 }

@@ -4,7 +4,8 @@ through CDP Input.dispatchTouchEvent, taps through page.touchscreen).
     python qa/integrate/phone.py
 
 create a Scribe -> walk with the joystick -> tap Hob to talk, accept -> walk to the valley -> tap a slime to target it
--> cast Inkbolt from the cluster -> open bags and talents. Screenshots in qa/out/integrate/phone_*.png.
+-> cast Inkbolt from the cluster -> open bags and talents -> a new Mender on Builds 2: a tap pins a talent card, Learn
+spends the point, Hearth to its fork with taps, the other side stays closed. Screenshots in qa/out/integrate/phone_*.png.
 Prints PHONE_DONE: ok=<bool> errors=<n>.
 """
 import json, math, os, sys, time
@@ -191,11 +192,69 @@ def run():
         ph.tap_region(label='card:close', wait=0.3)
         assert 'card:close' not in ph.ev('__drv.labels()'), 'Close shuts the card'
         ph.tap_region(kind='menu_button', id='talents', wait=0.4)
-        ph.shot('phone_09_talents', 'talents window on the phone')
+        assert 'b2:close' not in ph.ev('__drv.labels()'), 'a Scribe keeps the old talents window'
+        ph.shot('phone_09_talents', 'talents window on the phone (Scribe: the old window)')
         ph.tap_region(kind='menu_button', id='talents', wait=0.3)
         fps = ph.ev('window.__realms.fps()')
         log('  phone fps', fps)
+
+        # ---- Builds 2: a new Mender spends a point and takes a fork with taps (the pinned card: Learn, Close)
+        mender_builds2(ph)
         b.close()
+
+
+def b2_ranks(ph):
+    return dict((ph.ev('__drv.me()')['build'] or {}).get('ranks') or {})
+
+
+def mender_builds2(ph):
+    N = lambda track, slug: f'b2_mender_{track}_{slug}'  # noqa: E731
+    ph.tap_region(kind='menu_button', id='menu', wait=0.4)
+    ph.tap_region(label='Character select', wait=0.8)
+    assert ph.ev('__drv.mode()') == 'select', 'back on the select screen'
+    ph.tap_region(label='New', wait=0.5)
+    ph.tap_region(kind='name_field', wait=0.3)
+    ph.p.keyboard.type('Lark')
+    ph.tap_region(kind='class', id='mender', wait=0.3)
+    ph.tap_region(label='Create', wait=1.5)
+    assert ph.ev('__drv.mode()') == 'game', 'the Mender is in the world'
+    if ph.ev("window.__realms.ui.regions.some((r) => r.kind === 'window' && r.id === 'hint')"):
+        ph.tap_region(kind='window', id='hint', wait=0.3)
+    assert ph.ev('__drv.me()')['b2'], 'a new Mender runs Builds 2'
+    # level 1: one point; the star button opens the new window, a tap pins a card, Learn spends the point
+    ph.tap_region(kind='menu_button', id='talents', wait=0.5)
+    labels = ph.ev('__drv.labels()')
+    assert 'b2:close' in labels, f'the Builds 2 window opened; labels {labels}'
+    star = ph.ev('window.__realms.hud().builds2.suggested')
+    ph.tap_region(label=f'b2node:{star}', wait=0.4)
+    assert 'b2:learn' in ph.ev('__drv.labels()'), 'a tap pins the card (Learn, Close)'
+    ph.shot('phone_10_b2_card', f'level 1 Mender: the gold-star node ({star}) pinned as a card')
+    ph.tap_region(label='b2:learn', wait=0.4)
+    assert b2_ranks(ph) == {star: 1}, f'Learn spent the point on {star}: {b2_ranks(ph)}'
+    ph.tap_region(label='b2:card_close', wait=0.3)
+    assert 'b2:learn' not in ph.ev('__drv.labels()'), 'Close shuts the card'
+    # level 6 (DEV): Hearth to 4 with taps, then its fork
+    ph.ev('window.__realms.dev.level(6)')
+    time.sleep(0.3)
+    for slug in ('gentle_hands', 'quick_words'):
+        ph.tap_region(label=f'b2node:{N("hearth", slug)}', wait=0.4)
+        ph.tap_region(label='b2:learn', wait=0.4)
+        ph.tap_region(label='b2:learn', wait=0.4)
+        ph.tap_region(label='b2:card_close', wait=0.3)
+    r = b2_ranks(ph)
+    assert r.get(N('hearth', 'gentle_hands')) == 2 and r.get(N('hearth', 'quick_words')) == 2, f'Hearth 4 points: {r}'
+    ph.tap_region(label=f'b2node:{N("hearth", "self_kept")}', wait=0.4)
+    ph.tap_region(label='b2:learn', wait=0.4)
+    r = b2_ranks(ph)
+    assert r.get(N('hearth', 'self_kept')) == 1, f'took the fork (Self-Kept): {r}'
+    ph.tap_region(label='b2:card_close', wait=0.3)
+    ph.tap_region(label=f'b2node:{N("hearth", "many_names")}', wait=0.4)
+    ph.shot('phone_11_b2_fork', 'Hearth fork: Self-Kept taken, the Many Names card says the fork is closed')
+    ph.tap_region(label='b2:learn', wait=0.4)        # "Locked": a toast, nothing spent
+    assert N('hearth', 'many_names') not in b2_ranks(ph), 'the other side stays closed'
+    ph.tap_region(label='b2:card_close', wait=0.3)
+    ph.tap_region(label='b2:close', wait=0.4)
+    assert not ph.ev("window.__realms.ui.isOpen('talents')"), 'the red X closes the window'
 
 
 ok = True

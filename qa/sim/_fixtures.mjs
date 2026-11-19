@@ -77,7 +77,8 @@ export function fixtureContent({ spawns = [], items = null, builds2 = false } = 
     mobs: fixtureMobs(), npcs: FIXTURE_NPCS, spawns, items,
     start: { zone: 'arena', x: 5, y: 25 },
     classes: CLASSES, abilities: ABILITIES, mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES }, talents: TALENTS, weaponTypes: WEAPON_TYPES,
-    progression: builds2 ? { ...PROGRESSION, builds2: { ...PROGRESSION.builds2, enabled: true } } : PROGRESSION,
+    // the fixtures pick Builds 2 per test (default off, so today's talent tests keep testing today's talents for every class)
+    progression: { ...PROGRESSION, builds2: { ...PROGRESSION.builds2, enabled: !!builds2 } },
     builds2: { rules: BUILDS2_RULES, classes: BUILDS2, skillPicks: SKILL_PICKS, abilities: B2_ABILITIES },
   };
 }

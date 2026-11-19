@@ -3,15 +3,16 @@
 // 20 and 35. Plain data plus two tiny pure helpers for the save shape (newBuild, buildFromV1).
 //
 // PHASE 1 (this file): the Mender only, as BUILDS_2 section 9 says. The other classes list their skill picks so a saved
-// hero can be migrated (save v2), but have no tracks yet. The whole system is OFF for players until Scott approves the
-// talents screen stills: src/data/progression.js `builds2.enabled` is false, and the sim keeps today's talents while it is.
+// hero can be migrated (save v2), but have no tracks yet. ON for the Mender since Scott approved the talents screen stills
+// (2026-11-19, "Ok. Approved."): src/data/progression.js `builds2 = { enabled: true, classes: ['mender'] }`. The other four
+// classes keep today's talents until their tracks land here (data only: the window in src/ui/talents2.js reads this file).
 //
 // Node shape (the same effect engine as src/data/talents.js; src/sim/data.js reads both):
 //   { id, cls, track, tier, maxRanks, fork?: 'a' | 'b', keystone?: true, name, icon, text, byRank: [effect at rank r] }
 //   text: '{r*3}' is replaced by r x 3 (the value at the hero's rank; rank 1 when not taken).
 // Track shape: { id, name, kind: 'strength' | 'weakness', trait: 'S1'..'W3', purpose, axis: the fork's "X vs Y" (Scott's
 //   wording, shown on the fork's card), chip: the same axis short enough for a 98 px column }
-// Numbers are the BUILDS_2 section 4.2 first-pass design numbers (Inference: not yet tuned past the qa/sim/builds2.mjs check).
+// Numbers are the BUILDS_2 section 4.2 design numbers, except Clear Voice and Zealot (tuned 2026-11-19, see the nodes).
 
 const ranks = (n, f) => Array.from({ length: n }, (_, i) => f(i + 1));
 const pct = (x) => Math.round(x * 1e6) / 1e6;
@@ -158,8 +159,9 @@ const MENDER_NODES = [
       modAbility: [abl('mender_mend', 'cost.amount', { mul: 1.2 }), abl('mender_chorus', 'cost.amount', { mul: 1.2 })] }], { keystone: true }),
 
   // ---- Bell (W1: packs)
-  N('bell', 1, 'clear_voice', 'Clear Voice', 5, 'mender_bell_clear_voice', 'Hits push your casts back {r*20}% less.',
-    ranks(5, (r) => ({ mods: [mod('pushback', { mul: pct(Math.max(0, 1 - 0.2 * r)) })] }))),
+  // tuned 2026-11-19 (qa/sim/builds2.mjs gate): 20% per rank took a whole Kindle off a solo fight by rank 2
+  N('bell', 1, 'clear_voice', 'Clear Voice', 5, 'mender_bell_clear_voice', 'Hits push your casts back {r*10}% less.',
+    ranks(5, (r) => ({ mods: [mod('pushback', { mul: pct(Math.max(0, 1 - 0.1 * r)) })] }))),
   N('bell', 2, 'toll', 'Toll', 5, 'mender_bell_toll', 'Chorus cooldown -{r*1} s and damage +{r*3}%.',
     ranks(5, (r) => ({ modAbility: [abl('mender_chorus', 'cooldown', { add: -r })], mods: [dmgUp(0.03 * r, { ability: 'mender_chorus' })] }))),
   N('bell', 3, 'wide_peal', 'Wide Peal', 1, 'mender_bell_alarm_bell', 'Chorus reaches 8 tiles and up to 8 foes; its damage -10%.',
@@ -178,7 +180,8 @@ const MENDER_NODES = [
   // ---- Sunfire (W2: damage)
   N('sunfire', 1, 'kindling', 'Kindling', 5, 'mender_kindle', 'Kindle damage +{r*3}%.', ranks(5, (r) => ({ mods: [dmgUp(0.03 * r, { ability: 'mender_kindle' })] }))),
   N('sunfire', 2, 'flare', 'Flare', 5, 'mender_kindling_searing', 'Spell crit +{r*1.5}%.', ranks(5, (r) => ({ mods: [mod('crit', { add: pct(0.015 * r) }, { school: 'spell' })] }))),
-  N('sunfire', 3, 'zealot', 'Zealot', 1, 'mender_kindling_pyre_word', 'Damage +20%, healing -25%.', [{ mods: [dmgUp(0.2), healUp(-0.25)] }], { fork: 'a' }),
+  // tuned 2026-11-19 (qa/sim/builds2.mjs gate): +20% / -25% put the Tidehammer under the 9 s floor
+  N('sunfire', 3, 'zealot', 'Zealot', 1, 'mender_kindling_pyre_word', 'Damage +10%, healing -20%.', [{ mods: [dmgUp(0.1), healUp(-0.2)] }], { fork: 'a' }),
   N('sunfire', 3, 'balance', 'Balance', 1, 'mender_kindling_daze_of_light', 'Each heal makes your next Kindle +25%; each Kindle, your next heal +25%.',
     [{ procs: [
       { on: 'cast', ability: ['mender_mend', 'mender_chorus', 'mender_steady_name'], effects: [{ type: 'aura', to: 'self', aura: { id: 'b2_balance_kindle', name: 'Balance', icon: 'mender_kindle', kind: 'buff', duration: 15,
@@ -219,22 +222,24 @@ const MENDER_SIGNATURES = [
 // ------------------------------------------------------------------------------------------------ named builds
 // The three leanings (BUILDS_2 4.2 "Named builds"). `path` is the suggested spend order (a node id per point, repeats
 // for ranks), 15 points to the phase 1 cap; `picks` is the suggested skill per pick level. The gold star on the talents
-// screen is the first path step not yet taken. Paths are Inference (this pass); the bot check is qa/sim/builds2.mjs.
+// screen is the first path step not yet taken. Tuned 2026-11-19 to the BUILDS_2 targets (one plain foe in 9 to 14 s from
+// level 5, the slowest build within 25% of the fastest): each path spends its first points on the build's defensive or
+// healing track, and its damage later. The gate is qa/sim/builds2.mjs (it fails when a build misses its band).
 const P = (track, slug) => `b2_mender_${track}_${slug}`;
 const rep = (id, n) => Array.from({ length: n }, () => id);
 const MENDER_BUILDS = [
   { id: 'tidehammer', name: 'Tidehammer', line: 'Spin hammers through packs; healing power fuels the damage.', tracks: ['sunfire', 'bell', 'hearth'], signature: 'mender_tolling_hammers',
-    picks: { 1: 'mender_brand', 3: 'mender_chorus', 6: 'mender_blessing_flame' },
-    path: [...rep(P('sunfire', 'kindling'), 2), ...rep(P('sunfire', 'flare'), 2), P('sunfire', 'zealot'), ...rep(P('bell', 'clear_voice'), 2), ...rep(P('bell', 'toll'), 2),
-      P('bell', 'wide_peal'), ...rep(P('sunfire', 'kindling'), 3), ...rep(P('sunfire', 'sunburst'), 2)] },
+    picks: { 1: 'mender_brand', 3: 'mender_chorus', 6: 'mender_blessing_stone' },
+    path: [...rep(P('bell', 'clear_voice'), 2), ...rep(P('hearth', 'gentle_hands'), 2), ...rep(P('bell', 'toll'), 2), P('bell', 'wide_peal'),
+      ...rep(P('sunfire', 'kindling'), 2), ...rep(P('sunfire', 'flare'), 2), P('sunfire', 'zealot'), P('sunfire', 'kindling'), ...rep(P('sunfire', 'sunburst'), 2)] },
   { id: 'lamplighter', name: 'Lamplighter', line: 'Brand drains the foe while you outlast it; slow and nearly unkillable.', tracks: ['tide', 'dawnbrand', 'wardlight'], signature: 'mender_kindred_light',
     picks: { 1: 'mender_brand', 3: 'mender_steady_name', 6: 'mender_blessing_stone' },
-    path: [...rep(P('dawnbrand', 'searing_name'), 2), ...rep(P('dawnbrand', 'bright_drain'), 2), P('dawnbrand', 'pure_light'), ...rep(P('tide', 'deep_well'), 2), ...rep(P('tide', 'long_vigil'), 2),
-      P('tide', 'undertow'), ...rep(P('wardlight', 'steadfast_ward'), 2), P('tide', 'deep_well'), ...rep(P('tide', 'ebb'), 2)] },
+    path: [...rep(P('tide', 'deep_well'), 2), ...rep(P('tide', 'long_vigil'), 2), P('wardlight', 'steadfast_ward'), ...rep(P('dawnbrand', 'searing_name'), 2),
+      ...rep(P('dawnbrand', 'bright_drain'), 2), P('tide', 'undertow'), P('dawnbrand', 'pure_light'), P('wardlight', 'steadfast_ward'), P('tide', 'deep_well'), ...rep(P('tide', 'ebb'), 2)] },
   { id: 'battle_mender', name: 'Battle Mender', line: 'A cloth brawler with a rod who heals off her own hits.', tracks: ['dawnbrand', 'wardlight', 'hearth'], signature: 'mender_riptide_step',
     picks: { 1: 'mender_brand', 3: 'mender_steady_name', 6: 'mender_blessing_stone' }, melee: true,
-    path: [...rep(P('dawnbrand', 'searing_name'), 2), ...rep(P('dawnbrand', 'bright_drain'), 2), P('dawnbrand', 'bell_and_rod'),
-      ...rep(P('wardlight', 'steadfast_ward'), 2), ...rep(P('wardlight', 'blessed_cloth'), 2), P('wardlight', 'tideplate'),
+    path: [...rep(P('wardlight', 'steadfast_ward'), 2), ...rep(P('wardlight', 'blessed_cloth'), 2), ...rep(P('dawnbrand', 'searing_name'), 2),
+      ...rep(P('dawnbrand', 'bright_drain'), 2), P('wardlight', 'tideplate'), P('dawnbrand', 'bell_and_rod'),
       ...rep(P('hearth', 'gentle_hands'), 2), ...rep(P('hearth', 'quick_words'), 2), P('hearth', 'self_kept')] },
 ];
 

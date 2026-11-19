@@ -896,11 +896,18 @@ Scott, 2026-11-19: "Each class should have its own unique strength(s) and weakne
 - Talent branches carry `kind` (`strength`, `counter` or `flavor`, one of each per class) and `purpose` (at most 28 characters, shown in the talents window).
 - A move effect `kind: 'blink'` cast on self with no attacker goes away from where the mob faces (its foe), not toward it.
 
-## Builds 2 phase 1 additions (2026-11-19, BEHIND A FLAG)
+## Builds 2 phase 1 additions (2026-11-19, ON for the Mender)
 
-Approved design: `docs/design/BUILDS_2.md`. Off for players: `content.progression.builds2.enabled` is `false`
-(`src/data/progression.js`); while off, every hero runs today's talents and every `b2_*` command refuses with
-`b2_fail { reason: 'off' }`. Phase 1 covers the Mender only (`builds2.classes`).
+Approved design: `docs/design/BUILDS_2.md`. ON since Scott approved the talents screen stills (2026-11-19):
+`content.progression.builds2 = { enabled: true, classes: ['mender'] }` (`src/data/progression.js`). A Mender runs
+Builds 2; every other class runs today's talents, and its `b2_*` commands refuse with `b2_fail { reason: 'off' }`.
+
+- **Window:** `src/ui/talents2.js` replaces `talents.js` for a hero whose HUD model has `builds2` (`uivm.js` adds
+  `m.builds2 = { ...hud.builds2, build }`). Data-driven from `BUILDS2[cls]` and `SKILL_PICKS[cls]`: a class joins by
+  adding its tracks there and its id to `builds2.classes`. Region labels for drivers: `b2node:<node>`,
+  `b2pick:<level>:<ability>`, `b2:Spend suggested`, `b2:Undo (n)`, `b2:learn`, `b2:card_close`, `b2:close`, `b2:tab:<id>`.
+- **Level event:** a Builds 2 hero's `level` event carries `b2: true, b2Free` (before auto-spend); the UI words the
+  prompt from it and rewrites it when `b2_talent kind 'auto'` follows.
 
 - **Data:** `src/data/builds2.js`: `BUILDS2[cls] = { tracks, nodes, signatures, builds, defaultBuild, baseline }`,
   `SKILL_PICKS` (all five classes), `RULES`, `B2_ABILITIES` (the Blessings; joined to the sim's ability table only when

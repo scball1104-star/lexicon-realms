@@ -4,7 +4,9 @@
 
 title -> create a Warden -> Hob's first quest -> Mael -> Oren's slimes (kill with abilities, loot) -> turn in -> level up
 -> learn an ability at Holt -> buy and sell at Pell -> die on purpose and wake at the lantern -> talent point at 5
--> quit to select -> reload -> continue (same level / xp / gold / quests / place). Screenshots in qa/out/integrate/.
+-> quit to select -> reload -> continue (same level / xp / gold / quests / place) -> a new Mender on Builds 2: Spend
+suggested at level 1, Hearth to its fork with real clicks, the other side closed, Undo, a skill pick, the level-up
+prompt. Screenshots in qa/out/integrate/.
 DEV ONLY hooks (?dev=1, window.__realms.dev): xp to reach levels 3 and 5 quickly, hp to make the death quick.
 Prints INTEGRATE_DONE: ok=<bool> errors=<n> at the end (machine-read sentinel).
 """
@@ -369,8 +371,84 @@ def run():
         qa = sorted(q['quest'] for q in (after['quests'] or []))
         log('  restore diff', diff, 'quests', qb, qa)
         assert not diff and qb == qa, f'restore matches: {diff}'
+
+        # ---- Builds 2: a new Mender spends a point and takes a fork through the new talents window (real keys and mouse)
+        mender_builds2(g)
         b.close()
         return fps_seen
+
+
+def b2_ranks(g):
+    return dict((g.me()['build'] or {}).get('ranks') or {})
+
+
+def mender_builds2(g):
+    N = lambda track, slug: f'b2_mender_{track}_{slug}'  # noqa: E731
+    g.boot(BASE + '?dev=1')
+    time.sleep(0.8)
+    g.key('Enter', 0.5)                              # title -> select (the Warden is there)
+    g.click_region(label='New', wait=0.5)
+    g.p.keyboard.type('Lark')
+    g.click_region(kind='class', id='mender')
+    g.key('Enter', 1.5)
+    assert g.ev('__drv.mode()') == 'game', 'the Mender entered the world'
+    if g.ev("window.__realms.ui.regions.some((r) => r.kind === 'window' && r.id === 'hint')"):
+        g.click_region(kind='window', id='hint')
+    me = g.me()
+    assert me['b2'], 'a new Mender runs Builds 2'
+    assert me['talents'] == {} and not b2_ranks(g), 'no old talents, nothing spent yet'
+    g.key('KeyN', 0.4)
+    labels = g.ev('__drv.labels()')
+    assert 'b2:close' in labels and 'b2:Spend suggested' in labels, f'the Builds 2 window opened; labels {labels}'
+    hud = g.ev('window.__realms.hud().builds2')
+    assert hud['points']['total'] == 1 and hud['points']['free'] == 1, f'a point at level 1: {hud["points"]}'
+    star = hud['suggested']
+    g.click_region(label='b2:Spend suggested', wait=0.5)
+    r = b2_ranks(g)
+    assert r == {star: 1}, f'Spend suggested took the gold star {star}: {r}'
+    g.shot('20_mender_talents_l1', f'level 1 Mender: one point spent on the gold star ({star})')
+
+    # level 6 (DEV): five more points; Hearth to 4 with real clicks, then its tier 3 fork
+    g.ev('window.__realms.dev.level(6)')
+    time.sleep(0.3)
+    for slug in ('gentle_hands', 'gentle_hands', 'quick_words', 'quick_words'):
+        g.click_region(label=f'b2node:{N("hearth", slug)}', wait=0.35)
+    r = b2_ranks(g)
+    assert r.get(N('hearth', 'gentle_hands')) == 2 and r.get(N('hearth', 'quick_words')) == 2, f'Hearth 4 points: {r}'
+    g.click_region(label=f'b2node:{N("hearth", "many_names")}', wait=0.4)
+    r = b2_ranks(g)
+    assert r.get(N('hearth', 'many_names')) == 1, f'took the fork (Many Names): {r}'
+    g.click_region(label=f'b2node:{N("hearth", "self_kept")}', wait=0.4)
+    r2 = b2_ranks(g)
+    assert N('hearth', 'self_kept') not in r2, f'the other side of the fork is closed: {r2}'
+    xy = g.ev('(s) => __drv.region(s)', {'label': f'b2node:{N("hearth", "self_kept")}'})
+    g.p.mouse.move(xy[0], xy[1])
+    g.shot('21_mender_fork', 'Hearth fork: Many Names taken, Self-Kept closed (hover tooltip)')
+    # Undo (free) gives the fork back; the other side can then be taken
+    g.click_region(label='b2:Undo (3)', wait=0.4)
+    r = b2_ranks(g)
+    assert N('hearth', 'many_names') not in r, f'Undo took the fork back: {r}'
+    g.click_region(label=f'b2node:{N("hearth", "self_kept")}', wait=0.4)
+    r = b2_ranks(g)
+    assert r.get(N('hearth', 'self_kept')) == 1, f'took the other side after Undo: {r}'
+    # a skill pick (one of two): Brand goes on the bar
+    g.click_region(label='b2pick:1:mender_brand', wait=0.4)
+    me = g.me()
+    assert 'mender_brand' in me['known'] and 'mender_brand' in me['bar'], f'Brand learned and on the bar: {me["bar"]}'
+    g.shot('22_mender_spent', f'level 6 Mender: {sum(r.values())} points spent, Brand picked')
+    g.key('Escape', 0.2)
+    assert 'b2:close' not in g.ev('__drv.labels()'), 'Esc closes the window'
+    # a level-up says how many points wait (the new system, not "your first point comes at level 5"). DEV xp grants land
+    # outside a sim step, so their events never reach the UI: the sim's level event (its Builds 2 shape is checked in
+    # qa/tests/talents2.test.mjs from a real kill) is handed to the UI the way main.js's bus does.
+    me = g.me()
+    n0 = len(g.ev('window.__realms.ui.logText()'))
+    g.ev(f"window.__realms.ui.handleEvents([{{ type: 'level', id: {me['id']}, level: 7, hpMax: 100, talentPoints: 0, trainable: [], trainer: null, firstTalentAt: null, b2: true, b2Free: 1 }}])")
+    time.sleep(0.4)
+    lines = g.ev('window.__realms.ui.logText()')[n0:]
+    assert any('talent point' in l and 'to spend' in l for l in lines), f'level-up prompt: {lines}'
+    assert not any('first talent point' in l for l in lines), f'no old first-point line: {lines}'
+    g.shot('23_mender_levelup', 'level-up: the talent point prompt')
 
 
 ok = True

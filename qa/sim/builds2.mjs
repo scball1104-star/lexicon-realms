@@ -1,12 +1,13 @@
-// Builds 2 bot check (docs/design/BUILDS_2.md section 7, phase 1): the Mender's three named builds (Tidehammer,
-// Lamplighter, Battle Mender) solo at every level from 1 to 10. Each run makes a Builds 2 Mender at that level, spends
+// Builds 2 bot check and GATE (docs/design/BUILDS_2.md section 7): the Mender's three named builds (Tidehammer,
+// Lamplighter, Battle Mender) at every level from 1 to the level 15 cap. Each run makes a Builds 2 Mender at that level, spends
 // the build's points through the real rules (src/sim/builds2.js: tiers, forks, keystones), takes its skill picks, casts its
 // Blessing, and fights one same-level foe with a played-well bot (design gear, the real sim).
 //
-//   node qa/sim/builds2.mjs                 20 runs per cell, prints the table
-//   node qa/sim/builds2.mjs --runs 6 --pack also fights a 3-pack from level 3
+//   node qa/sim/builds2.mjs                 20 runs per cell, prints the table; exits 1 when any build misses its band
+//   node qa/sim/builds2.mjs --runs 6 --pack also fights a 3-pack from level 3 (printed, not gated)
 //   import { runBuild, NAMED, B2_LEVELS, bandOk } from './builds2.mjs'   (qa/sim/builds2.test.mjs)
-// Prints BUILDS2_DONE: cells=<n> runs=<n> solo_ok=<n> deaths=<n> target_ok=<n> spread_ok=<n> (machine-read sentinel).
+// Prints BUILDS2_DONE: cells=<n> runs=<n> solo_ok=<n> deaths=<n> target_ok=<n> spread_ok=<n> gate=<pass|FAIL> (machine-read
+// sentinel; read gate=, the exit code alone is not success).
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { duelWorld, addMob } from './_fixtures.mjs';
@@ -15,12 +16,12 @@ import { BUILDS2 } from '../../src/data/builds2.js';
 const SUB = 16, TILE = 256;
 const MAX_TICKS = 20 * 120;
 export const NAMED = BUILDS2.mender.builds;
-export const B2_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-// The pass band (what phase 1 must show: every named build solos): it wins every fight, never dies, and one foe takes 5 to
-// 14 s at levels 1 to 4 (the lighter low-level foes, today's band) and 6 to 15 s from 5 (BUILDS_2 5.3: "never under 6 s
-// for the strongest"). BUILDS_2's tighter targets (9 to 14 s for the suggested builds; the weakest build within 25% of the
-// strongest) are PRINTED, not enforced: tuning them is phase 2's build matrix (BUILDS_2 9), and the numbers here are
-// the approved first-pass design numbers, untuned.
+export const B2_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+// The solo band (every named build solos): it wins every fight, never dies, and one foe takes 5 to 14 s at levels 1 to 4
+// (the lighter low-level foes, today's band) and 6 to 15 s from 5 (BUILDS_2 5.3: "never under 6 s for the strongest").
+// The TARGET band, the gate since the 2026-11-19 tuning: one plain foe in 9 to 14 s from level 5 for the suggested builds
+// (BUILDS_2 5.3; 5 to 12 s at levels 1 to 4), and the slowest build within 25% of the fastest at every level (BUILDS_2 7.3).
+// The script exits 1 when any cell misses either band or any level misses the spread.
 export const bandOk = (r) => r.deaths === 0 && r.wins === r.runs && (r.level <= 4 ? r.ttk >= 5 && r.ttk <= 14 : r.ttk >= 6 && r.ttk <= 15);
 export const targetOk = (r) => r.level <= 4 ? r.ttk >= 5 && r.ttk <= 12 : r.ttk >= 9 && r.ttk <= 14;
 
@@ -129,7 +130,7 @@ if (isMain) {
     const t = rows.filter((r) => r.level === L).map((r) => r.ttk);
     const ok = Math.max(...t) <= 1.25 * Math.min(...t);
     if (ok) spreadOk++;
-    console.log(`level ${L}: slowest / fastest ${(Math.max(...t) / Math.min(...t)).toFixed(2)}x ${ok ? 'within 25%' : 'over 25% (BUILDS_2 7.3 target; reported, tuned in phase 2)'}`);
+    console.log(`level ${L}: slowest / fastest ${(Math.max(...t) / Math.min(...t)).toFixed(2)}x ${ok ? 'within 25%' : 'OVER 25% (BUILDS_2 7.3 target: FAIL)'}`);
   }
   if (withPack) {
     console.log('\n| level | build | 3-pack: clear (s) | hp lost (worst point) | deaths |');
@@ -138,5 +139,8 @@ if (isMain) {
   }
   const ok = rows.filter(bandOk).length, tgt = rows.filter(targetOk).length, deaths = rows.reduce((s, r) => s + r.deaths, 0);
   console.log(`\n${rows.length} cells, ${runs} runs each, ${Date.now() - t0} ms.`);
-  console.log(`BUILDS2_DONE: cells=${rows.length} runs=${runs} solo_ok=${ok} deaths=${deaths} target_ok=${tgt} spread_ok=${spreadOk}`);
+  const pass = ok === rows.length && tgt === rows.length && deaths === 0 && spreadOk === B2_LEVELS.length;
+  for (const r of rows) if (!bandOk(r) || !targetOk(r)) console.log(`MISS: ${r.build} L${r.level} ttk ${f1(r.ttk)} s, deaths ${r.deaths}, wins ${r.wins}/${r.runs}`);
+  console.log(`BUILDS2_DONE: cells=${rows.length} runs=${runs} solo_ok=${ok} deaths=${deaths} target_ok=${tgt} spread_ok=${spreadOk} gate=${pass ? 'pass' : 'FAIL'}`);
+  process.exitCode = pass ? 0 : 1;
 }

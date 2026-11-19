@@ -1,6 +1,6 @@
 // Builds 2, phase 1 (docs/design/BUILDS_2.md; data src/data/builds2.js; rules src/sim/builds2.js): the Mender's six
 // tracks. Rules (points from level 1, tiers, forks, keystones, undo, respec, skill picks, auto-spend), every node's
-// effect, and the flag: off in the live data, so no player can reach any of it.
+// effect, and the flag: on in the live data for the Mender only (Scott approved the talents screen 2026-11-19).
 import { assert, eq, near, duelWorld, addMob, stepN, castNow, ofType, fixtureContent } from './_fixtures.mjs';
 import { createWorld } from '../../src/sim/index.js';
 import { buildContent } from '../../src/data/maps/index.js';
@@ -31,23 +31,26 @@ const tests = [];
 const T = (name, fn) => tests.push({ name: `builds2: ${name}`, fn });
 
 // ------------------------------------------------------------------------------------------------ the flag
-T('OFF in the live data: no hero runs Builds 2, its commands refuse, its new skills are not in the sim', () => {
+T('ON in the live data for the Mender only: a new Mender has a point at level 1; other classes keep their talents', () => {
   const content = buildContent();
-  eq(content.progression.builds2.enabled, false, 'live flag off');
+  eq(content.progression.builds2.enabled, true, 'live flag on (Scott approved the talents screen 2026-11-19)');
+  eq(JSON.stringify(content.progression.builds2.classes), JSON.stringify(['mender']), 'phase 1: the Mender');
   const w = createWorld({ seed: 1, content });
   const pid = w.addPlayer({ name: 'Wren', cls: 'mender' });
   const p = w.get(pid);
-  eq(p.b2, false);
-  assert(!w.internals.data.abilities.mender_blessing_stone, 'Blessing not in the sim table');
-  eq(w.internals.prog.talentPoints(p).total, 0, 'level 1: today\'s rules, no points yet');
+  eq(p.b2, true);
+  assert(w.internals.data.abilities.mender_blessing_stone, 'Blessing in the sim table');
+  eq(w.internals.prog.talentPoints(p).total, 0, 'the old talent points are retired for a Builds 2 hero');
+  eq(w.internals.b2.points(p).total, 1, 'level 1: one Builds 2 point');
   const ev = cmd(w, pid, { t: 'b2_learn', node: id('hearth', 'gentle_hands') });
-  eq(fails(ev, 'off').length, 1, 'refused: off');
-  eq(Object.keys(p.build.ranks).length, 0);
-  eq(w.internals.hud.build(p).builds2, null, 'the HUD carries nothing for it');
-  // other classes stay on today's talents even with the flag on (phase 1 is the Mender only)
-  const w2 = createWorld({ seed: 1, content: fixtureContent({ builds2: true }) });
-  eq(w2.get(w2.addPlayer({ name: 'Ada', cls: 'warden', zone: 'arena', x: 5, y: 5 })).b2, false, 'warden: no tracks yet');
-  eq(w2.get(w2.addPlayer({ name: 'Bo', cls: 'mender', zone: 'arena', x: 6, y: 5 })).b2, true, 'mender: on');
+  eq(ofType(ev, 'b2_talent').length, 1, 'learned');
+  assert(w.internals.hud.build(p).builds2, 'the HUD carries the Builds 2 block');
+  // every other class stays on today's talents (no tracks yet)
+  for (const cls of ['warden', 'scribe', 'wayfinder', 'inkblade']) {
+    const q = w.get(w.addPlayer({ name: `T${cls}`, cls }));
+    eq(q.b2, false, `${cls}: today's talents`);
+    eq(fails(cmd(w, q.id, { t: 'b2_learn', node: id('hearth', 'gentle_hands') }), 'off').length, 1, `${cls}: b2 refused`);
+  }
 });
 
 T('data: six tracks (3 strength, 3 weakness), 5 tiers, tier 3 a fork of two, tier 5 a keystone; every track is 17 points', () => {
@@ -264,7 +267,7 @@ N('dawnbrand', 'radiance', 'light damage heals the lowest friend; direct heals c
   assert(heals(ev, 'leech').some((h) => h.dst === pid), 'healed from light damage');
   near(C.data.ability(p, 'mender_mend').cost.amount.base, 12, 1e-9);
 });
-N('bell', 'clear_voice', 'pushback -20% per rank, none at 5', () => { const { p, C } = M({ ranks: { [id('bell', 'clear_voice')]: 5 } }); eq(C.stats.mod(p, 'pushback').mul, 0); });
+N('bell', 'clear_voice', 'pushback -10% per rank, half at 5 (tuned 2026-11-19)', () => { const { p, C } = M({ ranks: { [id('bell', 'clear_voice')]: 5 } }); near(C.stats.mod(p, 'pushback').mul, 0.5, 1e-9); });
 N('bell', 'toll', 'Chorus cooldown -1 s and +3% per rank', () => { const { p, C } = M({ ranks: { [id('bell', 'toll')]: 5 } }); eq(C.data.ability(p, 'mender_chorus').cooldown, 15); near(C.stats.mod(p, 'damageDone', { ability: 'mender_chorus' }).mul, 1.15, 1e-9); });
 N('bell', 'wide_peal', 'Chorus reaches 8 tiles, 8 foes', () => { const { p, C } = M({ ranks: { [id('bell', 'wide_peal')]: 1 } }); const a = C.data.ability(p, 'mender_chorus').area; eq(a.radius, 128); eq(a.maxTargets, 8); });
 N('bell', 'focused_peal', 'Chorus hits only your target, for 220%', () => {
@@ -287,7 +290,7 @@ N('bell', 'great_bell', 'Chorus instant; a bell rings for 6 s', () => {
 });
 N('sunfire', 'kindling', 'Kindle +3% per rank', () => { const { p, C } = M({ ranks: { [id('sunfire', 'kindling')]: 5 } }); near(C.stats.mod(p, 'damageDone', { ability: 'mender_kindle' }).mul, 1.15, 1e-9); });
 N('sunfire', 'flare', 'spell crit +1.5% per rank', () => { const { p, C } = M({ ranks: { [id('sunfire', 'flare')]: 5 } }); near(C.stats.mod(p, 'crit', { school: 'light' }).add, 0.075, 1e-9); });
-N('sunfire', 'zealot', 'damage +20%, healing -25%', () => { const { p, C } = M({ ranks: { [id('sunfire', 'zealot')]: 1 } }); near(C.stats.mod(p, 'damageDone', {}).mul, 1.2, 1e-9); near(C.stats.mod(p, 'healingDone', {}).mul, 0.75 * 1.1, 1e-9); });
+N('sunfire', 'zealot', 'damage +10%, healing -20% (tuned 2026-11-19)', () => { const { p, C } = M({ ranks: { [id('sunfire', 'zealot')]: 1 } }); near(C.stats.mod(p, 'damageDone', {}).mul, 1.1, 1e-9); near(C.stats.mod(p, 'healingDone', {}).mul, 0.8 * 1.1, 1e-9); });
 N('sunfire', 'balance', 'a heal makes the next Kindle +25%, and back', () => {
   const { w, pid, p, C } = M({ ranks: { [id('sunfire', 'balance')]: 1 }, mob: null });
   castDone(w, pid, 'mender_mend', pid);

@@ -169,7 +169,14 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     }
     if (offer.length > vis) regions.push({ rect: { x: x0, y: r.y + 36, w: w0, h: vis * rowH }, kind: 'scroll', scroll: (k) => { d.scroll += k; } });
     const rc = d.trainer && d.trainer.respecCost != null ? d.trainer.respecCost : null;
-    if (rc != null && Object.keys(m.talents || {}).length) {
+    const b2 = m.builds2;
+    if (b2 && b2.build && b2.respec && b2.respec.where !== 'lantern' && (Object.keys(b2.build.ranks || {}).length || b2.build.freeRespec)) {
+      // Builds 2 (src/sim/builds2.js respecCost): free once when flagged, free at a lantern under 10, here from 10
+      const c = b2.respec || { cost: 0, where: 'trainer' };
+      const confirm = st.confirm === 'b2respec';
+      button(x0, bottom, 150, confirm ? 'Reset talents? Again' : `Reset talents (${c.cost ? `${c.cost} gold` : 'free'})`, confirm ? 'orange' : 'cream',
+        () => { if (confirm) { st.confirm = null; act.b2({ t: 'b2_respec', npc: d.ent }); } else st.confirm = 'b2respec'; });
+    } else if (!b2 && rc != null && Object.keys(m.talents || {}).length) {
       const confirm = st.confirm === 'respec';
       button(x0, bottom, 150, confirm ? 'Reset talents? Again' : `Reset talents (${rc ? `${rc} gold` : 'free'})`, confirm ? 'orange' : 'cream',
         () => { if (confirm) { st.confirm = null; act.send({ t: 'respec', npc: d.ent }); } else st.confirm = 'respec'; });

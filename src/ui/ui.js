@@ -18,6 +18,7 @@ import { buildHudModel } from './uivm.js';
 import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions } from './menus.js';
 import { drawHelp } from './help.js';
 import { drawTalents } from './talents.js';
+import { drawTalents2, isBuilds2, b2Class, b2FailText } from './talents2.js';
 import { drawTitle, drawSelect, drawCreate } from './title.js';
 import { createCharStore, loadOptions, saveOptions, validateName } from './save.js';
 import { routeKey, rebind, effectiveBinds, keyLabel } from './keymap.js';
@@ -149,6 +150,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (localOnly()) { const n = (local.talents[id] || 0) - 1; const nt = { ...local.talents }; if (n > 0) nt[id] = n; else delete nt[id]; local.talents = nt; }
     },
     respec() { send({ t: 'respec' }); if (localOnly()) local.talents = {}; toast('Talents reset.'); },
+    /** Builds 2 commands (talents2.js): remembered so a refusal can be worded ("Nothing to undo." vs "Nothing to reset."). */
+    b2(cmd) { st.b2Last = cmd.t.replace(/^b2_/, ''); send(cmd); },
     abandonQuest(id) {
       send({ t: 'quest_abandon', quest: id });
       if (lastModel && lastModel.live) return;        // the sim's quest event writes the log line
@@ -291,11 +294,14 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? drawCharacter : drawBags)(ctx, env, m, st, regions, act);
           if (st.open.has('quests')) drawQuestLog(ctx, env, m, st, regions, act);
           if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
-          if (st.open.has('talents')) drawTalents(ctx, env, m, st, regions, act);
+          if (st.open.has('talents') && !isBuilds2(m)) drawTalents(ctx, env, m, st, regions, act);
           if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
           if (st.open.has('help')) drawHelp(ctx, env, st, regions, act, options.binds);
         });
+        // Builds 2 (talents2.js): the whole layer on a phone (six columns), the 640x360 window on desktop
+        if (st.open.has('talents') && isBuilds2(m)) drawTalents2(ctx, env, m, st, regions, act);
         hud.menuBar(ctx, L, st, regions);
+        if (isBuilds2(m)) builds2Prompts(ctx, L, m);
         if (st.hint) drawHint(ctx, L, regions);
       }
     }
@@ -332,6 +338,25 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   /** The npc window's rect on this layer (dialog.js draws it; the toast and the quest marks keep clear of it). */
   function dialogRect(L) {
     return dialogRectFor(L);
+  }
+
+  /** Builds 2 prompts: a gold count on the phone's talents button while points or a skill pick wait, and once per visit
+   *  the free-respec line for a hero whose old talents were retired. */
+  function builds2Prompts(ctx, L, m) {
+    const B = m.builds2;
+    const free = (B.points && B.points.free) || 0, picks = (B.picks || []).length;
+    if (st.b2Told !== st.charId && B.freeRespec && B.freeRespecWhy === 'builds2') {
+      st.b2Told = st.charId;
+      say('system', `New talents: your points came back and one respec is free. Open Talents (${L.touch ? 'star button' : 'N'}).`);
+    }
+    if (!L.touch || !L.menuBar || st.open.has('talents')) return;
+    const b = L.menuBar.find((x) => x.id === 'talents');
+    if (!b || !(free > 0 || picks > 0)) return;
+    const label = free > 0 ? String(free) : '!';
+    const w = Math.max(11, g.textW(label) + 6), x = b.x + b.w - w - 1, y = b.y + 1;
+    g.rect(ctx, x, y, w, 11, '#14101e');
+    g.rect(ctx, x + 1, y + 1, w - 2, 9, '#b8862b');
+    g.text(ctx, label, x + Math.floor(w / 2), y + 1, 'cream', { align: 'center' });
   }
 
   /** The level-up flourish (CRITIQUE_1 item 16): a gold flash across the screen, a banner, and what you unlocked. */
@@ -594,7 +619,10 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         const names = (ev.trainable || []).map((id) => (abilityInfo(id) || { name: id }).name);
         const where = ev.trainer ? ` (${ev.trainer.name}${ev.trainer.zone ? `, ${zoneNames[ev.trainer.zone] || ev.trainer.zone}` : ''})` : ' (your class trainer in Willowmere)';
         if (names.length) { const l = `New ability at your trainer: ${names.join(', ')}${where}`; lines.push(l); say('system', `${l}.`); }
-        if (ev.talentPoints > 0) { const l = `${ev.talentPoints} talent point${ev.talentPoints > 1 ? 's' : ''} to spend (${st.metrics.touch ? 'star button' : 'N'})`; lines.push(l); say('system', `You have ${l}.`); }
+        if (ev.b2) {
+          // Builds 2: a point every level; auto-spend (to level 5) may take it at once (b2_talent kind 'auto' rewrites this line)
+          if (ev.b2Free > 0) { const l = `${ev.b2Free} talent point${ev.b2Free > 1 ? 's' : ''} to spend (${st.metrics.touch ? 'star button' : 'N'})`; lines.push(l); say('system', `You have ${l}.`); }
+        } else if (ev.talentPoints > 0) { const l = `${ev.talentPoints} talent point${ev.talentPoints > 1 ? 's' : ''} to spend (${st.metrics.touch ? 'star button' : 'N'})`; lines.push(l); say('system', `You have ${l}.`); }
         else if (ev.firstTalentAt) lines.push(`Your first talent point comes at level ${ev.firstTalentAt}`);
         lines.push('Health and power grow stronger');
         st.levelUp = { t0: st.now, level: ev.level, lines };
@@ -602,6 +630,62 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (names.length && ev.trainer && ev.trainer.npc) st.trainerMark = { npc: ev.trainer.npc, until: st.now + 120, abilities: ev.trainable.slice() };
         return;
       }
+      case 'b2_talent': {
+        if (ev.id !== me) return;
+        const cd = b2Class(lastModel && lastModel.player && lastModel.player.cls);
+        const n = cd && cd.nodes[ev.node];
+        const name = n ? n.name : ev.node;
+        if (ev.kind === 'auto') {
+          // BUILDS_2 3.4: "+1 Bulwark: Iron Skin. Change?"
+          const t = n && cd.tracks.find((x) => x.id === n.track);
+          const key = st.metrics.touch ? 'star button' : 'N';
+          const l = `+1 ${t ? `${t.name}: ` : ''}${name} (auto-spent; change it in Talents)`;
+          say('system', `Auto-spend: +1 ${t ? `${t.name}: ` : ''}${name}. Change it in Talents (${key}).`);
+          if (st.levelUp && st.now - st.levelUp.t0 < 1) {
+            const i = st.levelUp.lines.findIndex((x) => x.includes(' to spend ('));
+            if (i >= 0) { if (ev.free > 0) st.levelUp.lines[i] = `${ev.free} talent point${ev.free > 1 ? 's' : ''} to spend (${key})`; else st.levelUp.lines.splice(i, 1); }
+            if (!st.levelUp.lines.includes(l)) st.levelUp.lines.unshift(l);
+          } else toast(`+1 ${name}`);
+        } else if (ev.kind === 'undo') toast(`Undone: ${name} (${ev.ranks}/${n ? n.maxRanks : '?'})`);
+        return;
+      }
+      case 'b2_fail': {
+        if (ev.id !== me) return;
+        const t = b2FailText(ev.reason, st.b2Last);
+        if (t) { toast(t); say('error', t); }
+        return;
+      }
+      case 'b2_respec':
+        if (ev.id !== me) return;
+        toast(ev.cost ? `Talents reset for ${ev.cost} gold. Your points are back.` : 'Talents reset. Your points are back.', 3);
+        say('system', ev.cost ? `Your talents are reset (${ev.cost} gold). Your points are back to spend.` : 'Your talents are reset. Your points are back to spend.');
+        return;
+      case 'b2_pick': {
+        if (ev.id !== me) return;
+        const nm = (abilityInfo(ev.ability) || { name: null }).name || ev.ability;
+        toast(`You learn ${nm}.`);
+        say('system', `You learn ${nm}. It is on your bar.`);
+        return;
+      }
+      case 'b2_pick_ready': {
+        if (ev.id !== me) return;
+        const key = st.metrics.touch ? 'star button' : 'N';
+        const nms = (ev.options || []).map((id) => (abilityInfo(id) || { name: id }).name);
+        const l = `New skill: choose ${nms.join(' or ')} (Talents)`;
+        say('system', `Choose a new skill: ${nms.join(' or ')}. Open Talents (${key}).`);
+        if (st.levelUp && st.now - st.levelUp.t0 < 1) { if (!st.levelUp.lines.includes(l)) st.levelUp.lines.splice(1, 0, l); } else toast(`New skill to choose (${key})`, 3);
+        return;
+      }
+      case 'b2_leaning':
+        if (ev.id === me) {
+          const cd = b2Class(lastModel && lastModel.player && lastModel.player.cls);
+          const b = cd && cd.builds.find((x) => x.id === ev.build);
+          toast(`Leaning: ${b ? b.name : "your trainer's choice"}`);
+        }
+        return;
+      case 'b2_auto':
+        if (ev.id === me) toast(`Auto-spend ${ev.on ? 'on' : 'off'}`);
+        return;
       case 'area':
         if (ev.id === me && ev.name) toast(ev.name, 2);
         return;

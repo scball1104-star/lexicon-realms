@@ -4,6 +4,7 @@
 //   setGameData({ classes, abilities, talents })
 // once at boot and their entries override the design text field by field (names, costs, icons, tree shape).
 import { DESIGN_DATA } from './design_data.js';
+import { B2_ABILITIES } from '../data/builds2.js';
 
 // PLACEHOLDER until the sim exposes xpToLevel: docs/design/PROGRESSION.md section 1 (XP to next, levels 1..14).
 export const XP_TO_NEXT = [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080];
@@ -16,7 +17,8 @@ export const resourceWord = (kind) => RESOURCE_WORD[kind] || (kind ? kind[0].toU
 
 // the raw content abilities (effects, coefficients) and the mob abilities, for live tooltips and log names
 let CONTENT_AB = {}, MOB_AB = {};
-export function setAbilityContent(abilities, mobAbilities) { CONTENT_AB = abilities || {}; MOB_AB = mobAbilities || {}; }
+// Builds 2's new skills (the Blessings) join the UI's table too, so their names, icons and tooltips show (the sim gates who learns them)
+export function setAbilityContent(abilities, mobAbilities) { CONTENT_AB = { ...B2_ABILITIES, ...(abilities || {}) }; MOB_AB = mobAbilities || {}; }
 /** Display name of any ability id, player or mob; null for auto-attack and unknown ids (never the raw id). */
 export function abilityName(id) {
   if (!id || id === 'auto') return null;
@@ -55,7 +57,7 @@ export function setGameData({ classes, abilities, talents, hasIcon = () => true 
       strong: (c.identity && c.identity.strong) || d.strong || null, weak: (c.identity && c.identity.weak) || d.weak || null };
     for (const a of c.abilities || []) if (a.id && a.level && merged.abilities[a.id]) merged.abilities[a.id] = { ...merged.abilities[a.id], learnLevel: a.level };
   }
-  for (const [id, a] of Object.entries(abilities || {})) {
+  for (const [id, a] of Object.entries({ ...B2_ABILITIES, ...(abilities || {}) })) {
     const d = DD.abilities[id];
     const icon = hasIcon(id) ? id : a.icon && hasIcon(a.icon) ? a.icon : (d && d.icon) || 'icon_magic';   // the ability atlas is keyed by id
     if (!d) { merged.abilities[id] = { ...a, icon }; continue; }

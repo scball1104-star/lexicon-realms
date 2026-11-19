@@ -38,7 +38,7 @@
   function hudToCss(hx, hy) { const l = R.renderer.layout; const d = window.devicePixelRatio || 1; return [(l.ox + hx * l.base) / d, (l.oy + hy * l.base) / d]; }
   function worldToCss(wx, wy) { const l = R.renderer.layout, cam = R.renderer.camera, d = window.devicePixelRatio || 1; return [((wx - cam.x) * l.ws + l.worldOx) / d, ((wy - cam.y) * l.ws + l.worldOy) / d]; }
   window.__drv = {
-    me() { const p = me(); if (!p) return null; const [tx, ty] = tileOf(p); const h = R.hud(); return { id: p.id, zone: p.zone, x: p.x, y: p.y, tx, ty, dead: p.dead, hp: p.hp, hpMax: p.hpMax, level: p.level, xp: p.xp, gold: p.gold, target: p.target, res: p.res, inCombat: p.inCombat, autoOn: p.autoOn, cast: !!p.cast, bar: p.bar, known: p.known, quests: h ? h.quests : null, talents: p.talents, bagN: (p.bag || []).length, questsDone: p.questsDone, equip: Object.keys(p.equip || {}).sort() }; },
+    me() { const p = me(); if (!p) return null; const [tx, ty] = tileOf(p); const h = R.hud(); return { id: p.id, zone: p.zone, x: p.x, y: p.y, tx, ty, dead: p.dead, hp: p.hp, hpMax: p.hpMax, level: p.level, xp: p.xp, gold: p.gold, target: p.target, res: p.res, inCombat: p.inCombat, autoOn: p.autoOn, cast: !!p.cast, bar: p.bar, known: p.known, quests: h ? h.quests : null, talents: p.talents, bagN: (p.bag || []).length, questsDone: p.questsDone, equip: Object.keys(p.equip || {}).sort(), b2: !!p.b2, build: p.build || null }; },
     npc(template) { const e = R.snapshot().entities.find((o) => o.kind === 'npc' && o.template === template); return e ? { id: e.id, zone: e.zone, tx: Math.floor(e.x / T), ty: Math.floor((e.y - 1) / T), x: e.x, y: e.y } : null; },
     /** Live mobs of a template in my zone, nearest first. */
     mobs(template, maxLevel = 99) {
