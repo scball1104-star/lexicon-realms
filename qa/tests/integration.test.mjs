@@ -71,7 +71,8 @@ export const tests = [
       const { world, content } = newWorld(4);
       setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
       setQuests(content.quests, content.npcs);
-      const pid = world.addPlayer({ name: 'H', cls: 'warden', gold: 7, bag: [{ item: 'potion', qty: 2 }], questsDone: ['wm_name_twice'] });
+      // stand by Oren (11, 16): quest_accept needs the giver in reach (fix pass 1, PLAYTEST_BOT bug 5)
+      const pid = world.addPlayer({ name: 'H', cls: 'warden', gold: 7, bag: [{ item: 'potion', qty: 2 }], questsDone: ['wm_name_twice'], zone: 'willowmere', x: 11, y: 17 });
       world.enqueue(pid, { t: 'quest_accept', quest: 'wm_yard_slimes' });
       world.step();
       const snap = world.snapshot();
@@ -79,7 +80,7 @@ export const tests = [
       assert(vm.hud, 'vm.hud passes through');
       const m = buildHudModel(vm, snap, { zoneNames: content.zoneNames });
       eq(m.live, true, 'live path');
-      eq(m.bar[0].ability, 'warden_strike', 'bar from the sim');
+      eq(m.bar[0].ability, 'warden_shield_bash', 'bar from the sim (Bash first, critique 6)');
       eq(m.gold, 7, 'gold');
       eq(m.player.xpToLevel, content.progression.xpToNext[1], 'xp need');
       eq(m.bag.items[0].name, 'Potion', 'resolved bag item');
@@ -106,7 +107,8 @@ export const tests = [
       const r = w2.get(id2);
       for (const k of ['level', 'xp', 'gold', 'zone']) eq(r[k], e[k], k);
       eq(JSON.stringify(r.known.slice().sort()), JSON.stringify(e.known.slice().sort()), 'known');
-      eq(JSON.stringify(r.bag), JSON.stringify(e.bag), 'bag');
+      const noUid = (b) => JSON.stringify((b || []).map(({ uid, ...rest }) => (void uid, rest)));   // slot uids are per world
+      eq(noUid(r.bag), noUid(e.bag), 'bag');
       eq(Math.floor(r.x / 256), s.tx, 'tile x');
       eq(Math.floor((r.y - 1) / 256), s.ty, 'tile y');
     },

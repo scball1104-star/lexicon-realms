@@ -81,15 +81,20 @@ async function boot() {
         if (id != null) world.removePlayer(id);
         playerId = null;
         uiCommands.length = 0;
-        audio.music('title');
+        audio.music('title'); audio.ambience(null);
       },
       worldMarks: () => worldMarks(),
+      unitRects: () => unitRects(),
     },
   });
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
   ui.setItems(content.items);
   ui.setQuests(content.quests, content.npcs);
+  ui.setAbilityContent(content.abilities, content.mobAbilities);
   if (ui.options.zoom && ZOOMS.includes(ui.options.zoom) && !q.get('zoom')) view.zoom = ui.options.zoom;
+  // phones: the world at 1.5x unless the player picked a zoom (CRITIQUE_1 item 8); the canvas fills the screen
+  view.touch = touch;
+  if (touch && !ui.options.zoomSet && !q.get('zoom')) view.zoom = 1.5;
   view.fx = fxOverride || ui.options.fx;
   audio.setVolumes({ master: 1, music: ui.options.music, sfx: ui.options.sfx });
   if (touch) createTouch({ canvas, input, ui });
@@ -101,7 +106,9 @@ async function boot() {
     const at = s.zone && content.zones[s.zone] && s.tx != null ? { zone: s.zone, x: s.tx, y: s.ty } : {};
     return { name: c.name, cls: c.cls, look: c.look, ...at, level: s.level, xp: s.xp, gold: s.gold, bag: s.bag, bags: s.bags, equip: s.equip,
       known: s.known, bar: s.bar, talents: s.talents, quests: stripEscorts(s.quests), questsDone: s.questsDone, nodesUsed: s.nodesUsed,
-      respecs: s.respecs, lantern: s.lantern };
+      respecs: s.respecs, lantern: s.lantern,
+      // fix pass 1: the sim-owned part (health, resource, cooldowns, lasting buffs, quest bag, loot waiting, escorts)
+      qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts };
   }
   // an escort in progress cannot be restored (its npc is gone): it restarts as a fresh accept would
   const stripEscorts = (qs) => { if (!qs) return qs; const o = {}; for (const [k, v] of Object.entries(qs)) { const { escort, ...rest } = v; void escort; o[k] = rest; } return o; };
@@ -114,7 +121,8 @@ async function boot() {
     const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : { zone: e.zone, tx: Math.floor(e.x / (TILE * 16)), ty: Math.floor((e.y - 1) / (TILE * 16)) };   // SUB -> tiles
     return { v: 1, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
       bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: clone(e.bar), talents: clone(e.talents),
-      quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern) };
+      quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
+      ...(world.saveFields ? clone(world.saveFields(id)) || {} : {}) };
   }
   function addHero(spec) {
     playerId = world.addPlayer(spec);
@@ -139,12 +147,31 @@ async function boot() {
     const h = snap.hud && playerId != null ? snap.hud[playerId] : null;
     if (!h || !h.npcMarkers) return [];
     const out = [];
-    for (const [id, mark] of Object.entries(h.npcMarkers)) {
+    const marks = { ...h.npcMarkers };
+    // after a level-up with new abilities, the class trainer wears a gold ! until you train (CRITIQUE_1 item 16)
+    const tm = ui.trainerMark;
+    if (tm) for (const e of snap.entities) if (e.kind === 'npc' && e.template === tm && !(marks[e.id] === '?' || marks[e.id] === '!')) marks[e.id] = '!';
+    for (const [id, mark] of Object.entries(marks)) {
       const a = renderer.anchorOf(Number(id));
       if (!a) continue;
       const [x, y] = renderer.worldToHud(a.x, a.y - a.h);
-      if (x < -16 || y < -16 || x > 656 || y > 376) continue;
-      out.push({ x, y, mark });
+      const l = renderer.layout;
+      if (x < -16 || y < -16 || x > l.hudW + 16 || y > l.hudH + 16) continue;
+      out.push({ x, y, mark, id: Number(id) });
+    }
+    return out;
+  }
+  /** HUD rects of the player and the target (the chat log and the tracker fade when one is under them). */
+  function unitRects() {
+    const out = [];
+    const me = playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
+    for (const id of [playerId, me ? me.target : null]) {
+      if (id == null) continue;
+      const a = renderer.anchorOf(id);
+      if (!a) continue;
+      const [x0, y0] = renderer.worldToHud(a.x - 8, a.y - a.h);
+      const [x1, y1] = renderer.worldToHud(a.x + 8, a.y + 2);
+      out.push({ x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0) });
     }
     return out;
   }
@@ -172,6 +199,7 @@ async function boot() {
     const me = playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
     // before a hero exists the world still draws (behind the title art) at the start zone
     view.zone = me ? me.zone : content.start.zone; view.followId = playerId; view.targetId = me ? me.target : null; view.time = nowMs / 1000;
+    view.dpr = window.devicePixelRatio || 1; view.hud = ui.hudMode;
     renderer.draw(prev, snap, alpha, view);
     const dpr = window.devicePixelRatio || 1;
     ui.setMetrics({ cssPerHud: renderer.layout.base / dpr });

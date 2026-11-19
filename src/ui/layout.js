@@ -9,12 +9,12 @@ export function hitPx(cssPerHud) { return Math.ceil(44 / Math.max(0.25, cssPerHu
 
 export const BAR = { n: 6, sz: 26, gap: 3, y: 318 };
 
-export function hudLayout({ touch = false, minHit = 15 } = {}) {
+export function hudLayout({ touch = false, minHit = 15, W: LW = W, H: LH = H } = {}) {
   if (!touch) {
     const tw = BAR.n * BAR.sz + (BAR.n - 1) * BAR.gap;
     const bx = Math.floor((W - tw) / 2);
     return {
-      touch: false,
+      touch: false, W, H,
       player: { x: 4, y: 4, w: 194, h: 46 },
       party: (i) => ({ x: 4, y: 53 + i * 35, w: 150, h: 32 }),
       target: { x: 204, y: 4, w: 150, h: 34 },
@@ -28,11 +28,19 @@ export function hudLayout({ touch = false, minHit = 15 } = {}) {
       menuBar: null, cluster: null,
     };
   }
-  // ---- touch: compact frames on the left, menu buttons along the top, ability cluster in the lower right
-  const m = Math.max(minHit, 30);
-  const mb = Array.from({ length: 6 }, (_, i) => ({ id: ['character', 'bags', 'quests', 'talents', 'map', 'menu'][i] }));
+  return touchLayout(minHit, LW, LH);
+}
+
+/**
+ * The phone HUD on a layer of any size (fix wave 2026-11-19, CRITIQUE_1 item 8): the layer follows the screen aspect,
+ * so every box is placed from the edges. Frames top left, menu buttons along the top, minimap and tracker top right,
+ * the ability cluster bottom right, a 3-line log bottom left. Hit areas are at least `minHit` HUD px (44 css px).
+ */
+function touchLayout(minHit, LW, LH) {
+  const W = LW, H = LH;
+  const m = Math.max(minHit, 24);
   const mbX = 160, mbY = 2;
-  mb.forEach((b, i) => Object.assign(b, { x: mbX + i * m, y: mbY, w: m, h: m }));
+  const mb = ['character', 'bags', 'quests', 'talents', 'map', 'menu'].map((id, i) => ({ id, x: mbX + i * m, y: mbY, w: m, h: m }));
   // cluster: 6 abilities on two rows of three + Interact and Next Target, anchored to the lower right
   const p = m, right = W - 4, bottom = H - 14;
   const pos = [
@@ -41,18 +49,22 @@ export function hudLayout({ touch = false, minHit = 15 } = {}) {
   ];
   const cluster = pos.map(([id, col, row]) => ({ id, x: right - (4 - col) * p, y: bottom - (3 - row) * p, w: p, h: p }))
     .map((b) => ({ ...b, slot: /^slot(\d)$/.test(b.id) ? Number(b.id.slice(4)) : null }));
+  const clusterTop = bottom - 2 * p;
+  const mmW = 64, mmH = 44;
+  const trY = 15 + mmH + 3;
   return {
-    touch: true, minHit: m,
+    touch: true, minHit: m, W, H,
     player: { x: 4, y: 4, w: 150, h: 34 },
     party: (i) => ({ x: 4, y: 76 + i * 22, w: 110, h: 20 }),
     target: { x: 4, y: 40, w: 150, h: 34 },
-    zoneLabel: { x: 572, y: 2, w: 64, h: 13 },
-    minimap: { x: 572, y: 15, w: 64, h: 44 },
-    tracker: { x: 486, y: 62, w: 150, maxLines: 8, header: { x: 486, y: 62, w: 150, h: Math.max(16, Math.min(m, 24)) } },
+    zoneLabel: { x: W - 4 - mmW, y: 2, w: mmW, h: 13 },
+    minimap: { x: W - 4 - mmW, y: 15, w: mmW, h: mmH },
+    tracker: { x: W - 4 - 150, y: trY, w: 150, maxLines: Math.max(2, Math.min(8, Math.floor((clusterTop - 6 - trY - 20) / 11))),
+      header: { x: W - 4 - 150, y: trY, w: 150, h: Math.max(16, Math.min(m, 24)) } },
     bar: [],
-    cast: { x: Math.floor((W - 150) / 2), y: 270, w: 150 },
-    xp: { y: 350 },
-    chat: { x: 4, w: 170, lines: 3, bottom: 338, passive: true },
+    cast: { x: Math.floor((W - 150) / 2), y: Math.min(H - 64, clusterTop - 6), w: 150 },
+    xp: { y: H - 10 },
+    chat: { x: 4, w: Math.min(170, W - 4 * p - 16), lines: 3, bottom: H - 16, passive: true },
     menuBar: mb, cluster,
   };
 }
@@ -62,7 +74,7 @@ export function hudLayout({ touch = false, minHit = 15 } = {}) {
  * name wrapped to the width, the count right-aligned on the first line when the quest has one count objective,
  * and one gray line per extra objective. wrap(text, width) -> lines; textW(text) -> px.
  */
-export function trackerRows(quests, width, wrap, textW, { maxQuests = 5 } = {}) {
+export function trackerRows(quests, width, wrap, textW, { maxQuests = 5, areas = false } = {}) {
   const rows = [{ kind: 'head', text: 'Quests', h: 16 }];
   for (const q of (quests || []).slice(0, maxQuests)) {
     const objs = q.objectives || [];
@@ -70,6 +82,9 @@ export function trackerRows(quests, width, wrap, textW, { maxQuests = 5 } = {}) 
     const nameW = width - 22 - (count ? textW(count) + 6 : 0);
     const lines = wrap(q.name, nameW);
     lines.forEach((ln, i) => rows.push({ kind: i === 0 ? 'quest' : 'quest2', text: ln, right: i === 0 ? count : '', done: !!q.done, id: q.id, h: 11 }));
+    // where to go (CRITIQUE_1 item 9): the objective's area, or who to hand it to
+    const where = areas ? (q.done ? (q.turnInName ? `Return to ${q.turnInName}` : '') : q.areaName || '') : '';
+    if (where) for (const ln of wrap(where, width - 30).slice(0, 1)) rows.push({ kind: 'area', text: ln, id: q.id, h: 11 });
     if (objs.length > 1) {
       for (const o of objs) {
         const t = `${o.need > 1 ? `${o.cur}/${o.need} ` : ''}${o.text}`;

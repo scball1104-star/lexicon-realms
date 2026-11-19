@@ -9,10 +9,19 @@ const DIRS = ['down', 'left', 'up', 'right'];
 export function drawBackdrop(ctx, env, dim = 0) {
   const { g } = env;
   const b = env.art.backdrop;
-  // 384x216 key art at 2x = 768x432, centred crop to 640x360 (whole pixels, nearest neighbour)
+  // 384x216 key art at 2x = 768x432, centred crop to 640x360 (whole pixels, nearest neighbour). On a phone the
+  // layer can be wider than 640x360 (the screen's aspect): the art then covers the whole layer at an integer scale.
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(b, 32, 18, 320, 180, 0, 0, 640, 360);
-  if (dim) g.scrim(ctx, 0, 0, W, H, dim);
+  const tr = ctx.getTransform ? ctx.getTransform() : { e: 0, f: 0 };
+  const LW = ctx.canvas ? ctx.canvas.width : W, LH = ctx.canvas ? ctx.canvas.height : H;
+  if (LW <= W && LH <= H) ctx.drawImage(b, 32, 18, 320, 180, 0, 0, 640, 360);
+  else {
+    const k = Math.max(2, Math.ceil(LW / 384), Math.ceil(LH / 216));
+    const sw = Math.ceil(LW / k), sh = Math.ceil(LH / k);
+    const sx = Math.max(0, Math.floor((384 - sw) / 2)), sy = Math.max(0, Math.floor((216 - sh) / 2));
+    ctx.drawImage(b, sx, sy, sw, sh, -tr.e, -tr.f, sw * k, sh * k);
+  }
+  if (dim) g.scrim(ctx, -tr.e, -tr.f, Math.max(W, LW), Math.max(H, LH), dim);
 }
 
 function button(ctx, env, regions, r, label, on, { scheme = 'blue', color = 'cream', enabled = true, large = false } = {}) {

@@ -27,6 +27,7 @@ import { createLighting, LIGHT_RGB } from './lighting.js';
 import { createAtmos } from './atmos.js';
 import { createFx } from './fx.js';
 import { BitmapFont } from '../core/font.js';
+import { createOcclusion } from './occlude.js';
 
 function canvas2d(w, h) {
   const c = document.createElement('canvas');
@@ -95,9 +96,14 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     if (!shadows.has(key)) shadows.set(key, pixelEllipse(k, Math.max(4, Math.round(k / 3)), `rgba(20,16,30,${(s / 20).toFixed(2)})`));
     return shadows.get(key);
   };
-  const rings = {
-    hostile: pixelEllipse(20, 8, '#e0503a', true), friendly: pixelEllipse(20, 8, '#f9d77a', true), player: pixelEllipse(20, 8, '#8fe07a', true),
-  };
+  // target ring: a bright 2-px pulsing ring (CRITIQUE_1 item 12); colour by faction
+  const RING_COL = { hostile: '#ff5a3c', friendly: '#ffd75a', player: '#8fe07a' };
+  const rings = {};
+  for (const [k, c] of Object.entries(RING_COL)) rings[k] = thickRing(22, 10, c);
+  const occ = createOcclusion();
+  const propFade = new Map();                // prop -> current alpha (canopy fade near the player)
+  let canopyK = 0;                           // overhead fade strength around the player, smoothed
+  let fadeBuf = null, fadeCtx = null;
 
   const lighting = createLighting();
   const atmos = createAtmos();
@@ -114,9 +120,12 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
   for (const c of ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade']) { lazy.json(`sprites/chars/${c}.json`); lazy.img(`sprites/chars/${c}.png`); lazy.img(`sprites/chars/${c}_emissive.png`); }
 
   let world = null, wctx = null;             // world buffer (viewW x viewH)
-  const [hud, hctx] = canvas2d(640, 360);
-  const [over, octx] = canvas2d(640, 360);   // floating numbers
+  let [hud, hctx] = canvas2d(640, 360);
+  let [over, octx] = canvas2d(640, 360);     // floating numbers
   let layout = layoutFor(canvas.width, canvas.height, 1);
+  function ensureHudBuffers() {
+    if (hud.width !== layout.hudW || hud.height !== layout.hudH) { [hud, hctx] = canvas2d(layout.hudW, layout.hudH); [over, octx] = canvas2d(layout.hudW, layout.hudH); }
+  }
   let cam = { x: 0, y: 0 };
   let picks = [];                            // [{ id, x, y, w, h }] world px, draw order
   let fade = { zone: null, t0: -1 };
@@ -136,8 +145,9 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
 
   function draw(prevSnap, snap, alpha, view) {
     const tStart = performance.now();
-    layout = layoutFor(canvas.width, canvas.height, view.zoom || 1);
+    layout = layoutFor(canvas.width, canvas.height, view.zoom || 1, { touch: !!view.touch, hud: view.hud || 'big', dpr: view.dpr || 1 });
     ensureWorldBuffer();
+    ensureHudBuffers();
     const zoneId = view.zone;
     const zone = zones[zoneId];
     const map = bake(zoneId);
@@ -181,7 +191,15 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     const pos = new Map(ents.map((e) => [e.id, lerpEntity(prevById, e, alpha)]));
 
     const focus = pos.get(view.followId);
-    if (focus) cam = cameraFor(Math.round(focus[0]), Math.round(focus[1]) - 12, map.pixelW, map.pixelH, W, H);
+    // the camera may run a little past the map's bottom edge, so a hero at a south gate is never under the ability bar
+    // and the XP bar (fix wave 2026-11-19, CRITIQUE_1 item 3); the strip it shows sits behind those bars
+    // (only as far as needed: the camera moves past the edge only when the hero's feet would be under the bars)
+    const padB = Math.ceil((layout.touch ? 18 : 46) * layout.base / layout.ws);
+    if (focus) {
+      cam = cameraFor(Math.round(focus[0]), Math.round(focus[1]) - 12, map.pixelW, map.pixelH, W, H);
+      const feet = Math.round(focus[1]) + 4 - cam.y;
+      if (feet > H - padB) cam.y += Math.min(padB, feet - (H - padB));
+    }
 
     const g = wctx;
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
@@ -215,7 +233,9 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       }
       const it = { sortY: Math.round(y), ent: e, x: Math.round(x), y: Math.round(y), corpse: e.dead && e.kind === 'mob' };
       it.f = book.frameFor(e, t, fx.state(e.id, now));
-      newAnchors.set(e.id, { x: it.x, y: it.y, h: it.f ? Math.min(40, it.f.oy) : 20, hand: it.f && it.f.hand ? [it.f.hand[0] - it.f.ox, it.f.oy - it.f.hand[1]] : null });
+      // h: from the feet to the first opaque row of the frame (the head), so quest marks and arrows sit on the head
+      const top = it.f ? occ.opaqueTop(it.f.img, it.f.sx, it.f.sy, it.f.w, it.f.h) : 0;
+      newAnchors.set(e.id, { x: it.x, y: it.y, h: it.f ? Math.max(6, it.f.oy - top) : 20, hand: it.f && it.f.hand ? [it.f.hand[0] - it.f.ox, it.f.oy - it.f.hand[1]] : null });
       list.push(it);
     }
     anchors = newAnchors;
@@ -233,22 +253,59 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       g.drawImage(sh, it.x - Math.floor(sh.width / 2) + lean - cam.x, it.y - Math.floor(sh.height / 2) + 1 - cam.y);
       if (it.ent.id === view.targetId && !it.corpse) {
         const ring = it.ent.faction === 'hostile' ? rings.hostile : it.ent.faction === 'player' ? rings.player : rings.friendly;
-        g.drawImage(ring, it.x - 10 - cam.x, it.y - 4 - cam.y);
+        g.globalAlpha = Math.round((0.7 + 0.3 * Math.sin(now * 6)) * 10) / 10;
+        g.drawImage(ring, it.x - 11 - cam.x, it.y - 5 - cam.y);
+        g.globalAlpha = 1;
       }
     }
     picks = [];
     const emissive = [];
     const auraDraws = [];
+    // watched actors: the player, other players (party) and the target. A prop drawn after one of them that covers a
+    // fifth of its body occludes it (it gets an outline later); a prop that covers the player fades to 40%.
+    const watched = [];
+    for (const it of list) {
+      if (!it.ent || it.obj || it.corpse || !it.f) continue;
+      const e = it.ent;
+      const role = e.id === view.followId ? 'me' : e.id === view.targetId ? 'target' : e.kind === 'player' ? 'party' : null;
+      if (!role) continue;
+      const f = it.f;
+      const pts = occ.bodyPoints(f.img, f.sx, f.sy, f.w, f.h).map(([px, py]) => [it.x - f.ox + (f.flip ? f.w - 1 - px : px), it.y - f.oy + py]);
+      watched.push({ it, role, pts, drawn: false, occluded: false, box: { x: it.x - f.ox, y: it.y - f.oy, w: f.w, h: f.h } });
+    }
+    const fadeStep = Math.min(1, dt * 6);
+    const covering = new Set();
+    const coverFrac = (w, p, psx) => {
+      if (!w.pts.length || p.dx > w.box.x + w.box.w || p.dx + p.w < w.box.x || p.dy > w.box.y + w.box.h || p.dy + p.h < w.box.y) return 0;
+      let n = 0;
+      for (const [x, y] of w.pts) if (x >= p.dx && y >= p.dy && x < p.dx + p.w && y < p.dy + p.h && occ.opaqueAt(p.img, psx + x - p.dx, p.sy + y - p.dy)) n++;
+      return n / w.pts.length;
+    };
     for (const it of list) {
       if (it.prop) {
         const p = it.prop;
         let psx = p.sx;
         if (p.anim) psx += p.anim.frames[Math.floor((t * 1000) / (p.anim.ms || 150)) % p.anim.frames.length] * p.anim.frameDx;
+        let alpha = 1;
+        if (p.h > 18 && p.blend !== 'lighter') {
+          for (const w of watched) {
+            if (!w.drawn) continue;
+            const k = coverFrac(w, p, psx);
+            if (k >= 0.2) { w.occluded = true; if (w.role === 'me') covering.add(p); }
+          }
+          const cur = propFade.has(p) ? propFade.get(p) : 1;
+          const want = covering.has(p) ? 0.4 : 1;
+          const nxt = cur + (want - cur) * fadeStep;
+          if (want === 1 && nxt > 0.99) propFade.delete(p); else propFade.set(p, nxt);
+          alpha = propFade.has(p) ? propFade.get(p) : 1;
+        }
         if (p.blend === 'lighter') g.globalCompositeOperation = 'lighter';
+        if (alpha < 1) g.globalAlpha = Math.round(alpha * 20) / 20;
         g.drawImage(p.img, psx, p.sy, p.w, p.h, p.dx - cam.x, p.dy - cam.y, p.w, p.h);
-        g.globalCompositeOperation = 'source-over';
+        g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
         continue;
       }
+      if (it.ent) for (const w of watched) if (w.it === it) w.drawn = true;
       if (it.obj) { it.obj.draw(g, cam); if (it.obj.pick) picks.push({ id: it.ent.id, ...it.obj.pick }); continue; }
       const f = it.f;
       if (!f) continue;
@@ -276,8 +333,35 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       for (const l of looks) auraDraws.push([l, it.x, it.y]);
       picks.push({ id: it.ent.id, x: it.x - f.ox, y: it.y - f.oy, w: f.w, h: f.h });
     }
-    // overhead (roofs)
-    if (sw > 0 && sh > 0) g.drawImage(map.overhead, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
+    // props that faded but are off the list now (scrolled away) drift back
+    for (const [p, a] of propFade) if (!covering.has(p)) { const n = a + (1 - a) * fadeStep; if (n > 0.99) propFade.delete(p); else propFade.set(p, n); }
+
+    // overhead (roofs, high canopy): when it covers the player, a disc around them fades to 40% (CRITIQUE_1 item 4)
+    const mask = occ.overheadMask(map.overhead);
+    let meUnder = false;
+    for (const w of watched) {
+      if (!mask || !w.pts.length) continue;
+      let n = 0;
+      for (const [x, y] of w.pts) if (occ.overheadAt(mask, x, y)) n++;
+      if (n / w.pts.length >= 0.15) { w.occluded = true; if (w.role === 'me') meUnder = true; }
+    }
+    canopyK += ((meUnder ? 1 : 0) - canopyK) * fadeStep;
+    if (canopyK < 0.02) canopyK = 0;
+    if (sw > 0 && sh > 0) {
+      const meW = watched.find((w) => w.role === 'me');
+      if (canopyK > 0 && meW) {
+        if (!fadeBuf || fadeBuf.width !== W || fadeBuf.height !== H) [fadeBuf, fadeCtx] = canvas2d(W, H);
+        fadeCtx.globalCompositeOperation = 'source-over'; fadeCtx.globalAlpha = 1;
+        fadeCtx.clearRect(0, 0, W, H);
+        fadeCtx.drawImage(map.overhead, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
+        const R = 40, disc = occ.circle(R);
+        fadeCtx.globalCompositeOperation = 'destination-out';
+        fadeCtx.globalAlpha = Math.round(canopyK * 0.6 * 20) / 20;
+        fadeCtx.drawImage(disc, meW.it.x - cam.x - R, meW.it.y - 12 - cam.y - R);
+        fadeCtx.globalCompositeOperation = 'source-over'; fadeCtx.globalAlpha = 1;
+        g.drawImage(fadeBuf, 0, 0);
+      } else g.drawImage(map.overhead, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
+    }
 
     // cloud shadows sliding over the ground (day only)
     if (fxLevel === 'high') atmos.drawClouds(g, cam, W, H, now, sky.clouds * (zone && zone.kind === 'interior' ? 0 : 1));
@@ -304,9 +388,39 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       for (const [f, dx, dy] of emissive) blit(g, f, f.emissive, dx, dy);
       g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
     }
+    // night rim: a faint outline on foes and the player once the lamps are lit (CRITIQUE_1 item 23)
+    if (sky.lamps > 0.35 && fxLevel === 'high') {
+      g.globalAlpha = Math.round((0.2 + 0.35 * sky.lamps) * 20) / 20;
+      for (const it of list) {
+        if (!it.ent || it.obj || it.corpse || !it.f) continue;
+        const e = it.ent;
+        const col = e.faction === 'hostile' && e.kind === 'mob' ? '#d0543c' : e.id === view.followId ? '#fff7d6' : null;
+        if (col) drawOutline(g, it, col);
+      }
+      g.globalAlpha = 1;
+    }
+    // occluded player / party / target: a 1-px silhouette outline through canopy and roofs (CRITIQUE_1 item 4)
+    for (const w of watched) {
+      if (!w.occluded) continue;
+      const e = w.it.ent;
+      const col = w.role === 'me' ? '#fff7d6' : w.role === 'party' ? '#6ab3e4' : e.faction === 'hostile' ? '#ff5a3c' : '#ffd75a';
+      drawOutline(g, w.it, col);
+    }
+    // the target arrow: a small bobbing chevron over the target's head (CRITIQUE_1 item 12)
+    const tgt = view.targetId != null ? anchors.get(view.targetId) : null;
+    const tgtE = tgt ? ents.find((e) => e.id === view.targetId) : null;
+    if (tgt && tgtE && !tgtE.dead && view.targetId !== view.followId && tgtE.kind !== 'object') {
+      const col = tgtE.faction === 'hostile' ? '#ff5a3c' : tgtE.faction === 'player' ? '#8fe07a' : '#ffd75a';
+      const ax = tgt.x - cam.x, ay = tgt.y - tgt.h - 5 - cam.y - (Math.floor(now * 3) % 2);
+      g.fillStyle = '#14101e';
+      g.fillRect(ax - 3, ay - 3, 7, 1); g.fillRect(ax - 3, ay - 2, 1, 1); g.fillRect(ax + 3, ay - 2, 1, 1);
+      g.fillRect(ax - 2, ay - 1, 1, 1); g.fillRect(ax + 2, ay - 1, 1, 1); g.fillRect(ax - 1, ay, 1, 1); g.fillRect(ax + 1, ay, 1, 1); g.fillRect(ax, ay + 1, 1, 1);
+      g.fillStyle = col; g.fillRect(ax - 2, ay - 2, 5, 1); g.fillRect(ax - 1, ay - 1, 3, 1); g.fillRect(ax, ay, 1, 1);
+    }
     for (const [l, x, y] of auraDraws) fx.drawAuraLook(g, l, x, y, cam, now);
     fx.drawWorld(g, cam, W, H, now);
     if (snap.projectiles && snap.projectiles.length) drawSimProjectiles(g, prevSnap, snap, alpha, zoneId);
+    drawZoneGrade(g, zone, zoneId, W, H, now, fxLevel);
     atmos.update(dt, cam, W, H, fxLevel === 'low' ? { rain: weather.rain, leaves: false, pollen: false } : weather, sky, zone);
     atmos.drawParticles(g, cam, W, H, sky);
 
@@ -326,15 +440,22 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    const cw = Math.floor(layout.dispW / layout.ws), ch = Math.floor(layout.dispH / layout.ws);
-    const padX = layout.dispW - cw * layout.ws, padY = layout.dispH - ch * layout.ws;
-    ctx.drawImage(world, 0, 0, cw, ch, layout.ox + (padX >> 1), layout.oy + (padY >> 1), cw * layout.ws, ch * layout.ws);
-    layout.worldOx = layout.ox + (padX >> 1); layout.worldOy = layout.oy + (padY >> 1);
+    if (layout.touch) {
+      // touch: the buffer covers the whole screen (cropped on the right and bottom by less than one world px)
+      const cw = Math.min(W, Math.ceil(layout.dispW / layout.ws)), ch = Math.min(H, Math.ceil(layout.dispH / layout.ws));
+      ctx.drawImage(world, 0, 0, cw, ch, layout.wox, layout.woy, cw * layout.ws, ch * layout.ws);
+      layout.worldOx = layout.wox; layout.worldOy = layout.woy;
+    } else {
+      const cw = Math.floor(layout.dispW / layout.ws), ch = Math.floor(layout.dispH / layout.ws);
+      const padX = layout.dispW - cw * layout.ws, padY = layout.dispH - ch * layout.ws;
+      ctx.drawImage(world, 0, 0, cw, ch, layout.wox + (padX >> 1), layout.woy + (padY >> 1), cw * layout.ws, ch * layout.ws);
+      layout.worldOx = layout.wox + (padX >> 1); layout.worldOy = layout.woy + (padY >> 1);
+    }
 
     // floating combat numbers at the base scale (crisp at every zoom)
-    octx.clearRect(0, 0, 640, 360);
+    octx.clearRect(0, 0, layout.hudW, layout.hudH);
     fx.drawNumbers(octx, worldToHud, now);
-    ctx.drawImage(over, 0, 0, 640, 360, layout.ox, layout.oy, 640 * layout.base, 360 * layout.base);
+    ctx.drawImage(over, 0, 0, layout.hudW, layout.hudH, layout.ox, layout.oy, layout.hudW * layout.base, layout.hudH * layout.base);
 
     const ms = performance.now() - tStart;
     const s = dev.stats;
@@ -369,10 +490,60 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
   }
 
   function drawHud(fn) {
-    hctx.clearRect(0, 0, 640, 360);
+    hctx.clearRect(0, 0, layout.hudW, layout.hudH);
     fn(hctx, layout);
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(hud, 0, 0, 640, 360, layout.ox, layout.oy, 640 * layout.base, 360 * layout.base);
+    ctx.drawImage(hud, 0, 0, layout.hudW, layout.hudH, layout.ox, layout.oy, layout.hudW * layout.base, layout.hudH * layout.base);
+  }
+  // Per-zone mood (CRITIQUE_1 item 25: the Moor should feel high and bleak): a cooler, greyer grade and drifting low
+  // mist. Render-side table; a zone's own `grade` field (map data) wins when the map lane adds one.
+  const ZONE_GRADE = { moor: { desat: 0.3, tint: 'rgba(120,138,178,0.14)', mist: 0.32 } };
+  let mistTex = null;
+  function mistTexture() {
+    if (mistTex) return mistTex;
+    const w = 256, h = 64;
+    const [c, mg] = canvas2d(w, h);
+    const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+    mg.fillStyle = '#e8eef8';
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const v = 0.5 + 0.25 * Math.sin((x / w) * Math.PI * 4 + Math.sin(y / 9)) + 0.25 * Math.sin((x / w) * Math.PI * 2 * 3 + y / 5) * Math.sin((y / h) * Math.PI);
+      const k = v * Math.sin((y / h) * Math.PI);
+      if (k * 16 > 7 + bayer[(y & 3) * 4 + (x & 3)]) mg.fillRect(x, y, 1, 1);
+    }
+    mistTex = c;
+    return c;
+  }
+  function drawZoneGrade(g, zone, zoneId, W, H, now, fxLevel) {
+    const gr = (zone && zone.grade) || ZONE_GRADE[zoneId];
+    if (!gr) return;
+    if (gr.desat) { g.globalCompositeOperation = 'saturation'; g.globalAlpha = gr.desat; g.fillStyle = '#808080'; g.fillRect(0, 0, W, H); }
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+    if (gr.tint) { g.fillStyle = gr.tint; g.fillRect(0, 0, W, H); }
+    if (gr.mist && fxLevel === 'high') {
+      const tex = mistTexture();
+      g.globalAlpha = gr.mist;
+      const ox = Math.floor(((cam.x * 0.6 + now * 5) % tex.width + tex.width) % tex.width);
+      const oy = Math.floor(((cam.y * 0.6) % (tex.height * 2) + tex.height * 2) % (tex.height * 2));
+      for (let y = -oy; y < H; y += tex.height * 2) for (let x = -ox; x < W; x += tex.width) g.drawImage(tex, x, y);
+      g.globalAlpha = 1;
+    }
+  }
+  function drawOutline(g, it, color) {
+    const f = it.f;
+    const o = occ.outline(f.img, f.sx, f.sy, f.w, f.h, color);
+    const dx = it.x - f.ox - cam.x - 1, dy = it.y - f.oy - cam.y - 1;
+    if (f.flip) { g.save(); g.scale(-1, 1); g.drawImage(o, -(dx + o.width), dy); g.restore(); } else g.drawImage(o, dx, dy);
+  }
+  /** A pixel-hard elliptical ring two pixels thick. */
+  function thickRing(w, h, color) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const gg = c.getContext('2d');
+    gg.fillStyle = color;
+    const rx = w / 2, ry = h / 2;
+    const inside = (x, y, sx2, sy2) => ((x + 0.5 - rx) / sx2) ** 2 + ((y + 0.5 - ry) / sy2) ** 2 <= 1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (inside(x, y, rx, ry) && !inside(x, y, rx - 2.1, ry - 2.1)) gg.fillRect(x, y, 1, 1);
+    return c;
   }
 
   function devToWorld(dx, dy) {

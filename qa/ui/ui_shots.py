@@ -99,6 +99,7 @@ def desktop(browser, a):
     shots.append(shot(page, 'ui_hud_new_hero'))
     # character select with 6 heroes: back to the title through the options menu (Esc -> Character select)
     page.evaluate('''(() => { const s = window.__realms.ui.store; for (const [n, c, l] of [['Abcdefghijkl','mender',2],['Mo','scribe',0],['Tess','wayfinder',1],['Brambleton','warden',2],['Ivy','inkblade',0]]) s.add({ name: n, cls: c, look: l }); })()''')
+    page.evaluate('window.__realms.ui.act.dismissHint()')         # the new hero's controls card takes the first Esc
     page.keyboard.press('Escape')
     page.wait_for_timeout(200)
     opened = ui_state(page)['open']
@@ -127,7 +128,9 @@ def desktop(browser, a):
     t = page.evaluate('window.__realms.player().target')
     page.keyboard.press('Digit1'); page.wait_for_timeout(120)
     cast_logged = page.evaluate('window.__realms.commandLog.some(c => c[2].t === "cast" && c[2].slot === 1)')
+    page.wait_for_timeout(1100)                                     # a press during the global cooldown is dropped (fix 1)
     r = region(page, 'slot', slot=2); click(page, *center(r))
+    page.wait_for_timeout(120)
     clicked = page.evaluate('window.__realms.commandLog.some(c => c[2].t === "cast" && c[2].slot === 2)')
     check('hud_target_and_cast', t is not None and cast_logged and clicked, target=t, key_cast=cast_logged, click_cast=clicked, errors=errors)
     ctx.close()
@@ -242,7 +245,8 @@ def phone(browser, a):
     check('phone_create', touch_on and st['name'] == 'Quillamina' and me and me['cls'] == 'scribe', state=st, errors=errors)
     # walk with the joystick (left half), screenshot while held
     p0 = page.evaluate('window.__realms.player()')
-    cdp = touch_drag(page, 120, 250, 120, 210, hold_ms=700)
+    hw, hh = page.evaluate('[window.__realms.renderer.layout.hudW, window.__realms.renderer.layout.hudH]')   # the phone HUD layer follows the screen (fix 1)
+    cdp = touch_drag(page, hw * 0.19, hh * 0.69, hw * 0.19, hh * 0.58, hold_ms=700)
     shots.append(shot(page, 'phone_hud_joystick'))
     cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
     page.wait_for_timeout(200)

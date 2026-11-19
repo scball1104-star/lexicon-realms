@@ -203,13 +203,21 @@ export function createGfx(art) {
     },
 
     // ---------------------------------------------------------------- heads and portraits
+    /** A 12 px head: the npc atlas by npc id first (assets/portraits/npc_heads.json), then LQ's heads by sprite key. */
     head(ctx, who, x, y) {
+      const nh = art.npcArt && art.npcArt.heads;
+      const nk = nh && who && ((nh.json.npcs || {})[who] || (nh.json.frames[`head_${who}`] ? `head_${who}` : null));
+      if (nk && nh.json.frames[nk]) { const r = nh.json.frames[nk]; ctx.drawImage(nh.img, r[0], r[1], r[2], r[3], Math.round(x), Math.round(y), r[2], r[3]); return true; }
       const f = art.heads.frames[`head_${who}`];
       if (!f) return false;
       ctx.drawImage(art.headsImg, f[0], f[1], f[2], f[3], Math.round(x), Math.round(y), f[2], f[3]);
       return true;
     },
+    /** A portrait: the npc atlas by npc id first (assets/portraits/npc_portraits.json, 32 px), then LQ's portraits. */
     portrait(ctx, who, x, y, size = 32) {
+      const np = art.npcArt && art.npcArt.portraits;
+      const nk = np && who && size === 32 && ((np.json.npcs || {})[who] || (np.json.frames[`${who}_32`] ? `${who}_32` : null));
+      if (nk && np.json.frames[nk]) { const r = np.json.frames[nk]; ctx.drawImage(np.img, r[0], r[1], r[2], r[3], Math.round(x), Math.round(y), r[2], r[3]); return true; }
       const f = art.portraits.frames[`${who}_${size}`];
       if (!f) return false;
       ctx.drawImage(art.portraitsImg, f[0], f[1], f[2], f[3], Math.round(x), Math.round(y), f[2], f[3]);

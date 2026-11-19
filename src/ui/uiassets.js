@@ -51,6 +51,12 @@ export async function loadUiArt({ font }) {
     const [j, i] = await Promise.all([optional(loadJson(`assets/icons/${k}.json`)), optional(loadImage(`assets/icons/${k}.png`))]);
     if (j && i) icons[k] = { json: j, img: i };
   }));
+  // npc heads and portraits (art lane, INTEGRATION_TODO 16): keyed by npc id through each json's `npcs` map; optional
+  const npcArt = {};
+  await Promise.all([['heads', 'npc_heads'], ['portraits', 'npc_portraits']].map(async ([k, f]) => {
+    const [j, i] = await Promise.all([optional(loadJson(`assets/portraits/${f}.json`)), optional(loadImage(`assets/portraits/${f}.png`))]);
+    if (j && i) npcArt[k] = { json: j, img: i };
+  }));
   setNamedColors(js.ui.textColors);
   setNamedColors(js.ui.rarity);
   const large = new BitmapFont(js.large, img.large, { id: 'large', fallback: font });
@@ -58,6 +64,6 @@ export async function loadUiArt({ font }) {
     ui: js.ui, uiImg: img.ui, win: js.window, winImg: img.window,
     font, large, num: js.num, numBig: js.numBig, numImg: img.num,
     heads: js.heads, headsImg: img.heads, portraits: js.portraits, portraitsImg: img.portraits,
-    logo: img.logo, backdrop: img.backdrop, party: js.party, partyImg: img.party, chars, icons,
+    logo: img.logo, backdrop: img.backdrop, party: js.party, partyImg: img.party, chars, icons, npcArt,
   };
 }

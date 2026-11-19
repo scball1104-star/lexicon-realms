@@ -10,6 +10,8 @@ import { talentTree, treeTiers, talentState, canUnlearn, talentPointsAt, rankTex
 import { eventLines } from '../../src/ui/eventlog.js';
 import { joyKeys } from '../../src/input/touch.js';
 import { createInput } from '../../src/input/input.js';
+import { layoutFor } from '../../src/render/camera.js';
+import { questWheres, placeName } from '../../src/ui/uivm.js';
 
 function fakeStorage() {
   const m = new Map();
@@ -176,7 +178,9 @@ export const tests = [
       eq(lines({ type: 'zone', id: 1, to: 'valley' })[0].text, 'Entered Willowmere Valley.');
       eq(lines({ type: 'damage', src: 1, dst: 2, ability: 'warden_strike', amount: 214, crit: true, result: 'hit' })[0].text, 'Your Strike hits Briar Wolf for 214 (critical).');
       eq(lines({ type: 'damage', src: 2, dst: 1, ability: 'auto', amount: 9, result: 'hit' })[0].ch, 'damage_in');
-      eq(lines({ type: 'cast_fail', src: 1, reason: 'gcd' })[0].text, 'Not ready yet.');
+      eq(lines({ type: 'cast_fail', src: 1, reason: 'gcd' }).length, 0, 'the global cooldown is never logged (CRITIQUE_1 item 19)');
+      eq(eventLines({ type: 'cast_fail', src: 1, reason: 'resource' }, { me: 1, resourceKind: 'resolve' })[0].text, 'Not enough Resolve.', 'class resource word (item 5)');
+      eq(eventLines({ type: 'cast_fail', src: 1, reason: 'resource' }, { me: 1, resourceKind: 'focus' })[0].quiet, true, 'resource errors are quiet');
       eq(lines({ type: 'damage', src: 3, dst: 2, amount: 5 }).length, 0, 'other people\'s fights stay out');
       eq(joyKeys(2, 2).length, 0, 'dead zone'); eq(joyKeys(20, 0).join(), 'KeyD'); eq(joyKeys(0, -20).join(), 'KeyW'); eq(joyKeys(14, 14).sort().join(), 'KeyD,KeyS');
       const { world } = newWorld(2);
@@ -187,6 +191,81 @@ export const tests = [
       input.inject({ k: 'interact' });
       const cmds = input.poll({ snap: world.snapshot(), playerId: pid });
       eq(JSON.stringify(cmds), JSON.stringify([{ t: 'target', id: mael.id }, { t: 'interact', id: mael.id }]));
+    },
+  },
+  {
+    name: 'fix 1 input: Tab takes your attackers first; a press near the end of the GCD waits; tap on ground walks; F prefers a quest mark',
+    fn() {
+      const target = { addEventListener() {}, getBoundingClientRect: () => ({ left: 0, top: 0, width: 1, height: 1 }), width: 1, height: 1 };
+      const me = { id: 1, kind: 'player', zone: 'z', x: 100, y: 100, dir: 'down', bar: ['a1'] };
+      const mob = (id, x, y, extra = {}) => ({ id, kind: 'mob', faction: 'hostile', zone: 'z', x, y, ...extra });
+      // a slime in front, close; a wolf beside you that is biting you: the wolf comes first (CRITIQUE_1 item 11)
+      let input = createInput(target, target);
+      input.inject({ k: 'tab' });
+      let snap = { tick: 0, entities: [me, mob(2, 100, 130), mob(3, 140, 100, { aggro: 1 }), mob(4, 100, 900)], hud: { 1: { gcdLeft: 0 } } };
+      eq(JSON.stringify(input.poll({ snap, playerId: 1 })), JSON.stringify([{ t: 'target', id: 3 }]), 'attacker first');
+      input = createInput(target, target);
+      input.inject({ k: 'tab' });
+      snap = { tick: 0, entities: [me, mob(2, 100, 160), mob(3, 140, 100), mob(4, 100, 900)], hud: { 1: { gcdLeft: 0 } } };
+      eq(input.poll({ snap, playerId: 1 })[0].id, 2, 'then the nearest, in front counts nearer; out of range never');
+      // the GCD queue (item 19): 0.3 s left -> held; 0 left -> sent; 0.8 s left -> dropped
+      input = createInput(target, target, { abilities: { a1: { id: 'a1', gcd: true } } });
+      input.inject({ k: 'cast', slot: 1 });
+      eq(input.poll({ snap: { tick: 0, entities: [me], hud: { 1: { gcdLeft: 0.3 } } }, playerId: 1 }).length, 0, 'held');
+      eq(JSON.stringify(input.poll({ snap: { tick: 8, entities: [me], hud: { 1: { gcdLeft: 0 } } }, playerId: 1 })), JSON.stringify([{ t: 'cast', slot: 1, target: null }]), 'sent');
+      input.inject({ k: 'cast', slot: 1 });
+      eq(input.poll({ snap: { tick: 9, entities: [me], hud: { 1: { gcdLeft: 0.8 } } }, playerId: 1 }).length, 0, 'early press dropped');
+      eq(input.poll({ snap: { tick: 30, entities: [me], hud: { 1: { gcdLeft: 0 } } }, playerId: 1 }).length, 0, 'and never sent');
+      // tap on empty ground (item 8): ordinary move commands toward the spot, then stop
+      input = createInput(target, target);
+      input.inject({ k: 'tap', x: 0, y: 0 });
+      const walk = { ...me };
+      const c1 = input.poll({ snap: { tick: 0, entities: [walk], hud: {} }, playerId: 1, pick: () => null, toWorld: () => [160, 98] });
+      eq(JSON.stringify(c1), JSON.stringify([{ t: 'move', dx: 1, dy: 0 }]), 'walks right');
+      walk.x = 159;
+      eq(JSON.stringify(input.poll({ snap: { tick: 1, entities: [walk], hud: {} }, playerId: 1 })), JSON.stringify([{ t: 'stop' }]), 'stops there');
+      // F: the npc with a ! wins over a nearer plain npc (item 21)
+      input = createInput(target, target);
+      input.inject({ k: 'interact' });
+      const npcs = [{ id: 7, kind: 'npc', zone: 'z', x: 110, y: 100 }, { id: 8, kind: 'npc', zone: 'z', x: 130, y: 100 }];
+      const out = input.poll({ snap: { tick: 0, entities: [me, ...npcs], hud: { 1: { gcdLeft: 0, npcMarkers: { 8: '!' } } } }, playerId: 1 });
+      eq(JSON.stringify(out), JSON.stringify([{ t: 'target', id: 8 }, { t: 'interact', id: 8 }]));
+    },
+  },
+  {
+    name: 'fix 1 phone layout: the screen is filled (no bars), the HUD layer is legible (>= 1.5 css px per HUD px), desktop unchanged',
+    fn() {
+      for (const [w, h, dpr] of [[844, 390, 3], [932, 430, 3], [915, 412, 2.625], [844, 390, 2], [1280, 720, 2]]) {
+        const dw = Math.round(w * dpr), dh = Math.round(h * dpr);
+        const L = layoutFor(dw, dh, 1.5, { touch: true, hud: 'big', dpr });
+        assert(dw - L.hudW * L.base < L.base && dh - L.hudH * L.base < L.base, `HUD layer fills ${w}x${h}`);
+        assert(L.viewW * L.ws >= dw && L.viewH * L.ws >= dh, `world fills ${w}x${h}`);
+        assert(L.base / dpr >= 1.5 - 1e-9 || L.hudH < 210, `legible at ${w}x${h}: ${L.base / dpr} css px per HUD px`);
+        assert(L.hudH >= 200, `room for the HUD at ${w}x${h}`);
+        const Lw = layoutFor(dw, dh, 1.5, { touch: true, hud: 'win', dpr });
+        assert(Lw.hudW >= 640 && Lw.hudH >= 360, 'menu windows fit their 640x360 designs');
+        const T = hudLayout({ touch: true, minHit: hitPx(L.base / dpr), W: L.hudW, H: L.hudH });
+        for (const b of [...T.cluster, ...T.menuBar, T.minimap, T.player]) assert(b.x >= 0 && b.y >= 0 && b.x + b.w <= L.hudW && b.y + b.h <= L.hudH, `${b.id || 'box'} on screen at ${w}x${h}`);
+        const all = [...T.cluster, ...T.menuBar, T.minimap];
+        for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert(!rectsOverlap(all[i], all[j]), `overlap at ${w}x${h}`);
+      }
+      const d = layoutFor(1920, 1080, 1);
+      eq(d.base, 3); eq(d.hudW, 640); eq(d.hudH, 360); eq(d.ox, 0);
+    },
+  },
+  {
+    name: 'fix 1 quest places: where circles (px) become tiles, the turn-in once ready, a place name from the zone areas',
+    fn() {
+      const row = { quest: 'q', ready: false, rows: [{ label: 'a', cur: 0, need: 2, where: [{ zone: 'v', x: 320, y: 160, r: 48 }] }, { label: 'b', cur: 1, need: 1, done: true, where: [{ zone: 'v', x: 0, y: 0, r: 16 }] }],
+        turnIn: { npc: 'n', name: 'Nella', where: [{ zone: 'w', x: 32, y: 32, r: 24 }] } };
+      const w = questWheres(row);
+      eq(w.length, 1, 'done objectives drop out'); eq(w[0].x, 20); eq(w[0].y, 10); eq(w[0].r, 3);
+      const t = questWheres({ ...row, ready: true });
+      eq(t[0].zone, 'w'); eq(t[0].turnIn, true);
+      eq(placeName(w[0], { v: { areas: [{ name: 'The Fork', x: 15, y: 5, w: 10, h: 10 }] } }), 'The Fork');
+      const rows = trackerRows([{ id: 'q', name: 'Q', objectives: [], areaName: 'The Fork' }, { id: 'r', name: 'R', done: true, turnInName: 'Nella', objectives: [] }], 184, wrapBy, charW, { areas: true });
+      assert(rows.some((r) => r.kind === 'area' && r.text === 'The Fork'), 'place line');
+      assert(rows.some((r) => r.kind === 'area' && r.text === 'Return to Nella'), 'hand-in line');
     },
   },
 ];

@@ -47,7 +47,7 @@
         .map((e) => ({ id: e.id, template: e.template, level: e.level, x: e.x, y: e.y, tx: Math.floor(e.x / T), ty: Math.floor((e.y - 1) / T), hp: e.hp, d: Math.hypot(e.x - p.x, e.y - p.y), aggro: e.aggro }))
         .sort((a, b) => a.d - b.d);
     },
-    ent(id) { const e = R.snapshot().entities.find((o) => o.id === id); return e ? { id: e.id, dead: e.dead, hp: e.hp, hpMax: e.hpMax, x: e.x, y: e.y, zone: e.zone, kind: e.kind } : null; },
+    ent(id) { const e = R.snapshot().entities.find((o) => o.id === id); return e ? { id: e.id, dead: e.dead, hp: e.hp, hpMax: e.hpMax, x: e.x, y: e.y, zone: e.zone, kind: e.kind, aiMode: e.aiMode, aggro: e.aggro, level: e.level } : null; },
     /** Plan a walk to (zone, tx, ty), stopping within `near` tiles. */
     plan(zone, tx, ty, near = 0) {
       const p = me(); if (!p) return false;

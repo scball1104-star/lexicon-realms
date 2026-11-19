@@ -5,7 +5,8 @@
 //
 // Bindings (phase 1; rebinding comes with the options menu):
 //   WASD / arrows   move (8 directions). Emits { t:'move', dx, dy } when the held direction changes, { t:'stop' } on release
-//   Tab             cycle hostile targets, nearest first (Shift+Tab backwards)
+//   Tab             cycle hostile targets: foes attacking you first (nearest first), then foes in front of you, then the
+//                   rest, all within TAB_RANGE_PX (Shift+Tab backwards). Fix wave 2026-11-19, CRITIQUE_1 item 11.
 //   left click      target the entity under the cursor
 //   right click     on an NPC: target + interact; on anything else: target
 //   1-6             { t:'cast', slot: n, target }
@@ -16,8 +17,11 @@ const MOVE_KEYS = {
   KeyW: [0, -1], ArrowUp: [0, -1], KeyS: [0, 1], ArrowDown: [0, 1],
   KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0],
 };
-export const TAB_RANGE_PX = 400;
+export const TAB_RANGE_PX = 280;      // about the width of the view at zoom 1.5: never a foe you cannot see
 export const INTERACT_REACH_PX = 48;   // HUD AGENT EDIT: nearest-NPC search for the Interact intent (sim reach is 40)
+export const GCD_QUEUE_S = 0.4;        // a press in the last 0.4 s of the global cooldown waits for it (CRITIQUE_1 item 19)
+export const TALK_REACH_PX = 34;       // walking to an npc to talk stops this close (the sim's reach is 40)
+const DIR8 = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] };
 
 export function createInput(keyTarget, canvas, { abilities = {} } = {}) {
   const held = new Set();
@@ -26,6 +30,8 @@ export function createInput(keyTarget, canvas, { abilities = {} } = {}) {
   let mouse = null;              // last canvas device-pixel point (ground-targeted casts aim here on desktop)
   let touchMode = false;
   let tabCycle = [];             // ids in the last Tab order, to step through them
+  let queued = null;             // a cast pressed near the end of the global cooldown: { intent, until (s of game time) }
+  let goal = null;               // tap-to-walk / walk-to-talk: { x, y, reach, then: cmd | null, best, stuck, n }
 
   const onKey = (down) => (ev) => {
     if (ev.repeat && down) { if (ev.code === 'Tab') ev.preventDefault(); return; }
@@ -64,14 +70,36 @@ export function createInput(keyTarget, canvas, { abilities = {} } = {}) {
     return { x: Math.round(me.x + d[0] * 48), y: Math.round(me.y + d[1] * 48) };
   }
 
-  /** Hostiles in the player's zone within TAB_RANGE_PX, nearest first (ties by id: deterministic). */
+  /**
+   * Hostiles in the player's zone within TAB_RANGE_PX in Tab order: foes attacking you (their target is you) nearest
+   * first, then the rest by distance, where a foe in front of you (the way you face, within 60 degrees) counts as 40%
+   * nearer; ties by id (deterministic).
+   */
   function hostilesByDistance(snap, me) {
+    const f = DIR8[me.dir] || [0, 1];
     return snap.entities
-      .filter((e) => e.zone === me.zone && !e.dead && e.faction === 'hostile')
-      .map((e) => ({ id: e.id, d: Math.hypot(e.x - me.x, e.y - me.y) }))
-      .filter((o) => o.d <= TAB_RANGE_PX)
-      .sort((a, b) => a.d - b.d || a.id - b.id)
+      .filter((e) => e.zone === me.zone && !e.dead && e.faction === 'hostile' && e.kind !== 'object')
+      .map((e) => {
+        const dx = e.x - me.x, dy = e.y - me.y, d = Math.hypot(dx, dy);
+        const onMe = e.target === me.id || e.aggro === me.id;
+        const front = d > 0 && (dx * f[0] + dy * f[1]) / d >= 0.5;
+        return { id: e.id, d, rank: onMe ? 0 : 1, score: front ? d * 0.6 : d };
+      })
+      .filter((o) => o.d <= TAB_RANGE_PX || o.rank === 0)
+      .sort((a, b) => a.rank - b.rank || a.score - b.score || a.id - b.id)
       .map((o) => o.id);
+  }
+
+  /** One step of walking toward the goal: a move command when the direction changes, null otherwise. */
+  function walkStep(me) {
+    const dx = goal.x - me.x, dy = goal.y - me.y, d = Math.hypot(dx, dy);
+    if (d <= goal.reach) return 'arrived';
+    // stuck: no progress for 1 s -> give up (the player can tap again or use the stick)
+    if (d < goal.best - 0.5) { goal.best = d; goal.n = 0; } else if (++goal.n > 20) return 'stuck';
+    const t = 0.38;   // tan(22.5 deg): pick the nearest of 8 directions
+    const mx = Math.abs(dx) > Math.abs(dy) * t ? Math.sign(dx) : 0;
+    const my = Math.abs(dy) > Math.abs(dx) * t ? Math.sign(dy) : 0;
+    return [mx, my];
   }
 
   return {
@@ -86,18 +114,34 @@ export function createInput(keyTarget, canvas, { abilities = {} } = {}) {
     poll({ snap, playerId, pick, toWorld = null }) {
       const out = [];
       const me = snap && snap.entities.find((e) => e.id === playerId);
-      // movement: held keys -> one direction
+      const hud = snap && snap.hud && playerId != null ? snap.hud[playerId] : null;
+      const intents = pending.splice(0, pending.length);
+      // movement: held keys -> one direction. Keys (or the stick) cancel a tap-to-walk goal.
       let dx = 0, dy = 0;
       for (const c of held) { dx += MOVE_KEYS[c][0]; dy += MOVE_KEYS[c][1]; }
       dx = Math.sign(dx); dy = Math.sign(dy);
+      if (held.size) goal = null;
+      if (goal && me && !me.dead) {
+        const s = walkStep(me);
+        if (s === 'arrived' || s === 'stuck') {
+          if (s === 'arrived' && goal.then) intents.push({ k: '_cmd', cmd: goal.then });
+          goal = null;
+        } else [dx, dy] = s;
+      } else if (goal) goal = null;
       if (dx !== lastMove[0] || dy !== lastMove[1]) {
         out.push(dx === 0 && dy === 0 ? { t: 'stop' } : { t: 'move', dx, dy });
         lastMove = [dx, dy];
       }
-      const intents = pending.splice(0, pending.length);
-      if (!me) return out;
+      if (!me) { queued = null; return out; }
+      // a cast queued during the global cooldown goes out the tick the cooldown ends
+      const gcdLeft = hud ? hud.gcdLeft || 0 : 0;
+      const now = (snap.tick || 0) / 20;
+      if (queued && (now > queued.until || me.dead)) queued = null;
+      if (queued && gcdLeft <= 0.001) { intents.unshift(queued.intent); queued = null; }
       let target = me.target;
+      const walkTo = (x, y, reach, then) => { goal = { x, y, reach, then, best: Infinity, n: 0, fresh: true }; };
       for (const it of intents) {
+        if (it.k === '_cmd') { out.push(it.cmd); continue; }
         if (it.k === 'tab') {
           const list = hostilesByDistance(snap, me);
           if (!list.length) continue;
@@ -111,27 +155,58 @@ export function createInput(keyTarget, canvas, { abilities = {} } = {}) {
           if (target != null) { target = null; out.push({ t: 'target', id: null }); }
         } else if (it.k === 'click' || it.k === 'rclick' || it.k === 'tap') {
           // left click: target. right click: an NPC or a quest node -> talk / use; a foe -> attack (auto-attack on).
-          // tap (phone): target, and talk to an NPC or use a node (a foe is only targeted; skills start the fight)
+          // tap (phone): target, and talk to an NPC or use a node (a foe is only targeted; skills start the fight);
+          // a tap on empty ground walks there (CRITIQUE_1 item 8)
           const id = pick ? pick(it.x, it.y) : null;
-          if (id == null || id === me.id) continue;
+          if (id == null) {
+            if (it.k === 'tap' && toWorld && !me.dead) { const [wx, wy] = toWorld(it.x, it.y); walkTo(Math.round(wx), Math.round(wy) + 2, 3, null); }
+            continue;
+          }
+          if (id === me.id) continue;
           const e = snap.entities.find((o) => o.id === id);
           if (it.k === 'rclick' && e && e.kind === 'mob' && e.faction === 'hostile' && !e.dead) { target = id; out.push({ t: 'attack', id }); continue; }
           if (id !== target && !(e && e.kind === 'object' && e.node)) { target = id; out.push({ t: 'target', id }); }
-          if ((it.k === 'rclick' || it.k === 'tap') && e && (e.kind === 'npc' || (e.kind === 'object' && e.node))) out.push({ t: 'interact', id });
+          if ((it.k === 'rclick' || it.k === 'tap') && e && (e.kind === 'npc' || (e.kind === 'object' && e.node))) {
+            const d = Math.hypot(e.x - me.x, e.y - me.y);
+            if (it.k === 'tap' && d > INTERACT_REACH_PX - 8) walkTo(e.x, e.y, TALK_REACH_PX, { t: 'interact', id });
+            else out.push({ t: 'interact', id });
+          }
+        } else if (it.k === 'talk') {
+          // a click or tap on a quest mark: talk to that npc, walking there first when it is out of reach
+          const e = snap.entities.find((o) => o.id === it.id);
+          if (!e || e.zone !== me.zone || e.dead) continue;
+          if (e.id !== target && e.kind === 'npc') { target = e.id; out.push({ t: 'target', id: e.id }); }
+          if (Math.hypot(e.x - me.x, e.y - me.y) <= INTERACT_REACH_PX - 8) out.push({ t: 'interact', id: e.id });
+          else walkTo(e.x, e.y, TALK_REACH_PX, { t: 'interact', id: e.id });
         } else if (it.k === 'cast') {
           const abId = it.ability || (me.bar ? me.bar[it.slot - 1] : null);
           const ab = abId ? abilities[abId] : null;
+          // the global cooldown: a press in its last GCD_QUEUE_S waits for it; an earlier one is dropped without a word
+          const offGcd = ab && ab.gcd === false;
+          if (!offGcd && gcdLeft > 0.001 && !it.fromQueue) {
+            if (gcdLeft <= GCD_QUEUE_S) queued = { intent: { ...it, fromQueue: true }, until: now + gcdLeft + 0.3 };
+            continue;
+          }
           if (ab && ab.target === 'ground') {
             out.push({ t: 'cast', slot: it.slot, target: target ?? null, at: groundPoint(snap, me, target, toWorld) });
             continue;
           }
           out.push({ t: 'cast', slot: it.slot, target: target ?? null });
         } else if (it.k === 'interact') {
-          // HUD AGENT EDIT 2026-11-19: the Interact key (F) and the phone Talk button. Talk to the current target when
-          // it is an NPC, else the nearest NPC within reach (targeting it first so the HUD shows who you talk to).
+          // The Interact key (F) and the phone Talk button: the nearest NPC with a quest mark (! or ?) within reach first
+          // (CRITIQUE_1 item 21), then the current target when it is an NPC within reach, else the nearest NPC or node.
           let npcId = null;
+          const marks = (hud && hud.npcMarkers) || {};
+          let bestMark = INTERACT_REACH_PX + 1;
+          for (const o of snap.entities) {
+            const mk = marks[o.id];
+            if (o.kind !== 'npc' || o.zone !== me.zone || o.dead || !(mk === '!' || mk === '?')) continue;
+            const d = Math.hypot(o.x - me.x, o.y - me.y);
+            if (d < bestMark || (d === bestMark && npcId != null && o.id < npcId)) { bestMark = d; npcId = o.id; }
+          }
           const cur = target != null ? snap.entities.find((o) => o.id === target) : null;
-          if (cur && cur.kind === 'npc' && Math.hypot(cur.x - me.x, cur.y - me.y) <= INTERACT_REACH_PX) npcId = cur.id;
+          if (npcId != null) { /* a quest giver in reach wins */ }
+          else if (cur && cur.kind === 'npc' && Math.hypot(cur.x - me.x, cur.y - me.y) <= INTERACT_REACH_PX) npcId = cur.id;
           else {
             let best = INTERACT_REACH_PX + 1;
             for (const o of snap.entities) {
@@ -146,6 +221,12 @@ export function createInput(keyTarget, canvas, { abilities = {} } = {}) {
             out.push({ t: 'interact', id: npcId });
           }
         }
+      }
+      // a walk goal set this poll starts this tick (no one-tick lag after a tap)
+      if (goal && goal.fresh && !held.size) {
+        goal.fresh = false;
+        const st = walkStep(me);
+        if (Array.isArray(st) && (st[0] !== lastMove[0] || st[1] !== lastMove[1])) { out.push({ t: 'move', dx: st[0], dy: st[1] }); lastMove = st; }
       }
       return out;
     },

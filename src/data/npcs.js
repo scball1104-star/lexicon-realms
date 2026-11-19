@@ -72,7 +72,7 @@ export const NPCS = {
   },
 
   sloe: {
-    id: 'sloe', name: 'Sloe', sprite: 'npc_vessa', title: 'Inkblade Trainer', faction: 'friendly', roles: ['trainer'],
+    id: 'sloe', name: 'Sloe', sprite: 'npc_sloe', title: 'Inkblade Trainer', faction: 'friendly', roles: ['trainer'],
     vendor: null, trainer: { cls: 'inkblade' }, innkeeper: false, lq: null,
     talk: [
       'You walked right past me. Good. Now you know what the lesson is.',
@@ -215,7 +215,7 @@ export const NPCS = {
   // The valley
   // ---------------------------------------------------------------------------------------------
   penny: {
-    id: 'penny', name: 'Penny', sprite: 'npc_shopkeeper', title: 'Peddler', faction: 'friendly', roles: ['quest', 'vendor'],
+    id: 'penny', name: 'Penny', sprite: 'npc_penny', title: 'Peddler', faction: 'friendly', roles: ['quest', 'vendor'],
     vendor: { items: [{ item: 'potion' }, { item: 'ether' }] }, trainer: null, innkeeper: false, lq: 'penny',
     talk: [
       'Supplies for the road! Potions, remedies, and directions. The directions are free.',
@@ -224,7 +224,7 @@ export const NPCS = {
   },
 
   quill: {
-    id: 'quill', name: 'Quill', sprite: 'npc_scholar', title: null, faction: 'friendly', roles: ['quest'],
+    id: 'quill', name: 'Quill', sprite: 'npc_quill', title: null, faction: 'friendly', roles: ['quest'],
     vendor: null, trainer: null, innkeeper: false, lq: 'quill',
     talk: [
       'I walk the pilgrim road every year to copy the milestone. Every name, twice.',
@@ -295,7 +295,7 @@ export const NPCS = {
   },
 
   sorrel: {
-    id: 'sorrel', name: 'Sorrel', sprite: 'npc_farmer', title: 'Peat-cutter', faction: 'friendly', roles: ['quest'],
+    id: 'sorrel', name: 'Sorrel', sprite: 'npc_sorrel', title: 'Peat-cutter', faction: 'friendly', roles: ['quest'],
     vendor: null, trainer: null, innkeeper: false, lq: null,
     talk: [
       'Every hearth in Thornfold burns my peat. I like to think they think of me. They do not.',

@@ -18,7 +18,7 @@ export function talentTooltip(tree, t, alloc, free, touch) {
   const foot = st.canLearn ? `${touch ? 'Tap Learn' : 'Click'} to learn rank ${st.rank + 1} (1 point)` : st.why === 'maxed' ? 'Fully learned.' : `${st.why}.`;
   return {
     title: t.name, right: `Rank ${st.rank}/${t.maxRanks}`,
-    sub: `${branch}  Tier ${t.tier}  ${t.play ? 'Playstyle' : 'Passive'}`, body,
+    sub: `${branch}  Tier ${t.tier}  ${t.play ? 'Changes how you play (+ mark)' : 'A steady bonus'}`, body,
     foot: foot + (!touch && canUnlearn(tree, alloc, t.id) ? ' Right-click to unlearn.' : ''),
     footColor: st.canLearn || st.why === 'maxed' ? 'green' : 'red',
   };
@@ -49,7 +49,9 @@ export function drawTalents(ctx, env, m, st, regions, act) {
   g.text(ctx, `${p.name}   Level ${p.level}`, P.x + 50, P.y + 26, 'gray');
   const pts = m.talentPoints;
   g.text(ctx, `Talent points: ${pts.free}`, P.x + P.w - 12, P.y + 10, 'gold', { large: true, align: 'right' });
-  g.text(ctx, `Spent: ${pts.spent}`, P.x + P.w - 12, P.y + 26, 'gray', { align: 'right' });
+  // no points yet: say when the first one comes (CRITIQUE_1 item 14)
+  if (!pts.total) g.text(ctx, 'Your first point comes at level 5, then one every level.', P.x + P.w - 12, P.y + 26, 'orange', { align: 'right' });
+  else g.text(ctx, `Spent: ${pts.spent}`, P.x + P.w - 12, P.y + 26, 'gray', { align: 'right' });
   g.rect(ctx, P.x + 8, P.y + 44, P.w - 17, 1, '#0e153b');
   g.rect(ctx, P.x + 8, P.y + 45, P.w - 17, 1, '#6891d9');
   if (!tree) { g.text(ctx, 'No talent data for this class yet.', W / 2, 180, 'gray', { align: 'center' }); return; }
@@ -89,7 +91,7 @@ export function drawTalents(ctx, env, m, st, regions, act) {
       if (s.state === 'locked') g.scrim(ctx, n.x + 2, n.y + 2, n.w - 4, n.h - 4, 90);
       if (s.state === 'taken') g.outline(ctx, n.x - 1, n.y - 1, n.x + n.w, n.y + n.h, '#f9d77a');
       else if (s.canLearn) g.outline(ctx, n.x - 1, n.y - 1, n.x + n.w, n.y + n.h, '#b6cc58');
-      if (t.play) g.rect(ctx, n.x + n.w - 4, n.y + 2, 2, 2, '#fff7d6');
+      if (t.play) { g.rect(ctx, n.x + n.w - 6, n.y + 1, 5, 5, '#14101e'); g.rect(ctx, n.x + n.w - 5, n.y + 3, 3, 1, '#fff7d6'); g.rect(ctx, n.x + n.w - 4, n.y + 2, 1, 3, '#fff7d6'); }
       const rc = s.state === 'taken' ? 'gold' : s.canLearn ? 'green' : 'dim';
       g.text(ctx, `${s.rank}/${t.maxRanks}`, n.cx + 1, n.y + n.h + 1, rc, { align: 'center' });
       const sel = st.talentSel === n.id;
@@ -109,12 +111,8 @@ export function drawTalents(ctx, env, m, st, regions, act) {
   g.text(ctx, 'Close', P.x + 32, fy, 'white');
   regions.push({ rect: { x: P.x + 8, y: fy - 4, w: Math.max(56, env.L.minHit || 0), h: Math.max(18, env.L.minHit || 0) }, kind: 'button', on: () => act.close('talents') });
   g.text(ctx, env.L.touch ? 'Tap a talent to see it, then Learn or Unlearn.' : 'Click a lit talent to learn it.  Right-click to unlearn.', W / 2, fy, 'gray', { align: 'center' });
-  const resetConfirm = st.confirm === 'respec';
-  const rlabel = resetConfirm ? 'Reset all? Press again' : 'Reset (5g)';
-  g.text(ctx, rlabel, P.x + P.w - 12, fy, resetConfirm ? 'orange' : pts.spent ? 'cream' : 'dim', { align: 'right' });
-  const rw = g.textW(rlabel) + 8;
-  regions.push({ rect: { x: P.x + P.w - 8 - Math.max(rw, env.L.minHit || 0), y: fy - 4, w: Math.max(rw, env.L.minHit || 0), h: Math.max(18, env.L.minHit || 0) }, kind: 'button',
-    on: () => { if (!pts.spent) return; if (st.confirm === 'respec') { st.confirm = null; act.respec(); } else st.confirm = 'respec'; } });
+  // a full reset happens at your class trainer (the sim refuses it anywhere else), so this only says where
+  g.text(ctx, 'Reset at your trainer', P.x + P.w - 12, fy, 'dim', { align: 'right' });
 
   // tooltip: hover (desktop) or the selected node (touch, with buttons)
   const show = env.L.touch ? (st.talentSel ? { n: cols.flatMap((c) => c.nodes).find((x) => x.id === st.talentSel), t: tree.talents[st.talentSel] } : null) : hovered;

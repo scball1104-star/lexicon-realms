@@ -129,7 +129,7 @@ class Game:
     def bar(self):
         return self.ev('(() => { const h = window.__realms.hud(); return h ? h.bar.map((b) => ({ slot: b.slot, ability: b.ability, usable: b.usable, cd: b.cdLeft, inRange: b.inRange })) : []; })()')
 
-    def fight(self, mob_id, slots=('Digit1', 'Digit2'), timeout=90):
+    def fight(self, mob_id, slots=('Digit1', 'Digit2'), timeout=90, each=None):
         t0 = time.time()
         attacked = False
         while time.time() - t0 < timeout:
@@ -141,6 +141,8 @@ class Game:
             if me['dead']:
                 self.hold([])
                 return False
+            if each:
+                each(me)
             d = ((m['x'] - me['x']) ** 2 + (m['y'] - me['y']) ** 2) ** 0.5
             if d > 26:
                 tx, ty = int(m['x'] // 16), int((m['y'] - 1) // 16)
@@ -153,7 +155,7 @@ class Game:
                     time.sleep(0.05)
                 continue
             self.hold([])
-            if not attacked or not me['autoOn']:
+            if not attacked or not me['autoOn'] or me['target'] != mob_id:
                 xy = self.ev(f'__drv.entCss({mob_id})')
                 if xy:
                     self.click_css(xy, 'right', 0.1)   # right-click a foe: target + auto-attack
@@ -163,7 +165,7 @@ class Game:
                 if k in slots and b['ability'] and b['usable'] and b['cd'] <= 0 and b['inRange']:
                     self.key(k, 0.05)
             time.sleep(0.12)
-        raise RuntimeError(f'fight timed out vs {mob_id}')
+        raise RuntimeError(f'fight timed out vs {mob_id}: mob {self.ev(f"__drv.ent({mob_id})")} me {self.me()}')
 
 
 def quest_state(g, qid):
@@ -293,27 +295,29 @@ def run():
         assert gold1 < gold0 and gold2 > gold1, 'buy took gold, sell paid'
         g.key('Escape', 0.2)
 
-        # ---- die on purpose (DEV hp 1, then let a slime finish it) and wake at the lantern
+        # ---- die on purpose (pull a slime, DEV hp 1 once it is fighting us, let it finish) and wake at the lantern.
+        # The hp drop waits for combat: out of combat a level 1-4 hero stands back 5% health a second (fix pass 1,
+        # PROGRESSION rest.standHpByLevel), so hp 1 set before the pull is a full bar again by the first swing.
         g.walk('valley', 12, 48, near=2, timeout=180)
-        g.ev('window.__realms.dev.hp(1)')
-        mobs = g.ev('__drv.mobs("ink_slime")')
+        # Commit to one slime at a time with the same fight loop as the quest (target it, walk to it, auto-attack);
+        # chasing "the nearest slime" each poll while auto-attack stayed on the first one never started a fight.
         died = False
         t0 = time.time()
-        while time.time() - t0 < 60 and mobs:
-            me = g.me()
-            if me['dead']:
+        while time.time() - t0 < 60 and not died:
+            if g.me()['dead']:
                 died = True
                 break
-            m = mobs[0]
-            g.ev(f'__drv.plan("valley", {m["tx"]}, {m["ty"]}, 1)')
-            s = g.ev('__drv.steer()')
-            g.hold(s['keys'])
-            if not me['autoOn']:
-                xy = g.ev(f'__drv.entCss({m["id"]})')
-                if xy:
-                    g.click_css(xy, 'right', 0.05)
-            time.sleep(0.1)
-            mobs = g.ev('__drv.mobs("ink_slime")')
+            mobs = g.ev('__drv.mobs("ink_slime", 3)')
+            if not mobs:
+                time.sleep(0.5)
+                continue
+            def one_hp(me):
+                if me['inCombat'] and me['hp'] > 1:
+                    g.ev('window.__realms.dev.hp(1)')
+            try:
+                died = g.fight(mobs[0]['id'], slots=(), timeout=max(5, 60 - (time.time() - t0)), each=one_hp) is False
+            except RuntimeError:
+                break
         g.hold([])
         assert died, 'died'
         time.sleep(0.6)

@@ -2,7 +2,8 @@
 // keyboard and mouse use, so the sim sees ordinary commands:
 //   - left thumb anywhere on the left half (not on a HUD element): a floating joystick appears under it and holds
 //     WASD through input.press / input.release (8 directions, small dead zone)
-//   - tap a foe to target it, tap an NPC to talk (input intent 'rclick' = target, plus interact for NPCs)
+//   - tap a foe to target it, tap an NPC to talk (input intent 'tap' = target, plus interact for NPCs); tap empty ground
+//     to walk there (fix wave 2026-11-19, CRITIQUE_1 item 8: input walks you there with ordinary move commands)
 //   - HUD elements (ability cluster, menu bar, windows) belong to the UI: ui.press() on touch start for the ability
 //     cluster (instant), on tap for everything else; long press (0.45 s) shows the tooltip instead of tapping
 // The joystick and pressed states are drawn by the HUD (src/ui/hud.js) from ui.setJoystick / ui.setPressed.
@@ -52,7 +53,7 @@ export function createTouch({ canvas, input, ui, now = () => performance.now() }
         if (rec.region && INSTANT.has(rec.region.kind)) { ui.press(p.x, p.y, 0); rec.fired = true; }
         if (rec.region && rec.region.drag) { rec.region.drag(p.x); rec.fired = true; }
         rec.timer = setTimeout(() => { rec.long = true; ui.setLongTip({ x: rec.x, y: rec.y }); }, LONG_PRESS_MS);
-      } else if (p.x < 320 && ![...touches.values()].some((o) => o.kind === 'joy')) {
+      } else if (p.x < ((ui.layout && ui.layout().W) || 640) / 2 && ![...touches.values()].some((o) => o.kind === 'joy')) {
         rec.kind = 'joy';
         rec.dev = devPoint(t);
         ui.setJoystick({ x: p.x, y: p.y, dx: 0, dy: 0 });

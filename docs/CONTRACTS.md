@@ -65,12 +65,13 @@ world.enqueue(entityId, cmd)          // local
 | `learn_talent` | `talent` | anywhere; needs a free point, the tier open in its branch, and ranks left | `talent` kind `learn`, or `talent_fail` reason `points`/`tier`/`max`/`requires`/`unknown` (LIVE) |
 | `unlearn_talent` | `talent`, `npc` (optional) | at your trainer: one rank back, refused if a deeper node needs it. Pays the respec price once per trainer visit | `respec_paid`, `talent` kind `unlearn`, or `talent_fail` reason `range`/`dependency`/`gold` (LIVE) |
 | `respec` | `npc` (optional) | at your trainer: refund every point. First respec free, then `10 + 5 x level` gold; one payment covers the visit | `respec_paid`, `talent` kind `respec` (LIVE) |
-| `quest_accept` / `quest_turnin` / `quest_abandon` | `quest`, `choice` (reward index) | the quest module (section 7.7) | `quest` (LIVE) |
-| `equip` | `bag` (bag index) or `item` | a `bag` item goes onto the belt (`player.bags`, at most 4; `inventory_fail` `bags_full`). Otherwise wear an item from the bag (class, required level, weapon and armor type checked; armor not in combat). A two-hand weapon clears the off hand; the old piece goes to the bag | `inventory` kind `equip`, or `inventory_fail` (LIVE) |
+| `quest_accept` / `quest_turnin` / `quest_abandon` | `quest`, `choice` (reward index), `npc` (entity id, optional) | the quest module (section 7.7). Accept and turn-in need the quest's giver / turn-in npc within 64 px in your zone (fix pass 1): `npc` names the dialog's entity, else any npc of that template in reach counts | `quest`, or `cmd_reject` reason `range` (LIVE) |
+| `loot_take` | `index` (optional, into `hud.pendingLoot`) | take loot that did not fit your bag when it dropped (all of it that fits, or the one row) | `loot` with `from: null, pendingLeft`, or `inventory_fail` reason `bag_full`/`no_item` (LIVE, fix pass 1) |
+| `equip` | `uid`, or `bag` (bag index) + `item`, or `item`; `slot` (`'main'` / `'off'`, optional) | a `bag` item goes onto the belt (`player.bags`, at most 4; `inventory_fail` `bags_full`). Otherwise wear an item from the bag (class, required level, weapon and armor type checked; armor not in combat). A two-hand weapon clears the off hand; the old piece goes to the bag. A weapon whose type has `offOk` (daggers) for a two-weapon class (`auto.offHand`, the Inkblade) goes in `slot`, or without it in the weaker hand (main on a tie); any other `slot` that is not the item's own is refused (`slot`) | `inventory` kind `equip`, or `inventory_fail` (LIVE) |
 | `unequip` | `slot` | back to the bag (needs a free slot) | `inventory` kind `unequip`, or `inventory_fail` reason `empty`/`bag_full` (LIVE) |
 | `use_item` | `bag` or `item` | a consumable's `use`: `heal_pct`, `mana_pct`, `rest_food` (sits you down), `dispel`; shared cooldown by `use.group` (`cd['item:<group>']`) | `heal`, `inventory` kind `use`, or `inventory_fail` reason `cooldown`/`full`/`level`/`not_usable` (LIVE) |
 | `buy` | `npc` (entity id), `index` (stock row) or `item`, `qty` (stackables, 1..20) | at a vendor (range 40 px): gold and bag-space checks, then the item goes in the bag. Price: consumables and bags at `price`, gear at 4 x value (PROGRESSION 4.8 / 6.2) | `inventory` kind `buy` + `gold`, or `inventory_fail` reason `range`/`gold`/`bag_full`/`no_item` (LIVE, integration wave) |
-| `sell` | `npc`, `bag` (bag index), `item`, `qty` (default the whole stack) | the vendor pays value x qty; quest items (value 0) are refused; the sale joins the buyback list (last 6) | `inventory` kind `sell` + `gold`, or `inventory_fail` reason `no_value` (LIVE) |
+| `sell` | `npc`, `uid` **or** `bag` (bag index) + `item` **or** `item`, `qty` (default the whole stack) | the vendor pays value x qty; quest items are never in the bag (section 7.4); the sale joins the buyback list (last 6). A bag index with neither `item` nor `uid` is refused (`no_item`): the list may have shifted since the client read it (fix pass 1). The same slot rule holds for `equip` and `use_item` | `inventory` kind `sell` + `gold`, or `inventory_fail` reason `no_value`/`no_item` (LIVE) |
 | `buyback` | `npc`, `index` (into `hud.buyback`) | buy a sold item back for what it paid | `inventory` kind `buyback` (LIVE) |
 
 Without combat content (no `classes` / `abilities` / `progression` in `content`), `cast` is the foundation stub: it
@@ -91,7 +92,16 @@ of every class and a 4,000-tick five-player session on the real map).
 createWorld({ seed, content, systems })        // systems: optional [{ id, tick(world, events) }] run after each tick
 restoreWorld(json, content, systems)
 w.addPlayer({ name, cls, look, zone, x, y, level, xp, gold, talents, known, bar, bag, bags, equip, quests, questsDone,
-              nodesUsed, respecs, lantern, gearMode: 'items' | 'design', designGear })   // restores a saved character
+              nodesUsed, respecs, lantern, gearMode: 'items' | 'design', designGear,
+              qbag, pendingLoot, hp, res, cdLeft, auras })   // restores a saved character (the last six: w.saveFields)
+w.saveFields(id)                                // fix pass 1: the sim-owned part of a save, plain JSON:
+                                                //   { qbag, pendingLoot, hp, res: { kind, cur }, cdLeft: { abilityOrItemKey: ticks left },
+                                                //     auras: [{ id, left (ticks | null), stacks, def }] (own lasting buffs only), escorts: [quest ids] }
+                                                // main.js merges it into its save and passes the whole save back to addPlayer.
+                                                // Missing fields restore as before (full health and mana, no cooldowns).
+                                                // An escort quest in the save restarts fresh on addPlayer: the escort npc
+                                                // respawns at its start (`spawn` event) and the quest stays active; the
+                                                // client never needs to strip `escort` ids (harmless if it still does).
 w.removePlayer(id)                              // log-out: mobs forget them; their traps and escorts go. Event `leave`
 w.grantXp(id, amount, reason = 'quest', extra)  // the one way to give XP from outside combat (quests, exploration)
 w.setLevel(id, L), w.learnAll(id), w.setTalents(id, talents)   // tests, the balance harness, a debug console
@@ -307,6 +317,9 @@ object: {
   abilities, casters stand and cast inside bolt range with sight and walk in without it, `stationary` mobs never move),
   `flee` (once, at `flee` health, 4 s, toward a same-family friend that joins), `reset` (leash: 40 tiles from spawn
   or 10 s without reaching or being hurt by its target; evading, full heal, threat cleared, walks home).
+  Chasing (and walking home) goes straight when the line is clear, else along an A* tile path round walls, fences and
+  water (`src/sim/path.js`, 8-way, no corner cutting, bounded search, deterministic). A chasing mob with no path to its
+  target for 2 s, or that has not moved for 3 s (not rooted or held by a blocking object), evades at once (fix pass 2).
   Aggro radius 80 px (or the template's) +-8 px per level of gap, 32 to 128, needs sight; `aggroRadius: 0` or
   `behavior: 'passive'` only fights back. Social: an engaged mob pulls same-family mobs within 3 tiles that can see it.
   Mob ability entries: `passive` (applied at spawn), `trigger: { hpBelow, once } | { onFlee } | { meleeHit } |
@@ -521,6 +534,12 @@ A bag slot is `{ item, qty, inst? }`; gear carries `inst: { ilvl, rarity, affixe
 value); a reward that "rolls to class" is fixed to the receiver's class when it is given. Vendors buy at `value`, sell
 at 4 x value (or `price`). `player.bags` = the bag item ids worn (default `['starter_satchel']`, 12 slots).
 
+Fix pass 1 (PLAYTEST_BOT bugs 4 and 16): quest items (`kind: 'quest'`) never take a bag slot: they live in
+`player.qbag` (no limit), and `bagCount` / `bagRemove` read both lists, so a quest item always fits. Every bag and quest
+bag slot has a `uid` (an integer, per character, never reused; saved with the bag) that commands may name. Loot that
+does not fit the bag when it drops goes to `player.pendingLoot` (`[{ item, qty, inst?, from, at }]`, at most 24; past
+that the oldest junk goes, with a `loot_lost` event) until the player takes it (`loot_take`).
+
 ### 7.5 `src/data/quests.js` (LIVE, world wave)
 
 ```js
@@ -537,6 +556,9 @@ export const QUESTS = {
         ambush: [{ at: { x, y, r }, mobs: [{ mob, level }] }] },
       { kind: 'talk', npc: 'mael' },
     ],
+    // fix pass 1 (critique 9): EVERY objective also has `where: [{ zone, x, y, r }]` (PIXELS, a circle; one or more)
+    // where it is done: the camp, the nodes, the area or the npc. Authored in tiles with quests.js at(zone, tx, ty, rTiles);
+    // tools/maps/quest_where.mjs suggests them from the zone data. They reach the HUD tracker rows as `where`.
     rewards: { xp: 350, gold: 13, items: [], choice: ['cobbs_old_boots'] }, rewardRarity: 'magic', elite?: true,
     text: { offer, progress, complete }, giveOnAccept: [{ item, qty }], hook?: { lines: [...] },
   },
@@ -578,7 +600,9 @@ nextId(), spawnMob?(spec) }`. world.js calls it at these points (pure, determini
 Player fields: `quests: { id: { state: 'active' | 'ready', counts: [..], escort? } }`, `questsDone: [ids]`, `nodesUsed`,
 `area`, `questChannel`. Max 20 in the log. Quest XP goes through combat's `grantXp(e, amount, 'quest')` after the
 PROGRESSION 2.2 gap multiplier; without `Q.grantXp` the module emits the `xp` event instead (a one-line hook).
-Events: `quest` (accept, progress, complete, turnin, abandon, fail), `quest_dialog { npc, offers, turnins, progress, soon }`,
+Events: `quest` (accept, progress, complete, turnin, abandon, fail), `quest_dialog { npc, offers, turnins, progress, soon,
+rewards: { questId: { xp, gold, items, choice: [{ item, inst (as this class would get it: armorType / weaponType), usable, reqLevel }] } } }`
+(fix pass 1: the dialog shows the armor kind the class really gets and greys out what it cannot use),
 `quest_hook { lines, later }`, `area { zone, area, name, levels, safe }`, `loot`, `gold`, `spawn` / `despawn` (nodes).
 
 ## 8. Events (LIVE)
@@ -608,16 +632,17 @@ Events: `quest` (accept, progress, complete, turnin, abandon, fail), `quest_dial
 | `respawn` | `id, zone, x, y (tiles), lantern` |
 | `cheat_death` | `id, talent` (The Lantern Holds) |
 | `xp` | `id, amount, source: 'kill' \| 'quest' \| 'explore', gold? (at the cap), mob?, quest?` |
-| `level` | `id, level, hpMax, talentPoints (free), trainable: [ability ids learnable at this level]` |
+| `level` | `id, level, hpMax, talentPoints (free), trainable: [ability ids learnable at this level], trainer: { npc, name, zone, x, y } \| null (where to learn them), firstTalentAt: 5 \| null (before the first talent point)` |
 | `gold` | `id, amount, total, source: 'loot' \| 'xp_cap' \| ...` |
-| `loot` | `id, from, gold, items: [{ item, qty, inst? }]` |
+| `loot` | `id, from, gold, items: [{ item, qty, inst? }], pending?: [{ item, qty, inst? }]` (what did not fit; `from: null` + `pendingLeft` when taken with `loot_take`) |
+| `loot_pending` / `loot_lost` | `id, items: [{ item, qty }], total` (loot waiting for room) / `id, item, qty` (the pending list overflowed) |
 | `train` / `train_fail` | `id, ability, cost, gold, npc` / `id, ability, reason` |
 | `talent` / `talent_fail` / `respec_paid` | `id, talent, ranks, kind: 'learn' \| 'unlearn' \| 'respec', free` / `id, talent, reason` / `id, cost, gold` |
 | `inventory` / `inventory_fail` | `id, kind: 'equip' \| 'unequip' \| 'use' \| 'buy' \| 'sell' \| 'buyback', slot?, item, qty?, cost? (buy), gold? (sell), npc?` / `id, cmd, item, reason` |
 | `sit` | `id, food?` |
 | `quest`, `quest_dialog`, `quest_hook`, `area` | section 7.7 |
 | `spawn` / `despawn` | `id, template, zone, kind ('mob' \| 'object'), owner?, x?, y?, radius?, reason?` (objects: traps, zones, hedges, ink trails, quest nodes; `reason: 'day'` for night mobs) |
-| `lantern` | `id (player), zone, lantern` (a new lantern bound) |
+| `lantern` | `id (player), zone, lantern, name, auto?` (a new lantern bound: walking within 48 px of it, or `auto: true` = the nearest lantern of a zone you just entered while bound elsewhere) |
 
 ---
 
@@ -635,7 +660,7 @@ r.drawHud(fn)                         // fn(ctx, layout): HUD on a 640x360 layer
 r.pick(devX, devY) -> id | null       // entity under a canvas device-pixel point (click targeting; quest nodes too)
 r.devToWorld(devX, devY) -> [wx, wy]  // world px under a device-pixel point (ground-targeted casts)
 r.worldToHud(wx, wy) -> [hx, hy]      // nameplates, floating combat text
-r.layout                              // { base, ws, ox, oy, viewW, viewH, dispW, dispH, worldOx, worldOy }
+r.layout                              // { base, ox, oy, hudW, hudH (the HUD layer), ws, viewW, viewH, dispW, dispH, worldOx, worldOy, touch }
 r.dev                                 // { clock: null | s (freeze the effect clock for drivers), stats: { ms, avg, n }, sky }
 r.loading                             // sheets still loading (drivers wait for 0 before a screenshot)
 ```
@@ -659,8 +684,23 @@ LIVE since the integration wave (2026-11-19):
   owner's pose in ink) are y-sorted. Quest nodes draw their `sprite` (an LQ npc/animal, a `props.json` or `tiles.json`
   object, else a bundle) with a gold glint and are pickable.
 
-- Internal view 640x360, letterboxed at the largest integer `base` scale. The world is drawn at integer `ws =
+- Desktop: internal view 640x360, letterboxed at the largest integer `base` scale. The world is drawn at integer `ws =
   round(base * zoom)` (at 1080p: 3, 5, 6 for zoom 1, 1.5, 2). Keys `+` / `-` change zoom.
+- Touch (fix wave 1, 2026-11-19, CRITIQUE_1 item 8; `view.touch`, `view.dpr`, `view.hud`): no bars. The world fills the
+  canvas at integer `ws`; the HUD layer is `hudW x hudH` (the screen's aspect) at its own integer `base`: `view.hud =
+  'big'` (play, about 1.75 css px per HUD px, at least 200 HUD px tall; 506x234 at 844x390 dpr 3) or `'win'` (a menu
+  window or the title is open: the largest scale that holds 640x360; those 640x360 designs are centred on it).
+  `layout.base` / `ox` / `oy` always mean the HUD layer (drivers: HUD px -> device px = `ox + hx * base`). Phones open at
+  zoom 1.5 until the player picks a zoom (`options.zoomSet`).
+- Camera: may run up to 46 HUD px (desktop) / 18 (touch) past the map's bottom edge, so a hero at a south gate is
+  never under the ability bar.
+- See-through (fix wave 1, `src/render/occlude.js`): a tall prop drawn over the player fades to 40%; overhead (roofs,
+  canopy) over the player fades in a 40 px disc; the player, other players and the target get a 1-px outline when a
+  prop or the overhead covers them. At night (lamps > 0.35) foes get a faint red rim, the player a cream one. The target
+  ring is 2 px and pulses, with a chevron over the target's head.
+- `r.anchorOf(id).h` is feet to the first opaque row of the frame (the head), so marks sit on heads.
+- Zone grade: a render-side table (`moor`: greyer, cooler, drifting mist); a zone's own `grade: { desat, tint, mist }`
+  wins when the map lane adds one.
 - Interpolation: an entity in both snapshots and the same zone is drawn at `prev + (cur - prev) * alpha`, rounded
   to whole pixels. A zone change fades from black (0.35 s).
 - Sprite keys: `hero` (LQ party_field, placeholder for player characters), `npc_*` (LQ npcs.json), any LQ field enemy
@@ -731,13 +771,39 @@ never re-derives a rule. `buildViewModel` passes it through as `vm.hud` (LIVE); 
   xp: { cur, need, level, cap }, talents: { total, spent, free, byBranch }, gold,
   inCombat, autoOn, dead, respawnIn, lantern, sitting, showAggroRings (Path Sense), stats, derived,
   quests: QS.tracker(player) rows, npcMarkers: { npcEntityId: '!' | '?' | '!grey' | '!soon' | '?grey' },
+  //   tracker row (fix pass 1): { quest, name, level, ready, rows: [{ label, cur, need, done, where: [{ zone, x, y, r }] }],
+  //     turnIn: { npc, name, where: [{ zone, x, y, r: 24 }] } }   px circles: draw rows' `where` on the map and minimap
+  //     while not done, and `turnIn.where` (the `?`) once `ready`
   bag: { size, bags, items: [item view] }, equip: { slot: item view }, buyback: [item view + price],   // integration wave
+  questBag: [item view], pendingLoot: [item view + index],    // fix pass 1: quest items (no slots) and loot waiting for room
   // item view = loot.js resolveItem as plain JSON: { item, qty, resolved: true, id, name, icon, rarity, kind, slot, level,
-  //   reqLevel, value (sell price), classes, weaponType?, armorType?, damage?, speed?, armor?, stats?, use?, text?, inst? }
+  //   reqLevel, value (sell price), classes, weaponType?, armorType?, damage?, speed?, armor?, stats?, use?, text?, inst?,
+  //   uid (fix pass 1: send it back as the command's `uid`) }
 }
 ```
 
-The UI commands listed above are LIVE (section 2.2); `equip` / `use_item` accept `bagSlot` or `bag`.
+The UI commands listed above are LIVE (section 2.2); `equip` / `use_item` accept `bagSlot` or `bag`. `sell` also
+sends `inst` (the bag item's `inst.id`) when the item view has one.
+
+Fix wave 1 (2026-11-19), what the HUD reads and draws:
+- Quest marks: `hud.npcMarkers` drawn in code on the head (gold `!` / `?`, grey `!grey` / `?grey`), clickable (talk).
+  After a `level` event with `trainable` + `trainer`, the trainer wears a gold `!` until you train (or 2 minutes).
+- Quest places: tracker rows' `rows[i].where` (px circles, unfinished objectives) and `turnIn.where` once `ready` are
+  converted to tiles (`uivm.js questWheres`) and drawn as gold circles on the minimap and the world map; the minimap
+  edge arrow points at the first tracked quest's nearest place; the tracker adds one line (the zone area holding it,
+  or "Return to <turnIn.name>"). The world map labels every named zone area.
+- Log: ability names from `content.abilities` and `content.mobAbilities` (never an id; auto = "attack"); resource
+  words Resolve / Focus / Mana; every `cast_fail` but `gcd` / `dead` is one quiet line at most every 2.5 s. A `loot`
+  event's `pending` logs "No room for X: it waits in your bags window"; `loot_pending` toasts, `loot_lost` logs.
+- Bags (fix pass 1 wiring): a strip over the bags window shows "Loot waiting: N" with Take (`loot_take`) and the quest
+  items (`hud.questBag`). `equip` / `use_item` / `sell` send `uid` (plus `bag` + `item`); an Inkblade dagger asks
+  Main hand / Off hand and sends `slot`. `quest_accept` / `quest_turnin` send `npc: dialog.ent`. Reward choices the
+  sim marks `usable: false` (quest_dialog `rewards`) are greyed with the reason; the default pick is the first usable.
+- Save: `state` also carries `world.saveFields(id)` (qbag, pendingLoot, hp, res, cdLeft, auras, escorts); the whole
+  spec goes back to `addPlayer`. `lantern` events toast "Lantern bound: <name>".
+- Ability tooltips: `{dmg}` / `{heal}` / `{dot}` / `{hot}` / `{absorb}` in the content text, computed at your level,
+  `hud.derived` (ap, sp) and the main-hand `damage` / `speed` (mirrors combat.js rawAmount).
+- Item tooltips compare against the worn piece (green / red deltas). Money is "N gold" everywhere.
 
 ---
 
@@ -774,13 +840,23 @@ with `window.__realms.step(n)`).
 hostile mob = `attack` (target + auto-attack); right click on an NPC or a quest node = `target` + `interact`; touch tap
 (`tap` intent) = target, and talk / use for NPCs and nodes. A `cast` whose ability has `target: 'ground'` carries
 `at: { x, y }` (world px): the mouse on desktop, on a phone (`input.setTouch(true)`) the current target's feet or 48 px
-in front of the player. The Interact key (F) / Talk button picks the current target only when it is within reach,
-else the nearest NPC or quest node. `X` = `sit` (keymap action `sit`).
+in front of the player. The Interact key (F) / Talk button picks the nearest NPC with a `!` or `?` within reach first,
+then the current target when it is an NPC within reach, else the nearest NPC or quest node. `X` = `sit` (keymap action
+`sit`; in combat the UI says "You can't rest in combat." and sends nothing).
+Fix wave 1 (2026-11-19): **Tab** orders foes attacking you (`target` or `aggro` is you) nearest first, then the rest
+by distance (a foe in front counts 40% nearer), within `TAB_RANGE_PX` 280. **GCD**: a `cast` pressed with
+`hud.gcdLeft <= 0.4` s waits and goes out the tick the GCD ends; an earlier press is dropped (no `cast_fail gcd`, no
+log line). **Walking by tap**: a `tap` on empty ground walks there with ordinary `move` / `stop` commands (keys or the
+stick cancel it; gives up after 1 s without progress); a tap on an NPC out of reach, or a `talk` intent (a click / tap
+on a quest mark: `{ k: 'talk', id }`), walks to 34 px and then sends `interact`.
 
 **Save** (`src/ui/save.js`, schema v1, `lexicon_realms.chars`): each character keeps the select-screen summary
 (`level, xp, zone, zoneName, x, y`) plus `state` = the full character for `addPlayer` restore:
 `{ v: 1, name, cls, look, level, xp, gold, zone, tx, ty, bag, bags, equip, known, bar, talents, quests, questsDone,
 nodesUsed, respecs, lantern }` (positions in tiles; a dead hero saves at their lantern; an escort in progress restarts).
+Fix pass 1 (sim lane, for the UI lane to wire): merge `world.saveFields(id)` into `state` (`qbag, pendingLoot, hp, res,
+cdLeft, auras, escorts`) and keep passing the whole saved spec to `addPlayer`; the sim restores health, resource,
+cooldowns and lasting buffs from it, and respawns any escort at its start.
 Saved every 5 s, on tab hide, on unload and on quit to select. `hinted: true` once the controls card was shown.
 Quit to select = `world.removePlayer(id)` in place (no page reload).
 
@@ -788,6 +864,9 @@ Quit to select = `world.removePlayer(id)` in place (no page reload).
 the option) -> `view.tod / view.weather / view.fx`; the options menu sets `view.fx` and the audio volumes.
 `?dev=1` (DEV ONLY, never linked): `window.__realms.dev = { xp(n), level(L), gold(n), hp(n) }` for drivers.
 `window.__realms.fps()` = `{ fps, p95ms, n }` over the last 240 animation frames.
+
+**Audio** ambience (fix wave 1): `audio.zone()` also starts a looping bed: Willowmere and the valley `river_birds`, the
+Downs `wind_valley`, the Moor `moor_wind` (LQ loops copied to `assets/audio/ambience/`); `audio.ambience(null)` on quit.
 
 **Audio** (`src/audio/audio.js`, `engine.js` = LQ's engine, `sfx_table.js`): unlocked on the first pointerdown /
 keydown / touchstart; title theme on the title screen, zone `music` themes in the world, event sfx for the local player.

@@ -308,5 +308,25 @@
    "duration": 2.376
   }
  },
- "ambience": {}
+ "ambience": {
+  "river_birds": {
+   "src": "ambience/river_birds.wav",
+   "volume": 1.0,
+   "duration": 10.0,
+   "widen": true
+  },
+  "wind_valley": {
+   "src": "ambience/wind_valley.wav",
+   "volume": 1.0,
+   "duration": 10.0,
+   "widen": true
+  },
+  "moor_wind": {
+   "src": "ambience/moor_wind.wav",
+   "volume": 1.0,
+   "duration": 10.0,
+   "widen": true,
+   "fallback": "wind_valley"
+  }
+ }
 }

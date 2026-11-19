@@ -12,7 +12,7 @@ import { loadUiArt } from './uiassets.js';
 import { createGfx } from './gfx.js';
 import { createCharArt } from './charsprite.js';
 import { createMinimapBook } from './minimap.js';
-import { createHud, drawTooltip } from './hud.js';
+import { createHud, drawTooltip, drawQuestMark } from './hud.js';
 import { hudLayout, hitPx, inRect, menuRect, W, H } from './layout.js';
 import { buildHudModel } from './uivm.js';
 import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions } from './menus.js';
@@ -21,8 +21,8 @@ import { drawTitle, drawSelect, drawCreate } from './title.js';
 import { createCharStore, loadOptions, saveOptions, validateName } from './save.js';
 import { routeKey, rebind, effectiveBinds, keyLabel } from './keymap.js';
 import { eventLines } from './eventlog.js';
-import { drawDialog, dialogFromInteract, DIALOG_RECT, DIALOG_RECT_TOUCH } from './dialog.js';
-import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext } from './gamedata.js';
+import { drawDialog, dialogFromInteract, dialogRectFor } from './dialog.js';
+import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 
 const SIDE = ['character', 'bags'];
@@ -46,7 +46,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     confirm: null, rebinding: null, talentSel: null, questSel: null, mapZone: null, joystick: null, pressed: null,
     name: '', nameFocus: false, cls: null, look: 0, err: null, selId: null, charId: null, longTip: null,
     drag: null, metrics: { cssPerHud: 1, touch }, now: 0,
-    dialog: null, untracked: new Set(), trained: new Set(), hint: null,
+    dialog: null, untracked: new Set(), trained: new Set(), hint: null, levelUp: null, quiet: { text: null, t: -99 }, chatFade: 0,
   };
   // PLACEHOLDER state for SPEC fields the sim does not send yet (quests, bag, equip, gold, talents). See uivm.js.
   const local = { quests: [], bag: { size: 16, items: [] }, equip: {}, gold: 0, talents: {} };
@@ -111,7 +111,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (!st.dialog || !lastModel) return;
       // highest index first so the earlier indexes stay valid while the sim applies them in order
       lastModel.bag.items.map((it, i) => [it, i]).filter(([it]) => it && it.kind === 'junk').reverse()
-        .forEach(([it, i]) => send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item }));
+        .forEach(([it, i]) => send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item, ...(it.uid != null ? { uid: it.uid } : {}) }));
     },
     dismissHint() { st.hint = null; },
     toggle(id) {
@@ -148,17 +148,21 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (on && tracked >= 5) { toast('You can track 5 quests at once.'); return; }
       local.quests = local.quests.map((q) => (q.id === id ? { ...q, tracked: on } : q));
     },
-    useItem(i) {
+    useItem(i, hand = null) {
       if (lastModel && lastModel.live) {
         const it = lastModel.bag.items[i];
         if (!it) return;
+        const ref = { bag: i, item: it.item, ...(it.uid != null ? { uid: it.uid } : {}) };   // uid: fix pass 1
         if (st.dialog && st.dialog.page === 'vendor') {
           if (it.kind === 'quest' || !it.value) { toast('The vendor will not buy that.'); return; }
-          send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item });
+          send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item, ...(it.uid != null ? { uid: it.uid } : {}) });
           return;
         }
-        if (it.slot || it.kind === 'bag') send({ t: 'equip', bag: i, item: it.item });
-        else if (it.use) send({ t: 'use_item', bag: i, item: it.item });
+        // a dagger for a two-dagger class: ask which hand (the bags window shows Main hand / Off hand)
+        if (!hand && act.twoHandPick(it)) { st.handPick = i; return; }
+        st.handPick = null;
+        if (it.slot || it.kind === 'bag') send({ t: 'equip', ...ref, ...(hand ? { slot: hand } : {}) });
+        else if (it.use) send({ t: 'use_item', ...ref });
         else toast(`${it.name} cannot be used.`);
         return;
       }
@@ -174,6 +178,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       } else if (info.use) { send({ t: 'use_item', bagSlot: i, item: info.id }); toast(`Used ${info.name}.`); }
       else toast(`${info.name} cannot be used.`);
     },
+    /** Can this bag item go in either hand (daggers for the Inkblade)? */
+    twoHandPick(it) {
+      const p = lastModel && lastModel.player;
+      return !!(it && p && (it.weaponType === 'dagger' || it.weaponType === 'daggers') && p.cls === 'inkblade');
+    },
     unequip(slot) {
       if (lastModel && lastModel.live) { if (lastModel.equip[slot]) send({ t: 'unequip', slot }); return; }
       const it = local.equip[slot];
@@ -188,7 +197,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     setOption(key, v) {
       options = { ...options, [key]: v };
       saveOptions(storage, options);
-      if (key === 'zoom' && hooks.setZoom) hooks.setZoom(v);
+      if (key === 'zoom') { options.zoomSet = true; saveOptions(storage, options); if (hooks.setZoom) hooks.setZoom(v); }
       if (hooks.optionsChanged) hooks.optionsChanged(options);
     },
     logout() {
@@ -211,7 +220,25 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
 
   // ---------------------------------------------------------------- drawing
   function layoutNow() {
-    return hudLayout({ touch: st.metrics.touch, minHit: st.metrics.touch ? hitPx(st.metrics.cssPerHud) : 15 });
+    const l = hooks.getLayout ? hooks.getLayout() : null;
+    return hudLayout({ touch: st.metrics.touch, minHit: st.metrics.touch ? hitPx(st.metrics.cssPerHud) : 15, W: (l && l.hudW) || W, H: (l && l.hudH) || H });
+  }
+  /** Phone: menu windows and the title screens are 640x360 designs; they open on the larger layer ('win'), play and
+   *  the npc window use the big legible one ('big'). Desktop is always 640x360. */
+  function hudMode() {
+    if (!st.metrics.touch) return 'big';
+    if (st.mode !== 'game') return 'win';
+    for (const id of st.open) if (CENTER.includes(id) || SIDE.includes(id)) return 'win';
+    return 'big';
+  }
+  /** Draw a 640x360 window design centred on a larger layer; its regions are shifted to layer px. */
+  function centred(ctx, L, regions, fn) {
+    const ox = Math.max(0, Math.floor((L.W - W) / 2)), oy = Math.max(0, Math.floor((L.H - H) / 2));
+    if (!ox && !oy) { fn(); return; }
+    const n0 = regions.length;
+    ctx.save(); ctx.translate(ox, oy);
+    try { fn(); } finally { ctx.restore(); }
+    for (let i = n0; i < regions.length; i++) { const r = regions[i]; regions[i] = { ...r, rect: { ...r.rect, x: r.rect.x + ox, y: r.rect.y + oy } }; }
   }
 
   function draw(ctx, vm, snap, t) {
@@ -221,28 +248,33 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList };
     const regions = [];
     ctx.imageSmoothingEnabled = false;
-    if (st.mode === 'title') drawTitle(ctx, env, st, regions, act, t);
-    else if (st.mode === 'select') drawSelect(ctx, env, st, regions, act, t);
-    else if (st.mode === 'create') drawCreate(ctx, env, st, regions, act, t);
+    if (st.mode !== 'game' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
+    if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t));
+    else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t));
+    else if (st.mode === 'create') centred(ctx, L, regions, () => drawCreate(ctx, env, st, regions, act, t));
     else {
-      let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked }, tickHz: 20, zoneNames });
+      let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked }, tickHz: 20, zoneNames, zones });
       if (demoExtra) m = applyDemo(m);
       lastModel = m;
       st.openMenu = [...st.open].pop() || null;
-      if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t);
-      regions.push(...hud.draw(ctx, m, L, st, { log, keyLabels: Array.from({ length: 6 }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
+      if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t, regions, L);
+      const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
+      regions.push(...hud.draw(ctx, m, L, st, { log, fade, keyLabels: Array.from({ length: 6 }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
         if (!me || !n || me.zone !== n.zone || me.dead || Math.hypot(me.x - n.x, me.y - n.y) > 64) act.closeDialog();
       }
       if (m.player) {
+        if (st.levelUp) drawLevelUp(ctx, L, t);
         if (st.dialog) drawDialog(ctx, env, m, st, regions, act);
-        for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? drawCharacter : drawBags)(ctx, env, m, st, regions, act);
-        if (st.open.has('quests')) drawQuestLog(ctx, env, m, st, regions, act);
-        if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
-        if (st.open.has('talents')) drawTalents(ctx, env, m, st, regions, act);
-        if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
+        centred(ctx, L, regions, () => {
+          for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? drawCharacter : drawBags)(ctx, env, m, st, regions, act);
+          if (st.open.has('quests')) drawQuestLog(ctx, env, m, st, regions, act);
+          if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
+          if (st.open.has('talents')) drawTalents(ctx, env, m, st, regions, act);
+          if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
+        });
         hud.menuBar(ctx, L, st, regions);
         if (st.hint) drawHint(ctx, L, regions);
       }
@@ -255,40 +287,78 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       let tip = r && r.tip ? r.tip : null;
       if (!tip && r && r.tipAbility) tip = abilityTooltip(abilityInfo(r.tipAbility), 1, (classInfo(st.cls) || {}).resource);
       if (!tip && r && lastModel && st.mode === 'game') tip = hud.tooltipFor(r, lastModel);
-      if (tip && !(r.kind === 'talent')) drawTooltip(g, ctx, tip, tipAt.x + 12, tipAt.y - 8);
+      if (tip && !(r.kind === 'talent')) drawTooltip(g, ctx, tip, tipAt.x + 12, tipAt.y - 8, { W: L.W, H: L.H });
     }
     if (st.hint && t - st.hint.t0 > 30) st.hint = null;
+    if (st.levelUp && t - st.levelUp.t0 > 6) st.levelUp = null;
     if (st.toast && st.toast.until > t) {
+      // above everything, clear of the npc window (CRITIQUE_1 item 20)
       const w = g.textW(st.toast.text) + 16;
-      g.window(ctx, Math.floor((W - w) / 2), 150, w, 18, 'thin', 'slate', 0.95);
-      g.text(ctx, st.toast.text, W / 2, 153, 'cream', { align: 'center' });
+      let cx = Math.floor(L.W / 2), ty = L.touch ? L.minHit + 8 : 44;
+      if (st.dialog) { const dr = dialogRect(L); cx = Math.floor((dr.x + dr.w + L.W) / 2); ty = L.touch ? Math.floor(L.H / 2) - 30 : 92; }
+      const tx = Math.max(2, Math.min(L.W - w - 2, cx - Math.floor(w / 2)));
+      g.window(ctx, tx, ty, w, 18, 'thin', 'slate', 0.95);
+      g.text(ctx, st.toast.text, tx + Math.floor(w / 2), ty + 3, 'cream', { align: 'center' });
     }
   }
 
-  /** Quest marks over npc heads (! available, ? ready; grey when trivial or in progress). marks: [{ x, y, mark }] HUD px. */
-  function drawWorldMarks(ctx, marks, t) {
+  /** The npc window's rect on this layer (dialog.js draws it; the toast and the quest marks keep clear of it). */
+  function dialogRect(L) {
+    return dialogRectFor(L);
+  }
+
+  /** The level-up flourish (CRITIQUE_1 item 16): a gold flash across the screen, a banner, and what you unlocked. */
+  function drawLevelUp(ctx, L, t) {
+    const lu = st.levelUp;
+    const age = t - lu.t0;
+    if (age < 0.5) { ctx.fillStyle = `rgba(255,214,90,${(0.35 * (1 - age / 0.5)).toFixed(3)})`; ctx.fillRect(0, 0, L.W, L.H); }
+    const out = age > 5.4 ? Math.max(0, 1 - (age - 5.4) / 0.6) : 1;
+    if (out <= 0) return;
+    ctx.globalAlpha = Math.round(out * 10) / 10;
+    const lines = lu.lines.slice(0, 3);
+    const h = 30 + lines.length * 11 + 4;
+    const y = L.touch ? Math.floor(L.H * 0.32) : 96;
+    const grow = Math.min(1, age / 0.25);
+    const bw = Math.round(L.W * grow);
+    const x = Math.floor((L.W - bw) / 2);
+    ctx.fillStyle = 'rgba(20,16,30,0.82)'; ctx.fillRect(x, y, bw, h);
+    ctx.fillStyle = '#ffd23a'; ctx.fillRect(x, y, bw, 1); ctx.fillRect(x, y + h - 1, bw, 1);
+    ctx.fillStyle = '#8a6a1a'; ctx.fillRect(x, y + 1, bw, 1); ctx.fillRect(x, y + h - 2, bw, 1);
+    if (grow >= 1) {
+      g.text(ctx, `Level ${lu.level}`, Math.floor(L.W / 2), y + 5, 'gold', { large: true, align: 'center' });
+      lines.forEach((ln, i) => g.text(ctx, g.clip(ln, L.W - 20), Math.floor(L.W / 2), y + 24 + i * 11, i === 0 ? 'cream' : 'white', { align: 'center' }));
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** Quest marks on npc heads (CRITIQUE_1 item 1): gold ! (a quest to take), gold ? (ready to hand in), grey ! (too
+   *  low for you) and grey ? (in progress). marks: [{ x, y (the head, HUD px), mark, id }]. Clicking or tapping a mark
+   *  talks to the npc under it (walking there first when it is out of reach). */
+  function drawWorldMarks(ctx, marks, t, regions, L) {
     const bob = Math.floor(t * 2) % 2;
     for (const mk of marks || []) {
-      const grey = mk.mark === '!grey' || mk.mark === '?grey' || mk.mark === '!soon';
       if (mk.mark === '!soon') continue;
-      const name = (mk.mark[0] === '?' ? 'emote_question_' : 'emote_exclaim_') + bob;
-      const [w, h] = g.iconSize(name);
-      g.icon(ctx, name, Math.round(mk.x - w / 2), Math.round(mk.y - h - 2), grey ? 0.45 : 1);
+      const grey = mk.mark === '!grey' || mk.mark === '?grey';
+      const box = drawQuestMark(ctx, mk.mark[0] === '?' ? '?' : '!', mk.x, mk.y - 3 - bob, grey);
+      if (mk.id != null) {
+        const s = Math.max(14, Math.round((L.minHit || 15) * 0.8));
+        regions.push({ rect: { x: Math.round(mk.x - s / 2), y: Math.round(box.y + box.h / 2 - s / 2), w: s, h: s }, kind: 'mark', id: mk.id });
+      }
     }
   }
 
   /** The one-time controls card for a new hero (desktop and phone versions). */
   function drawHint(ctx, L, regions) {
     const lines = L.touch
-      ? ['Left thumb: touch and drag to walk.', 'Tap a foe to target it. Tap a person to talk.', 'Right thumb: your skills, Talk and Next target.', 'Top buttons: character, bags, quests, talents, map.']
+      ? ['Left thumb: drag to walk, or tap the ground.', 'Tap a foe to target it. Tap a person or a ! to talk.', 'Right thumb: your skills, Talk and Next target.', 'Top buttons: character, bags, quests, talents, map.']
       : ['WASD to walk. Tab or click to target a foe.', '1 to 6 to use skills. Right-click a foe to attack.', 'F or right-click to talk. X to sit and rest.', 'C B L N M: character, bags, quests, talents, map.'];
-    const w = 250, h = 22 + lines.length * 11 + 22;
-    const x = Math.floor((W - w) / 2), y = L.touch ? 120 : 96;
+    const bh = Math.max(14, L.minHit || 0);
+    const w = 250, h = 22 + lines.length * 11 + 6 + bh + 6;      // the button has its own row (CRITIQUE_1 item 20)
+    const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.max(L.minHit + 6, Math.floor((L.H - h) / 2) - 10) : 96;
     g.window(ctx, x, y, w, h, 'std', 'blue', 0.96);
     g.text(ctx, 'How to play', x + 9, y + 5, 'gold', { large: true });
     lines.forEach((l, i) => g.text(ctx, l, x + 9, y + 22 + i * 11, 'cream'));
-    const bh = Math.max(14, L.minHit || 0);
-    const bw = 60, bx = x + w - bw - 8, by = y + h - bh - 4;
+    const bw = 60, bx = x + w - bw - 8, by = y + h - bh - 6;
     g.window(ctx, bx, by, bw, bh, 'thin', 'forest', 0.95);
     g.text(ctx, 'Got it', bx + bw / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
     regions.push({ rect: { x, y, w, h }, kind: 'window', id: 'hint', on: () => act.dismissHint() });
@@ -307,7 +377,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         cdLeft: i === 1 ? 6 : i === 3 ? 14 : 0, cdTotal: i === 1 ? 6 : i === 3 ? 45 : 0, usable: i !== 4, inRange: i !== 2, gcdLeft: i === 0 ? 0.6 : 0, gcdTotal: 1 }; });
     }
     const castBar = d.level && !m.castBar ? { ability: 'demo', name: (abilityInfo(classInfo(p.cls).abilities[5]) || { name: 'Casting' }).name, frac: 0.62, left: 0.7 } : m.castBar;
-    return { ...m, player: p, bar, castBar, talents: local.talents, party: d.party.length ? d.party : m.party, talentPoints: { total, spent, free: Math.max(0, total - spent) } };
+    // the demo's placeholder bags, gear, gold and quests replace the live ones (screenshots of full windows); live: false
+    // sends the menu actions down the local path
+    const quests = local.quests || [];
+    return { ...m, live: false, player: p, bar, castBar, talents: local.talents, party: d.party.length ? d.party : m.party, talentPoints: { total, spent, free: Math.max(0, total - spent) },
+      bag: local.bag, equip: local.equip, gold: local.gold, quests, tracked: quests.filter((q) => q.tracked !== false).slice(0, 5) };
   }
 
   function topRegion(x, y) {
@@ -343,6 +417,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     switch (r.kind) {
       case 'slot': if (r.ability || r.slot) hooks.input && hooks.input.inject({ k: 'cast', slot: r.slot }); st.pressed = `slot${r.slot}`; return true;
       case 'interact': hooks.input && hooks.input.inject({ k: 'interact' }); st.pressed = 'interact'; return true;
+      case 'mark': hooks.input && hooks.input.inject({ k: 'talk', id: r.id }); return true;
       case 'next_target': hooks.input && hooks.input.inject({ k: 'tab', back: false }); st.pressed = 'next_target'; return true;
       case 'menu_button': act.toggle(r.id); return true;
       case 'minimap': act.toggle('map'); return true;
@@ -434,7 +509,12 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       return;
     }
     if (route.action === 'interact') { hooks.input && hooks.input.inject({ k: 'interact' }); return; }
-    if (route.action === 'sit') { send({ t: 'sit' }); return; }
+    if (route.action === 'sit') {
+      // the sim ignores sit in combat: say so instead of failing silently (CRITIQUE_1 item 18)
+      if (lastModel && lastModel.player && lastModel.player.inCombat) quietSay("You can't rest in combat.");
+      else send({ t: 'sit' });
+      return;
+    }
     act.toggle(route.action);
   };
   window.addEventListener('keydown', onKey(true), true);
@@ -455,7 +535,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         return;
       case 'quest_dialog':
         if (ev.id !== me || !st.dialog || st.dialog.ent !== ev.ent) return;
-        Object.assign(st.dialog, { offers: ev.offers || [], turnins: ev.turnins || [], progress: ev.progress || [], soon: ev.soon || [] });
+        Object.assign(st.dialog, { offers: ev.offers || [], turnins: ev.turnins || [], progress: ev.progress || [], soon: ev.soon || [], rewards: ev.rewards || st.dialog.rewards || null });
         // one thing to say and nothing else: open it directly (the first quest, a single turn-in)
         if (st.dialog.page === 'main' && !st.dialog.trainer && !st.dialog.vendor && st.dialog.turnins.length + st.dialog.offers.length === 1) {
           st.dialog.page = 'quest'; st.dialog.quest = st.dialog.turnins[0] || st.dialog.offers[0]; st.dialog.choice = 0;
@@ -464,6 +544,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       case 'train':
         if (ev.id !== me) return;
         st.trained.add(ev.ability);
+        if (st.trainerMark && st.trainerMark.abilities.every((a) => st.trained.has(a))) st.trainerMark = null;
         toast(`You learn ${(abilityInfo(ev.ability) || { name: ev.ability }).name}.`);
         say('system', `You learn ${(abilityInfo(ev.ability) || { name: ev.ability }).name}. It is on your bar.`);
         return;
@@ -478,17 +559,32 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         else if (ev.kind === 'buyback') say('loot', `You buy back ${(itemInfo(ev.item) || { name: ev.item }).name}.`);
         else if (ev.kind === 'equip') say('system', `Equipped ${(itemInfo(ev.item) || { name: ev.item }).name}.`);
         return;
-      case 'level':
+      case 'level': {
         if (ev.id !== me) return;
-        toast(`Level ${ev.level}!`, 3);
-        if (ev.trainable && ev.trainable.length) say('system', 'You can learn something new. Visit your class trainer in Willowmere.');
-        if (ev.talentPoints > 0) say('system', `You have ${ev.talentPoints} talent point${ev.talentPoints > 1 ? 's' : ''} to spend (N).`);
+        // the flourish (gold flash, banner) and the log say what is new and where to get it (CRITIQUE_1 item 16)
+        const lines = [];
+        const names = (ev.trainable || []).map((id) => (abilityInfo(id) || { name: id }).name);
+        const where = ev.trainer ? ` (${ev.trainer.name}${ev.trainer.zone ? `, ${zoneNames[ev.trainer.zone] || ev.trainer.zone}` : ''})` : ' (your class trainer in Willowmere)';
+        if (names.length) { const l = `New ability at your trainer: ${names.join(', ')}${where}`; lines.push(l); say('system', `${l}.`); }
+        if (ev.talentPoints > 0) { const l = `${ev.talentPoints} talent point${ev.talentPoints > 1 ? 's' : ''} to spend (${st.metrics.touch ? 'star button' : 'N'})`; lines.push(l); say('system', `You have ${l}.`); }
+        else if (ev.firstTalentAt) lines.push(`Your first talent point comes at level ${ev.firstTalentAt}`);
+        lines.push('Health and power grow stronger');
+        st.levelUp = { t0: st.now, level: ev.level, lines };
+        // the trainer's mark turns gold until you train (or for two minutes)
+        if (names.length && ev.trainer && ev.trainer.npc) st.trainerMark = { npc: ev.trainer.npc, until: st.now + 120, abilities: ev.trainable.slice() };
         return;
+      }
       case 'area':
         if (ev.id === me && ev.name) toast(ev.name, 2);
         return;
       case 'quest':
         if (ev.id === me && ev.kind === 'complete') toast(`${(questInfoName(ev.quest))}: complete`, 2.5);
+        return;
+      case 'lantern':
+        if (ev.id === me) toast(`Lantern bound: ${ev.name || 'this lantern'}`, 3);
+        return;
+      case 'loot_pending':
+        if (ev.id === me) toast(`Bags full: ${ev.total || ''} waiting (Bags, Take)`.replace('  ', ' '), 3);
         return;
       case 'respawn':
         if (ev.id === me) say('system', 'You wake at the lantern.');
@@ -500,6 +596,19 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     }
   }
   const questInfoName = (id) => { const q = id && questInfoById(id); return q ? q.name : id; };
+  /** The player's resource kind now (Resolve / Focus / Mana in the log). */
+  function resKindNow() {
+    const p = lastModel && lastModel.player;
+    return (p && p.res && p.res.kind) || (p && (classInfo(p.cls) || {}).resource) || 'mana';
+  }
+  /** "Not enough Resolve." and friends: one quiet line at most every few seconds, never the same one twice in a row
+   *  within 6 s (CRITIQUE_1 items 6 and 19). */
+  function quietSay(text) {
+    const q = st.quiet;
+    if (st.now - q.t < 2.5 || (q.text === text && st.now - q.t < 6)) return;
+    st.quiet = { text, t: st.now };
+    say('error', text);
+  }
 
   // ---------------------------------------------------------------- the object
   const ui = {
@@ -522,10 +631,15 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     owns(x, y) { return st.mode !== 'game' || !!topRegion(x, y); },
     handleEvents(events, ctx) {
       for (const ev of events) {
-        for (const l of eventLines(ev, { me: playerId, ...ctx })) say(l.ch, l.text);
+        for (const l of eventLines(ev, { me: playerId, resourceKind: resKindNow(), ...ctx })) (l.quiet ? quietSay(l.text) : say(l.ch, l.text));
         if (playerId != null) onOwnEvent(ev);
       }
     },
+    /** The npc template whose mark is gold after a level-up with new abilities (main.js adds it to the quest marks). */
+    get trainerMark() { return st.trainerMark && st.trainerMark.until > st.now ? st.trainerMark.npc : null; },
+    /** Phone layer mode for the renderer: 'big' (play) or 'win' (a 640x360 menu window is open). */
+    get hudMode() { return hudMode(); },
+    setAbilityContent,
     say,
     logText: () => log.map((l) => l.text),
     saveProgress,

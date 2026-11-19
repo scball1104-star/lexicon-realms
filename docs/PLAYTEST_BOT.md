@@ -414,3 +414,11 @@ save path now mirrors the new contract (`saveFields` merged into the save).
   Not fixed in this pass.
 - `node_never_gives` x3 (hay, a stone rubbing): as before.
 - Gone: `entity_inside_wall` / `mob_unreachable` (bug 3) and the five-minute escort stalls (bug 11).
+
+## Fix pass 2 (2026-11-19): mob pathing
+
+`unhittable_mob` was mobs pressing straight into a fence (the south meadow slimes sat by the valley fence at column 29),
+leashing at 10 s and healing. Chasing mobs now walk an A* tile path when the straight line is blocked
+(`src/sim/path.js`), and a mob with no way to its target evades within 2 to 3 s. Re-run `node qa/bot/questbot.mjs`:
+15/15 to level 10, `unhittable_mob` 6 -> 2 (no slimes left: one ink blot and one barrow shade in the Downs, not looked at).
+Tests: `qa/sim/ai.test.mjs` (fence, walled pocket, determinism), `qa/world/fixpass2.test.mjs` (the real valley fence).

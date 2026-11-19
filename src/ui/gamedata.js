@@ -10,6 +10,28 @@ export const XP_TO_NEXT = [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360
 export const MAX_LEVEL = 15;
 
 const RESOURCE_LABEL = { mana: 'MP', resolve: 'RE', focus: 'FO' };
+const RESOURCE_WORD = { mana: 'Mana', resolve: 'Resolve', focus: 'Focus' };
+/** The player-facing name of a resource kind: Resolve, Focus or Mana (CRITIQUE_1 item 5). */
+export const resourceWord = (kind) => RESOURCE_WORD[kind] || (kind ? kind[0].toUpperCase() + kind.slice(1) : 'Mana');
+
+// the raw content abilities (effects, coefficients) and the mob abilities, for live tooltips and log names
+let CONTENT_AB = {}, MOB_AB = {};
+export function setAbilityContent(abilities, mobAbilities) { CONTENT_AB = abilities || {}; MOB_AB = mobAbilities || {}; }
+/** Display name of any ability id, player or mob; null for auto-attack and unknown ids (never the raw id). */
+export function abilityName(id) {
+  if (!id || id === 'auto') return null;
+  const a = D.abilities[id] || CONTENT_AB[id] || MOB_AB[id];
+  if (a && a.name) return a.name;
+  return null;
+}
+/** The stats a tooltip computes with, from the HUD model: level, derived ap / sp / crit, the main-hand weapon. */
+export function liveStats(m) {
+  const p = (m && m.player) || {};
+  const d = (m && m.stats && m.stats.derived) || p.derived || {};
+  const w = m && m.equip && m.equip.main;
+  return { level: p.level || 1, ap: d.ap || 0, sp: d.sp || 0, crit: d.crit || 0, hpMax: p.hpMax || 0,
+    weapon: w && w.damage ? { min: w.damage[0], max: w.damage[1], speed: w.speed || 2 } : null };
+}
 const RESOURCE_GAUGE = { mana: 'mp', resolve: 'fury', focus: 'atb' };
 
 let D = DESIGN_DATA;
@@ -96,7 +118,7 @@ export function abilityCost(a, L, resourceKind) {
   if (!a) return { amount: 0, kind: resourceKind };
   if (a.cost && typeof a.cost === 'object') {
     const c = Array.isArray(a.cost) ? a.cost[0] : a.cost;
-    const amt = typeof c.amount === 'number' ? c.amount : 0;
+    const amt = typeof c.amount === 'number' ? c.amount : c.amount && typeof c.amount === 'object' ? Math.round((c.amount.base || 0) + (c.amount.perLevel || 0) * L) : 0;
     return { amount: amt, kind: c.kind || resourceKind };
   }
   const s = String(a.cost || '');
@@ -124,20 +146,75 @@ export function rangePx(a) {
   return m ? Number(m[1]) * 16 : null;
 }
 
-/** Tooltip lines for an ability at level L. */
-export function abilityTooltip(a, L, resourceKind) {
+/** [lo, hi] of one effect's amount at the caster's stats (CONTRACTS 5.8 shapes; mirrors combat.js rawAmount). */
+export function effectRange(fx, s) {
+  if (!fx) return null;
+  const lv = (v) => (v == null ? 0 : typeof v === 'number' ? v : (v.base || 0) + (v.perLevel || 0) * s.level);
+  let lo = lv(fx.amount), hi = lo;
+  if (fx.weapon) {
+    const w = s.weapon || { min: 2, max: 4, speed: 2 };
+    const ap = (w.speed * (s.ap || 0)) / 14;
+    lo += fx.weapon * (w.min + ap); hi += fx.weapon * (w.max + ap);
+  }
+  if (fx.coef) { const v = fx.coef.k * (s[fx.coef.stat] || 0); lo += v; hi += v; }
+  if (fx.pctMaxHp) { const v = fx.pctMaxHp * (s.hpMax || 0); lo += v; hi += v; }
+  if (fx.mult != null) { lo *= fx.mult; hi *= fx.mult; }
+  if (!(hi > 0)) return null;
+  if (!fx.weapon) { const v = Math.max(1, Math.round(hi)); return [v, v]; }
+  return [Math.max(0, Math.floor(lo)), Math.max(1, Math.ceil(hi))];
+}
+function rangeLabel(a, rng) {
+  const px = a.range && typeof a.range === 'object' ? a.range.max : null;
+  const tiles = px != null ? px / 16 : Number((/([\d.]+)/.exec(rng || '') || [])[1]);
+  if (!tiles || /^self/.test(rng || '')) return null;
+  return tiles <= 2.5 ? 'Melee range' : `${Math.round(tiles)} tile range`;
+}
+const rangeText = (r) => (r ? (r[0] === r[1] ? `${r[0]}` : `${r[0]} to ${r[1]}`) : null);
+/** The content ability's text with {dmg} / {heal} / {dot} / {hot} / {absorb} filled in at your stats. */
+export function liveAbilityText(id, s) {
+  const a = CONTENT_AB[id];
+  if (!a || !a.text || !/[{}]/.test(a.text)) return null;
+  const fxs = a.effects || [];
+  const find = (type) => fxs.find((f) => f.type === type && !f.aura);
+  const auraTick = (type) => {
+    for (const f of fxs) {
+      const au = f.aura;
+      if (!au || !au.tick) continue;
+      const t = au.tick.find((x) => x.type === type);
+      if (!t) continue;
+      const r = effectRange(t, s);
+      if (!r) continue;
+      const n = au.period ? Math.max(1, Math.round((au.duration || 0) / au.period)) : 1;
+      return [r[0] * n, r[1] * n];
+    }
+    return null;
+  };
+  const absorb = () => { for (const f of fxs) { const au = f.aura; if (au && au.absorb) return effectRange(au.absorb, s); } return null; };
+  const vals = { dmg: effectRange(find('damage'), s), heal: effectRange(find('heal'), s), dot: auraTick('damage'), hot: auraTick('heal'), absorb: absorb() };
+  let ok = true;
+  const text = a.text.replace(/\{(\w+)\}/g, (all, k) => { const r = rangeText(vals[k]); if (!r) { ok = false; return 'some'; } return r; });
+  return ok || !/some/.test(text) ? text : text;
+}
+
+/** Tooltip lines for an ability at level L. live: liveStats(model) for plain numbers instead of formulas (item 15). */
+export function abilityTooltip(a, L, resourceKind, live = null) {
   if (!a) return null;
   const cost = abilityCost(a, L, resourceKind);
   const cast = String(a.cast ?? a.castTime ?? 'instant');
   const cd = seconds(a.cooldown);
   const rng = String(a.range || '');
-  const text = String(a.text || '').replace(/([\w.]+(?:[+*][\w.]+)+)/g, (f) => foldFormula(f, L));
+  const s = live || { level: L, ap: 0, sp: 0, hpMax: 0, weapon: null };
+  const abId = a.id || Object.keys(CONTENT_AB).find((k) => CONTENT_AB[k].name === a.name);
+  const cc = abId && CONTENT_AB[abId] && CONTENT_AB[abId].cost;
+  const costKind = (cc && (Array.isArray(cc) ? cc[0].kind : cc.kind)) || cost.kind;
+  const plain = liveAbilityText(abId, { ...s, level: Math.max(s.level || 1, L) });
+  const text = plain || String(a.text || '').replace(/([\w.]+(?:[+*][\w.]+)+)/g, (f) => foldFormula(f, L)).replace(/\s*x\s*(weapon|AP|SP)/g, '');
   return {
     title: a.name,
     right: a.learnLevel > L ? `Learn at ${a.learnLevel}` : '',
-    sub: [cost.amount ? `${cost.amount} ${cost.kind === 'mana' ? 'mana' : cost.kind}` : (cost.gives ? `Gives ${cost.gives} ${cost.kind}` : 'No cost'),
+    sub: [cost.amount ? `${cost.amount} ${resourceWord(costKind)}` : (cost.gives ? `Gives ${cost.gives} ${resourceWord(costKind)}` : 'No cost'),
       /^\d/.test(cast) ? `${seconds(cast)} sec cast` : cast.startsWith('channel') ? `Channel ${seconds(cast)} sec` : 'Instant',
-      cd ? `${cd} sec cooldown` : null, rng && rng !== 'self' ? `Range ${rng.split(/[,;]/)[0]}` : null].filter(Boolean).join('  '),
+      cd ? `${cd} sec cooldown` : null, rangeLabel(a, rng)].filter(Boolean).join('  '),
     body: text.charAt(0).toUpperCase() + text.slice(1),
   };
 }

@@ -10,6 +10,7 @@ import { MOB_WALK_SPEED, SUB, TICK_HZ } from './constants.js';
 import { ticks as T } from './data.js';
 import { distPx, distPxXY } from './geom.js';
 import { hasLos } from './los.js';
+import { walkClear, findPath, tileGoal } from './path.js';
 
 const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
 
@@ -113,6 +114,7 @@ export function createAi(C) {
     m.ai.mode = 'combat';
     m.ai.target = p.id;
     m.ai.reachTick = now();
+    m.ai.path = null; m.ai.noPath = null; m.ai.lastXY = null;
     m.ai.fled = false;
     m.ai.dx = 0; m.ai.dy = 0;
     m.swing = m.swing || { main: 0 };
@@ -138,6 +140,7 @@ export function createAi(C) {
     m.threat = {};
     m.ai.mode = 'reset';
     m.ai.target = null;
+    m.ai.path = null; m.ai.noPath = null; m.ai.lastXY = null; m.ai.blocked = 0;
     m.hp = m.hpMax;
     for (const a of [...m.auras]) K().removeAura(m, a, 'cancel');
     m.tagger = null;
@@ -159,6 +162,58 @@ export function createAi(C) {
     m.ai.vx = Math.round((dx / d) * step); m.ai.vy = Math.round((dy / d) * step);
   }
   function stop(m) { m.ai.vx = 0; m.ai.vy = 0; }
+
+  /**
+   * Walk toward (tx, ty) [SUB] round walls, fences and water (fix pass 2: mobs steered straight and stuck on a fence,
+   * then leashed while a ranged player could not land a hit). A clear straight line is walked straight; otherwise the
+   * mob follows an A* tile path (path.js), kept while the goal tile holds and re-planned at most every PATH_EVERY
+   * ticks. Sets m.ai.noPath (the tick the goal became unreachable) when no path is found; the caller evades on it.
+   */
+  const PATH_EVERY = 6, PATH_MAX = 1500;
+  function chase(m, tx, ty, speed, stopAt = 0) {
+    const ai = m.ai, Z = C.zoneOf(m);
+    if (!Z || walkClear(Z, m.x, m.y, tx, ty)) { ai.path = null; ai.noPath = null; steer(m, tx, ty, speed, stopAt); return; }
+    const gx = Math.floor(tx / 256), gy = Math.floor((ty - 1) / 256);
+    let P = ai.path;
+    if (!P || P.gx !== gx || P.gy !== gy || P.i >= P.tiles.length) {
+      if (P && now() - P.at < PATH_EVERY && P.i < P.tiles.length) { /* goal moved a tile: keep the old path a moment */ }
+      else if (ai.noPath != null && now() - (ai.pathTry || 0) < PATH_EVERY * 2) { steer(m, tx, ty, speed, stopAt); return; }   // failed a moment ago
+      else {
+        const sx = Math.floor(m.x / 256), sy = Math.floor((m.y - 1) / 256);
+        ai.pathTry = now();
+        const tiles = findPath(Z, sx, sy, gx, gy, PATH_MAX);
+        if (!tiles) { ai.path = null; if (ai.noPath == null) ai.noPath = now(); steer(m, tx, ty, speed, stopAt); return; }
+        P = ai.path = { gx, gy, tiles, i: 0, at: now() };
+      }
+    }
+    if (P.gx === gx && P.gy === gy) ai.noPath = null;
+    // skip waypoints already reached, or the next one when it is in a straight line (string pulling, 2 looks a tick)
+    for (let look = 0; P.i < P.tiles.length && look < 3; look++) {
+      const [wx, wy] = tileGoal(P.tiles[P.i][0], P.tiles[P.i][1]);
+      if (Math.abs(m.x - wx) <= 3 * SUB && Math.abs(m.y - wy) <= 3 * SUB) { P.i++; continue; }
+      if (P.i + 1 < P.tiles.length && look < 2) {
+        const [nx, ny] = tileGoal(P.tiles[P.i + 1][0], P.tiles[P.i + 1][1]);
+        if (walkClear(Z, m.x, m.y, nx, ny)) { P.i++; continue; }
+      }
+      break;
+    }
+    if (P.i >= P.tiles.length) { steer(m, tx, ty, speed, stopAt); return; }
+    const [wx, wy] = tileGoal(P.tiles[P.i][0], P.tiles[P.i][1]);
+    steer(m, wx, wy, speed, 0);
+  }
+  /** A chasing mob that has had no way to its target for UNREACH s, or has not moved for STUCK s, evades. */
+  const UNREACH = 2, STUCK = 3;
+  function cannotReach(m) {
+    const ai = m.ai;
+    if (ai.noPath != null && now() - ai.noPath >= T(UNREACH)) return true;
+    const moved = ai.lastXY && (Math.abs(ai.lastXY[0] - m.x) > SUB || Math.abs(ai.lastXY[1] - m.y) > SUB);
+    // rooted, or held by a blocking object (a Hedge Wall is meant to stall it): not "stuck"
+    const held = K().cannotMove(m) || state.ents.some((o) => o.kind === 'object' && o.obj && o.zone === m.zone && o.obj.def.blocks && distPx(o, m) <= (o.obj.def.radius || 24) + 8);
+    if (!ai.lastXY || moved || held) { ai.lastXY = [m.x, m.y]; ai.stillAt = now(); return false; }
+    if (now() - ai.stillAt >= T(STUCK)) { ai.path = null; return true; }
+    return false;
+  }
+  function notChasing(m) { m.ai.lastXY = null; m.ai.noPath = null; }
 
   function pickTarget(m) {
     // taunt (or an Inkdouble) forces the target
@@ -267,19 +322,21 @@ export function createAi(C) {
       const range = bolt && bolt.range ? bolt.range.max : 112;
       const los = hasLos(C.zoneOf(m), m, t);
       if (d <= range && los) {
-        stop(m);
+        stop(m); notChasing(m);
         m.ai.reachTick = now();
         if (useAbilities(m, t, d)) return;
         if (bolt && (m.cd[bolt.id] || 0) <= now()) { K().castAbility(m, bolt, { target: t.id }); return; }
         if (d <= reach) meleeSwing(m, t);
         return;
       }
-      steer(m, t.x, t.y, speedOf(m), 0);
+      if (cannotReach(m)) { reset(m); return; }
+      chase(m, t.x, t.y, speedOf(m), 0);
       return;
     }
     if (template(m).stationary) { stop(m); if (d <= reach) meleeSwing(m, t); return; }
     if (d > reach && !isObj && useAbilities(m, t, d)) return;
-    if (d > A.standOff) steer(m, t.x, t.y, speedOf(m), A.standOff - 4); else if (isObj || !spread(m, t, d)) stop(m);
+    if (d > reach && !isObj) { if (cannotReach(m)) { reset(m); return; } } else notChasing(m);
+    if (d > A.standOff) chase(m, t.x, t.y, speedOf(m), A.standOff - 4); else if (isObj || !spread(m, t, d)) stop(m);
     if (isObj) return;
     if (d <= reach) meleeSwing(m, t);
   }
@@ -356,7 +413,8 @@ export function createAi(C) {
           m.hp = m.hpMax;
           return;
         }
-        steer(m, m.spawn.x, m.spawn.y, speedOf(m) * 1.5, 0);
+        chase(m, m.spawn.x, m.spawn.y, speedOf(m) * 1.5, 0);
+        if (ai.noPath != null) ai.blocked = Math.max(ai.blocked || 0, 41);   // no way home: snap back next tick
         return;
       }
       default:

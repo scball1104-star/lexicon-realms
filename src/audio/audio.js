@@ -23,7 +23,7 @@ export function createAudio(opts = {}) {
   const hasWindow = typeof window !== 'undefined' && typeof document !== 'undefined';
   const noop = () => {};
   if (!hasWindow) {
-    return { unlock: () => Promise.resolve(false), setVolumes: noop, music: noop, zone: noop, sfx: noop, ui: noop,
+    return { unlock: () => Promise.resolve(false), setVolumes: noop, music: noop, zone: noop, ambience: noop, sfx: noop, ui: noop,
       attach: () => noop, debug: () => ({ available: false }), ready: Promise.resolve(null) };
   }
   let base = opts.base == null ? 'assets/audio/' : String(opts.base);
@@ -33,6 +33,8 @@ export function createAudio(opts = {}) {
   const safe = (fn) => (...a) => { try { return eng ? fn(...a) : undefined; } catch (e) { console.warn('[audio]', e); return undefined; } };
   const ready = eng ? Promise.resolve(eng.init(opts.manifest || undefined)).catch((e) => { console.warn('[audio] init:', e); return null; }) : Promise.resolve(null);
 
+  // zone -> ambience bed (Lexicon Quest's ambience loops, copied into assets/audio/ambience)
+  const ZONE_AMBIENCE = { willowmere: 'river_birds', valley: 'river_birds', downs: 'wind_valley', moor: 'moor_wind' };
   const zoneTrack = (zoneId, map) => { const m = map ? map(zoneId) : zoneId; return MUSIC_ALIAS[m] || m || null; };
   const lastKey = new Map();
   let pendingJingle = null;
@@ -43,7 +45,9 @@ export function createAudio(opts = {}) {
     setVolumes: safe((v = {}) => eng.setVolumes({ master: v.master, music: v.music, sfx: v.sfx, ambience: v.ambience ?? v.sfx })),
     // after the manifest is in (a track asked for at boot would otherwise resolve against an empty manifest)
     music: (id, o) => { ready.then(safe(() => { if (!id) eng.stopMusic(0.8); else eng.music(MUSIC_ALIAS[id] || id, { fade: 1.0, ...(o || {}) }); })); },
-    zone: (zoneId, map) => api.music(zoneTrack(zoneId, map)),
+    zone: (zoneId, map) => { api.music(zoneTrack(zoneId, map)); api.ambience(ZONE_AMBIENCE[zoneId] || null); },
+    /** A looping bed under the music (fix wave 2026-11-19, CRITIQUE_1 item 25: no zone had any). null stops it. */
+    ambience: (id) => { ready.then(safe(() => eng.ambience(id || null, { fade: 1.5 }))); },
     sfx: safe((id, o) => eng.sfx(id, o)),
     ui: (kind) => { const id = UI_SOUNDS[kind]; if (id) api.sfx(id, { volume: 0.8 }); },
     jingle: safe((id) => eng.jingle(id, { duckMusic: 0.3 })),

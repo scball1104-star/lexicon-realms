@@ -4,6 +4,7 @@
 import { menuRect, bagGrid } from './layout.js';
 import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, resourceLabel } from './gamedata.js';
 import { drawMarkers } from './minimap.js';
+import { drawAreas } from './hud.js';
 import { ACTIONS, effectiveBinds, keyLabel } from './keymap.js';
 
 const SLOT_ICON = { head: 'icon_helm', chest: 'icon_armor', legs: 'icon_mantle', feet: 'icon_boots', main: 'icon_sword', off: 'icon_shield', hands: 'icon_charm', trinket: 'icon_star' };
@@ -23,7 +24,25 @@ export function frame(ctx, env, r, title, regions, act, id) {
   regions.push({ rect: cr, kind: 'button', on: () => act.close(id), tip: { title: 'Close', sub: 'Esc' } });
 }
 
-export function itemTooltip(it, extra) {
+const STAT_NAME = { str: 'Strength', agi: 'Agility', int: 'Intellect', spi: 'Spirit', sta: 'Stamina' };
+/** Green / red lines: what wearing `i` instead of `worn` changes (CRITIQUE_1 item 13). */
+export function compareLines(i, worn) {
+  const w = worn ? itemInfo(worn) : null;
+  if (!i || !i.slot) return [];
+  const out = [];
+  const add = (label, d) => { if (d) out.push({ text: `${d > 0 ? '+' : ''}${d} ${label}`, color: d > 0 ? 'green' : 'red' }); };
+  if (!w) { out.push({ text: 'Nothing worn there yet.', color: 'green' }); return out; }
+  if (w.id === i.id && w.name === i.name) return [];
+  add('armor', (i.armor || 0) - (w.armor || 0));
+  const avg = (x) => (x && x.damage ? (x.damage[0] + x.damage[1]) / 2 : 0);
+  if (i.damage || w.damage) add('damage', Math.round(avg(i) - avg(w)));
+  const keys = new Set([...Object.keys(i.stats || {}), ...Object.keys(w.stats || {})]);
+  for (const k of keys) add(STAT_NAME[k] || k, ((i.stats || {})[k] || 0) - ((w.stats || {})[k] || 0));
+  if (!out.length) out.push({ text: 'Same as what you wear.', color: 'gray' });
+  return out.map((o, n) => (n === 0 ? { ...o, text: `vs ${w.name}: ${o.text}` } : o));
+}
+
+export function itemTooltip(it, extra, worn) {
   const i = itemInfo(it);
   if (!i) return null;
   const lines = [];
@@ -37,7 +56,8 @@ export function itemTooltip(it, extra) {
   if (i.text) body.push(i.text);
   if (i.kind === 'quest') body.push('Quest item.');
   return { title: i.name, titleColor: RARITY_COLOR[i.rarity] || RARITY_COLOR.common, right: i.level ? `Lv ${i.level}` : '', sub,
-    body: body.join('. ') + (body.length ? '.' : ''), foot: [i.value ? `Sells for ${i.value}c` : null, extra].filter(Boolean).join('  '), footColor: 'gray' };
+    body: body.join('. ') + (body.length ? '.' : ''), foot: [i.value ? `Sells for ${i.value} gold` : null, extra].filter(Boolean).join('  '), footColor: 'gray',
+    delta: worn !== undefined ? compareLines(i, worn) : null };
 }
 
 function itemSlot(ctx, env, r, it, emptyIcon) {
@@ -113,12 +133,57 @@ export function drawBags(ctx, env, m, st, regions, act) {
   cells.forEach((c) => {
     const it = bag.items[c.i] || null;
     itemSlot(ctx, env, c, it, null);
-    if (it) regions.push({ rect: c, kind: 'bag', i: c.i, tip: itemTooltip(it, itemInfo(it).slot ? 'Right-click to equip' : itemInfo(it).use ? 'Right-click to use' : null),
+    const touchHint = env.L.touch ? 'Tap to' : 'Right-click to';
+    if (it) regions.push({ rect: c, kind: 'bag', i: c.i, tip: itemTooltip(it, itemInfo(it).slot ? `${touchHint} equip` : itemInfo(it).use ? `${touchHint} use` : null, itemInfo(it).slot ? (m.equip[itemInfo(it).slot] || null) : undefined),
       on: (btn) => { if (btn === 2 || env.L.touch) act.useItem(c.i); }, label: `bag:${c.i}` });
   });
   g.icon(ctx, 'icon_gold', r.x + 10, r.y + r.h - 18);
   g.text(ctx, `${Number(m.gold).toLocaleString('en-US')} gold`, r.x + 25, r.y + r.h - 19, 'gold');
   if (used >= n) g.text(ctx, 'Bags full', r.x + r.w - 10, r.y + r.h - 19, 'red', { align: 'right' });
+  // which hand (a dagger for the Inkblade): two buttons under the grid
+  if (st.handPick != null && bag.items[st.handPick]) {
+    const bh = Math.max(16, env.L.minHit || 0), bw = 90, by = r.y + r.h + 2;
+    for (const [k, label, hand] of [[0, 'Main hand', 'main'], [1, 'Off hand', 'off']]) {
+      const bx = r.x + 8 + k * (bw + 6);
+      g.window(ctx, bx, by, bw, bh, 'thin', 'forest', 0.97);
+      g.text(ctx, label, bx + bw / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+      regions.push({ rect: { x: bx, y: by, w: bw, h: bh }, kind: 'button', label: `hand:${hand}`, on: () => act.useItem(st.handPick, hand) });
+    }
+  }
+  // quest items (they take no bag space) and loot that did not fit (fix pass 1)
+  const qb = m.questBag || [], pend = m.pendingLoot || [];
+  if (qb.length || pend.length) {
+    let qy = r.y - 4;
+    const rows = [];
+    if (pend.length) rows.push('pend');
+    if (qb.length) rows.push('quest');
+    const ph = 8 + rows.length * Math.max(20, env.L.minHit || 0) + 4;
+    const pr = { x: r.x, y: Math.max(2, r.y - ph - 2), w: r.w, h: ph };
+    g.window(ctx, pr.x, pr.y, pr.w, pr.h, 'thin', 'slate', 0.95);
+    regions.push({ rect: pr, kind: 'window', id: 'bags_extra' });
+    qy = pr.y + 5;
+    const rowH = Math.max(20, env.L.minHit || 0);
+    if (pend.length) {
+      const n = pend.reduce((s2, it) => s2 + (it.qty || 1), 0);
+      g.text(ctx, `Loot waiting: ${n}`, pr.x + 8, qy + Math.floor(rowH / 2) - 6, 'orange');
+      const bw = 56, bx = pr.x + pr.w - bw - 8;
+      g.window(ctx, bx, qy, bw, rowH - 2, 'thin', 'forest', 0.97);
+      g.text(ctx, 'Take', bx + bw / 2, qy + Math.floor(rowH / 2) - 7, 'cream', { align: 'center' });
+      regions.push({ rect: { x: bx, y: qy, w: bw, h: rowH - 2 }, kind: 'button', label: 'loot_take', on: () => act.send({ t: 'loot_take' }),
+        tip: { title: 'Loot waiting', sub: 'It did not fit your bags when it dropped.', body: pend.map((it) => `${it.name || it.item}${it.qty > 1 ? ` x${it.qty}` : ''}`).join(', ') } });
+      qy += rowH;
+    }
+    if (qb.length) {
+      g.text(ctx, 'Quest', pr.x + 8, qy + Math.floor(rowH / 2) - 6, 'gold');
+      let ix = pr.x + 44;
+      for (const it of qb.slice(0, 8)) {
+        const sr = { x: ix, y: qy, w: rowH - 2, h: rowH - 2 };
+        itemSlot(ctx, env, sr, it, null);
+        regions.push({ rect: sr, kind: 'questitem', tip: itemTooltip(it, 'Quest item: takes no bag space.') });
+        ix += rowH;
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------- quest log
@@ -228,10 +293,39 @@ export function drawMap(ctx, env, m, st, regions, act) {
     g.scrim(ctx, lx - 2, ly - 1, lw + 4, 12, 170);
     g.text(ctx, label, lx, ly - 1, z2 ? 'gold' : 'dim');
   }
+  // place names (the Fork, the North Landing...): quest text names them, so the map does too (CRITIQUE_1 item 9)
+  const view = { x: mx, y: my, w: img.width, h: img.height };
+  const placed = [];
+  for (const ar of zone.areas || []) {
+    if (!ar.name || ar.w * ar.h < 30) continue;
+    const lw = g.textW(ar.name);
+    const lx = Math.round(mx + (ar.x + ar.w / 2) * ppt - lw / 2), ly = Math.round(my + (ar.y + ar.h / 2) * ppt - 5);
+    const box = { x: lx - 2, y: ly - 1, w: lw + 4, h: 12 };
+    if (box.x < mx || box.y < my || box.x + box.w > mx + img.width || box.y + box.h > my + img.height) continue;
+    if (placed.some((b) => b.x < box.x + box.w && box.x < b.x + b.w && b.y < box.y + box.h && box.y < b.y + b.h)) continue;
+    placed.push(box);
+    g.scrim(ctx, box.x, box.y, box.w, box.h, 110);
+    g.text(ctx, ar.name, lx, ly - 1, 'cream');
+  }
+  // objective areas of your quests in this zone: soft gold circles with the quest's name
+  const areas = ((m.minimap && m.minimap.areas) || []).filter((a) => a.zone === cur);
+  drawAreas(ctx, areas, view, ppt, 0, 0, cur, 2);
+  const named = new Set();
+  for (const q of m.tracked || []) {
+    for (const w of q.wheres || []) {
+      if (w.zone !== cur || named.has(q.id)) continue;
+      named.add(q.id);
+      const label = g.clip(q.done ? `Hand in: ${q.name}` : q.name, 130);
+      const lw = g.textW(label);
+      const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, mx + w.x * ppt - lw / 2)), ly = Math.max(my + 2, Math.min(my + img.height - 12, my + (w.y + (w.r || 2)) * ppt + 2));
+      g.scrim(ctx, lx - 2, ly - 1, lw + 4, 12, 170);
+      g.text(ctx, label, lx, ly - 1, 'gold');
+    }
+  }
   const markers = m.minimap && m.minimap.zone === cur ? m.minimap.markers.filter((k) => k.kind !== 'foe') : [];
-  drawMarkers(g, ctx, markers, { x: mx, y: my, w: img.width, h: img.height }, ppt, 0, 0);
+  drawMarkers(g, ctx, markers, view, ppt, 0, 0);
   const here = markers.find((k) => k.kind === 'me');
-  g.text(ctx, here ? 'You are here (white arrow).  Gold ! = quest, ? = turn in.' : 'You are not in this zone.', r.x + r.w / 2, r.y + r.h - 18, 'gray', { align: 'center' });
+  g.text(ctx, here ? 'White arrow: you.  Gold !: a quest.  Gold ?: hand it in.  Gold circle: where to go.' : 'You are not in this zone.  Gold circles: where your quests send you.', r.x + r.w / 2, r.y + r.h - 18, 'gray', { align: 'center' });
 }
 
 // ---------------------------------------------------------------- options / game menu

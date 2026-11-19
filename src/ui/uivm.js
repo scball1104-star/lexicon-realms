@@ -5,7 +5,7 @@
 // snapshot (positions for range and the minimap) and from the UI's local PLACEHOLDER state (quests, bag, talents)
 // so the screens work end to end. The fields are named exactly as CONTRACTS section 10 lists them, so moving this
 // code into buildViewModel later changes no HUD code. See the report for the sim fields still needed.
-import { classInfo, abilityInfo, abilityCost, seconds, rangePx, xpToNext, talentPointsAt, resourceLabel, resourceGauge, questInfo } from './gamedata.js';
+import { classInfo, abilityInfo, abilityCost, seconds, rangePx, xpToNext, talentPointsAt, resourceLabel, resourceGauge, questInfo, npcInfo } from './gamedata.js';
 
 export const SLOT_KEYS = ['1', '2', '3', '4', '5', '6'];
 
@@ -16,14 +16,64 @@ export function defaultBar(cls, level) {
   return c.abilities.filter((id) => { const a = abilityInfo(id); return !a || (a.learnLevel || 1) <= level; }).slice(0, 6);
 }
 
+/** Objective places (CRITIQUE_1 item 9): the sim's tracker rows carry `where: [{ zone, x, y, r }]` in PIXELS (CONTRACTS
+ *  7.5 / 10.1) on each objective row, and `turnIn: { npc, name, where }` for the hand-in. Returned in TILES (the map
+ *  and minimap draw in tiles): the unfinished objectives' circles, or the turn-in's once the quest is ready. */
+export function questWheres(r) {
+  const list = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
+  const tiles = (w, extra) => ({ zone: w.zone, x: w.x / 16, y: w.y / 16, r: (w.r || 32) / 16, name: w.name, ...extra });
+  const out = [];
+  if (r && r.ready) { for (const w of list(r.turnIn && r.turnIn.where)) out.push(tiles(w, { turnIn: true })); }
+  else {
+    for (const o of (r && r.rows) || []) if (!(o.done || (o.need && o.cur >= o.need))) for (const w of list(o.where)) out.push(tiles(w, { obj: o.label }));
+    if (!out.length) for (const w of list(r && r.where)) out.push(tiles(w));
+  }
+  return out.filter((w) => Number.isFinite(w.x) && Number.isFinite(w.y));
+}
+/** The name of the place a `where` points at: its own name, else the zone area that holds it, else the zone. */
+export function placeName(w, zones = {}, zoneNames = {}) {
+  if (!w) return '';
+  if (w.name || w.label) return w.name || w.label;
+  const z = zones[w.zone];
+  const a = z && (z.areas || []).find((ar) => w.x >= ar.x && w.y >= ar.y && w.x < ar.x + ar.w && w.y < ar.y + ar.h && ar.name);
+  if (a) return a.name;
+  return zoneNames[w.zone] || '';
+}
+
 /** Quest log rows from the sim's tracker (CONTRACTS 10.1 hud.quests) plus the quest data (names, text, rewards). */
-export function questRows(rows, untracked = new Set(), zoneNames = {}) {
+export function questRows(rows, untracked = new Set(), zoneNames = {}, zones = {}) {
   return (rows || []).map((r) => {
     const q = questInfo(r.quest) || {};
+    const wheres = questWheres(r);
+    const tn = (r.turnIn && r.turnIn.name) ? { name: r.turnIn.name } : q.turnIn ? npcInfo(q.turnIn) : null;
     return { id: r.quest, name: r.name || q.name || r.quest, level: r.level || q.level, zone: q.zone, zoneName: zoneNames[q.zone] || q.zone,
       state: 'active', done: !!r.ready, tracked: !untracked.has(r.quest), giver: q.giver, turnIn: q.turnIn,
+      turnInName: tn ? tn.name : null, wheres, areaName: wheres.length ? placeName(wheres[0], zones, zoneNames) : '',
       objectives: (r.rows || []).map((o) => ({ text: o.label, cur: o.cur, need: o.need })), rewards: q.rewards || {}, text: q.text || {} };
   });
+}
+
+/** Minimap objective areas and the goal the edge arrow points at (the first tracked quest's nearest place, or its
+ *  turn-in npc when it is ready). Tiles. */
+function questPlaces(tracked, snap, meE) {
+  const areas = [];
+  for (const q of tracked) for (const w of q.wheres || []) areas.push(w);
+  let goal = null;
+  const q = tracked[0];
+  if (q && meE) {
+    const me = { x: meE.x / 16, y: meE.y / 16 };
+    if (q.done && !(q.wheres || []).length && q.turnIn) {
+      const n = snap.entities.find((e) => e.kind === 'npc' && e.template === q.turnIn && !e.dead);
+      if (n) goal = { zone: n.zone, x: n.x / 16, y: n.y / 16 - 1, r: 1 };
+    } else {
+      let best = Infinity;
+      for (const w of q.wheres || []) {
+        const d = w.zone === meE.zone ? Math.hypot(w.x - me.x, w.y - me.y) : 1e6;
+        if (d < best) { best = d; goal = w; }
+      }
+    }
+  }
+  return { areas, goal };
 }
 
 export function buildHudModel(vm, snap, ctx = {}) {
@@ -137,12 +187,13 @@ function fromSimHud(vm, snap, ctx) {
     if (!s || !s.ability || s.known === false) return { slot: i + 1, ability: null, key };
     const a = abilityInfo(s.ability) || {};
     return { slot: i + 1, ability: s.ability, name: s.name || a.name, icon: a.icon || s.icon, key, cdLeft: s.cdLeft || 0, cdTotal: s.cdTotal || 0,
-      usable: s.usable !== false, inRange: s.inRange !== false, gcdLeft: s.offGcd ? 0 : h.gcdLeft || 0, gcdTotal: h.gcdTotal || 1, cost: s.cost || 0, charges: s.charges };
+      usable: s.usable !== false, inRange: s.inRange !== false || !vm.target, gcdLeft: s.offGcd ? 0 : h.gcdLeft || 0, gcdTotal: h.gcdTotal || 1, cost: s.cost || 0, charges: s.charges };
   });
   const c = h.cast;
   const castBar = c ? { ability: c.ability, name: c.name, frac: c.kind === 'channel' ? 1 - c.frac : c.frac, left: c.left, channel: c.kind === 'channel' } : null;
-  const quests = questRows(h.quests, st.untracked || new Set(), ctx.zoneNames || {});
+  const quests = questRows(h.quests, st.untracked || new Set(), ctx.zoneNames || {}, ctx.zones || {});
   const tracked = quests.filter((q) => q.tracked).slice(0, 5);
+  const places = questPlaces(tracked, snap, meE);
   // minimap: quest marks from the sim (npcMarkers), everything else from positions
   const markers = [];
   if (meE) {
@@ -161,7 +212,7 @@ function fromSimHud(vm, snap, ctx) {
     template: tE ? tE.template : null,
     elite: !!((tv && tv.elite) || (tE && (tE.elite || tE.rank === 'elite'))), boss: !!(tE && tE.rank === 'boss'),
     hpPct: Math.round((vm.target.hpFrac || 0) * 100),
-    head: tE ? (tE.sprite || '').replace(/^npc_/, '') : null,
+    head: tE ? (tE.sprite || '').replace(/^npc_/, '') : null, npc: tE && tE.kind === 'npc' ? tE.template : null,
     auras: tv ? tv.auras : vm.target.auras, threat: tv ? tv.threat : null,
   } : null;
   const xp = h.xp || {};
@@ -170,9 +221,9 @@ function fromSimHud(vm, snap, ctx) {
     player: { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resGauge: resourceGauge(resKind),
       xp: xp.cur || 0, xpToLevel: xp.cap ? 0 : xp.need || 0, derived: h.derived, inCombat: h.inCombat, sitting: h.sitting, respawnIn: h.respawnIn },
     target, party: vm.party || [], zone: vm.zone, log: vm.log || [],
-    bar, castBar, quests, tracked, minimap: meE ? { zone: meE.zone, x: meE.x, y: meE.y, markers } : null,
+    bar, castBar, quests, tracked, minimap: meE ? { zone: meE.zone, x: meE.x, y: meE.y, markers, areas: places.areas, goal: places.goal } : null,
     talents: (meE && meE.talents) || {}, talentPoints: { total: h.talents.total, spent: h.talents.spent, free: h.talents.free },
     bag: h.bag || { size: 12, items: [] }, equip: h.equip || {}, gold: h.gold || 0,
-    stats: h.stats ? { ...h.stats, derived: h.derived } : null, buyback: h.buyback || [], combo: h.combo,
+    stats: h.stats ? { ...h.stats, derived: h.derived } : null, buyback: h.buyback || [], combo: h.combo, questBag: h.questBag || [], pendingLoot: h.pendingLoot || [],
   };
 }

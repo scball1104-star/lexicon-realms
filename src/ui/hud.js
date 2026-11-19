@@ -4,21 +4,62 @@
 // Reads only the HUD model (uivm.js). Returns hit regions so ui.js can do hover tooltips and clicks.
 import { W, H, trackerRows, inRect } from './layout.js';
 import { drawMarkers } from './minimap.js';
-import { abilityInfo, abilityTooltip, classInfo } from './gamedata.js';
+import { abilityInfo, abilityTooltip, classInfo, resourceWord, liveStats } from './gamedata.js';
 
 const MENU_ICON = { character: 'icon_helm', bags: 'icon_bag', quests: 'icon_quest', talents: 'icon_star', map: 'icon_scroll', menu: 'icon_gear' };
+/** Quest marks drawn in code (CRITIQUE_1 item 1): a gold ! (quest to take) or ? (ready to turn in), grey when trivial or
+ *  in progress. 1 = fill, 2 = highlight, everything inside the outline box is outlined in ink. */
+const MARK_GLYPH = {
+  '!': ['0110', '1221', '1111', '1111', '1111', '0110', '0110', '0000', '0110', '0110'],
+  '?': ['011110', '122221', '110011', '000011', '000111', '001110', '001100', '000000', '001100', '001100'],
+};
+const MARK_COL = { gold: ['#ffd23a', '#fff2a0'], grey: ['#9c98a8', '#c8c4d0'] };
+/** Draw a quest mark with its feet at (cx, bottom). Returns its box. */
+export function drawQuestMark(ctx, kind, cx, bottom, grey = false) {
+  const rows = MARK_GLYPH[kind] || MARK_GLYPH['!'];
+  const w = rows[0].length, h = rows.length;
+  const x0 = Math.round(cx - w / 2), y0 = Math.round(bottom - h);
+  const on = (x, y) => y >= 0 && y < h && x >= 0 && x < w && rows[y][x] !== '0';
+  ctx.fillStyle = '#2a1a10';
+  for (let y = -1; y <= h; y++) for (let x = -1; x <= w; x++) {
+    if (on(x, y)) continue;
+    if (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1)) ctx.fillRect(x0 + x, y0 + y, 1, 1);
+  }
+  const [c1, c2] = MARK_COL[grey ? 'grey' : 'gold'];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const v = rows[y][x];
+    if (v === '0') continue;
+    ctx.fillStyle = v === '2' || y === 0 ? c2 : c1;
+    ctx.fillRect(x0 + x, y0 + y, 1, 1);
+  }
+  return { x: x0 - 1, y: y0 - 1, w: w + 2, h: h + 2 };
+}
+
+/** Crossed swords (7 x 7): the "in combat" mark on the player frame (CRITIQUE_1 item 18). */
+function drawCombatMark(ctx, x, y) {
+  const rows = ['1000001', '0100010', '0010100', '0001000', '0010100', '1100011', '1100011'];
+  ctx.fillStyle = '#14101e'; ctx.fillRect(x - 1, y - 1, 9, 9);
+  rows.forEach((r, j) => { for (let i = 0; i < 7; i++) if (r[i] === '1') { ctx.fillStyle = j >= 5 ? '#c88a3a' : '#e8e4f0'; ctx.fillRect(x + i, y + j, 1, 1); } });
+}
+
+/** Do two rects overlap? */
+const hit = (a, b) => !!a && !!b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
 const CH_COLOR = { system: 'gold', combat: 'gray', damage_in: 'red', damage_out: 'white', heal: 'green', party: 'blue', say: 'white', loot: 'green', xp: 'violet', error: 'red' };
 
 export function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }
 
 /** Draw a tooltip box near (x, y), kept on screen. tip: { title, right, sub, body, foot, footColor, lines }. */
-export function drawTooltip(g, ctx, tip, x, y, { w = 214 } = {}) {
+export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360 } = {}) {
   w = Math.max(w, Math.min(300, g.textW(tip.title || '', true) + (tip.right ? g.textW(tip.right) + 10 : 0) + 18));
   const bodyLines = tip.body ? g.wrap(tip.body, w - 14) : [];
   const subLines = tip.sub ? g.wrap(tip.sub, w - 14) : [];
   const footLines = tip.foot ? g.wrap(tip.foot, w - 14) : [];
-  const h = 8 + 16 + subLines.length * 11 + (bodyLines.length ? 2 + bodyLines.length * 11 : 0) + (footLines.length ? 4 + footLines.length * 11 : 0) + 6;
+  const deltaLines = [];
+  for (const d of tip.delta || []) for (const ln of g.wrap(d.text, w - 14)) deltaLines.push({ text: ln, color: d.color });
+  const h = 8 + 16 + subLines.length * 11 + (bodyLines.length ? 2 + bodyLines.length * 11 : 0) + (footLines.length ? 4 + footLines.length * 11 : 0) + (deltaLines.length ? 3 + deltaLines.length * 11 : 0) + 6;
   let tx = Math.round(x), ty = Math.round(y);
+  if (tx + w > W - 2) tx = x - 16 - w;
   if (tx + w > W - 2) tx = W - 2 - w;
   if (ty + h > H - 2) ty = H - 2 - h;
   tx = Math.max(2, tx); ty = Math.max(2, ty);
@@ -32,6 +73,8 @@ export function drawTooltip(g, ctx, tip, x, y, { w = 214 } = {}) {
   for (const ln of bodyLines) { g.text(ctx, ln, tx + 7, yy, 'white'); yy += 11; }
   if (footLines.length) yy += 4;
   for (const ln of footLines) { g.text(ctx, ln, tx + 7, yy, tip.footColor || 'green'); yy += 11; }
+  if (deltaLines.length) yy += 3;
+  for (const d of deltaLines) { g.text(ctx, d.text, tx + 7, yy, d.color || 'green'); yy += 11; }
   return { x: tx, y: ty, w, h };
 }
 
@@ -58,6 +101,7 @@ export function createHud(env) {
       g.gauge(ctx, r.x + 33, r.y + 15, r.w - 40, p.hpFrac, 'hp');
       if (p.res) g.gauge(ctx, r.x + 33, r.y + 23, r.w - 40, p.res.frac, p.resGauge);
     }
+    if (p.inCombat && !p.dead) drawCombatMark(ctx, r.x + (L.touch ? 22 : 30), r.y + r.h - (L.touch ? 11 : 12));
     if (p.dead) { g.scrim(ctx, r.x + 3, r.y + 3, r.w - 6, r.h - 6, 235); g.text(ctx, p.respawnIn != null ? `Dead. You wake at the lantern in ${Math.ceil(p.respawnIn)}.` : 'Dead. You wake at the lantern.', r.x + r.w / 2, r.y + r.h / 2 - 5, 'red', { align: 'center' }); }
   }
 
@@ -93,7 +137,7 @@ export function createHud(env) {
     const r = L.target;
     const hostile = t.faction === 'hostile';
     g.window(ctx, r.x, r.y, r.w, r.h, 'std', hostile ? 'crimson' : t.kind === 'player' ? 'forest' : 'blue');
-    const headOk = t.head && g.head(ctx, t.head, r.x + 6, r.y + 6);
+    const headOk = (t.npc && g.head(ctx, t.npc, r.x + 6, r.y + 6)) || (t.head && g.head(ctx, t.head, r.x + 6, r.y + 6));
     if (!headOk) { g.rect(ctx, r.x + 6, r.y + 6, 12, 12, '#14101e'); g.rect(ctx, r.x + 7, r.y + 7, 10, 10, '#251d34'); g.text(ctx, '?', r.x + 10, r.y + 6, 'gray'); }
     if (t.elite || t.boss) g.icon(ctx, 'elite_mark', r.x + 6, r.y + 1);
     const lv = t.boss ? 'Boss' : `Lv ${t.level}`;
@@ -119,7 +163,9 @@ export function createHud(env) {
       const cw = Math.min(inner.w, img.width), chh = Math.min(inner.h, img.height);
       ctx.fillStyle = '#14101e'; ctx.fillRect(inner.x, inner.y, inner.w, inner.h);
       ctx.drawImage(img, sx, sy, cw, chh, inner.x, inner.y, cw, chh);
+      drawAreas(ctx, m.areas, inner, ppt, sx, sy, m.zone, 1);
       drawMarkers(g, ctx, m.markers, inner, ppt, sx, sy);
+      edgeArrow(ctx, m, inner, ppt, sx, sy);
     }
     const z = L.zoneLabel;
     g.scrim(ctx, z.x, z.y, z.w, z.h, 170);
@@ -127,15 +173,34 @@ export function createHud(env) {
     regions.push({ rect: r, kind: 'minimap' });
   }
 
-  function tracker(ctx, L, m, st, regions) {
+  /** The nearest objective area of the tracked quest, off the minimap: a small gold arrow at the edge toward it. */
+  function edgeArrow(ctx, m, inner, ppt, sx, sy) {
+    const goal = m.goal;
+    if (!goal || goal.zone !== m.zone) return;
+    const gx = inner.x + goal.x * ppt - sx, gy = inner.y + goal.y * ppt - sy;
+    const r = (goal.r || 1) * ppt;
+    if (gx + r >= inner.x && gy + r >= inner.y && gx - r < inner.x + inner.w && gy - r < inner.y + inner.h) return;   // visible already
+    const cx = inner.x + inner.w / 2, cy = inner.y + inner.h / 2;
+    const dx = gx - cx, dy = gy - cy;
+    const k = Math.min((inner.w / 2 - 4) / Math.max(1e-6, Math.abs(dx)), (inner.h / 2 - 4) / Math.max(1e-6, Math.abs(dy)));
+    const ax = Math.round(cx + dx * k), ay = Math.round(cy + dy * k);
+    const a = Math.atan2(dy, dx);
+    const pts = [[3.5, 0], [-2.5, -3], [-2.5, 3]].map(([px, py]) => [px * Math.cos(a) - py * Math.sin(a), px * Math.sin(a) + py * Math.cos(a)]);
+    fillTri(ctx, ax, ay, pts.map(([x, y]) => [x * 1.45, y * 1.45]), '#2a1a10');
+    fillTri(ctx, ax, ay, pts, '#ffd23a');
+  }
+
+  function tracker(ctx, L, m, st, regions, fade) {
     const T = L.tracker;
     if (!m.tracked.length) return;
-    let rows = trackerRows(m.tracked, T.w, (s, w) => g.wrap(s, w), (s) => g.textW(s));
+    let rows = trackerRows(m.tracked, T.w, (s, w) => g.wrap(s, w), (s) => g.textW(s), { areas: true });
     const collapsed = L.touch && st.trackerCollapsed;
     if (collapsed) rows = rows.slice(0, 1);
     const maxLines = T.maxLines;
     if (rows.length > maxLines + 1) rows = rows.slice(0, maxLines).concat([{ kind: 'more', text: '...', h: 11 }]);
     const h = 4 + rows.reduce((s, r) => s + r.h, 0) + 4;
+    const faded = (fade || []).some((u) => hit(u, { x: T.x, y: T.y, w: T.w, h }));
+    if (faded) ctx.globalAlpha = 0.3;
     g.scrim(ctx, T.x, T.y, T.w, h, 140);
     let y = T.y + 2;
     for (const row of rows) {
@@ -144,14 +209,17 @@ export function createHud(env) {
         if (L.touch) g.text(ctx, collapsed ? `${m.tracked.length} +` : '-', T.x + T.w - 5, y + 3, 'gray', { align: 'right' });
         regions.push({ rect: { x: T.x, y: T.y, w: T.w, h: Math.max(18, L.minHit || 0) }, kind: 'tracker_head' });
       } else {
-        if (row.kind === 'quest') g.icon(ctx, 'icon_quest', T.x + 4, y - 1);
-        const col = row.kind === 'obj' ? (row.done ? 'green' : 'gray') : row.done ? 'green' : 'white';
-        g.text(ctx, row.text, T.x + (row.kind === 'obj' ? 27 : 19), y, col);
+        // a gold ? when the quest is ready to hand in, a small parchment bullet while it is in progress (a yellow ! means
+        // "a quest to take" everywhere else, CRITIQUE_1 item 11+)
+        if (row.kind === 'quest') { if (row.done) drawQuestMark(ctx, '?', T.x + 9, y + 10); else { g.rect(ctx, T.x + 6, y + 3, 5, 5, '#14101e'); g.rect(ctx, T.x + 7, y + 4, 3, 3, '#d8c8a0'); } }
+        const col = row.kind === 'area' ? 'dim' : row.kind === 'obj' ? (row.done ? 'green' : 'gray') : row.done ? 'green' : 'white';
+        g.text(ctx, row.text, T.x + (row.kind === 'obj' || row.kind === 'area' ? 27 : 19), y, col);
         if (row.right) g.text(ctx, row.right, T.x + T.w - 5, y, 'green', { align: 'right' });
-        if (row.id) regions.push({ rect: { x: T.x, y, w: T.w, h: row.h }, kind: 'tracker_quest', id: row.id });
+        if (row.id && !faded) regions.push({ rect: { x: T.x, y, w: T.w, h: row.h }, kind: 'tracker_quest', id: row.id });
       }
       y += row.h;
     }
+    ctx.globalAlpha = 1;
   }
 
   function slot(ctx, r, s, keyLabel, regions, { touch = false } = {}) {
@@ -160,8 +228,9 @@ export function createHud(env) {
     if (empty) { if (!touch) slotKey(ctx, r, keyLabel); return; }
     g.iconIn(ctx, s.icon, r.x, r.y + 1, r.w, r.h - 1);
     const ix = r.x + 2, iy = r.y + 2, iw = r.w - 4, ih = r.h - 4;
+    // out of range: red tint. Not enough resource (or not ready): dimmed (CRITIQUE_1 item 6)
     if (!s.inRange) g.rect(ctx, ix, iy, iw, ih, 'rgba(224,80,58,0.45)');
-    else if (!s.usable) g.rect(ctx, ix, iy, iw, ih, 'rgba(40,56,150,0.55)');
+    if (!s.usable) g.rect(ctx, ix, iy, iw, ih, 'rgba(12,10,22,0.62)');
     const onCd = s.cdLeft > 0.05 && s.cdLeft >= (s.gcdLeft || 0);
     if (onCd) {
       g.scrim(ctx, ix, iy, iw, ih, 110);
@@ -190,16 +259,17 @@ export function createHud(env) {
 
   function xpBar(ctx, L, p) {
     const y = L.xp.y;
-    g.scrim(ctx, 0, y - 3, W, 13, 170);
+    const LW = L.W || W;
+    g.scrim(ctx, 0, y - 3, LW, 13, 170);
     g.text(ctx, `Lv ${p.level}`, 4, y - 3, 'gold');
     const label = p.xpToLevel ? `${fmtInt(p.xp)} / ${fmtInt(p.xpToLevel)} XP` : 'Max level';
     const lw = g.textW(label);
-    const gx = 34, gw = W - 4 - lw - 8 - gx;
+    const gx = 34, gw = LW - 4 - lw - 8 - gx;
     g.gauge(ctx, gx, y, gw, p.xpToLevel ? p.xp / p.xpToLevel : 1, 'exp');
-    g.text(ctx, label, W - 4, y - 3, 'white', { align: 'right' });
+    g.text(ctx, label, LW - 4, y - 3, 'white', { align: 'right' });
   }
 
-  function chat(ctx, L, lines, st, regions) {
+  function chat(ctx, L, lines, st, regions, fade) {
     const C = L.chat;
     const n = C.lines;
     const total = lines.length;
@@ -216,10 +286,17 @@ export function createHud(env) {
     const shown = wrapped.slice(-n);
     const h = 4 + 11 * shown.length + 2;
     const y0 = C.bottom - h;
+    // the player or the target under the log: the log fades to near-clear so the fight shows (CRITIQUE_1 item 3)
+    const box = { x: C.x, y: y0, w: C.w, h };
+    const faded = (fade || []).some((u) => hit(u, box));
+    st.chatFade = (st.chatFade || 0) + ((faded ? 1 : 0) - (st.chatFade || 0)) * 0.2;
+    if (st.chatFade > 0.02) ctx.globalAlpha = Math.round((1 - 0.75 * st.chatFade) * 20) / 20;
     g.scrim(ctx, C.x, y0, C.w, h, C.passive ? 90 : 130);
     shown.forEach((l, i) => g.text(ctx, l.text, C.x + 4 + (l.cont ? 6 : 0), y0 + 2 + i * 11, CH_COLOR[l.ch] || 'white'));
     if (st.chatScroll > 0) g.text(ctx, `+${st.chatScroll}`, C.x + C.w - 4, y0 + 2, 'dim', { align: 'right' });
-    if (!C.passive) regions.push({ rect: { x: C.x, y: y0, w: C.w, h }, kind: 'chat' });
+    ctx.globalAlpha = 1;
+    // a faded log lets clicks through to the fight under it
+    if (!C.passive && !faded) regions.push({ rect: { x: C.x, y: y0, w: C.w, h }, kind: 'chat' });
   }
 
   function menuBar(ctx, L, st, regions) {
@@ -235,7 +312,7 @@ export function createHud(env) {
   function touchControls(ctx, L, m, st, regions) {
     const bySlot = new Map(m.bar.map((s) => [s.slot, s]));
     for (const b of L.cluster) {
-      const d = Math.min(b.w - 6, 34);
+      const d = Math.min(b.w - (b.w < 34 ? 2 : 6), 34);
       const r = { x: Math.round(b.x + (b.w - d) / 2), y: Math.round(b.y + (b.h - d) / 2), w: d, h: d };
       const pressed = st.pressed === b.id;
       if (b.slot) {
@@ -243,9 +320,12 @@ export function createHud(env) {
         if (pressed) g.outline(ctx, r.x - 1, r.y - 1, r.x + r.w, r.y + r.h, '#fff7d6');
       } else {
         g.window(ctx, r.x, r.y, r.w, r.h, 'thin', pressed ? 'ember' : 'violet', 0.9);
-        if (b.id === 'interact') g.iconIn(ctx, 'prompt_talk_0', r.x, r.y - 3, r.w, r.h);
-        else g.iconIn(ctx, 'reticle_0', r.x, r.y - 3, r.w, r.h);
-        g.text(ctx, b.id === 'interact' ? 'Talk' : 'Next', r.x + r.w / 2, r.y + r.h - 12, 'cream', { align: 'center' });
+        // a small button (the phone's big HUD layer) shows the word alone, so the label never sits on the icon
+        if (r.w >= 30) {
+          if (b.id === 'interact') g.iconIn(ctx, 'prompt_talk_0', r.x, r.y - 3, r.w, r.h);
+          else g.iconIn(ctx, 'reticle_0', r.x, r.y - 3, r.w, r.h);
+          g.text(ctx, b.id === 'interact' ? 'Talk' : 'Next', r.x + r.w / 2, r.y + r.h - 12, 'cream', { align: 'center' });
+        } else g.text(ctx, b.id === 'interact' ? 'Talk' : 'Next', r.x + Math.floor(r.w / 2) + 1, r.y + Math.floor(r.h / 2) - 6, 'cream', { align: 'center' });
       }
       regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, ability: b.slot && bySlot.get(b.slot) ? bySlot.get(b.slot).ability : null });
     }
@@ -272,20 +352,20 @@ export function createHud(env) {
     draw(ctx, m, L, st, opts = {}) {
       const regions = [];
       if (!m.player) return regions;
-      if (L.touch) chat(ctx, L, opts.log || [], st, regions);
+      if (L.touch) chat(ctx, L, opts.log || [], st, regions, opts.fade);
       const party = m.party || [];
       party.slice(0, 3).forEach((u, i) => { const r = L.party(i); partyFrame(ctx, r, u, L.touch); regions.push({ rect: r, kind: 'party', id: u.id }); });
       playerFrame(ctx, L, m.player); regions.push({ rect: L.player, kind: 'player' });
       if (m.target) { targetFrame(ctx, L, m.target); regions.push({ rect: L.target, kind: 'target' }); }
       minimap(ctx, L, m.minimap, m.zone && m.zone.name, regions);
-      tracker(ctx, L, m, st, regions);
+      tracker(ctx, L, m, st, regions, opts.fade);
       if (!L.touch) {
         L.bar.forEach((r, i) => slot(ctx, r, m.bar[i], opts.keyLabels ? opts.keyLabels[i] : String(i + 1), regions));
-        chat(ctx, L, opts.log || [], st, regions);
+        chat(ctx, L, opts.log || [], st, regions, opts.fade);
       }
       if (m.castBar) castBar(ctx, L, m.castBar);
       xpBar(ctx, L, m.player);
-      regions.push({ rect: { x: 0, y: L.xp.y - 3, w: W, h: 13 }, kind: 'xp' });
+      regions.push({ rect: { x: 0, y: L.xp.y - 3, w: L.W || W, h: 13 }, kind: 'xp' });
       if (L.touch) touchControls(ctx, L, m, st, regions);
       return regions;
     },
@@ -295,11 +375,12 @@ export function createHud(env) {
       if (!region) return null;
       if (region.kind === 'slot' && region.ability) {
         const a = abilityInfo(region.ability);
-        const tip = abilityTooltip(a, m.player.level, (classInfo(m.player.cls) || {}).resource || 'mana');
+        const tip = abilityTooltip(a, m.player.level, (classInfo(m.player.cls) || {}).resource || 'mana', liveStats(m));
         if (!tip) return null;
         const s = m.bar.find((b) => b.slot === region.slot);
         if (s && !s.inRange) tip.foot = 'Out of range.';
-        else if (s && !s.usable) tip.foot = `Not enough ${(classInfo(m.player.cls) || {}).resource || 'mana'}.`;
+        else if (s && !s.usable && s.cdLeft > 0.05) tip.foot = `Ready in ${Math.ceil(s.cdLeft)} sec.`;
+        else if (s && !s.usable) tip.foot = `Not enough ${resourceWord(m.player.res ? m.player.res.kind : (classInfo(m.player.cls) || {}).resource)}.`;
         if (tip.foot) tip.footColor = 'red';
         return tip;
       }
@@ -311,6 +392,40 @@ export function createHud(env) {
       return null;
     },
   };
+}
+
+/** Soft objective areas (a dithered gold disc) on a minimap or world map. areas: [{ zone, x, y, r }] in tiles. */
+export function drawAreas(ctx, areas, view, ppt, sx, sy, zone, minR = 1) {
+  if (!areas || !areas.length) return;
+  for (const a of areas) {
+    if (a.zone && zone && a.zone !== zone) continue;
+    const cx = view.x + a.x * ppt - sx, cy = view.y + a.y * ppt - sy, r = Math.max(minR * ppt, (a.r || 2) * ppt);
+    const x0 = Math.max(view.x, Math.floor(cx - r)), x1 = Math.min(view.x + view.w - 1, Math.ceil(cx + r));
+    const y0 = Math.max(view.y, Math.floor(cy - r)), y1 = Math.min(view.y + view.h - 1, Math.ceil(cy + r));
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+      if (d > r) continue;
+      const edge = d > r - 1.2;
+      if (!edge && (x + y) % 2) continue;
+      ctx.fillStyle = edge ? 'rgba(255,210,58,0.9)' : 'rgba(255,210,58,0.35)';
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+}
+
+function fillTri(ctx, x, y, P, color) {
+  const ys = P.map((p) => p[1]);
+  ctx.fillStyle = color;
+  for (let yy = Math.floor(Math.min(...ys)); yy <= Math.ceil(Math.max(...ys)); yy++) {
+    const xs = [];
+    for (let i = 0; i < 3; i++) {
+      const [x0, y0] = P[i], [x1, y1] = P[(i + 1) % 3];
+      if (yy >= Math.min(y0, y1) && yy <= Math.max(y0, y1) && y0 !== y1) xs.push(x0 + ((yy - y0) * (x1 - x0)) / (y1 - y0));
+    }
+    if (xs.length < 2) continue;
+    const a = Math.round(Math.min(...xs)), b = Math.round(Math.max(...xs));
+    ctx.fillRect(x + a, y + yy, b - a + 1, 1);
+  }
 }
 
 export { inRect };

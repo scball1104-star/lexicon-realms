@@ -135,4 +135,46 @@ export const tests = [
     stepN(w, 1802);
     eq(m.dead, false, 'respawned'); eq(m.level, 9, 'kept the spawn level');
   } },
+  // ---- pathing (fix pass 2): chasing mobs walk round fences instead of pressing into them, and evade fast when no way exists
+  { name: 'ai: pathing: a mob with a fence between it and the player walks round it and swings, no evade (was: stuck, leash at 10 s)', fn() {
+    const { world: w, p, C, content } = world('warden', 5);
+    const Z = content.zones.arena;
+    Z.collision = Z.collision.map((r, y) => (y >= 1 && y <= 20 ? r.slice(0, 30) + '#' + r.slice(31) : r));   // fence x=30, gap below y=20
+    at(p, 33, 10);
+    const m = addMob(w, 'brute_5', 27, 10);
+    C.combat.addThreat(m, p, 10);
+    let reached = -1;
+    const ev = stepN(w, 20 * 12, (e, ww) => { if (reached < 0 && distPx(m, p) <= 40) reached = ww.tick; });
+    assert(reached > 0, `reached the player round the fence (mob at ${Math.floor(m.x / 256)},${Math.floor(m.y / 256)}, mode ${m.ai.mode})`);
+    eq(ofType(ev, 'evade', (e) => e.id === m.id).length, 0, 'never evaded');
+    assert(ofType(ev, 'damage', (e) => e.src === m.id && e.dst === p.id).length >= 1, 'swung at the player');
+  } },
+  { name: 'ai: pathing: a melee mob that cannot reach the player at all (walled pocket) evades within 3 s, and the player leaves combat', fn() {
+    const { world: w, pid, p, C, content } = world('scribe', 5);
+    const Z = content.zones.arena;
+    Z.collision = Z.collision.map((r, y) => (y >= 12 && y <= 18 ? r.slice(0, 42) + (y === 12 || y === 18 ? '#######' : '#.....#') + r.slice(49) : r));
+    at(p, 45, 15);
+    const m = addMob(w, 'brute_5', 30, 15);
+    C.combat.addThreat(m, p, 10);
+    let evadeAt = -1;
+    const t0 = w.tick;
+    stepN(w, 20 * 6, (e, ww) => { if (evadeAt < 0 && ofType(e, 'evade', (x) => x.id === m.id).length) evadeAt = ww.tick; });
+    assert(evadeAt > 0, 'evaded');
+    assert(evadeAt - t0 <= 20 * 3 + 2, `evaded within 3 s (took ${(evadeAt - t0) / 20} s)`);
+    stepN(w, 20 * 7);
+    eq(w.get(pid).inCombat, false, 'out of combat');
+  } },
+  { name: 'ai: pathing is deterministic: the same fight round the fence twice lands on the same tick and spot', fn() {
+    const once = () => {
+      const { world: w, p, C, content } = world('warden', 5);
+      const Z = content.zones.arena;
+      Z.collision = Z.collision.map((r, y) => (y >= 1 && y <= 20 ? r.slice(0, 30) + '#' + r.slice(31) : r));
+      at(p, 33, 10);
+      const m = addMob(w, 'brute_5', 27, 10);
+      C.combat.addThreat(m, p, 10);
+      stepN(w, 20 * 8);
+      return `${m.x},${m.y},${m.hp},${p.hp}`;
+    };
+    eq(once(), once(), 'same result');
+  } },
 ];
