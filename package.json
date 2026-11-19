@@ -1,0 +1,12 @@
+{
+  "name": "lexicon-realms",
+  "type": "module",
+  "private": true,
+  "description": "Lexicon Realms: an online questing and leveling RPG in the world of Lexicon Quest. Vanilla ES modules, no runtime dependencies.",
+  "scripts": {
+    "test": "node qa/run.mjs",
+    "serve": "python tools/dev/serve.py",
+    "shot": "python qa/shot.py",
+    "import-maps": "node tools/dev/import_lq_maps.mjs"
+  }
+}
