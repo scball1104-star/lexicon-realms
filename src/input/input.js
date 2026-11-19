@@ -17,6 +17,7 @@ const MOVE_KEYS = {
   KeyA: [-1, 0], ArrowLeft: [-1, 0], KeyD: [1, 0], ArrowRight: [1, 0],
 };
 export const TAB_RANGE_PX = 400;
+export const INTERACT_REACH_PX = 48;   // HUD AGENT EDIT: nearest-NPC search for the Interact intent (sim reach is 40)
 
 export function createInput(keyTarget, canvas) {
   const held = new Set();
@@ -97,6 +98,24 @@ export function createInput(keyTarget, canvas) {
           if (it.k === 'rclick' && e && e.kind === 'npc') out.push({ t: 'interact', id });
         } else if (it.k === 'cast') {
           out.push({ t: 'cast', slot: it.slot, target: target ?? null });
+        } else if (it.k === 'interact') {
+          // HUD AGENT EDIT 2026-11-19: the Interact key (F) and the phone Talk button. Talk to the current target when
+          // it is an NPC, else the nearest NPC within reach (targeting it first so the HUD shows who you talk to).
+          let npcId = null;
+          const cur = target != null ? snap.entities.find((o) => o.id === target) : null;
+          if (cur && cur.kind === 'npc') npcId = cur.id;
+          else {
+            let best = INTERACT_REACH_PX + 1;
+            for (const o of snap.entities) {
+              if (o.kind !== 'npc' || o.zone !== me.zone || o.dead) continue;
+              const d = Math.hypot(o.x - me.x, o.y - me.y);
+              if (d < best || (d === best && npcId != null && o.id < npcId)) { best = d; npcId = o.id; }
+            }
+          }
+          if (npcId != null) {
+            if (npcId !== target) { target = npcId; out.push({ t: 'target', id: npcId }); }
+            out.push({ t: 'interact', id: npcId });
+          }
         }
       }
       return out;
