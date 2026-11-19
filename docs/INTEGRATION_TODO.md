@@ -46,3 +46,8 @@ From HUD wave:
     by ability id, talents16 by talent id, items16 by icon id), ui.png icons only as a fallback.
 13. DONE (combat lane had updated it; it passes).
 14. DONE. Kept the UI's LEXICON+REALMS title logo; assets/icons/realms_logo stays in the art folder unused.
+
+From art polish (2026-11-19):
+15. src/data/npcs.js sprite keys: sloe -> npc_sloe, sorrel -> npc_sorrel, penny -> npc_penny, quill -> npc_quill.
+16. UI: load assets/portraits/npc_heads.json (frames head_<npc id>) and npc_portraits.json (frames <npc id>_32) in uiassets.js; gfx.head() and gfx.portrait() try these first, keyed by npc.id (lark_escort -> lark via the json `npcs` map).
+17. Phone: remove black bars at 844x390 (integer scale only today); fit by adapting the internal width/height to the screen aspect on touch devices, keeping integer pixel scale.
