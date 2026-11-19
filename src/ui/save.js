@@ -41,7 +41,9 @@ export function migrate(raw) {
   if (o.v !== SAVE_VERSION) return { data: blank(), bad: true };       // newer or unknown: keep it aside, never clobber
   const chars = o.chars.filter((c) => c && typeof c.name === 'string' && CLASS_IDS.includes(c.cls)).slice(0, MAX_CHARS)
     .map((c) => ({ id: c.id | 0, name: c.name, cls: c.cls, look: Math.max(0, Math.min(LOOKS - 1, c.look | 0)), level: Math.max(1, c.level | 0 || 1),
-      xp: c.xp | 0, zone: c.zone || null, x: c.x ?? null, y: c.y ?? null, createdSeq: c.createdSeq | 0, lastPlayedSeq: c.lastPlayedSeq | 0 }));
+      xp: c.xp | 0, zone: c.zone || null, zoneName: c.zoneName || null, x: c.x ?? null, y: c.y ?? null, createdSeq: c.createdSeq | 0, lastPlayedSeq: c.lastPlayedSeq | 0,
+      // the full character (CONTRACTS 2.4 addPlayer restore: gold, bag, equip, known, bar, talents, quests, lantern ...) and the one-time hint flag
+      ...(c.state && typeof c.state === 'object' ? { state: c.state } : {}), ...(c.hinted ? { hinted: true } : {}) }));
   const nextId = Math.max(o.nextId | 0, 1 + Math.max(0, ...chars.map((c) => c.id)));
   return { data: { v: SAVE_VERSION, nextId, seq: o.seq | 0, chars }, bad: false };
 }

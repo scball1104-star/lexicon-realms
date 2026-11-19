@@ -23,6 +23,8 @@ const dir8 = (dx, dy) => DIR8[((Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) %
 
 export function createFx(opts) {
   const { sheet, numFont, bigFont } = opts;
+  const abilities = opts.abilities || null;     // content abilities (mob bolt schools, fallback speeds)
+  const seenSim = new Set();                    // sim projectile ids that got an event visual (late-join fallback skips them)
   let playerId = opts.playerId ?? null;
   const fx = [];            // live effects
   const sparks = [];        // tiny pixel particles
@@ -37,7 +39,7 @@ export function createFx(opts) {
   const anim = (name) => { const s = sheet(); return s && s.json.fx && s.json.fx[name] ? s.json.fx[name] : null; };
 
   function feed(events, now) {
-    for (const s of planEvents(events, { playerId })) start(s, now);
+    for (const s of planEvents(events, { playerId, abilities })) start(s, now);
   }
 
   function start(s, now) {
@@ -46,6 +48,7 @@ export function createFx(opts) {
       case 'caststop': casting.delete(s.src); break;
       case 'release': fx.push({ type: 'flash', at: s.src, t0: now, dur: 0.22, color: s.color, rgb: s.light || hexRgb(s.color), hand: true }); break;
       case 'projectile':
+        if (s.simId != null) seenSim.add(s.simId);
         for (let i = 0; i < s.count; i++) fx.push({ type: 'proj', ...s, t0: now + i * 0.08, id: ++seq, pos: null, from: null, land: [], spread: (i - (s.count - 1) / 2) * 6 });
         break;
       case 'impact':
@@ -61,7 +64,8 @@ export function createFx(opts) {
         if (s.mode === 'add') fx.push({ type: s.buff ? 'buffring' : 'debuff', at: s.dst, t0: now, dur: 0.6, color: s.color, rgb: hexRgb(s.color) });
         else fx.push({ type: 'fadepuff', at: s.dst, t0: now, dur: 0.35, color: s.color });
         break;
-      case 'death': fx.push({ type: 'death', at: s.id, t0: now, dur: 0.9, fixed: lastPos.get(s.id) || null }); burst(lastPos.get(s.id), 10, '#d8d0c0', 0.7, now, 1); break;
+      case 'death': { const h = hints.get(s.id) || {}; h.deathT0 = now; hints.set(s.id, h); }
+        fx.push({ type: 'death', at: s.id, t0: now, dur: 0.9, fixed: lastPos.get(s.id) || null }); burst(lastPos.get(s.id), 10, '#d8d0c0', 0.7, now, 1); break;
       case 'levelup': fx.push({ type: 'levelup', at: s.id, t0: now, dur: 1.3, rgb: [255, 220, 140] }); break;
       case 'swing': { const h = hints.get(s.src) || {}; h.attackT0 = now; hints.set(s.src, h); break; }
       case 'hurt': { const h = hints.get(s.dst) || {}; h.hurtT0 = now; hints.set(s.dst, h); break; }
@@ -77,7 +81,7 @@ export function createFx(opts) {
     }
     const src = lastPos.get(s.src);
     const type = s.sprite;
-    fx.push({ type, at: s.dst, t0: now, dur: { slash: 0.3, flurry: 0.3, ink_splash: 0.45, heal: 0.65, hit: 0.22, burst: 0.4, tick: 0.25, healtick: 0.5 }[type] || 0.35,
+    fx.push({ type, at: s.dst, t0: now, dur: { slash: 0.3, flurry: 0.3, ink_splash: 0.45, heal: 0.65, hit: 0.22, burst: 0.4, tick: 0.25, healtick: 0.5, arrowfall: 0.3 }[type] || 0.35,
       color: s.color, rgb: s.light || hexRgb(s.color || '#ffffff'), crit: s.crit, heavy: s.heavy, from: src ? [src.x, src.y] : null });
     if (s.crit) fx.push({ type: 'critflash', at: s.dst, t0: now, dur: 0.18, rgb: [255, 240, 200] });
     const a = lastPos.get(s.dst);
@@ -254,6 +258,13 @@ export function createFx(opts) {
           if (k < 0.3) star(g, sx, sy - Math.round(h * 0.45), 3, f.color || '#fff1a8');
           break;
         }
+        case 'arrowfall': {
+          // an arrow dropping onto the target out of the volley, then a small hit star
+          const hy = sy - Math.round(h * 0.45);
+          if (k < 0.6) { const ay = hy - Math.round((1 - k / 0.6) * 40); g.fillStyle = '#c8a070'; g.fillRect(sx, ay - 6, 1, 6); g.fillStyle = '#f6f4ee'; g.fillRect(sx, ay, 1, 1); g.fillRect(sx - 1, ay - 6, 3, 1); }
+          else star(g, sx, hy, 2, '#fff7d6');
+          break;
+        }
         case 'critflash': { g.save(); g.globalCompositeOperation = 'lighter'; ditherDisc(g, sx, sy - Math.round(h * 0.45), 9, '#fff0c0', 0.9 * (1 - k)); g.restore(); break; }
         case 'flash': {
           const hx = sx + (f.pos.hand ? f.pos.hand[0] : 0), hy = sy - (f.pos.hand ? f.pos.hand[1] : 18);
@@ -371,7 +382,13 @@ export function createFx(opts) {
 
   return {
     feed, update, drawWorld, lights, drawNumbers, auraLooks, drawAuraLook,
-    state(id, now) { const h = hints.get(id); return h ? { attackT0: h.attackT0, hurtT0: h.hurtT0, now } : null; },
+    state(id, now) { const h = hints.get(id); return h ? { attackT0: h.attackT0, hurtT0: h.hurtT0, deathT0: h.deathT0, now } : null; },
+    deathAt(id) { const h = hints.get(id); return h && h.deathT0 != null ? h.deathT0 : null; },
+    /** True when a sim projectile id already has an event visual; prune(ids) keeps the set to live ids. */
+    seenProjectile(id) { return seenSim.has(id); },
+    pruneProjectiles(live) { if (seenSim.size > 64) for (const id of seenSim) if (!live.has(id)) seenSim.delete(id); },
+    /** Forget hints of entities that are gone (corpse respawned, despawned). */
+    clearHint(id) { hints.delete(id); },
     hurtAt(id) { const h = hints.get(id); return h && h.hurtT0 != null ? h.hurtT0 : null; },
     setPlayer(id) { playerId = id; },
     get counts() { return { fx: fx.length, sparks: sparks.length, floats: floats.length, casting: casting.size }; },

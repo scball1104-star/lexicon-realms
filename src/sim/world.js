@@ -389,6 +389,9 @@ function wrap(state, content, rng, systems) {
       case 'equip': if (combatOn) equipItem(e, cmd); return;
       case 'unequip': if (combatOn) unequipItem(e, cmd); return;
       case 'use_item': if (combatOn) useItem(e, cmd); return;
+      case 'buy': if (combatOn) vendorBuy(e, cmd); return;
+      case 'sell': if (combatOn) vendorSell(e, cmd); return;
+      case 'buyback': if (combatOn) vendorBuyback(e, cmd); return;
       case 'learn_talent': if (combatOn) C.prog.learnTalent(e, cmd); return;
       case 'unlearn_talent': if (combatOn) C.prog.unlearnTalent(e, cmd); return;
       case 'respec': if (combatOn) C.prog.respec(e, cmd); return;
@@ -409,6 +412,8 @@ function wrap(state, content, rng, systems) {
           if (cls) ev.trainer = cls === e.cls
             ? { cls, offer: C.prog.trainerOffer(e), respecCost: C.prog.respecCost(e) }
             : { cls, offer: [] };
+          const vdef = vendorDef(t);
+          if (vdef && content.items) ev.vendor = { npc: t.template, items: vdef.items.map((_, i) => stockView(e, vdef, i)).filter(Boolean) };
         }
         emit(ev);
         if (QS && !t.escort) QS.interact(e, t);
@@ -433,10 +438,117 @@ function wrap(state, content, rng, systems) {
     return (e.bag || []).findIndex((s) => s.item === cmd.item);
   }
   function invFail(e, cmd, reason) { emit({ type: 'inventory_fail', id: e.id, cmd: cmd.t, item: cmd.item || null, reason }); return false; }
+  // ---------------------------------------------------------------- vendors (CONTRACTS 2.2 buy / sell / buyback)
+  // Prices (PROGRESSION 4.8, 6.2): a vendor sells consumables and bags at `price`, gear at 4 x value; it buys at value.
+  // Quest items have no value and cannot be sold. The last 6 things sold can be bought back for what they paid.
+  const BUYBACK_MAX = 6, MAX_BAGS = 4;
+  function vendorDef(npc) { const t = npc && npc.kind === 'npc' ? (content.npcs || {})[npc.template] : null; return t && t.vendor && t.vendor.items && t.vendor.items.length ? t.vendor : null; }
+  function stockEntry(vdef, i) {
+    const s = vdef.items[i | 0];
+    const def = s && content.items[s.item];
+    if (!def) return null;
+    return def.kind === 'weapon' || def.kind === 'armor' ? { item: s.item, inst: { ilvl: s.ilvl || def.level || 1, rarity: 'common', affixes: [] } } : { item: s.item };
+  }
+  function priceOf(e, entry) {
+    const def = content.items[entry.item];
+    if (def.price != null) return def.price;
+    const it = resolveItem(content, entry, e.cls);
+    return 4 * Math.max(1, (it && it.value) || def.value || 1);
+  }
+  function stockView(e, vdef, i) {
+    const entry = stockEntry(vdef, i);
+    if (!entry) return null;
+    const it = resolveItem(content, entry, e.cls);
+    return { index: i, item: entry.item, inst: entry.inst || null, name: it.name, icon: it.icon, rarity: it.rarity, kind: it.kind, slot: it.slot || null,
+      reqLevel: it.reqLevel || 1, price: priceOf(e, entry), stack: it.stack || 1 };
+  }
+  function sellValue(e, slot) {
+    const def = content.items[slot.item];
+    if (!def || def.kind === 'quest') return 0;
+    if (def.kind === 'weapon' || def.kind === 'armor') { const it = resolveItem(content, slot, e.cls); return Math.max(0, (it && it.value) || 0); }
+    return Math.max(0, def.value || 0);
+  }
+  function atVendor(e, cmd) {
+    const n = cmd.npc != null ? index.get(cmd.npc) : null;
+    if (!n || !vendorDef(n)) return null;
+    if (n.zone !== e.zone || distPx(e, n) > INTERACT_RANGE_PX) return null;
+    return n;
+  }
+  /** How many of `item` (stack size `stack`, instanced or not) fit in the bag right now. */
+  function roomFor(e, item, inst) {
+    const def = content.items[item];
+    const stack = inst ? 1 : (def && def.stack) || 1;
+    let n = bagFree(e, content) * stack;
+    if (!inst) for (const s of e.bag || []) if (s.item === item && !s.inst) n += Math.max(0, stack - s.qty);
+    return n;
+  }
+  function vendorBuy(e, cmd) {
+    const n = atVendor(e, cmd);
+    if (!n) return invFail(e, cmd, 'range');
+    const vdef = vendorDef(n);
+    const entry = stockEntry(vdef, cmd.index != null ? cmd.index : vdef.items.findIndex((s) => s.item === cmd.item));
+    if (!entry) return invFail(e, cmd, 'no_item');
+    const qty = entry.inst ? 1 : Math.max(1, Math.min(20, cmd.qty | 0 || 1));
+    const cost = priceOf(e, entry) * qty;
+    if ((e.gold || 0) < cost) return invFail(e, { ...cmd, item: entry.item }, 'gold');
+    if (roomFor(e, entry.item, entry.inst) < qty) return invFail(e, { ...cmd, item: entry.item }, 'bag_full');
+    bagAdd(e, entry.item, qty, entry.inst || null, content);
+    e.gold -= cost;
+    emit({ type: 'inventory', id: e.id, kind: 'buy', item: entry.item, qty, cost, npc: n.template });
+    emit({ type: 'gold', id: e.id, amount: -cost, total: e.gold, source: 'buy' });
+    if (QS) QS.onBag(e);
+    return true;
+  }
+  function vendorSell(e, cmd) {
+    const n = atVendor(e, cmd);
+    if (!n) return invFail(e, cmd, 'range');
+    const i = bagIndex(e, cmd);
+    if (i < 0) return invFail(e, cmd, 'no_item');
+    const slot = e.bag[i];
+    const each = sellValue(e, slot);
+    if (each <= 0) return invFail(e, { ...cmd, item: slot.item }, 'no_value');
+    const qty = Math.max(1, Math.min(slot.qty, cmd.qty | 0 || slot.qty));
+    const got = each * qty;
+    if (qty >= slot.qty) e.bag.splice(i, 1); else slot.qty -= qty;
+    e.gold = (e.gold || 0) + got;
+    e.buyback = [...(e.buyback || []), { item: slot.item, qty, ...(slot.inst ? { inst: JSON.parse(JSON.stringify(slot.inst)) } : {}), price: got }].slice(-BUYBACK_MAX);
+    emit({ type: 'inventory', id: e.id, kind: 'sell', item: slot.item, qty, gold: got, npc: n.template });
+    emit({ type: 'gold', id: e.id, amount: got, total: e.gold, source: 'sell' });
+    if (QS) QS.onBag(e);
+    return true;
+  }
+  function vendorBuyback(e, cmd) {
+    const n = atVendor(e, cmd);
+    if (!n) return invFail(e, cmd, 'range');
+    const list = e.buyback || [];
+    const k = cmd.index | 0;
+    const b = list[k];
+    if (!b) return invFail(e, cmd, 'no_item');
+    if ((e.gold || 0) < b.price) return invFail(e, { ...cmd, item: b.item }, 'gold');
+    if (roomFor(e, b.item, b.inst) < b.qty) return invFail(e, { ...cmd, item: b.item }, 'bag_full');
+    bagAdd(e, b.item, b.qty, b.inst || null, content);
+    e.gold -= b.price;
+    list.splice(k, 1);
+    emit({ type: 'inventory', id: e.id, kind: 'buyback', item: b.item, qty: b.qty, cost: b.price, npc: n.template });
+    emit({ type: 'gold', id: e.id, amount: -b.price, total: e.gold, source: 'buyback' });
+    if (QS) QS.onBag(e);
+    return true;
+  }
+
   function equipItem(e, cmd) {
     const i = bagIndex(e, cmd);
     if (i < 0) return invFail(e, cmd, 'no_item');
     const entry = e.bag[i];
+    const bdef = content.items[entry.item];
+    if (bdef && bdef.kind === 'bag') {
+      // a bag item goes onto the belt: more slots (CONTRACTS 7.4 player.bags), at most 4 bags worn
+      e.bags = e.bags || ['starter_satchel'];
+      if (e.bags.length >= MAX_BAGS) return invFail(e, cmd, 'bags_full');
+      e.bag.splice(i, 1);
+      e.bags.push(entry.item);
+      emit({ type: 'inventory', id: e.id, kind: 'equip', slot: 'bag', item: entry.item });
+      return true;
+    }
     const it = resolveItem(content, entry, e.cls);
     if (!it || !it.slot || (it.kind !== 'weapon' && it.kind !== 'armor')) return invFail(e, cmd, 'not_equippable');
     if (it.classes && !it.classes.includes(e.cls)) return invFail(e, cmd, 'class');

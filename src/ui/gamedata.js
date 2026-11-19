@@ -34,7 +34,7 @@ export function setGameData({ classes, abilities, talents, hasIcon = () => true 
   }
   for (const [id, a] of Object.entries(abilities || {})) {
     const d = DD.abilities[id];
-    const icon = a.icon && hasIcon(a.icon) ? a.icon : (d && d.icon) || 'icon_magic';
+    const icon = hasIcon(id) ? id : a.icon && hasIcon(a.icon) ? a.icon : (d && d.icon) || 'icon_magic';   // the ability atlas is keyed by id
     if (!d) { merged.abilities[id] = { ...a, icon }; continue; }
     merged.abilities[id] = { ...merged.abilities[id], name: a.name || d.name, learnLevel: a.learnLevel || merged.abilities[id].learnLevel,
       cooldown: typeof a.cooldown === 'number' ? a.cooldown : d.cooldown, icon,
@@ -45,7 +45,7 @@ export function setGameData({ classes, abilities, talents, hasIcon = () => true 
     const nodes = {};
     for (const [id, n] of Object.entries(t.talents || {})) {
       const dn = d && d.talents[id];
-      nodes[id] = { ...n, icon: n.icon && hasIcon(n.icon) ? n.icon : (dn && dn.icon) || 'icon_magic',
+      nodes[id] = { ...n, icon: hasIcon(id) ? id : n.icon && hasIcon(n.icon) ? n.icon : (dn && dn.icon) || 'icon_magic',
         text: n.text || (dn && dn.text) || '', play: n.play ?? (dn && dn.play) ?? false };
     }
     merged.talents[cls] = { branches: t.branches, talents: nodes };
@@ -155,9 +155,15 @@ export function rankText(text, r) {
 let ITEMS = {};
 /** main.js passes src/data/items.js here once it exists (setGameData covers classes, abilities, talents). */
 export function setItems(items) { ITEMS = items || {}; }
+// quests (src/data/quests.js) and npc names, for the quest log and the talk window
+let QUESTS = {}, NPCS = {};
+export function setQuests(quests, npcs) { QUESTS = quests || {}; NPCS = npcs || NPCS; }
+export const questInfo = (id) => QUESTS[id] || null;
+export const npcInfo = (id) => NPCS[id] || null;
 /** An item's display record: the content entry for an id, or the object itself (placeholder bags carry full records). */
 export function itemInfo(ref) {
   if (!ref) return null;
+  if (typeof ref === 'object' && ref.resolved) return ref;          // the sim's finished record (CONTRACTS 10.1 bag/equip)
   if (typeof ref === 'object') return ref.item && typeof ref.item === 'string' ? ITEMS[ref.item] || { id: ref.item, name: ref.item } : ref;
   return ITEMS[ref] || { id: ref, name: ref };
 }

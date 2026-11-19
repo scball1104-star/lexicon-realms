@@ -3,6 +3,7 @@
 import { TICK_HZ } from './constants.js';
 import { ticks as T } from './data.js';
 import { distPx } from './geom.js';
+import { resolveItem, bagCapacity } from './loot.js';
 
 export function createHud(C) {
   const { state, data, stats } = C;
@@ -96,7 +97,30 @@ export function createHud(C) {
       sitting: !!e.sitting,
       showAggroRings: data.hasScript(e, 'path_sense'),
       stats: { ...e.stats }, derived: { ...e.derived },
+      bag: bagView(e), equip: equipView(e),
+      buyback: (e.buyback || []).map((b) => ({ ...itemView(e, b), price: b.price })),
     };
+  }
+
+  // Finished item records for the bag, the worn gear and vendor buyback (loot.js resolveItem: names with affixes,
+  // armor type, damage, value), so the HUD never re-derives an item rule. `resolved: true` marks them.
+  function itemView(e, slot) {
+    const it = C.content.items ? resolveItem(C.content, slot, e.cls) : null;
+    if (!it) return { item: slot.item, qty: slot.qty || 1, name: slot.item, resolved: true };
+    const v = { item: slot.item, qty: slot.qty || 1, resolved: true, id: slot.item, name: it.name, icon: it.icon, rarity: it.rarity, kind: it.kind,
+      slot: it.slot || null, level: it.level, reqLevel: it.reqLevel || 1, value: it.kind === 'quest' ? 0 : it.value || 0, classes: it.classes || null };
+    for (const k of ['weaponType', 'armorType', 'damage', 'speed', 'armor', 'text', 'use', 'bagSlots']) if (it[k] != null) v[k] = JSON.parse(JSON.stringify(it[k]));
+    if (it.stats && Object.keys(it.stats).length) v.stats = { ...it.stats };
+    if (slot.inst) v.inst = JSON.parse(JSON.stringify(slot.inst));
+    return v;
+  }
+  function bagView(e) {
+    return { size: C.content.items ? bagCapacity(e, C.content) : 12, bags: [...(e.bags || ['starter_satchel'])], items: (e.bag || []).map((s) => itemView(e, s)) };
+  }
+  function equipView(e) {
+    const out = {};
+    for (const [slot, v] of Object.entries(e.equip || {})) if (v) out[slot] = itemView(e, typeof v === 'string' ? { item: v } : v);
+    return out;
   }
 
   return { build, unitView };

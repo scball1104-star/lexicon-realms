@@ -5,7 +5,7 @@
 // snapshot (positions for range and the minimap) and from the UI's local PLACEHOLDER state (quests, bag, talents)
 // so the screens work end to end. The fields are named exactly as CONTRACTS section 10 lists them, so moving this
 // code into buildViewModel later changes no HUD code. See the report for the sim fields still needed.
-import { classInfo, abilityInfo, abilityCost, seconds, rangePx, xpToNext, talentPointsAt, resourceLabel, resourceGauge } from './gamedata.js';
+import { classInfo, abilityInfo, abilityCost, seconds, rangePx, xpToNext, talentPointsAt, resourceLabel, resourceGauge, questInfo } from './gamedata.js';
 
 export const SLOT_KEYS = ['1', '2', '3', '4', '5', '6'];
 
@@ -16,8 +16,19 @@ export function defaultBar(cls, level) {
   return c.abilities.filter((id) => { const a = abilityInfo(id); return !a || (a.learnLevel || 1) <= level; }).slice(0, 6);
 }
 
+/** Quest log rows from the sim's tracker (CONTRACTS 10.1 hud.quests) plus the quest data (names, text, rewards). */
+export function questRows(rows, untracked = new Set(), zoneNames = {}) {
+  return (rows || []).map((r) => {
+    const q = questInfo(r.quest) || {};
+    return { id: r.quest, name: r.name || q.name || r.quest, level: r.level || q.level, zone: q.zone, zoneName: zoneNames[q.zone] || q.zone,
+      state: 'active', done: !!r.ready, tracked: !untracked.has(r.quest), giver: q.giver, turnIn: q.turnIn,
+      objectives: (r.rows || []).map((o) => ({ text: o.label, cur: o.cur, need: o.need })), rewards: q.rewards || {}, text: q.text || {} };
+  });
+}
+
 export function buildHudModel(vm, snap, ctx = {}) {
   const st = ctx.state || {};
+  if (vm.hud && vm.player) return fromSimHud(vm, snap, ctx);
   const byId = new Map(((snap && snap.entities) || []).map((e) => [e.id, e]));
   const meE = vm.player ? byId.get(vm.player.id) : null;
   const tE = vm.target ? byId.get(vm.target.id) : null;
@@ -107,5 +118,61 @@ export function buildHudModel(vm, snap, ctx = {}) {
     equip: vm.equip || st.equip || {},
     gold: vm.gold ?? st.gold ?? 0,
     stats: (meE && meE.stats) || (p && p.stats) || null,
+  };
+}
+
+// ---------------------------------------------------------------- the live path: everything from the sim's HUD block
+function fromSimHud(vm, snap, ctx) {
+  const h = vm.hud;
+  const st = ctx.state || {};
+  const byId = new Map(((snap && snap.entities) || []).map((e) => [e.id, e]));
+  const meE = byId.get(vm.player.id) || null;
+  const tE = vm.target ? byId.get(vm.target.id) : null;
+  const p = vm.player;
+  const cls = (meE && meE.cls) || p.cls || 'warden';
+  const ci = classInfo(cls);
+  const resKind = (h.res && h.res.kind) || (p.res && p.res.kind) || (ci && ci.resource) || 'mana';
+  const bar = SLOT_KEYS.map((key, i) => {
+    const s = h.bar[i];
+    if (!s || !s.ability || s.known === false) return { slot: i + 1, ability: null, key };
+    const a = abilityInfo(s.ability) || {};
+    return { slot: i + 1, ability: s.ability, name: s.name || a.name, icon: a.icon || s.icon, key, cdLeft: s.cdLeft || 0, cdTotal: s.cdTotal || 0,
+      usable: s.usable !== false, inRange: s.inRange !== false, gcdLeft: s.offGcd ? 0 : h.gcdLeft || 0, gcdTotal: h.gcdTotal || 1, cost: s.cost || 0, charges: s.charges };
+  });
+  const c = h.cast;
+  const castBar = c ? { ability: c.ability, name: c.name, frac: c.kind === 'channel' ? 1 - c.frac : c.frac, left: c.left, channel: c.kind === 'channel' } : null;
+  const quests = questRows(h.quests, st.untracked || new Set(), ctx.zoneNames || {});
+  const tracked = quests.filter((q) => q.tracked).slice(0, 5);
+  // minimap: quest marks from the sim (npcMarkers), everything else from positions
+  const markers = [];
+  if (meE) {
+    const marks = h.npcMarkers || {};
+    for (const e of snap.entities) {
+      if (e.zone !== meE.zone || e.dead || e.id === meE.id) continue;
+      if (e.kind === 'player') markers.push({ kind: 'party', x: e.x, y: e.y, id: e.id });
+      else if (e.kind === 'npc') { const mk = marks[e.id]; markers.push({ kind: mk === '!' ? 'quest' : mk === '?' ? 'turnin' : 'npc', x: e.x, y: e.y, id: e.id }); }
+      else if (e.faction === 'hostile' && e.kind === 'mob') markers.push({ kind: 'foe', x: e.x, y: e.y, id: e.id });
+    }
+    markers.push({ kind: 'me', x: meE.x, y: meE.y, dir: meE.dir, id: meE.id });
+  }
+  const tv = h.target;
+  const target = vm.target ? {
+    ...vm.target,
+    template: tE ? tE.template : null,
+    elite: !!((tv && tv.elite) || (tE && (tE.elite || tE.rank === 'elite'))), boss: !!(tE && tE.rank === 'boss'),
+    hpPct: Math.round((vm.target.hpFrac || 0) * 100),
+    head: tE ? (tE.sprite || '').replace(/^npc_/, '') : null,
+    auras: tv ? tv.auras : vm.target.auras, threat: tv ? tv.threat : null,
+  } : null;
+  const xp = h.xp || {};
+  return {
+    tick: vm.tick, live: true,
+    player: { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resGauge: resourceGauge(resKind),
+      xp: xp.cur || 0, xpToLevel: xp.cap ? 0 : xp.need || 0, derived: h.derived, inCombat: h.inCombat, sitting: h.sitting, respawnIn: h.respawnIn },
+    target, party: vm.party || [], zone: vm.zone, log: vm.log || [],
+    bar, castBar, quests, tracked, minimap: meE ? { zone: meE.zone, x: meE.x, y: meE.y, markers } : null,
+    talents: (meE && meE.talents) || {}, talentPoints: { total: h.talents.total, spent: h.talents.spent, free: h.talents.free },
+    bag: h.bag || { size: 12, items: [] }, equip: h.equip || {}, gold: h.gold || 0,
+    stats: h.stats ? { ...h.stats, derived: h.derived } : null, buyback: h.buyback || [], combo: h.combo,
   };
 }

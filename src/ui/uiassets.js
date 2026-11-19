@@ -45,6 +45,12 @@ export async function loadUiArt({ font }) {
     const [j, i] = await Promise.all([optional(loadJson(`assets/sprites/chars/${c}.json`)), optional(loadImage(`assets/sprites/chars/${c}.png`))]);
     if (j && i) chars[c] = { json: j, img: i };
   }));
+  // the Realms icon atlases (art lane, assets/icons/): optional, the HUD falls back to ui.png icons
+  const icons = {};
+  await Promise.all(['abilities24', 'abilities16', 'talents16', 'items16'].map(async (k) => {
+    const [j, i] = await Promise.all([optional(loadJson(`assets/icons/${k}.json`)), optional(loadImage(`assets/icons/${k}.png`))]);
+    if (j && i) icons[k] = { json: j, img: i };
+  }));
   setNamedColors(js.ui.textColors);
   setNamedColors(js.ui.rarity);
   const large = new BitmapFont(js.large, img.large, { id: 'large', fallback: font });
@@ -52,6 +58,6 @@ export async function loadUiArt({ font }) {
     ui: js.ui, uiImg: img.ui, win: js.window, winImg: img.window,
     font, large, num: js.num, numBig: js.numBig, numImg: img.num,
     heads: js.heads, headsImg: img.heads, portraits: js.portraits, portraitsImg: img.portraits,
-    logo: img.logo, backdrop: img.backdrop, party: js.party, partyImg: img.party, chars,
+    logo: img.logo, backdrop: img.backdrop, party: js.party, partyImg: img.party, chars, icons,
   };
 }

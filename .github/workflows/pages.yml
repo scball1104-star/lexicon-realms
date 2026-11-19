@@ -1,0 +1,45 @@
+# Deploy the repo root as a static site to GitHub Pages on every push to main.
+# The game is plain ES modules + assets with relative paths (index.html at the root), so there is no build step.
+# One-time setup on GitHub (not done by this file): Settings > Pages > Source: GitHub Actions.
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Tests
+        run: node qa/run.mjs
+      - name: Site files (drop dev tools, QA output and art sources)
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r src assets _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

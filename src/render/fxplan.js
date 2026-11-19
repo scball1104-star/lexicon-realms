@@ -7,7 +7,8 @@
 //   castglow   { src, ability, color, glow, light }                     hands glow until cast_stop / cast_fail
 //   caststop   { src }                                                  ends the cast glow
 //   release    { src, color, light }                                    flash at the caster on success
-//   projectile { src, dst, ability, sprite, speed, color, light, count }
+//   projectile { simId, src, dst, ability, sprite, speed, color, light, count }   from the sim's `projectile` event
+//   (ctx.abilities: content abilities, for the school of a mob bolt and a fallback speed)
 //   impact     { dst, src, ability, sprite, color, light, heavy, crit } on the target
 //   number     { dst, text, style: 'dmg'|'crit'|'heal'|'healcrit'|'taken'|'word', word? }
 //   selffx     { src, sprite, color, light }                            taunt ring, level-up, a self buff ring
@@ -20,6 +21,9 @@
 import { fxFor, SCHOOLS } from './fx_table.js';
 
 const WORDS = { miss: 'MISS', dodge: 'DODGE', parry: 'GUARD', block: 'GUARD', immune: 'IMMUNE', resist: 'RESIST' };
+
+// a projectile ability's caster swung when it let go (the `projectile` event), not when the bolt lands
+const isBolt = (id, ctx) => { const a = ctx.abilities && id ? ctx.abilities[id] : null; return !!(a && a.projectile && !a.area); };
 
 export function planEvent(ev, ctx = {}) {
   const out = [];
@@ -40,16 +44,24 @@ export function planEvent(ev, ctx = {}) {
       if (f.release) out.push({ kind: 'release', src: ev.src, color: f.color, light: f.light });
       if (f.selfFx) out.push({ kind: 'selffx', src: ev.src, sprite: f.selfFx, color: f.color, light: f.light });
       if (f.ground) out.push({ kind: 'ground', src: ev.src, color: f.color, light: f.light });
-      if (f.projectile && ev.target != null && ev.target !== ev.src) {
-        out.push({ kind: 'projectile', src: ev.src, dst: ev.target, ability: ev.ability, sprite: f.projectile.sprite,
-          speed: f.projectile.speed || 240, count: f.projectile.count || 1, color: f.color, glow: f.glow, light: f.light });
-      }
+      // projectiles fly from the sim's own `projectile` event (below), never from here: one source of timing
+      break;
+    }
+    case 'projectile': {
+      // the sim launched a bolt / arrow; its damage lands on arrival at ev.speed px/s, so the visual flies at the same speed
+      const ab = ctx.abilities && ev.ability ? ctx.abilities[ev.ability] : null;
+      const f = fxFor(ev.ability, ab && ab.school);
+      const sprite = (f.projectile && f.projectile.sprite) || (ev.ability === 'auto' ? 'arrow' : 'orb');
+      const speed = ev.speed || (ab && ab.projectile && ab.projectile.speed) || 240;
+      out.push({ kind: 'projectile', simId: ev.id ?? null, src: ev.src, dst: ev.dst, ability: ev.ability || 'auto', sprite, speed, count: 1,
+        color: f.color, glow: f.glow, light: sprite === 'arrow' ? null : f.light });
+      if (ev.ability === 'auto') out.push({ kind: 'swing', src: ev.src, dst: ev.dst });
       break;
     }
     case 'damage': {
       const f = fxFor(ev.ability, ev.school);
       const result = ev.result || 'hit';
-      if (!ev.periodic && ev.src != null && ev.src !== ev.dst) out.push({ kind: 'swing', src: ev.src, dst: ev.dst });
+      if (!ev.periodic && ev.src != null && ev.src !== ev.dst && !isBolt(ev.ability, ctx)) out.push({ kind: 'swing', src: ev.src, dst: ev.dst });
       if (result === 'hit' || result === 'block') {
         if (!ev.periodic && f.impact) out.push({ kind: 'impact', dst: ev.dst, src: ev.src, ability: ev.ability || 'auto', sprite: f.impact, color: f.color, light: f.light, heavy: !!f.heavy, crit: !!ev.crit });
         if (ev.periodic) out.push({ kind: 'impact', dst: ev.dst, src: ev.src, ability: ev.ability || 'auto', sprite: 'tick', color: f.color, light: null, heavy: false, crit: false });

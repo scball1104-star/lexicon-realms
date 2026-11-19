@@ -1,6 +1,6 @@
 // Sim events -> chat / combat log lines { ch, text } for the player's own view. Pure (tests run it).
 // Channels: system, combat, damage_out, damage_in, heal, xp, loot, error, party, say.
-import { abilityInfo } from './gamedata.js';
+import { abilityInfo, questInfo, itemInfo } from './gamedata.js';
 
 const FAIL = {
   gcd: 'Not ready yet.', cooldown: 'That ability is not ready yet.', range: 'Out of range.', los: 'You cannot see your target.',
@@ -48,12 +48,12 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
       if (ev.id !== me) return [];
       const out = [];
       if (ev.gold) out.push({ ch: 'loot', text: `You loot ${ev.gold} gold.` });
-      for (const it of ev.items || []) out.push({ ch: 'loot', text: `You receive: ${it.name || it.item}${it.qty > 1 ? ` x${it.qty}` : ''}.` });
+      for (const it of ev.items || []) out.push({ ch: 'loot', text: `You receive: ${it.name || (itemInfo(it.item) || {}).name || it.item}${it.qty > 1 ? ` x${it.qty}` : ''}.` });
       return out;
     }
     case 'quest': {
       if (ev.id !== me) return [];
-      const q = ev.questName || ev.quest;
+      const q = ev.questName || (questInfo(ev.quest) || {}).name || ev.quest;
       if (ev.kind === 'accept') return [{ ch: 'system', text: `Quest accepted: ${q}` }];
       if (ev.kind === 'progress') return [{ ch: 'system', text: `${ev.objectiveText || q}: ${ev.cur}/${ev.need}` }];
       if (ev.kind === 'complete') return [{ ch: 'system', text: `${q} (Complete)` }];

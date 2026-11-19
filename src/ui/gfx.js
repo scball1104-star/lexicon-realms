@@ -24,6 +24,15 @@ export function createGfx(art) {
   const makeCanvas = art.makeCanvas || ((w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; });
   const fills = new Map();
   const sweeps = new Map();
+  // the Realms icon atlases (assets/icons/: abilities24/16 by ability id, talents16 by talent id, items16 by icon id)
+  const atlases = art.icons || {};
+  const atlasOrder = (small) => (small ? ['abilities16', 'talents16', 'items16', 'abilities24'] : ['abilities24', 'talents16', 'items16', 'abilities16']);
+  function findIcon(name, small = false) {
+    const f = ui.frames[name];
+    if (f) return { img: uiImg, f, o: (ui.origins && ui.origins[name]) || [0, 0] };
+    for (const k of atlasOrder(small)) { const a = atlases[k]; const r = a && a.json.frames[name]; if (r) return { img: a.img, f: r, o: [0, 0] }; }
+    return null;
+  }
 
   function fillFor(w, h, scheme, alpha) {
     const key = `${w}x${h}:${scheme}:${alpha}`;
@@ -89,25 +98,26 @@ export function createGfx(art) {
         if (e2 <= dx) { err += dx; y0 += sy; }
       }
     },
-    frame(name) { return ui.frames[name] || null; },
-    iconSize(name) { const f = ui.frames[name]; return f ? [f[2], f[3]] : [0, 0]; },
+    frame(name) { const r = findIcon(name); return r ? r.f : null; },
+    iconSize(name) { const r = findIcon(name); return r ? [r.f[2], r.f[3]] : [0, 0]; },
     /** A ui.png frame at (x, y) minus its origin. */
     icon(ctx, name, x, y, alpha = 1) {
-      const f = ui.frames[name];
-      if (!f) return;
-      const o = (ui.origins && ui.origins[name]) || [0, 0];
+      const r = findIcon(name, true);
+      if (!r) return;
+      const { f, o } = r;
       const pa = ctx.globalAlpha;
       if (alpha !== 1) ctx.globalAlpha = pa * alpha;
-      ctx.drawImage(uiImg, f[0], f[1], f[2], f[3], Math.round(x - o[0]), Math.round(y - o[1]), f[2], f[3]);
+      ctx.drawImage(r.img, f[0], f[1], f[2], f[3], Math.round(x - o[0]), Math.round(y - o[1]), f[2], f[3]);
       ctx.globalAlpha = pa;
     },
     /** Icon centred in a box (ignores the frame origin). */
     iconIn(ctx, name, x, y, w, h, alpha = 1) {
-      const f = ui.frames[name];
-      if (!f) return;
+      const r = findIcon(name, Math.min(w, h) < 24);
+      if (!r) return;
+      const f = r.f;
       const pa = ctx.globalAlpha;
       if (alpha !== 1) ctx.globalAlpha = pa * alpha;
-      ctx.drawImage(uiImg, f[0], f[1], f[2], f[3], Math.round(x + (w - f[2]) / 2), Math.round(y + (h - f[3]) / 2), f[2], f[3]);
+      ctx.drawImage(r.img, f[0], f[1], f[2], f[3], Math.round(x + (w - f[2]) / 2), Math.round(y + (h - f[3]) / 2), f[2], f[3]);
       ctx.globalAlpha = pa;
     },
     /** LQ gauge: 3-slice frame + stretched fill. kind: hp (auto mid/low colours) | mp | exp | atb | fury. */

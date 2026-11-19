@@ -12,6 +12,47 @@
 // `extra` is the renderer's lazy loader ({ img(name) | null, json(name) | null }) for sheets not in the asset manifest.
 
 export const CLASS_IDS = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
+/** Mob atlases in assets/sprites/mobs/ (art wave 2; tools/art/build_mobs.py). */
+export const MOB_ATLASES = ['barrow_shade', 'briar_wolf', 'fold_ram', 'gorse_boar', 'gorse_crow', 'ink_blot', 'ink_slime_deep', 'ink_slime',
+  'ink_wraith', 'mist_wolf', 'moss_scarab_moor', 'moss_scarab', 'page_wraith', 'sentinel_long_watch', 'thornback_wolf', 'tower_sentinel', 'watch_lamp'];
+const MOB_SET = new Set(MOB_ATLASES);
+/** Seconds a mob corpse stays: the death anim plays, the last frame holds, then it fades out (CORPSE_FADE s). */
+export const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
+
+/** Which mob atlas an entity uses (sprite first, then template), or null (pure, tested). */
+export function mobKey(e) {
+  if (!e || e.kind !== 'mob') return null;
+  if (MOB_SET.has(e.sprite)) return e.sprite;
+  if (MOB_SET.has(e.template)) return e.template;
+  return null;
+}
+
+/**
+ * Mob animation at time t (pure, tested). meta: the atlas json (frames, anims, windupFrame, hitFrame, stationary).
+ * st: { attackT0, hurtT0, deathT0, now } fx hints. Returns { name, anim, dir, i }.
+ *   attack: windup (0.08 s) -> strike (0.12 s) -> recover (0.1 s); hurt 0.14 s; cast loops; death plays once and holds.
+ */
+export function mobAnim(e, t, st, meta) {
+  const dir = e.dir || 'down';
+  const has = (n) => !!(meta && meta.frames && meta.frames[n]);
+  const now = st && st.now != null ? st.now : t;
+  const pick = (anim, i) => ({ name: `${anim}_${dir}_${i}`, anim, dir, i });
+  if (e.dead) {
+    const age = st && st.deathT0 != null ? now - st.deathT0 : 99;
+    return pick('death', Math.max(0, Math.min(2, Math.floor(age * 6))));
+  }
+  if (st && st.attackT0 != null && now - st.attackT0 < 0.3) {
+    const a = now - st.attackT0;
+    const wind = (meta && meta.windupFrame && meta.windupFrame.attack) ?? 0, hit = (meta && meta.hitFrame && meta.hitFrame.attack) ?? 1;
+    const i = a < 0.08 ? wind : a < 0.2 ? hit : Math.min(2, hit + 1);
+    if (has(`attack_${dir}_${i}`)) return pick('attack', i);
+  }
+  if (st && st.hurtT0 != null && now - st.hurtT0 < 0.14 && has(`hurt_${dir}_0`)) return pick('hurt', 0);
+  const phase = ((e.id | 0) % 7) * 0.37;
+  if (e.cast && has(`cast_${dir}_0`)) return pick('cast', Math.floor(t * 6) % 2);
+  if (e.moving && !(meta && meta.stationary)) return pick('walk', Math.floor(t * 8 + phase) % 4);
+  return pick('idle', Math.floor(t * 3 + phase) % 2);
+}
 const LOOK_LETTER = { a: 1, b: 2, c: 3 };
 
 /** Which class atlas and look an entity uses, or null (pure, tested). */
@@ -46,9 +87,33 @@ export function createSpriteBook(assets, extra = null) {
     return { j, img, em: extra.img(`sprites/chars/${cls}_emissive.png`) };
   };
 
+  const mobSheet = (id) => {
+    if (!extra) return null;
+    const j = extra.json(`sprites/mobs/${id}.json`);
+    if (!j) return null;
+    const img = extra.img(`sprites/mobs/${j.image || `${id}.png`}`);
+    if (!img) return null;
+    return { j, img, em: j.emissive ? extra.img(`sprites/mobs/${j.emissive}`) : null };
+  };
+  /** Start loading every mob atlas (renderer creation). */
+  function warm() { if (extra) for (const id of MOB_ATLASES) mobSheet(id); }
+
   /** { img, sx, sy, w, h, ox, oy, flip } for an entity at time t (s). */
   function frameFor(e, t, st = null) {
     const dir = e.dir || 'down';
+    const mk = mobKey(e);
+    if (mk) {
+      const s = mobSheet(mk);
+      if (s) {
+        const a = mobAnim(e, t, st, s.j);
+        let r = s.j.frames[a.name], flip = false;
+        if (!r && a.dir === 'right') { r = s.j.frames[a.name.replace('_right_', '_left_')]; flip = !!r; }
+        if (!r) r = s.j.frames[`idle_${dir}_0`] || s.j.frames.idle_down_0;
+        const o = s.j.origin || [r[2] >> 1, r[3] - 1];
+        return { img: s.img, sx: r[0], sy: r[1], w: r[2], h: r[3], ox: o[0], oy: o[1], flip, emissive: s.em, mob: mk, anim: a.anim,
+          hover: s.j.hover || 0 };
+      }
+    }
     const ck = charKey(e);
     if (ck) {
       const s = charSheet(ck.cls);
@@ -71,20 +136,55 @@ export function createSpriteBook(assets, extra = null) {
     if (npcs.sprites[e.sprite]) {
       const s = npcs.sprites[e.sprite];
       const n = e.moving ? [1, 0, 2, 0][Math.floor(t * 6) % 4] : 0;
-      const f = npcs.frames[`${e.sprite}_${dir}_${n}`] || npcs.frames[`${e.sprite}_down_0`];
       const o = s.origin || npcs.origin;
+      if (s.faces) {
+        // animals (cat, dog, chicken, duck): stand / peck / walk, one facing, mirrored for the other side
+        const peck = !e.moving && Math.floor(t * 1.5 + (e.id % 5) * 0.7) % 4 === 0;
+        const f = npcs.frames[`${e.sprite}_${e.moving ? 'walk' : peck ? 'peck' : 'stand'}_0`] || npcs.frames[`${e.sprite}_stand_0`];
+        if (!f) return null;
+        return { img: npcImg, sx: f[0], sy: f[1], w: f[2], h: f[3], ox: o[0], oy: o[1], flip: !!s.flipForRight && dir === 'right' };
+      }
+      const f = npcs.frames[`${e.sprite}_${dir}_${n}`] || npcs.frames[`${e.sprite}_down_0`];
+      if (!f) return null;
       return { img: npcImg, sx: f[0], sy: f[1], w: f[2], h: f[3], ox: o[0], oy: o[1], flip: false };
     }
-    const s = foes.sprites[e.sprite];
+    const fk = foes.sprites[e.sprite] ? e.sprite : foes.sprites[e.template] ? e.template : null;
+    const s = fk && foes.sprites[fk];
     if (s) {
       const fps = e.moving ? 8 : 3;
       const n = Math.floor(t * fps + (e.id % 7) * 0.37) % 2;
-      const f = foes.frames[`${e.sprite}_${n}`] || foes.frames[`${e.sprite}_0`];
+      const f = foes.frames[`${fk}_${n}`] || foes.frames[`${fk}_0`];
       return { img: foeImg, sx: f[0], sy: f[1], w: f[2], h: f[3], ox: s.origin[0], oy: s.origin[1], flip: e.dir === 'right' };
     }
     return null;
   }
-  return { frameFor };
+  return { frameFor, warm };
+}
+
+/**
+ * Cached solid-colour silhouettes of sprite frames (the white hurt flash, the ink double). Built once per
+ * (image, rect, colour) on a small canvas with source-in; no per-frame pixel reads.
+ */
+export function createSilhouettes() {
+  const cache = new Map();
+  return function silhouette(img, sx, sy, w, h, color) {
+    let byImg = cache.get(img);
+    if (!byImg) { byImg = new Map(); cache.set(img, byImg); }
+    const key = `${sx},${sy},${w},${h},${color}`;
+    let c = byImg.get(key);
+    if (!c) {
+      c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const g = c.getContext('2d');
+      g.imageSmoothingEnabled = false;
+      g.drawImage(img, sx, sy, w, h, 0, 0, w, h);
+      g.globalCompositeOperation = 'source-in';
+      g.fillStyle = color;
+      g.fillRect(0, 0, w, h);
+      byImg.set(key, c);
+    }
+    return c;
+  };
 }
 
 /** A pixel-hard ellipse (filled, no anti-aliasing) on its own small canvas: shadows and target rings. */

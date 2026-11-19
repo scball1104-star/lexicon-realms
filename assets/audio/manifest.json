@@ -1,0 +1,312 @@
+{
+ "version": 1,
+ "generatedBy": "Subset of Lexicon Quest next/assets/audio/manifest.json, copied 2026-11-19 by the Realms integrator. src paths are relative to assets/audio/.",
+ "music": {
+  "title": {
+   "src": "music/title.mp3",
+   "volume": 0.935,
+   "loopStart": 0.0,
+   "loopEnd": 168.75,
+   "fallback": null,
+   "measuredLufs": -15.42,
+   "duration": 168.76
+  },
+  "willowmere": {
+   "src": "music/willowmere.mp3",
+   "volume": 1.065,
+   "loopStart": 0.0627,
+   "loopEnd": 118.25,
+   "fallback": null,
+   "measuredLufs": -16.55,
+   "duration": 118.68
+  },
+  "valley": {
+   "src": "music/valley.mp3",
+   "volume": 0.932,
+   "loopStart": 0.0,
+   "loopEnd": 124.75,
+   "fallback": "willowmere",
+   "measuredLufs": -15.39,
+   "duration": 126.16
+  },
+  "the_downs": {
+   "src": "music/the_downs.mp3",
+   "volume": 1.068,
+   "loopStart": 0.0672,
+   "loopEnd": 126.25,
+   "fallback": "valley",
+   "measuredLufs": -16.57,
+   "duration": 128.0
+  },
+  "high_moor": {
+   "src": "music/high_moor.mp3",
+   "volume": 1.054,
+   "loopStart": 0.06,
+   "loopEnd": 88.481066,
+   "fallback": "valley",
+   "bpm": 76.0,
+   "key": "D dorian",
+   "measuredLufs": -16.46,
+   "duration": 88.581
+  },
+  "battle": {
+   "src": "music/battle.mp3",
+   "volume": 1.003,
+   "loopStart": 0.0,
+   "loopEnd": 61.25,
+   "fallback": null,
+   "measuredLufs": -16.03,
+   "duration": 61.44
+  }
+ },
+ "sfx": {
+  "sword_slash": {
+   "src": [
+    "sfx/sword_slash_1.wav",
+    "sfx/sword_slash_2.wav"
+   ],
+   "volume": 1.0,
+   "duration": 0.39,
+   "group": "weapon",
+   "pack": "core",
+   "vary": 0.03
+  },
+  "hit_light": {
+   "src": [
+    "sfx/hit_light_1.wav",
+    "sfx/hit_light_2.wav",
+    "sfx/hit_light_3.wav"
+   ],
+   "volume": 1.0,
+   "duration": 0.12,
+   "group": "impact",
+   "pack": "core",
+   "vary": 0.05,
+   "maxVoices": 4
+  },
+  "hit_heavy": {
+   "src": [
+    "sfx/hit_heavy_1.wav",
+    "sfx/hit_heavy_2.wav"
+   ],
+   "volume": 1.0,
+   "duration": 0.476,
+   "group": "impact",
+   "pack": "core",
+   "vary": 0.04,
+   "maxVoices": 3
+  },
+  "crit": {
+   "src": "sfx/crit.wav",
+   "volume": 1.0,
+   "duration": 0.598,
+   "group": "impact",
+   "pack": "core",
+   "maxVoices": 2
+  },
+  "defend": {
+   "src": "sfx/defend.wav",
+   "volume": 1.0,
+   "duration": 0.396,
+   "group": "impact",
+   "pack": "core"
+  },
+  "bow_shot": {
+   "src": [
+    "sfx/bow_shot_1.wav",
+    "sfx/bow_shot_2.wav"
+   ],
+   "volume": 1.0,
+   "duration": 0.301,
+   "group": "weapon",
+   "pack": "core",
+   "vary": 0.03
+  },
+  "staff_hit": {
+   "src": [
+    "sfx/staff_hit_1.wav",
+    "sfx/staff_hit_2.wav"
+   ],
+   "volume": 1.0,
+   "duration": 0.183,
+   "group": "weapon",
+   "pack": "core",
+   "vary": 0.04
+  },
+  "heal": {
+   "src": "sfx/heal.wav",
+   "volume": 1.0,
+   "duration": 1.011,
+   "group": "magic",
+   "pack": "core"
+  },
+  "buff": {
+   "src": "sfx/buff.wav",
+   "volume": 1.0,
+   "duration": 0.956,
+   "group": "status",
+   "pack": "core"
+  },
+  "debuff": {
+   "src": "sfx/debuff.wav",
+   "volume": 1.0,
+   "duration": 0.7,
+   "group": "status",
+   "pack": "core"
+  },
+  "poison": {
+   "src": "sfx/poison.wav",
+   "volume": 1.0,
+   "duration": 0.6,
+   "group": "status",
+   "pack": "core"
+  },
+  "stun": {
+   "src": "sfx/stun.wav",
+   "volume": 1.0,
+   "duration": 0.854,
+   "group": "status",
+   "pack": "core"
+  },
+  "fire": {
+   "src": "sfx/fire.wav",
+   "volume": 1.0,
+   "duration": 0.95,
+   "group": "magic",
+   "pack": "core",
+   "vary": 0.04
+  },
+  "ink_gurgle": {
+   "src": "sfx/ink_gurgle.wav",
+   "volume": 1.0,
+   "duration": 0.6,
+   "group": "story",
+   "pack": "core"
+  },
+  "page_flutter": {
+   "src": "sfx/page_flutter.wav",
+   "volume": 1.0,
+   "duration": 0.574,
+   "group": "story",
+   "pack": "core"
+  },
+  "enemy_die": {
+   "src": "sfx/enemy_die.wav",
+   "volume": 1.0,
+   "duration": 0.75,
+   "group": "big",
+   "pack": "core"
+  },
+  "coin": {
+   "src": "sfx/coin.wav",
+   "volume": 1.0,
+   "duration": 0.189,
+   "group": "ui",
+   "pack": "core"
+  },
+  "buy": {
+   "src": "sfx/buy.wav",
+   "volume": 1.0,
+   "duration": 0.511,
+   "group": "ui",
+   "pack": "core"
+  },
+  "equip": {
+   "src": "sfx/equip.wav",
+   "volume": 1.0,
+   "duration": 0.508,
+   "group": "ui",
+   "pack": "core"
+  },
+  "item_use": {
+   "src": "sfx/item_use.wav",
+   "volume": 1.0,
+   "duration": 0.717,
+   "group": "magic",
+   "pack": "core"
+  },
+  "menu_open": {
+   "src": "sfx/menu_open.wav",
+   "volume": 1.0,
+   "duration": 0.176,
+   "group": "ui",
+   "pack": "core"
+  },
+  "menu_close": {
+   "src": "sfx/menu_close.wav",
+   "volume": 1.0,
+   "duration": 0.176,
+   "group": "ui",
+   "pack": "core"
+  },
+  "cursor": {
+   "src": "sfx/cursor.wav",
+   "volume": 1.0,
+   "duration": 0.045,
+   "group": "ui",
+   "pack": "core",
+   "maxVoices": 2,
+   "cooldown": 0.025
+  },
+  "confirm": {
+   "src": "sfx/confirm.wav",
+   "volume": 1.0,
+   "duration": 0.175,
+   "group": "ui",
+   "pack": "core"
+  },
+  "cancel": {
+   "src": "sfx/cancel.wav",
+   "volume": 1.0,
+   "duration": 0.24,
+   "group": "ui",
+   "pack": "core"
+  },
+  "buzzer": {
+   "src": "sfx/buzzer.wav",
+   "volume": 1.0,
+   "duration": 0.195,
+   "group": "ui",
+   "pack": "core"
+  },
+  "lantern_reveal": {
+   "src": "sfx/lantern_reveal.wav",
+   "volume": 1.0,
+   "duration": 1.615,
+   "group": "field",
+   "pack": "core"
+  },
+  "oath_ring": {
+   "src": "sfx/oath_ring.wav",
+   "volume": 1.0,
+   "duration": 1.745,
+   "group": "magic",
+   "pack": "core"
+  },
+  "revive": {
+   "src": "sfx/revive.wav",
+   "volume": 1.0,
+   "duration": 1.384,
+   "group": "magic",
+   "pack": "core"
+  }
+ },
+ "jingles": {
+  "level_up": {
+   "src": "jingles/level_up.mp3",
+   "volume": 1.0,
+   "duration": 3.528
+  },
+  "quest_done": {
+   "src": "jingles/quest_done.mp3",
+   "volume": 1.0,
+   "duration": 3.996
+  },
+  "item_get": {
+   "src": "jingles/item_get.mp3",
+   "volume": 1.0,
+   "duration": 2.376
+  }
+ },
+ "ambience": {}
+}

@@ -93,14 +93,14 @@ export function createTouch({ canvas, input, ui, now = () => performance.now() }
       if (rec.kind === 'joy') {
         setJoyKeys([]); ui.setJoystick(null);
         // a quick tap on the left half is still a tap: target a foe / talk to an NPC under the finger
-        if (tap && now() - rec.t0 < TAP_MS) input.inject({ k: 'rclick', x: rec.dev[0], y: rec.dev[1] });
+        if (tap && now() - rec.t0 < TAP_MS) input.inject({ k: 'tap', x: rec.dev[0], y: rec.dev[1] });
       }
       else if (rec.kind === 'ui') {
         if (rec.long) ui.setLongTip(null);
         else if (tap && !rec.fired) ui.press(rec.x0, rec.y0, 0);
         ui.setPressed(null);
       } else if (rec.kind === 'world' && tap) {
-        input.inject({ k: 'rclick', x: rec.dev[0], y: rec.dev[1] });
+        input.inject({ k: 'tap', x: rec.dev[0], y: rec.dev[1] });
       }
     }
   }

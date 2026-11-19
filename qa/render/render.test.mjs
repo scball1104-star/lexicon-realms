@@ -3,7 +3,8 @@ import { dayFraction, skyAt, ambientAt, KEYS, DAY_TICKS, DAY_START, clockLabel, 
 import { bandBrightness, stampPixel, BANDS } from '../../src/render/lighting.js';
 import { planEvent, planEvents, floaterMotion } from '../../src/render/fxplan.js';
 import { fxFor, ABILITIES, SCHOOLS } from '../../src/render/fx_table.js';
-import { charKey, charAnim } from '../../src/render/sprites.js';
+import { charKey, charAnim, mobKey, mobAnim, MOB_ATLASES } from '../../src/render/sprites.js';
+import { objectLook } from '../../src/render/objects.js';
 import { normalizeWeather } from '../../src/render/renderer.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -97,9 +98,17 @@ export const tests = [
       const a = planEvent({ type: 'cast_start', src: 1, ability: 'scribe_inkbolt', target: 9, castTicks: 40 });
       eq(kinds(a).join(), 'castglow');
       const b = planEvent({ type: 'cast_stop', src: 1, ability: 'scribe_inkbolt', target: 9, reason: 'done' });
-      assert(kinds(b).includes('caststop') && kinds(b).includes('projectile'), `success: ${kinds(b)}`);
-      const p = b.find((s) => s.kind === 'projectile');
-      eq(p.src, 1); eq(p.dst, 9); eq(p.sprite, 'ink_bolt');
+      assert(kinds(b).includes('caststop') && !kinds(b).includes('projectile'), `success: ${kinds(b)} (bolts fly from the sim's projectile event)`);
+      // the visual flies from the sim's projectile event at the sim's speed, so it lands with the damage
+      const abilities = { scribe_inkbolt: { school: 'ink', projectile: { speed: 240 } }, mob_paper_cut: { school: 'ink', projectile: { speed: 220 } } };
+      const p = planEvent({ type: 'projectile', id: 77, src: 1, dst: 9, ability: 'scribe_inkbolt', speed: 240 }, { abilities }).find((s) => s.kind === 'projectile');
+      eq(p.src, 1); eq(p.dst, 9); eq(p.sprite, 'ink_bolt'); eq(p.speed, 240); eq(p.simId, 77);
+      const shot = planEvent({ type: 'projectile', id: 78, src: 3, dst: 9, ability: 'auto', speed: 480 });
+      eq(shot.find((s) => s.kind === 'projectile').sprite, 'arrow', 'Auto Shot flies an arrow'); assert(kinds(shot).includes('swing'), 'the shooter draws');
+      const mob = planEvent({ type: 'projectile', id: 79, src: 5, dst: 1, ability: 'mob_paper_cut', speed: 220 }, { abilities }).find((s) => s.kind === 'projectile');
+      eq(mob.sprite, 'orb'); eq(mob.color, SCHOOLS.ink.color, 'a mob bolt takes its school colour');
+      eq(kinds(planEvent({ type: 'damage', src: 1, dst: 9, ability: 'scribe_inkbolt', school: 'ink', amount: 9, result: 'hit' }, { abilities })).includes('swing'), false, 'the landing bolt does not swing the caster again');
+      for (const id of Object.keys(ABILITIES)) { const f = fxFor(id); assert(!f.projectile || f.projectile.speed == null, `${id}: speeds come from the ability data, not the fx table`); }
       const c = planEvent({ type: 'cast_stop', src: 1, ability: 'scribe_inkbolt', target: 9, reason: 'move' });
       eq(kinds(c).join(), 'caststop', 'interrupted cast: glow off, nothing flies');
       eq(kinds(planEvent({ type: 'cast_fail', src: 1, ability: 'x', reason: 'gcd' })).join(), 'caststop');
@@ -181,10 +190,43 @@ export const tests = [
     },
   },
   {
+    name: 'mob atlases: sprite then template picks the atlas; anims from moving / attack / hurt / cast / death hints',
+    fn() {
+      eq(mobKey({ kind: 'mob', sprite: 'ink_slime_deep', template: 'ink_slime' }), 'ink_slime_deep');
+      eq(mobKey({ kind: 'mob', sprite: 'lq_only_thing', template: 'briar_wolf' }), 'briar_wolf');
+      eq(mobKey({ kind: 'npc', sprite: 'briar_wolf' }), null);
+      for (const id of MOB_ATLASES) {
+        const j = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/sprites/mobs', `${id}.json`), 'utf8'));
+        assert(fs.existsSync(path.join(ROOT, 'assets/sprites/mobs', j.image)), `${id} sheet`);
+        if (j.emissive) assert(fs.existsSync(path.join(ROOT, 'assets/sprites/mobs', j.emissive)), `${id} emissive`);
+        for (const dir of ['down', 'left', 'right', 'up']) for (const [a, n] of [['idle', 2], ['walk', 4], ['attack', 3], ['hurt', 1], ['death', 3]]) for (let i = 0; i < n; i++) assert(j.frames[`${a}_${dir}_${i}`], `${id} ${a}_${dir}_${i}`);
+        const e = { id: 3, dir: 'left' };
+        eq(mobAnim(e, 1, { attackT0: 0.97, now: 1 }, j).name, `attack_left_${j.windupFrame.attack}`, `${id} windup first`);
+        eq(mobAnim(e, 1, { attackT0: 0.88, now: 1 }, j).name, `attack_left_${j.hitFrame.attack}`, `${id} then the strike`);
+        eq(mobAnim(e, 1, { hurtT0: 0.95, now: 1 }, j).anim, 'hurt');
+        eq(mobAnim({ ...e, dead: true }, 1, { deathT0: 0, now: 1 }, j).name, 'death_left_2', 'death plays once and holds');
+        eq(mobAnim({ ...e, dead: true }, 1, { deathT0: 0.95, now: 1 }, j).name, 'death_left_0');
+        eq(mobAnim({ ...e, moving: true }, 1, null, j).anim, j.stationary ? 'idle' : 'walk', `${id} walk unless stationary`);
+        if (j.frames.cast_left_0) eq(mobAnim({ ...e, cast: { ability: 'x' } }, 1, null, j).anim, 'cast');
+      }
+    },
+  },
+  {
+    name: 'objects: every summon sprite in the data has a look; zones are ground, traps and hedges stand up',
+    fn() {
+      eq(objectLook('zone_letters'), 'ground'); eq(objectLook('zone_peal'), 'ground'); eq(objectLook('zone_semicolon'), 'ground');
+      eq(objectLook('zone_bramble'), 'ground'); eq(objectLook('zone_ink'), 'ground'); eq(objectLook('trap_briar'), 'trap');
+      eq(objectLook('hedge'), 'hedge'); eq(objectLook('ink_double'), 'double'); eq(objectLook('node'), 'node');
+      eq(objectLook('zone_future'), 'ground'); eq(objectLook('mystery', 20), 'ground'); eq(objectLook('mystery'), 'unknown');
+      const src = ['src/data/abilities.js', 'src/data/talents.js', 'src/sim/scripts.js'].map((p) => fs.readFileSync(path.join(ROOT, p), 'utf8')).join('\n');
+      for (const m of src.matchAll(/sprite: '([a-z_]+)'/g)) assert(objectLook(m[1]) !== 'unknown', `summon sprite ${m[1]} has a look`);
+    },
+  },
+  {
     name: 'fx sheet: every sprite the table names exists in assets/fx/fx.json (or has a procedural fallback)',
     fn() {
       const j = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/fx/fx.json'), 'utf8'));
-      const procedural = new Set(['hit', 'burst', 'tick', 'healtick', 'orb', 'ring']);
+      const procedural = new Set(['hit', 'burst', 'tick', 'healtick', 'orb', 'ring', 'arrowfall']);
       const named = new Set();
       for (const id of Object.keys(ABILITIES)) { const f = fxFor(id); if (f.impact) named.add(f.impact); if (f.projectile) named.add(f.projectile.sprite); if (f.selfFx) named.add(f.selfFx); }
       for (const n of named) assert(j.fx[n] || procedural.has(n), `fx "${n}" has no sheet animation and no fallback`);

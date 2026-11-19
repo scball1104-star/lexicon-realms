@@ -15,6 +15,7 @@ export const ACTIONS = [
   { id: 'slot6', label: 'Ability 6', key: 'Digit6', group: 'Combat' },
   { id: 'next_target', label: 'Next target', key: 'Tab', group: 'Combat' },
   { id: 'interact', label: 'Interact', key: 'KeyF', group: 'Combat' },
+  { id: 'sit', label: 'Sit / rest', key: 'KeyX', group: 'Combat' },
   { id: 'character', label: 'Character', key: 'KeyC', group: 'Menus' },
   { id: 'bags', label: 'Bags', key: 'KeyB', group: 'Menus' },
   { id: 'quests', label: 'Quest log', key: 'KeyL', group: 'Menus' },
@@ -65,7 +66,7 @@ export function routeKey(code, down, overrides) {
   const defaults = effectiveBinds({});
   const act = actionFor(code, binds);
   const def = actionFor(code, defaults);
-  if (act && (MENU_ACTIONS.includes(act) || act === 'menu' || act === 'interact')) return { kind: 'ui', action: act };
+  if (act && (MENU_ACTIONS.includes(act) || act === 'menu' || act === 'interact' || act === 'sit')) return { kind: 'ui', action: act };
   if (act && act === def) return { kind: 'pass' };
   if (!act) {
     // arrows always move (input's own second set); anything an input default used and that moved away is swallowed

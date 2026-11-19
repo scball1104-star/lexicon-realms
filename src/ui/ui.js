@@ -21,7 +21,8 @@ import { drawTitle, drawSelect, drawCreate } from './title.js';
 import { createCharStore, loadOptions, saveOptions, validateName } from './save.js';
 import { routeKey, rebind, effectiveBinds, keyLabel } from './keymap.js';
 import { eventLines } from './eventlog.js';
-import { setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext } from './gamedata.js';
+import { drawDialog, dialogFromInteract, DIALOG_RECT, DIALOG_RECT_TOUCH } from './dialog.js';
+import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 
 const SIDE = ['character', 'bags'];
@@ -45,6 +46,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     confirm: null, rebinding: null, talentSel: null, questSel: null, mapZone: null, joystick: null, pressed: null,
     name: '', nameFocus: false, cls: null, look: 0, err: null, selId: null, charId: null, longTip: null,
     drag: null, metrics: { cssPerHud: 1, touch }, now: 0,
+    dialog: null, untracked: new Set(), trained: new Set(), hint: null,
   };
   // PLACEHOLDER state for SPEC fields the sim does not send yet (quests, bag, equip, gold, talents). See uivm.js.
   const local = { quests: [], bag: { size: 16, items: [] }, equip: {}, gold: 0, talents: {} };
@@ -91,14 +93,27 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       store.touch(id);
       st.charId = id;
       playerId = hooks.enterWorld ? hooks.enterWorld(c) : null;
-      st.mode = 'game'; st.open.clear();
-      say('system', `Welcome to Willowmere, ${c.name}.`);
-      if (!c.lastPlayedSeq || c.createdSeq === c.lastPlayedSeq - 1) {
-        say('system', st.metrics.touch ? 'Left thumb to walk. Tap a foe to target it, tap a person to talk. Your skills are on the right.'
-          : 'WASD to walk, Tab to target, 1 to 6 to fight. C, B, L, N, M open your menus.');
-      }
+      st.mode = 'game'; st.open.clear(); st.dialog = null; st.trained = new Set();
+      log.length = 0;
+      if (!c.state) {
+        // a brand-new hero: a short welcome and, once per hero, the controls card
+        say('system', `Welcome to Willowmere, ${c.name}. Hob the innkeeper has a word for you: look for the gold ! over his head.`);
+      } else say('system', `Welcome back, ${c.name}.`);
+      if (!c.hinted) { st.hint = { t0: st.now }; store.update(id, { hinted: true }); }
     },
-    close(id) { st.open.delete(id); st.confirm = null; st.rebinding = null; st.talentSel = null; },
+    close(id) { if (id === 'dialog') { act.closeDialog(); return; } st.open.delete(id); st.confirm = null; st.rebinding = null; st.talentSel = null; },
+    send,
+    closeDialog() { if (st.dialog && st.dialog.page === 'vendor') st.open.delete('bags'); st.dialog = null; st.confirm = null; },
+    /** Ask the npc again (fresh quest lists after accept / turn-in), staying on the main page. */
+    refreshDialog() { if (st.dialog) { const ent = st.dialog.ent; st.dialog.page = 'main'; st.dialog.quest = null; send({ t: 'interact', id: ent }); } },
+    openVendor() { if (!st.dialog) return; st.dialog.page = 'vendor'; st.dialog.scroll = 0; st.open.add('bags'); },
+    sellJunk() {
+      if (!st.dialog || !lastModel) return;
+      // highest index first so the earlier indexes stay valid while the sim applies them in order
+      lastModel.bag.items.map((it, i) => [it, i]).filter(([it]) => it && it.kind === 'junk').reverse()
+        .forEach(([it, i]) => send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item }));
+    },
+    dismissHint() { st.hint = null; },
     toggle(id) {
       if (st.open.has(id)) { act.close(id); return; }
       if (CENTER.includes(id)) for (const c of CENTER) st.open.delete(c);
@@ -117,16 +132,36 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     respec() { send({ t: 'respec' }); if (localOnly()) local.talents = {}; toast('Talents reset.'); },
     abandonQuest(id) {
       send({ t: 'quest_abandon', quest: id });
+      if (lastModel && lastModel.live) return;        // the sim's quest event writes the log line
       const q = local.quests.find((o) => o.id === id);
       local.quests = local.quests.filter((o) => o.id !== id);
       if (q) say('system', `Quest abandoned: ${q.name}`);
     },
     trackQuest(id, on) {
+      if (lastModel && lastModel.live) {
+        const tracked = lastModel.quests.filter((q) => q.tracked).length;
+        if (on && tracked >= 5) { toast('You can track 5 quests at once.'); return; }
+        if (on) st.untracked.delete(id); else st.untracked.add(id);
+        return;
+      }
       const tracked = local.quests.filter((q) => q.tracked !== false).length;
       if (on && tracked >= 5) { toast('You can track 5 quests at once.'); return; }
       local.quests = local.quests.map((q) => (q.id === id ? { ...q, tracked: on } : q));
     },
     useItem(i) {
+      if (lastModel && lastModel.live) {
+        const it = lastModel.bag.items[i];
+        if (!it) return;
+        if (st.dialog && st.dialog.page === 'vendor') {
+          if (it.kind === 'quest' || !it.value) { toast('The vendor will not buy that.'); return; }
+          send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item });
+          return;
+        }
+        if (it.slot || it.kind === 'bag') send({ t: 'equip', bag: i, item: it.item });
+        else if (it.use) send({ t: 'use_item', bag: i, item: it.item });
+        else toast(`${it.name} cannot be used.`);
+        return;
+      }
       const it = local.bag.items[i];
       if (!it) return;
       const info = itemInfo(it);
@@ -140,6 +175,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       else toast(`${info.name} cannot be used.`);
     },
     unequip(slot) {
+      if (lastModel && lastModel.live) { if (lastModel.equip[slot]) send({ t: 'unequip', slot }); return; }
       const it = local.equip[slot];
       if (!it) return;
       const free = local.bag.items.findIndex((x, k) => !x && k < local.bag.size);
@@ -155,14 +191,22 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (key === 'zoom' && hooks.setZoom) hooks.setZoom(v);
       if (hooks.optionsChanged) hooks.optionsChanged(options);
     },
-    logout() { saveProgress(); if (hooks.logout) hooks.logout(); },
+    logout() {
+      saveProgress();
+      if (hooks.logout) hooks.logout(playerId);
+      playerId = null; st.charId = null; st.dialog = null; st.hint = null; st.open.clear(); lastModel = null;
+      act.go(store.list().length ? 'select' : 'title');
+    },
   };
 
+  /** Save the hero: the select-screen summary plus the full character (hooks.saveState: CONTRACTS 2.4 addPlayer restore). */
   function saveProgress() {
-    if (st.charId == null || !lastSnap || playerId == null) return;
-    const e = lastSnap.entities.find((o) => o.id === playerId);
+    if (st.charId == null || playerId == null) return;
+    const full = hooks.saveState ? hooks.saveState(playerId) : null;
+    const e = full || (lastSnap && lastSnap.entities.find((o) => o.id === playerId));
     if (!e) return;
-    store.update(st.charId, { level: e.level, xp: e.xp || 0, zone: e.zone, zoneName: zoneNames[e.zone] || e.zone, x: Math.floor(e.x / 16), y: Math.floor(e.y / 16) });
+    store.update(st.charId, { level: e.level, xp: e.xp || 0, zone: e.zone, zoneName: zoneNames[e.zone] || e.zone, x: e.tx ?? Math.floor(e.x / 16), y: e.ty ?? Math.floor(e.y / 16),
+      ...(full ? { state: full } : {}) });
   }
 
   // ---------------------------------------------------------------- drawing
@@ -181,18 +225,26 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     else if (st.mode === 'select') drawSelect(ctx, env, st, regions, act, t);
     else if (st.mode === 'create') drawCreate(ctx, env, st, regions, act, t);
     else {
-      let m = buildHudModel(vm, snap, { state: local, tickHz: 20 });
+      let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked }, tickHz: 20, zoneNames });
       if (demoExtra) m = applyDemo(m);
       lastModel = m;
       st.openMenu = [...st.open].pop() || null;
+      if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t);
       regions.push(...hud.draw(ctx, m, L, st, { log, keyLabels: Array.from({ length: 6 }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
+      if (m.player && st.dialog) {
+        // walk away (or change zone, or die) and the npc window closes
+        const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
+        if (!me || !n || me.zone !== n.zone || me.dead || Math.hypot(me.x - n.x, me.y - n.y) > 64) act.closeDialog();
+      }
       if (m.player) {
+        if (st.dialog) drawDialog(ctx, env, m, st, regions, act);
         for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? drawCharacter : drawBags)(ctx, env, m, st, regions, act);
         if (st.open.has('quests')) drawQuestLog(ctx, env, m, st, regions, act);
         if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
         if (st.open.has('talents')) drawTalents(ctx, env, m, st, regions, act);
         if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
         hud.menuBar(ctx, L, st, regions);
+        if (st.hint) drawHint(ctx, L, regions);
       }
     }
     st.regions = regions;
@@ -205,11 +257,41 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (!tip && r && lastModel && st.mode === 'game') tip = hud.tooltipFor(r, lastModel);
       if (tip && !(r.kind === 'talent')) drawTooltip(g, ctx, tip, tipAt.x + 12, tipAt.y - 8);
     }
+    if (st.hint && t - st.hint.t0 > 30) st.hint = null;
     if (st.toast && st.toast.until > t) {
       const w = g.textW(st.toast.text) + 16;
       g.window(ctx, Math.floor((W - w) / 2), 150, w, 18, 'thin', 'slate', 0.95);
       g.text(ctx, st.toast.text, W / 2, 153, 'cream', { align: 'center' });
     }
+  }
+
+  /** Quest marks over npc heads (! available, ? ready; grey when trivial or in progress). marks: [{ x, y, mark }] HUD px. */
+  function drawWorldMarks(ctx, marks, t) {
+    const bob = Math.floor(t * 2) % 2;
+    for (const mk of marks || []) {
+      const grey = mk.mark === '!grey' || mk.mark === '?grey' || mk.mark === '!soon';
+      if (mk.mark === '!soon') continue;
+      const name = (mk.mark[0] === '?' ? 'emote_question_' : 'emote_exclaim_') + bob;
+      const [w, h] = g.iconSize(name);
+      g.icon(ctx, name, Math.round(mk.x - w / 2), Math.round(mk.y - h - 2), grey ? 0.45 : 1);
+    }
+  }
+
+  /** The one-time controls card for a new hero (desktop and phone versions). */
+  function drawHint(ctx, L, regions) {
+    const lines = L.touch
+      ? ['Left thumb: touch and drag to walk.', 'Tap a foe to target it. Tap a person to talk.', 'Right thumb: your skills, Talk and Next target.', 'Top buttons: character, bags, quests, talents, map.']
+      : ['WASD to walk. Tab or click to target a foe.', '1 to 6 to use skills. Right-click a foe to attack.', 'F or right-click to talk. X to sit and rest.', 'C B L N M: character, bags, quests, talents, map.'];
+    const w = 250, h = 22 + lines.length * 11 + 22;
+    const x = Math.floor((W - w) / 2), y = L.touch ? 120 : 96;
+    g.window(ctx, x, y, w, h, 'std', 'blue', 0.96);
+    g.text(ctx, 'How to play', x + 9, y + 5, 'gold', { large: true });
+    lines.forEach((l, i) => g.text(ctx, l, x + 9, y + 22 + i * 11, 'cream'));
+    const bh = Math.max(14, L.minHit || 0);
+    const bw = 60, bx = x + w - bw - 8, by = y + h - bh - 4;
+    g.window(ctx, bx, by, bw, bh, 'thin', 'forest', 0.95);
+    g.text(ctx, 'Got it', bx + bw / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+    regions.push({ rect: { x, y, w, h }, kind: 'window', id: 'hint', on: () => act.dismissHint() });
   }
 
   function applyDemo(m) {
@@ -229,7 +311,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   }
 
   function topRegion(x, y) {
-    for (let i = st.regions.length - 1; i >= 0; i--) if (inRect(st.regions[i].rect, x, y)) return st.regions[i];
+    for (let i = st.regions.length - 1; i >= 0; i--) if (st.regions[i].kind !== 'scroll' && inRect(st.regions[i].rect, x, y)) return st.regions[i];   // scroll areas take the wheel only
     return null;
   }
 
@@ -288,7 +370,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const p = toHud(ev.clientX, ev.clientY);
     const r = topRegion(p.x, p.y);
     if (r && r.kind === 'chat') { st.chatScroll += ev.deltaY < 0 ? 1 : -1; ev.preventDefault(); }
-    else if (r && r.scroll) { r.scroll(ev.deltaY < 0 ? -1 : 1); ev.preventDefault(); }
+    else { const sr = [...st.regions].reverse().find((o) => o.scroll && inRect(o.rect, p.x, p.y)); if (sr) { sr.scroll(ev.deltaY < 0 ? -1 : 1); ev.preventDefault(); } }
   };
   window.addEventListener('mousemove', onMouseMove, true);
   window.addEventListener('mousedown', onMouseDown, true);
@@ -344,16 +426,80 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     ev.preventDefault();
     if (route.action === 'menu') {
       const open = [...st.open];
-      if (open.length) act.close(open[open.length - 1]);
+      if (st.hint) act.dismissHint();
+      else if (st.dialog) act.closeDialog();
+      else if (open.length) act.close(open[open.length - 1]);
       else if (lastModel && lastModel.target) hooks.input && hooks.input.inject({ k: 'clear' });
       else act.toggle('menu');
       return;
     }
     if (route.action === 'interact') { hooks.input && hooks.input.inject({ k: 'interact' }); return; }
+    if (route.action === 'sit') { send({ t: 'sit' }); return; }
     act.toggle(route.action);
   };
   window.addEventListener('keydown', onKey(true), true);
   window.addEventListener('keyup', onKey(false), true);
+
+  // ---------------------------------------------------------------- sim events that drive windows and prompts
+  const FAIL_TEXT = { gold: 'Not enough gold.', bag_full: 'Your bags are full.', range: 'Too far away.', level: 'You are not high enough level.',
+    class: 'Your class cannot use that.', weapon: 'You cannot use that weapon.', armor: 'You cannot wear that armor.', combat: 'Not while in combat.',
+    no_value: 'The vendor will not buy that.', bags_full: 'You can wear 4 bags.', cooldown: 'Not ready yet.', full: 'You are already at full health.',
+    known: 'You already know that.', points: 'No talent points left.', tier: 'That tier is not open yet.', dependency: 'A deeper talent needs that one.', empty: 'Nothing to reset.' };
+  function onOwnEvent(ev) {
+    const me = playerId;
+    switch (ev.type) {
+      case 'interact':
+        if (ev.src !== me) return;
+        if (st.dialog && st.dialog.ent === ev.id) Object.assign(st.dialog, { trainer: ev.trainer || null, vendor: ev.vendor || null, line: st.dialog.line + 1 });
+        else { st.dialog = dialogFromInteract(ev); st.dialog.line = Math.floor(st.now * 7); if (st.metrics.touch) st.open.clear(); }
+        return;
+      case 'quest_dialog':
+        if (ev.id !== me || !st.dialog || st.dialog.ent !== ev.ent) return;
+        Object.assign(st.dialog, { offers: ev.offers || [], turnins: ev.turnins || [], progress: ev.progress || [], soon: ev.soon || [] });
+        // one thing to say and nothing else: open it directly (the first quest, a single turn-in)
+        if (st.dialog.page === 'main' && !st.dialog.trainer && !st.dialog.vendor && st.dialog.turnins.length + st.dialog.offers.length === 1) {
+          st.dialog.page = 'quest'; st.dialog.quest = st.dialog.turnins[0] || st.dialog.offers[0]; st.dialog.choice = 0;
+        }
+        return;
+      case 'train':
+        if (ev.id !== me) return;
+        st.trained.add(ev.ability);
+        toast(`You learn ${(abilityInfo(ev.ability) || { name: ev.ability }).name}.`);
+        say('system', `You learn ${(abilityInfo(ev.ability) || { name: ev.ability }).name}. It is on your bar.`);
+        return;
+      case 'train_fail': case 'inventory_fail': case 'talent_fail':
+        if (ev.id !== me) return;
+        if (FAIL_TEXT[ev.reason]) { toast(FAIL_TEXT[ev.reason]); say('error', FAIL_TEXT[ev.reason]); }
+        return;
+      case 'inventory':
+        if (ev.id !== me) return;
+        if (ev.kind === 'buy') say('loot', `You buy ${(itemInfo(ev.item) || { name: ev.item }).name}${ev.qty > 1 ? ` x${ev.qty}` : ''} for ${ev.cost} gold.`);
+        else if (ev.kind === 'sell') say('loot', `You sell ${(itemInfo(ev.item) || { name: ev.item }).name}${ev.qty > 1 ? ` x${ev.qty}` : ''} for ${ev.gold} gold.`);
+        else if (ev.kind === 'buyback') say('loot', `You buy back ${(itemInfo(ev.item) || { name: ev.item }).name}.`);
+        else if (ev.kind === 'equip') say('system', `Equipped ${(itemInfo(ev.item) || { name: ev.item }).name}.`);
+        return;
+      case 'level':
+        if (ev.id !== me) return;
+        toast(`Level ${ev.level}!`, 3);
+        if (ev.trainable && ev.trainable.length) say('system', 'You can learn something new. Visit your class trainer in Willowmere.');
+        if (ev.talentPoints > 0) say('system', `You have ${ev.talentPoints} talent point${ev.talentPoints > 1 ? 's' : ''} to spend (N).`);
+        return;
+      case 'area':
+        if (ev.id === me && ev.name) toast(ev.name, 2);
+        return;
+      case 'quest':
+        if (ev.id === me && ev.kind === 'complete') toast(`${(questInfoName(ev.quest))}: complete`, 2.5);
+        return;
+      case 'respawn':
+        if (ev.id === me) say('system', 'You wake at the lantern.');
+        return;
+      case 'quest_hook':
+        if (ev.id === me) for (const l of ev.lines || []) say('say', l);
+        return;
+      default:
+    }
+  }
+  const questInfoName = (id) => { const q = id && questInfoById(id); return q ? q.name : id; };
 
   // ---------------------------------------------------------------- the object
   const ui = {
@@ -375,7 +521,10 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */
     owns(x, y) { return st.mode !== 'game' || !!topRegion(x, y); },
     handleEvents(events, ctx) {
-      for (const ev of events) for (const l of eventLines(ev, { me: playerId, ...ctx })) say(l.ch, l.text);
+      for (const ev of events) {
+        for (const l of eventLines(ev, { me: playerId, ...ctx })) say(l.ch, l.text);
+        if (playerId != null) onOwnEvent(ev);
+      }
     },
     say,
     logText: () => log.map((l) => l.text),
@@ -390,6 +539,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     /** The data hook: real content over the design text (see gamedata.js). */
     setGameData(d) { return setGameData({ ...d, hasIcon: (n) => !!g.frame(n) }); },
     setItems,
+    setQuests,
     rect: menuRect,
   };
   return ui;

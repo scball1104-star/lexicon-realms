@@ -58,7 +58,7 @@ export function createHud(env) {
       g.gauge(ctx, r.x + 33, r.y + 15, r.w - 40, p.hpFrac, 'hp');
       if (p.res) g.gauge(ctx, r.x + 33, r.y + 23, r.w - 40, p.res.frac, p.resGauge);
     }
-    if (p.dead) { g.scrim(ctx, r.x + 3, r.y + 3, r.w - 6, r.h - 6, 150); g.text(ctx, 'Dead. Walking back to the lantern.', r.x + r.w / 2, r.y + r.h / 2 - 5, 'red', { align: 'center' }); }
+    if (p.dead) { g.scrim(ctx, r.x + 3, r.y + 3, r.w - 6, r.h - 6, 235); g.text(ctx, p.respawnIn != null ? `Dead. You wake at the lantern in ${Math.ceil(p.respawnIn)}.` : 'Dead. You wake at the lantern.', r.x + r.w / 2, r.y + r.h / 2 - 5, 'red', { align: 'center' }); }
   }
 
   function bars(ctx, nx, y0, gw, right, u) {

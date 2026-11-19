@@ -25,6 +25,8 @@ export function buildViewModel(snap, playerId, { zoneNames = {}, log = [], tickH
     zone: me ? { id: me.zone, name: zoneNames[me.zone] || me.zone } : null,
     cooldowns: me ? Object.fromEntries(Object.entries(me.cd).map(([k, until]) => [k, Math.max(0, until - snap.tick) / tickHz])) : {},
     log: log.slice(-50),
+    // the sim's rule-derived HUD block (CONTRACTS 10.1): bar, cast, xp, talents, gold, bag, equip, quests, markers
+    hud: (snap.hud && playerId != null && snap.hud[playerId]) || null,
   };
   return deepFreeze(vm);
 }

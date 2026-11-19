@@ -66,10 +66,12 @@ world.enqueue(entityId, cmd)          // local
 | `unlearn_talent` | `talent`, `npc` (optional) | at your trainer: one rank back, refused if a deeper node needs it. Pays the respec price once per trainer visit | `respec_paid`, `talent` kind `unlearn`, or `talent_fail` reason `range`/`dependency`/`gold` (LIVE) |
 | `respec` | `npc` (optional) | at your trainer: refund every point. First respec free, then `10 + 5 x level` gold; one payment covers the visit | `respec_paid`, `talent` kind `respec` (LIVE) |
 | `quest_accept` / `quest_turnin` / `quest_abandon` | `quest`, `choice` (reward index) | the quest module (section 7.7) | `quest` (LIVE) |
-| `equip` | `bag` (bag index) or `item` | wear an item from the bag (class, required level, weapon and armor type checked; armor not in combat). A two-hand weapon clears the off hand; the old piece goes to the bag | `inventory` kind `equip`, or `inventory_fail` (LIVE) |
+| `equip` | `bag` (bag index) or `item` | a `bag` item goes onto the belt (`player.bags`, at most 4; `inventory_fail` `bags_full`). Otherwise wear an item from the bag (class, required level, weapon and armor type checked; armor not in combat). A two-hand weapon clears the off hand; the old piece goes to the bag | `inventory` kind `equip`, or `inventory_fail` (LIVE) |
 | `unequip` | `slot` | back to the bag (needs a free slot) | `inventory` kind `unequip`, or `inventory_fail` reason `empty`/`bag_full` (LIVE) |
 | `use_item` | `bag` or `item` | a consumable's `use`: `heal_pct`, `mana_pct`, `rest_food` (sits you down), `dispel`; shared cooldown by `use.group` (`cd['item:<group>']`) | `heal`, `inventory` kind `use`, or `inventory_fail` reason `cooldown`/`full`/`level`/`not_usable` (LIVE) |
-| `buy` / `sell` | see section 7 | **SPEC** (vendor; the world lane) | `inventory` |
+| `buy` | `npc` (entity id), `index` (stock row) or `item`, `qty` (stackables, 1..20) | at a vendor (range 40 px): gold and bag-space checks, then the item goes in the bag. Price: consumables and bags at `price`, gear at 4 x value (PROGRESSION 4.8 / 6.2) | `inventory` kind `buy` + `gold`, or `inventory_fail` reason `range`/`gold`/`bag_full`/`no_item` (LIVE, integration wave) |
+| `sell` | `npc`, `bag` (bag index), `item`, `qty` (default the whole stack) | the vendor pays value x qty; quest items (value 0) are refused; the sale joins the buyback list (last 6) | `inventory` kind `sell` + `gold`, or `inventory_fail` reason `no_value` (LIVE) |
+| `buyback` | `npc`, `index` (into `hud.buyback`) | buy a sold item back for what it paid | `inventory` kind `buyback` (LIVE) |
 
 Without combat content (no `classes` / `abilities` / `progression` in `content`), `cast` is the foundation stub: it
 checks the global cooldown and emits `cast_start` then `cast_stop` reason `stub`; mobs only wander.
@@ -588,7 +590,7 @@ Events: `quest` (accept, progress, complete, turnin, abandon, fail), `quest_dial
 | `join` / `leave` | `id, name` / `id` |
 | `zone` | `id, from, to, x, y` (tiles) (also after a respawn in another zone) |
 | `target` | `src, id` (null = cleared), `reason?: 'lost'` |
-| `interact` / `interact_fail` | `src, id, npc, trainer?: { cls, offer: [{ ability, level, cost, known, canLearn }], respecCost }` / `src, id, reason` |
+| `interact` / `interact_fail` | `src, id, npc, trainer?: { cls, offer: [{ ability, level, cost, known, canLearn }], respecCost }, vendor?: { npc, items: [{ index, item, inst, name, icon, rarity, kind, slot, reqLevel, price, stack }] }` / `src, id, reason` |
 | `cmd_reject` | `id, cmd, reason` |
 | `cast_start` | `src, ability, target, castTicks, channel?` (castTicks 0 = instant) |
 | `cast_stop` | `src, ability, target, reason: 'done' \| 'interrupt' \| 'move' \| 'cancel' \| 'target' \| 'resource' \| 'death' \| 'stub'` |
@@ -611,7 +613,7 @@ Events: `quest` (accept, progress, complete, turnin, abandon, fail), `quest_dial
 | `loot` | `id, from, gold, items: [{ item, qty, inst? }]` |
 | `train` / `train_fail` | `id, ability, cost, gold, npc` / `id, ability, reason` |
 | `talent` / `talent_fail` / `respec_paid` | `id, talent, ranks, kind: 'learn' \| 'unlearn' \| 'respec', free` / `id, talent, reason` / `id, cost, gold` |
-| `inventory` / `inventory_fail` | `id, kind: 'equip' \| 'unequip' \| 'use', slot?, item` / `id, cmd, item, reason` |
+| `inventory` / `inventory_fail` | `id, kind: 'equip' \| 'unequip' \| 'use' \| 'buy' \| 'sell' \| 'buyback', slot?, item, qty?, cost? (buy), gold? (sell), npc?` / `id, cmd, item, reason` |
 | `sit` | `id, food?` |
 | `quest`, `quest_dialog`, `quest_hook`, `area` | section 7.7 |
 | `spawn` / `despawn` | `id, template, zone, kind ('mob' \| 'object'), owner?, x?, y?, radius?, reason?` (objects: traps, zones, hedges, ink trails, quest nodes; `reason: 'day'` for night mobs) |
@@ -624,13 +626,38 @@ Events: `quest` (accept, progress, complete, turnin, abandon, fail), `quest_dial
 `src/render/renderer.js` is the only 2D-specific module. A 3D renderer replaces it by implementing the same object:
 
 ```js
-const r = createRenderer(canvas, assets, { zones })
-r.draw(prevSnap, snap, alpha, view)   // view: { zone, followId, zoom: 1 | 1.5 | 2, targetId, time (s) }
+const r = createRenderer(canvas, assets, { zones, abilities })   // abilities: content.abilities (+ mobAbilities), optional
+r.draw(prevSnap, snap, alpha, view)   // view: { zone, followId, zoom: 1 | 1.5 | 2, targetId, time (s),
+                                      //         fx: 'low' | 'high' (default high), tod: 0..1 (sky clock override),
+                                      //         weather: 'clear' | 'rain' | 'leaves' | 'pollen' | { rain, leaves, pollen } }
+r.feed(events)                        // this tick's sim events, every tick, after world.step() (spell fx, numbers, corpses)
 r.drawHud(fn)                         // fn(ctx, layout): HUD on a 640x360 layer composited at the base integer scale
-r.pick(devX, devY) -> id | null       // entity under a canvas device-pixel point (click targeting)
+r.pick(devX, devY) -> id | null       // entity under a canvas device-pixel point (click targeting; quest nodes too)
+r.devToWorld(devX, devY) -> [wx, wy]  // world px under a device-pixel point (ground-targeted casts)
 r.worldToHud(wx, wy) -> [hx, hy]      // nameplates, floating combat text
-r.layout                              // { base, ws, ox, oy, viewW, viewH, dispW, dispH }
+r.layout                              // { base, ws, ox, oy, viewW, viewH, dispW, dispH, worldOx, worldOy }
+r.dev                                 // { clock: null | s (freeze the effect clock for drivers), stats: { ms, avg, n }, sky }
+r.loading                             // sheets still loading (drivers wait for 0 before a screenshot)
 ```
+
+LIVE since the integration wave (2026-11-19):
+
+- Weather: `view.weather` wins, else the zone's `weather` field, else clear. `view.tod` overrides the sim clock.
+- Spell effects come only from `r.feed(events)` through `src/render/fx_table.js` (looks, no speeds) and `fxplan.js`.
+  A bolt or arrow flies from the sim's `projectile` event at the event's `speed` (the ability data), so it lands on the
+  tick the sim's `damage` lands; `snap.projectiles` with no event visual (late join) are drawn as a small bolt at the
+  sim's interpolated spot.
+- Mob atlases `assets/sprites/mobs/<id>.json` (17, `sprites.js MOB_ATLASES`), keyed by `entity.sprite`, then
+  `entity.template`; LQ `enemies_field` is the fallback while one loads. idle / walk (not `stationary`), attack
+  (windupFrame then hitFrame, 0.3 s, from the `damage` event), cast while `e.cast`, hurt 0.14 s, death. `emissive`
+  sheets go through the additive glow pass. A hit flashes the sprite white for 0.1 s (cached silhouette).
+- Corpses: a mob whose `death` event the renderer saw stays `CORPSE_SECS` (4 s): the death anim plays and holds, then
+  fades over the last 1.5 s. Never picked, no ring. Mobs already dead on the first frame draw nothing.
+- Objects (`kind: 'object'`, `src/render/objects.js`): ground zones (`zone_letters`, `zone_semicolon`, `zone_peal`,
+  `zone_bramble`, `zone_ink`, any `zone_*` or unknown key with a `radius`) are a dithered disc of exactly `radius` px
+  under the actors; `trap_briar` (dim until `armed`), `hedge` (a ring of bushes at `radius`), `ink_double` (the
+  owner's pose in ink) are y-sorted. Quest nodes draw their `sprite` (an LQ npc/animal, a `props.json` or `tiles.json`
+  object, else a bundle) with a gold glint and are pickable.
 
 - Internal view 640x360, letterboxed at the largest integer `base` scale. The world is drawn at integer `ws =
   round(base * zoom)` (at 1080p: 3, 5, 6 for zoom 1, 1.5, 2). Keys `+` / `-` change zoom.
@@ -639,9 +666,8 @@ r.layout                              // { base, ws, ox, oy, viewW, viewH, dispW
 - Sprite keys: `hero` (LQ party_field, placeholder for player characters), `npc_*` (LQ npcs.json), any LQ field enemy
   id (enemies_field.json). The art wave adds `assets/sprites/chars/` atlases; register them in
   `src/render/sprites.js` `frameFor()` and keep the entity `sprite` field as the key.
-- SPEC for the effects wave: lighting (LQ `src/world/lighting.js` port), particles (LQ `particles.js`), weather,
-  day/night, spell visuals keyed by event (`cast_start.ability`, `damage.ability`) through a data table
-  `src/render/fx_table.js`.
+- LIVE (render wave): lighting, particles, weather, day/night, spell visuals keyed by event through
+  `src/render/fx_table.js` (see above).
 
 ---
 
@@ -689,7 +715,7 @@ target `elite` / `boss` (or `rank`). UI commands it sends (LIVE since the combat
 ### 10.1 The sim's HUD block (LIVE, combat wave): `snapshot.hud[playerId]`
 
 The sim builds everything rule-derived the HUD needs, already in seconds and fractions (`src/sim/hud.js`), so the HUD
-never re-derives a rule. `buildViewModel` should pass it through as `vm.hud` (wiring note in the combat report).
+never re-derives a rule. `buildViewModel` passes it through as `vm.hud` (LIVE); `src/ui/uivm.js` `fromSimHud` builds the HUD model from it (bar, cast bar, xp, talent points, gold, bag, equip, quests, minimap marks). The UI-local PLACEHOLDER path is kept only for `?uidemo` and worlds without combat content.
 
 ```js
 {
@@ -705,6 +731,9 @@ never re-derives a rule. `buildViewModel` should pass it through as `vm.hud` (wi
   xp: { cur, need, level, cap }, talents: { total, spent, free, byBranch }, gold,
   inCombat, autoOn, dead, respawnIn, lantern, sitting, showAggroRings (Path Sense), stats, derived,
   quests: QS.tracker(player) rows, npcMarkers: { npcEntityId: '!' | '?' | '!grey' | '!soon' | '?grey' },
+  bag: { size, bags, items: [item view] }, equip: { slot: item view }, buyback: [item view + price],   // integration wave
+  // item view = loot.js resolveItem as plain JSON: { item, qty, resolved: true, id, name, icon, rarity, kind, slot, level,
+  //   reqLevel, value (sell price), classes, weaponType?, armorType?, damage?, speed?, armor?, stats?, use?, text?, inst? }
 }
 ```
 
@@ -712,7 +741,7 @@ The UI commands listed above are LIVE (section 2.2); `equip` / `use_item` accept
 
 ---
 
-## 11. Audio hooks (SPEC)
+## 11. Audio hooks (LIVE, integration wave: `src/audio/`)
 
 `src/audio/` subscribes to the bus (`src/core/bus.js`): `bus.on('damage', fn)`, `bus.on('*', fn)`. Events are
 shared and read-only. Music follows the player's zone (`zone` event + zone `music` id). A data table
@@ -732,3 +761,40 @@ node tools/dev/import_lq_maps.mjs     re-import Willowmere + the valley from Lex
 
 Dev URL options: `?seed=`, `?zoom=1|1.5|2`, `?zone=valley&x=6&y=33` (start spot), `?paused=1` (drivers step the sim
 with `window.__realms.step(n)`).
+
+---
+
+## 13. Integration (LIVE, integration wave 2026-11-19)
+
+**main.js tick**: `input.poll({ snap, playerId, pick, toWorld: renderer.devToWorld })` and UI commands -> `world.enqueue`;
+`world.step()`; `bus.publish(events)` (UI log, audio); `renderer.feed(events)` (effects, corpses, hurt flashes).
+`renderer.anchorOf(id)` + `worldToHud` place the quest marks (`hud.npcMarkers`) over npc heads on the HUD layer.
+
+**Input** (`src/input/input.js`, `createInput(win, canvas, { abilities })`): left click = target; right click on a
+hostile mob = `attack` (target + auto-attack); right click on an NPC or a quest node = `target` + `interact`; touch tap
+(`tap` intent) = target, and talk / use for NPCs and nodes. A `cast` whose ability has `target: 'ground'` carries
+`at: { x, y }` (world px): the mouse on desktop, on a phone (`input.setTouch(true)`) the current target's feet or 48 px
+in front of the player. The Interact key (F) / Talk button picks the current target only when it is within reach,
+else the nearest NPC or quest node. `X` = `sit` (keymap action `sit`).
+
+**Save** (`src/ui/save.js`, schema v1, `lexicon_realms.chars`): each character keeps the select-screen summary
+(`level, xp, zone, zoneName, x, y`) plus `state` = the full character for `addPlayer` restore:
+`{ v: 1, name, cls, look, level, xp, gold, zone, tx, ty, bag, bags, equip, known, bar, talents, quests, questsDone,
+nodesUsed, respecs, lantern }` (positions in tiles; a dead hero saves at their lantern; an escort in progress restarts).
+Saved every 5 s, on tab hide, on unload and on quit to select. `hinted: true` once the controls card was shown.
+Quit to select = `world.removePlayer(id)` in place (no page reload).
+
+**URL options**: `?tod=0..1` (freeze the time of day), `?weather=clear|rain|leaves|pollen`, `?fx=low|high` (overrides
+the option) -> `view.tod / view.weather / view.fx`; the options menu sets `view.fx` and the audio volumes.
+`?dev=1` (DEV ONLY, never linked): `window.__realms.dev = { xp(n), level(L), gold(n), hp(n) }` for drivers.
+`window.__realms.fps()` = `{ fps, p95ms, n }` over the last 240 animation frames.
+
+**Audio** (`src/audio/audio.js`, `engine.js` = LQ's engine, `sfx_table.js`): unlocked on the first pointerdown /
+keydown / touchstart; title theme on the title screen, zone `music` themes in the world, event sfx for the local player.
+
+**Deploy**: `index.html` at the repo root loads `src/main.js` and `assets/` by relative paths, so any static host serves
+the repo root. `.github/workflows/pages.yml` runs `node qa/run.mjs` and publishes `index.html`, `src/` and `assets/` to
+GitHub Pages on push to `main` (Pages must be set to "GitHub Actions" in the repo settings once).
+
+**Playthrough checks** (need `python tools/dev/serve.py`): `python qa/integrate/playthrough.py` (desktop, real keys and
+mouse, prints `INTEGRATE_DONE:`), `python qa/integrate/phone.py` (844x390 phone, real touch, prints `PHONE_DONE:`).

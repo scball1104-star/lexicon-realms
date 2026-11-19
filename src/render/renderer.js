@@ -19,7 +19,9 @@
 // scale and floating numbers go on a 640x360 overlay at the base scale (crisp at every zoom).
 import { bakeZone } from './tilemap.js';
 import { cameraFor, layoutFor } from './camera.js';
-import { createSpriteBook, pixelEllipse } from './sprites.js';
+import { createSpriteBook, pixelEllipse, createSilhouettes, CORPSE_SECS, CORPSE_FADE } from './sprites.js';
+import { createObjectArt } from './objects.js';
+import { fxFor } from './fx_table.js';
 import { dayFraction, skyAt } from './daycycle.js';
 import { createLighting, LIGHT_RGB } from './lighting.js';
 import { createAtmos } from './atmos.js';
@@ -70,13 +72,17 @@ export function normalizeWeather(w, zone) {
   return { rain: +w.rain || 0, leaves: !!w.leaves, pollen: !!w.pollen };
 }
 
-export function createRenderer(canvas, assets, { zones }) {
+export function createRenderer(canvas, assets, { zones, abilities = null }) {
   const ctx = canvas.getContext('2d');
   const tiles = assets.json('tiles');
   const propsDb = (assets.json('props').objects) || {};
   const img = (n) => assets.img(n);
   const lazy = createLazy();
   const book = createSpriteBook(assets, lazy);
+  book.warm();                               // start loading the 17 mob atlases
+  const silhouette = createSilhouettes();
+  const objArt = createObjectArt({ tiles, propsDb, img, book, silhouette });
+  const corpses = new Map();                 // mob id -> death time (fx clock), -1 = died before we saw it (no corpse)
   const baked = new Map();
   const bake = (id) => { if (!baked.has(id)) baked.set(id, bakeZone(zones[id], { tiles, propsDb, img })); return baked.get(id); };
   const sheetOf = (name) => img(String(name).replace(/\.[^.]+$/, ''));
@@ -98,7 +104,8 @@ export function createRenderer(canvas, assets, { zones }) {
   let numFont = null, bigFont = null;
   const fontFrom = (j, im) => (j && im ? new BitmapFont(j, im, { id: 'num' }) : null);
   const fx = createFx({
-    sheet: () => { const j = lazy.json('fx/fx.json'), im = lazy.img('fx/fx.png'); return j && im ? { json: j, img: im } : null; },
+    abilities,
+    sheet: () => { if (assets.has('fx') && assets.has('fx_img')) return { json: assets.json('fx'), img: assets.img('fx_img') }; const j = lazy.json('fx/fx.json'), im = lazy.img('fx/fx.png'); return j && im ? { json: j, img: im } : null; },
     numFont: () => numFont || (numFont = fontFrom(assets.has('font_num') ? assets.json('font_num') : lazy.json('ui/font_num.json'), assets.has('font_num') ? assets.img('font_num') : lazy.img('ui/font_num.png'))),
     bigFont: () => bigFont || (bigFont = fontFrom(lazy.json('ui/font_num_big.json'), assets.has('font_num') ? assets.img('font_num') : lazy.img('ui/font_num.png'))),
   });
@@ -160,7 +167,17 @@ export function createRenderer(canvas, assets, { zones }) {
     dev.sky = sky;
 
     const prevById = new Map((prevSnap ? prevSnap.entities : []).map((e) => [e.id, e]));
-    const ents = snap.entities.filter((e) => e.zone === zoneId && (!e.dead || e.kind === 'player'));
+    // corpses: a dead mob stays CORPSE_SECS (death anim, hold, fade); only deaths we saw (the fx death hint)
+    const ents = [];
+    for (const e of snap.entities) {
+      if (e.kind === 'mob') {
+        if (!e.dead) { if (corpses.size && corpses.has(e.id)) corpses.delete(e.id); }
+        else if (!corpses.has(e.id)) { const d = fx.deathAt(e.id); corpses.set(e.id, d != null && now - d < 1 ? d : -1); }
+      }
+      if (e.zone !== zoneId) continue;
+      if (!e.dead || e.kind === 'player') { ents.push(e); continue; }
+      if (e.kind === 'mob') { const d = corpses.get(e.id); if (d != null && d >= 0 && now - d < CORPSE_SECS) ents.push(e); }
+    }
     const pos = new Map(ents.map((e) => [e.id, lerpEntity(prevById, e, alpha)]));
 
     const focus = pos.get(view.followId);
@@ -186,9 +203,17 @@ export function createRenderer(canvas, assets, { zones }) {
       list.push({ sortY: p.sortY, prop: p });
     }
     const newAnchors = new Map();
+    const grounds = [];
     for (const e of ents) {
       const [x, y] = pos.get(e.id);
-      const it = { sortY: Math.round(y), ent: e, x: Math.round(x), y: Math.round(y) };
+      if (e.kind === 'object') {
+        if (objArt.isGround(e)) { grounds.push([e, x, y]); continue; }
+        const owner = e.owner != null ? snap.entities.find((o) => o.id === e.owner) : null;
+        for (const o of objArt.items(e, x, y, now, t, owner)) list.push({ sortY: o.sortY, obj: o, ent: e });
+        newAnchors.set(e.id, { x: Math.round(x), y: Math.round(y), h: 12, hand: null });
+        continue;
+      }
+      const it = { sortY: Math.round(y), ent: e, x: Math.round(x), y: Math.round(y), corpse: e.dead && e.kind === 'mob' };
       it.f = book.frameFor(e, t, fx.state(e.id, now));
       newAnchors.set(e.id, { x: it.x, y: it.y, h: it.f ? Math.min(40, it.f.oy) : 20, hand: it.f && it.f.hand ? [it.f.hand[0] - it.f.ox, it.f.oy - it.f.hand[1]] : null });
       list.push(it);
@@ -196,14 +221,17 @@ export function createRenderer(canvas, assets, { zones }) {
     anchors = newAnchors;
     list.sort((a, b) => a.sortY - b.sortY || (a.ent ? a.ent.id : -1) - (b.ent ? b.ent.id : -1));
 
+    // ground zones (Scatter Letters, Sanctuary Peal, ink trails...) lie under every actor
+    for (const [e, x, y] of grounds) objArt.drawGround(g, e, x, y, cam, now);
+
     // shadows (lean with the sun, fainter at night) and the target ring go under every sprite
     const lean = sky.sun.lean;
     for (const it of list) {
-      if (!it.ent) continue;
+      if (!it.ent || it.obj || it.corpse) continue;      // a corpse lies on the ground: no shadow, no ring
       const f = it.f;
       const sh = shadowFor((f ? Math.round(Math.min(f.w, 24) * 0.6) : 12) + Math.abs(lean), sky.sun.alpha);
       g.drawImage(sh, it.x - Math.floor(sh.width / 2) + lean - cam.x, it.y - Math.floor(sh.height / 2) + 1 - cam.y);
-      if (it.ent.id === view.targetId) {
+      if (it.ent.id === view.targetId && !it.corpse) {
         const ring = it.ent.faction === 'hostile' ? rings.hostile : it.ent.faction === 'player' ? rings.player : rings.friendly;
         g.drawImage(ring, it.x - 10 - cam.x, it.y - 4 - cam.y);
       }
@@ -221,8 +249,17 @@ export function createRenderer(canvas, assets, { zones }) {
         g.globalCompositeOperation = 'source-over';
         continue;
       }
+      if (it.obj) { it.obj.draw(g, cam); if (it.obj.pick) picks.push({ id: it.ent.id, ...it.obj.pick }); continue; }
       const f = it.f;
       if (!f) continue;
+      if (it.corpse) {
+        const age = now - corpses.get(it.ent.id);
+        const k = age > CORPSE_SECS - CORPSE_FADE ? Math.max(0, (CORPSE_SECS - age) / CORPSE_FADE) : 1;
+        g.globalAlpha = Math.ceil(k * 4) / 4 * 0.9;
+        blit(g, f, f.img, it.x - f.ox - cam.x, it.y - f.oy - cam.y);
+        g.globalAlpha = 1;
+        continue;                                       // a corpse is never picked, never glows
+      }
       const looks = fx.auraLooks(it.ent);
       const stealth = looks.some((l) => l.look === 'stealth');
       const dx = it.x - f.ox - cam.x, dy = it.y - f.oy - cam.y;
@@ -230,7 +267,11 @@ export function createRenderer(canvas, assets, { zones }) {
       blit(g, f, f.img, dx, dy);
       g.globalAlpha = 1;
       const hurt = fx.hurtAt(it.ent.id);
-      if (hurt != null && now - hurt < 0.12) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55; blit(g, f, f.img, dx, dy); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+      if (hurt != null && now - hurt >= 0 && now - hurt < 0.1) {   // the hit: a white silhouette flash (cached per frame rect)
+        g.globalAlpha = now - hurt < 0.05 ? 0.9 : 0.55;
+        blit(g, { sx: 0, sy: 0, w: f.w, h: f.h, flip: f.flip }, silhouette(f.img, f.sx, f.sy, f.w, f.h, '#ffffff'), dx, dy);
+        g.globalAlpha = 1;
+      }
       if (f.emissive) emissive.push([f, dx, dy]);
       for (const l of looks) auraDraws.push([l, it.x, it.y]);
       picks.push({ id: it.ent.id, x: it.x - f.ox, y: it.y - f.oy, w: f.w, h: f.h });
@@ -265,6 +306,7 @@ export function createRenderer(canvas, assets, { zones }) {
     }
     for (const [l, x, y] of auraDraws) fx.drawAuraLook(g, l, x, y, cam, now);
     fx.drawWorld(g, cam, W, H, now);
+    if (snap.projectiles && snap.projectiles.length) drawSimProjectiles(g, prevSnap, snap, alpha, zoneId);
     atmos.update(dt, cam, W, H, fxLevel === 'low' ? { rain: weather.rain, leaves: false, pollen: false } : weather, sky, zone);
     atmos.drawParticles(g, cam, W, H, sky);
 
@@ -297,6 +339,25 @@ export function createRenderer(canvas, assets, { zones }) {
     const ms = performance.now() - tStart;
     const s = dev.stats;
     s.ms = ms; s.n++; s.avg += (ms - s.avg) / Math.min(s.n, 120);
+  }
+
+  // sim projectiles with no event visual (a late join, a page that missed the launch): a small bolt at the sim's spot
+  function drawSimProjectiles(g, prevSnap, snap, alpha, zoneId) {
+    const live = new Set();
+    let prevP = null;
+    for (const p of snap.projectiles) {
+      live.add(p.id);
+      if (p.zone !== zoneId || fx.seenProjectile(p.id)) continue;
+      if (!prevP) prevP = new Map(((prevSnap && prevSnap.projectiles) || []).map((q) => [q.id, q]));
+      const q = prevP.get(p.id);
+      const x = Math.round((q ? q.x + (p.x - q.x) * alpha : p.x) - cam.x), y = Math.round((q ? q.y + (p.y - q.y) * alpha : p.y) - 12 - cam.y);
+      const ab = abilities && abilities[p.ability];
+      const f = fxFor(p.ability, ab && ab.school);
+      const arrow = (f.projectile && f.projectile.sprite === 'arrow') || p.ability === 'auto';
+      if (arrow) { g.fillStyle = '#c8a070'; g.fillRect(x - 3, y, 4, 1); g.fillStyle = '#ffffff'; g.fillRect(x + 1, y, 1, 1); }
+      else { g.fillStyle = f.glow || f.color; g.fillRect(x - 2, y - 1, 4, 3); g.fillStyle = f.color; g.fillRect(x - 1, y - 1, 2, 2); g.fillStyle = '#ffffff'; g.fillRect(x, y, 1, 1); }
+    }
+    fx.pruneProjectiles(live);
   }
 
   function blit(g, f, im, dx, dy) {
@@ -338,6 +399,8 @@ export function createRenderer(canvas, assets, { zones }) {
     },
     devToWorld,
     worldToHud,
+    /** Where an entity was drawn last frame: { x, y (feet, world px), h (sprite height) } or null (nameplates, quest marks). */
+    anchorOf(id) { const a = anchors.get(id); return a ? { x: a.x, y: a.y, h: a.h } : null; },
     dev,
     /** Sheets still loading (drivers wait for 0 before a screenshot). */
     get loading() { return lazy.pending; },

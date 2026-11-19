@@ -114,7 +114,7 @@ export function drawBags(ctx, env, m, st, regions, act) {
     const it = bag.items[c.i] || null;
     itemSlot(ctx, env, c, it, null);
     if (it) regions.push({ rect: c, kind: 'bag', i: c.i, tip: itemTooltip(it, itemInfo(it).slot ? 'Right-click to equip' : itemInfo(it).use ? 'Right-click to use' : null),
-      on: (btn) => { if (btn === 2 || env.L.touch) act.useItem(c.i); } });
+      on: (btn) => { if (btn === 2 || env.L.touch) act.useItem(c.i); }, label: `bag:${c.i}` });
   });
   g.icon(ctx, 'icon_gold', r.x + 10, r.y + r.h - 18);
   g.text(ctx, `${Number(m.gold).toLocaleString('en-US')} gold`, r.x + 25, r.y + r.h - 19, 'gold');
@@ -182,7 +182,7 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
   const button = (x, w, label, color, on) => {
     g.window(ctx, x, by, w, bh, 'thin', 'slate', 0.95);
     g.text(ctx, label, x + w / 2, by + Math.floor(bh / 2) - 6, color, { align: 'center' });
-    regions.push({ rect: { x, y: by, w, h: bh }, kind: 'button', on });
+    regions.push({ rect: { x, y: by, w, h: bh }, kind: 'button', on, label });
   };
   const confirm = st.confirm === `abandon:${q.id}`;
   button(r.x + r.w - 10 - 112, 112, confirm ? 'Abandon? Again' : 'Abandon', confirm ? 'orange' : 'red',
@@ -304,7 +304,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   const btn = (x, w, label, on) => {
     g.window(ctx, x, by, w, bh, 'thin', 'blue', 0.95);
     g.text(ctx, label, x + w / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
-    regions.push({ rect: { x, y: by, w, h: bh }, kind: 'button', on });
+    regions.push({ rect: { x, y: by, w, h: bh }, kind: 'button', on, label });
   };
   btn(ox, 110, 'Resume', () => act.close('menu'));
   btn(ox + 118, 110, 'Character select', () => act.logout());

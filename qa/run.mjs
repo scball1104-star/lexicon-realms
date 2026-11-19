@@ -11,8 +11,8 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 
 const TEST_MS = 20000;
 const here = path.dirname(fileURLToPath(import.meta.url));
-// qa/tests (foundation, ui), qa/sim (combat, progression) and qa/world (zones, quests, loot)
-const DIRS = ['tests', 'sim', 'world'].map((d) => path.join(here, d)).filter((d) => fs.existsSync(d));
+// qa/tests (foundation, ui, audio), qa/sim (combat, progression), qa/world (zones, quests, loot, vendors), qa/render (renderer)
+const DIRS = ['tests', 'sim', 'world', 'render'].map((d) => path.join(here, d)).filter((d) => fs.existsSync(d));
 const filters = process.argv.slice(2);
 const files = DIRS.flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith('.test.mjs') && (!filters.length || filters.some((x) => f.includes(x)))).sort().map((f) => path.join(dir, f)));
 
