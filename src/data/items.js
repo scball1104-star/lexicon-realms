@@ -147,8 +147,10 @@ gear('ring_jerkin', 'Ring Jerkin', 'chest', 'mail', 1, 'common');
 gear('paring_dagger', 'Paring Dagger', 'main', 'dagger', 1, 'common');
 gear('scuffed_leathers', 'Scuffed Leathers', 'chest', 'leather', 1, 'common');
 
-// Quest rewards (ZONES_QUESTS 5.1: ilvl = quest level + 1; magic, rare for q23 and q24).
-const Q = (lvl) => lvl + 1;
+// Quest rewards (ZONES_QUESTS 5.1 said ilvl = quest level + 1; magic, rare for q23 and q24). Fix pass 1 (critique 13):
+// ilvl = quest level, so every reward can be worn the moment the quest is handed in (reqLevel = ilvl - 2 <= the quest's
+// minimum level); qa/world/quests.test.mjs checks it.
+const Q = (lvl) => lvl;
 const R = [
   // [id, name, slot, type, questLevel, stats, rarity]
   ['flour_dusted_gloves', 'Flour-Dusted Gloves', 'hands', 'class', 1, { sta: 1 }],

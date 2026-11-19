@@ -26,7 +26,9 @@ export const PROGRESSION = {
   respec: { base: 10, perLevel: 5, firstFree: true },
 
   // Mob stat curve (3): hp = round(100 + 40 L + 0.6 L^2); swing mean 2 + 2.2 L (+-15 %); gold [floor(L / 3), L].
-  mobCurve: { hp: [100, 40, 0.6], hit: [2, 2.2], hitSpread: 0.15, attackSpeed: 2.0 },
+  // lowLevelHp (fix pass 1, critique 7): foes of level 1 to 4 have 22% less health, tapering back to the curve by 7, so a
+  // new hero's kills from the pull land near 10 to 14 s (30% landed at 9 s for three classes in the questbot). [upToLevel, mult], first match wins.
+  mobCurve: { hp: [100, 40, 0.6], hit: [2, 2.2], hitSpread: 0.15, attackSpeed: 2.0, lowLevelHp: [[4, 0.78], [5, 0.85], [6, 0.92]] },
   mobKinds: {
     normal: { hp: 1, damage: 1 },
     weak: { hp: 0.6, damage: 0.7 },
@@ -39,7 +41,7 @@ export const PROGRESSION = {
     speed: 72, armoredSpeed: 50, fleeSpeed: 80,
     aggroRadius: 80, aggroPerLevel: 8, aggroMin: 32, aggroMax: 128,
     stealthNotice: 24, stealthPerLevel: 8,
-    social: 48,
+    social: 48, socialByLevel: [[2, 0], [4, 28]],          // [upToMobLevel, px]: a level 1-2 foe never calls friends (bug 14)
     leashDist: 640, leashTime: 10,
     flee: { pct: 0.2, time: 4, dist: 128 },
     respawn: { normal: 90, weak: 60, elite: 360 },
@@ -63,8 +65,12 @@ export const PROGRESSION = {
   },
 
   // Rest and death (5).
-  rest: { sitDelay: 1, sitPct: 0.06, standDelay: 5, standHpPct: 0.01 },
-  death: { respawnDelay: 3, lanternTouch: 16 },
+  // standHpPct: health back per second standing out of combat after standDelay s. byLevel (critique 7, fix pass 1): a new
+  // hero gets most of a bar back in the walk to the next foe, so levels 1 to 4 rarely need a sit; it tapers to the old 1%
+  // by level 9. [upToLevel, pct], first match wins.
+  rest: { sitDelay: 1, sitPct: 0.06, standDelay: 5, standHpPct: 0.01, standHpByLevel: [[4, 0.05], [6, 0.03], [8, 0.02]] },
+  // lanternTouch px: you bind a lantern by walking within about 3 tiles of it (was 16 px, PLAYTEST_BOT bug 12)
+  death: { respawnDelay: 3, lanternTouch: 48 },
 
   // Design gear (4, PROGRESSION 9.1 assumption): weapon ilvl = level, gear adds floor(0.7 L) to the main stat and sta,
   // full-kit armor at ilvl L.

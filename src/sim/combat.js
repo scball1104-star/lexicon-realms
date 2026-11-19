@@ -137,7 +137,11 @@ export function createCombat(C) {
       case 'any': return { t: t && alive(t) && sameZone(e, t) && isUnit(t) && t.kind !== 'npc' ? t : e };
       case 'self': return { t: e };
       case 'ground': {
-        if (cmd.at) return { t: null, at: { x: Math.round(cmd.at.x * SUB), y: Math.round(cmd.at.y * SUB) } };
+        if (cmd.at) {
+          // a ground point must be two finite numbers (PLAYTEST_BOT bug 8: NaN slipped past the range check)
+          if (typeof cmd.at !== 'object' || typeof cmd.at.x !== 'number' || typeof cmd.at.y !== 'number' || !Number.isFinite(cmd.at.x) || !Number.isFinite(cmd.at.y)) return { fail: 'target' };
+          return { t: null, at: { x: Math.round(cmd.at.x * SUB), y: Math.round(cmd.at.y * SUB) } };
+        }
         if (t && sameZone(e, t) && alive(t)) return { t: null, at: { x: t.x, y: t.y } };
         return { fail: 'target' };
       }
@@ -664,6 +668,7 @@ export function createCombat(C) {
   }
   function addThreat(mob, p, amount, abilityMult = 1) {
     if (!mob.threat || mob.dead || p.dead) return;
+    if (mob.ai && mob.ai.mode === 'reset') return;          // evading home: hits (a DoT tick) never re-tag it (fix pass 1)
     const add = amount * abilityMult * (p.kind === 'player' ? threatMul(p) : 1);
     const first = Object.keys(mob.threat).length === 0;
     mob.threat[p.id] = (mob.threat[p.id] || 0) + add;
@@ -1071,7 +1076,10 @@ export function createCombat(C) {
     let hpPerSec = 0;
     if (!ooc) hpPerSec = stats.mod(e, 'hpRegenPct').add * e.hpMax;
     else if (sitting) hpPerSec = (e.restFood || P.rest.sitPct) * e.hpMax;
-    else if (now() - (e.combatEnd || 0) >= T(P.rest.standDelay)) hpPerSec = P.rest.standHpPct * e.hpMax;
+    else if (now() - (e.combatEnd || 0) >= T(P.rest.standDelay)) {
+      const band = (P.rest.standHpByLevel || []).find(([upTo]) => e.level <= upTo);
+      hpPerSec = (band ? band[1] : P.rest.standHpPct) * e.hpMax;
+    }
     if (hpPerSec > 0 && e.hp < e.hpMax) {
       e.hpAcc = (e.hpAcc || 0) + hpPerSec * sec;
       const whole = Math.floor(e.hpAcc);
@@ -1100,7 +1108,13 @@ export function createCombat(C) {
     const inC = engaged || now() - (e.lastCombat || -9999) < T(PC.combatEnd);
     if (inC !== !!e.inCombat) {
       e.inCombat = inC;
-      if (inC) { e.sitting = 0; }
+      if (inC) {
+        e.sitting = 0;
+        // Resolve classes walk into a fight with a little in hand (CLASSES 7 resource.combatStart, critique 6): with Bash's
+        // +15 the first Strike is ready on the second press
+        const r = (data.classes[e.cls] || {}).resource;
+        if (r && r.combatStart && e.res && e.res.kind === r.kind) gainRes(e, r.kind, r.combatStart);
+      }
       else {
         e.combatEnd = now();
         for (const id of e.known || []) {

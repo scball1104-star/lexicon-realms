@@ -69,12 +69,13 @@ export const tests = [
     const s = a.snapshot();
     eq(JSON.stringify(JSON.parse(JSON.stringify(s))), JSON.stringify(s), 'snapshot round trip');
   } },
-  { name: 'balance: every class at 1, 8 and 15 kills a same-level foe in 8 to 14 s without dying (20 seeded runs per cell; duel.mjs runs 200)', fn() {
+  { name: 'balance: every class at 1, 8 and 15 kills a same-level foe in 8 to 14 s (5 to 12 s at level 1, from the first hit; lighter low-level foes) without dying (20 seeded runs per cell; duel.mjs runs 200)', fn() {
     const out = [];
     for (const c of ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade']) for (const L of [1, 8, 15]) {
       const r = runCell(c, L, 20);
       out.push(`${c} ${L}: ${r.ttk.toFixed(1)} s`);
-      assert(r.ttk >= 8 && r.ttk <= 14, `${c} ${L}: TTK ${r.ttk.toFixed(2)} outside 8 to 14`);
+      const [lo, hi] = L <= 4 ? [5, 12] : [8, 14];
+      assert(r.ttk >= lo && r.ttk <= hi, `${c} ${L}: TTK ${r.ttk.toFixed(2)} outside ${lo} to ${hi}`);
       eq(r.deaths, 0, `${c} ${L} deaths`);
     }
     void out;

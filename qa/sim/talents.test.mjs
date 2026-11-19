@@ -80,7 +80,8 @@ play('warden_oathblade_oathbreaker', 'Bash spends Resolve above 20 for +2% each;
   const d = dmg(ev, 'warden_shield_bash')[0];
   const base = 3 + 1.5 * 15 + 0.25 * p.derived.ap;
   eq(d.amount, Math.round(base * 2 * (d.crit ? 1.5 : 1)), '50 spent = +100%');
-  assert(p.res.cur < 40, `resolve spent (${p.res.cur})`);
+  const autos = ev.filter((e) => e.type === 'damage' && e.ability === 'auto' && e.src === pid).length;
+  assert(p.res.cur <= 20 + 10 + 10 * autos, `resolve spent (${p.res.cur}; 20 kept, +10 as the fight starts, +10 per auto)`);
   const st = m.auras.find((a) => a.id === 'warden_bash_stun'); eq(st.until - st.startTick, 30, '1.5 s');
 });
 play('warden_oathblade_sword_sworn', 'Oath: no damage cut; +30% damage and auto speed', () => {

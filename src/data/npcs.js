@@ -148,7 +148,7 @@ export const NPCS = {
     trainer: null, innkeeper: false, lq: 'pell',
     talk: [
       'Welcome to Willowmere Goods! That is a Potion. The label says POTION. So does the label on the label.',
-      'Take a spare antidote. Take two. I worry. It is most of what I do.',
+      'Buy a spare antidote. Buy two. I worry. It is most of what I do.',
       'Everything here is labeled twice. The labels too. Just in case.',
     ],
   },

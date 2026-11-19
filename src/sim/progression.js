@@ -66,7 +66,17 @@ export function createProgression(C) {
     const pts = talentPoints(e);
     const cls = data.classes[e.cls];
     const newAbilities = (cls ? cls.abilities : []).filter((a) => a.level === e.level).map((a) => a.id);
-    emit({ type: 'level', id: e.id, level: e.level, hpMax: e.hpMax, talentPoints: pts.free, trainable: newAbilities });
+    // where to learn them (critique 16): the class trainer's npc id, name and zone, so the log can say "New ability at your
+    // trainer: Taunt (Sergeant Holt, Willowmere)"
+    let trainer = null;
+    if (newAbilities.length && cls && cls.trainer) {
+      for (const z of Object.values(C.content.zones)) {
+        const n = (z.npcs || []).find((x) => x.npc === cls.trainer);
+        if (n) { trainer = { npc: cls.trainer, name: ((C.content.npcs || {})[cls.trainer] || {}).name || cls.trainer, zone: z.id, x: n.x, y: n.y }; break; }
+      }
+    }
+    emit({ type: 'level', id: e.id, level: e.level, hpMax: e.hpMax, talentPoints: pts.free, trainable: newAbilities, trainer,
+      firstTalentAt: e.level < P.talents.firstLevel ? P.talents.firstLevel : null });
   }
 
   function setLevel(e, L) {
@@ -270,22 +280,37 @@ export function createProgression(C) {
     e.lantern = sq ? { zone: st.zone, id: sq.id, x: sq.x, y: sq.y } : { zone: e.zone, id: null, x: Math.floor(e.x / TILE), y: Math.floor((e.y - 1) / TILE) };
   }
 
+  function bindLantern(e, l, auto = false) {
+    if (e.lantern && e.lantern.zone === e.zone && e.lantern.id === l.id) return;
+    e.lantern = { zone: e.zone, id: l.id, x: l.x, y: l.y };
+    emit({ type: 'lantern', id: e.id, zone: e.zone, lantern: l.id, name: l.name || l.id, ...(auto ? { auto: true } : {}) });
+  }
+
+  /**
+   * Entering a zone whose lanterns you have not touched binds the nearest one to where you came in (critique 17,
+   * PLAYTEST_BOT bug 12): dying in a new zone never sends you two zones back. Touching any lantern later rebinds as usual.
+   */
+  function onZoneEnter(e) {
+    if (e.dead || (e.lantern && e.lantern.zone === e.zone)) return;
+    let best = null, bd = Infinity;
+    for (const l of lanternsOf(e.zone)) {
+      const [lx, ly] = tileToSub(l.x, l.y);
+      const d = distPxXY(e.x, e.y, lx, ly);
+      if (d < bd) { bd = d; best = l; }
+    }
+    if (best) bindLantern(e, best, true);
+  }
+
   function tickPlayer(e) {
     if (e.dead) {
       if (e.respawnAt != null && now() >= e.respawnAt) respawn(e);
       return;
     }
-    // lantern touch
-    if ((now() + e.id) % 5 === 0) {
+    // lantern touch: within lanternTouch px (about 3 tiles), checked every 3 ticks so walking past at full speed binds
+    if ((now() + e.id) % 3 === 0) {
       for (const l of lanternsOf(e.zone)) {
         const [lx, ly] = tileToSub(l.x, l.y);
-        if (distPxXY(e.x, e.y, lx, ly) <= P.death.lanternTouch) {
-          if (!e.lantern || e.lantern.zone !== e.zone || e.lantern.id !== l.id) {
-            e.lantern = { zone: e.zone, id: l.id, x: l.x, y: l.y };
-            emit({ type: 'lantern', id: e.id, zone: e.zone, lantern: l.id });
-          }
-          break;
-        }
+        if (distPxXY(e.x, e.y, lx, ly) <= P.death.lanternTouch) { bindLantern(e, l); break; }
       }
     }
     if (e.respecVisit) {
@@ -316,5 +341,5 @@ export function createProgression(C) {
   }
 
   return { grantXp, killXp, setLevel, xpToNext, cumulative, learn, train, trainerOffer, trainerCls, learnTalent, unlearnTalent, respec, respecCost,
-    talentPoints, onDeath, tickDeadMob, tickPlayer, bindStart, respawn, levelUp };
+    talentPoints, onDeath, tickDeadMob, tickPlayer, bindStart, respawn, levelUp, onZoneEnter };
 }

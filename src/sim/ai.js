@@ -119,11 +119,14 @@ export function createAi(C) {
     m.swing.main = Math.max(m.swing.main || 0, now() + 10);
     emit({ type: 'threat', mob: m.id, top: p.id });
     if (p.kind === 'player') p.lastCombat = now();
-    if (social) {
+    // social pull radius: low-level foes call fewer friends (PROGRESSION mobAi.socialByLevel, PLAYTEST_BOT bug 14)
+    const sb = (A.socialByLevel || []).find(([upTo]) => m.level <= upTo);
+    const socialR = sb ? sb[1] : A.social;
+    if (social && socialR > 0) {
       const fam = m.mob.family;
       for (const o of state.ents) {
         if (o === m || o.kind !== 'mob' || o.dead || o.zone !== m.zone || !o.ai || o.ai.mode === 'combat' || o.ai.mode === 'reset') continue;
-        if (o.mob.family !== fam || distPx(o, m) > A.social) continue;
+        if (o.mob.family !== fam || distPx(o, m) > socialR) continue;
         if (!hasLos(C.zoneOf(m), o, m)) continue;
         engage(o, p, false);
       }
@@ -276,9 +279,32 @@ export function createAi(C) {
     }
     if (template(m).stationary) { stop(m); if (d <= reach) meleeSwing(m, t); return; }
     if (d > reach && !isObj && useAbilities(m, t, d)) return;
-    if (d > A.standOff) steer(m, t.x, t.y, speedOf(m), A.standOff - 4); else stop(m);
+    if (d > A.standOff) steer(m, t.x, t.y, speedOf(m), A.standOff - 4); else if (isObj || !spread(m, t, d)) stop(m);
     if (isObj) return;
     if (d <= reach) meleeSwing(m, t);
+  }
+
+  /**
+   * Two melee foes on one target stand side by side, not on top of each other (critique 12): the higher id steps round the
+   * target, away from the friend within SPREAD px, until they are apart. Only while in reach. Returns true while moving.
+   */
+  const SPREAD = 12;
+  function spread(m, t, d) {
+    let o = null;
+    for (const u of state.ents) {
+      if (u === m || u.kind !== 'mob' || u.dead || u.zone !== m.zone || !u.ai || u.ai.mode !== 'combat' || u.id > m.id) continue;
+      if (distPx(u, m) < SPREAD) { o = u; break; }
+    }
+    if (!o) return false;
+    const tx = t.x - m.x, ty = t.y - m.y, tl = Math.sqrt(tx * tx + ty * ty) || 1;
+    const ax = m.x - o.x, ay = m.y - o.y, al = Math.sqrt(ax * ax + ay * ay) || 1;
+    const side = m.id % 2 ? 1 : -1;
+    let vx = (-ty / tl) * side * 0.8 + (ax / al) * 0.6, vy = (tx / tl) * side * 0.8 + (ay / al) * 0.6;
+    if (d > A.meleeReach - 8) { vx += (tx / tl) * 0.5; vy += (ty / tl) * 0.5; }
+    const vl = Math.sqrt(vx * vx + vy * vy) || 1;
+    const sp = Math.max(1, Math.round(speedOf(m) * 0.4));
+    m.ai.vx = Math.round((vx / vl) * sp); m.ai.vy = Math.round((vy / vl) * sp);
+    return true;
   }
 
   function meleeSwing(m, t) {
@@ -334,6 +360,14 @@ export function createAi(C) {
         return;
       }
       default:
+        // threat left on a mob that is not fighting (a flee or an evade that ended, a hit while it walked home) would
+        // keep a player in combat forever, even zones away (fix pass 1: a Wayfinder stood at the moor arrival unable to
+        // sit or heal because a Downs crow still listed her). Fight the holder if it is here, else forget it.
+        if (m.threat && Object.keys(m.threat).length) {
+          const holder = Object.keys(m.threat).map((k) => C.get(Number(k))).find((u) => u && !u.dead && u.zone === m.zone && distPx(u, m) <= (template(m).leash ?? A.leashDist));
+          if (holder) { engage(m, holder, false); return; }
+          m.threat = {};
+        }
         mobThink(m, now(), rng);
         scan(m);
     }

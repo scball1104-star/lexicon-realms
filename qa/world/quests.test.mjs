@@ -1,3 +1,4 @@
+import { bagCount } from '../../src/sim/loot.js';
 // Quests: every reference resolves, nothing needs a mob that does not spawn, the chain reaches level 15 on the curve,
 // and a scripted player completes all 24 through the real quest system (src/sim/quests.js).
 import { assert, eq, ZONES, content, reachable, questHarness } from './_harness.mjs';
@@ -188,12 +189,12 @@ export const tests = [
       // fake a long log: every quest done but the last few, then fill
       p.questsDone = ['wm_name_twice'];
       assert(QS.accept(p, 'wm_pells_crate'));
-      eq(p.bag.filter((b) => b.item === 'pells_crate').length, 1, 'crate given');
+      eq(bagCount(p, 'pells_crate'), 1, 'crate given (in the quest bag)');
       assert(QS.abandon(p, 'wm_pells_crate'));
-      eq(p.bag.filter((b) => b.item === 'pells_crate').length, 0, 'crate taken back');
+      eq(bagCount(p, 'pells_crate'), 0, 'crate taken back');
       // quests_copy drops only while q07 is active
       for (let k = 0; k < 40; k++) H.kill('ink_slime', 4);
-      eq(p.bag.filter((b) => b.item === 'quills_copy').length, 0, 'no pages without the quest');
+      eq(bagCount(p, 'quills_copy'), 0, 'no pages without the quest');
       for (let i = 0; i < 25; i++) p.quests[`fake_${i}`] = undefined;
       const fakeLog = {};
       for (const id of C.questOrder.slice(0, 20)) fakeLog[id] = { state: 'active', counts: C.quests[id].objectives.map(() => 0) };

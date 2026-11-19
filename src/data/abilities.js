@@ -177,8 +177,11 @@ export const ABILITIES = {
     id: 'wayfinder_quick_shot', name: 'Quick Shot', icon: 'quick_shot', cls: 'wayfinder', learnLevel: 1, school: 'physical',
     cost: { kind: 'focus', amount: 25 }, castTime: 0, cooldown: 0, gcd: true, range: R9, target: 'enemy', threatMult: 1,
     requires: { weapon: 'bow' }, projectile: { speed: 480 },
-    effects: [{ type: 'damage', key: 'hit', weapon: 0.7, amount: lv(3, 1.5), school: 'physical', canCrit: true }],
-    text: 'A fast arrow for {dmg} damage.',
+    // fix pass 1 (PLAYTEST_BOT bug 15): the Wayfinder survives by distance (CLASSES 6), so her plain shot buys some: a foe
+    // it hits is Hobbled, 30% slower for 3 s, and walks in under more arrows
+    effects: [{ type: 'damage', key: 'hit', weapon: 0.7, amount: lv(3, 1.5), school: 'physical', canCrit: true },
+      { type: 'aura', key: 'hobble', aura: { id: 'wayfinder_hobbled', name: 'Hobbled', icon: 'quick_shot', kind: 'debuff', duration: 3, flags: ['slow'], mods: [{ stat: 'slow', add: 0.3 }] } }],
+    text: 'A fast arrow for {dmg} damage. The foe is Hobbled, 30% slower for 3 s.',
   },
   wayfinder_pinning_shot: {
     id: 'wayfinder_pinning_shot', name: 'Pinning Shot', icon: 'pinning_shot', cls: 'wayfinder', learnLevel: 1, school: 'physical',
@@ -243,9 +246,11 @@ export const ABILITIES = {
     requires: { weapon: 'dagger', combo: 1 },
     effects: [
       { type: 'damage', key: 'hit', amount: lv(4, 1.8), coef: { stat: 'ap', k: 0.1 }, scaleCombo: true, school: 'physical', canCrit: true },
+      // fix pass 1 (PLAYTEST_BOT bug 15): the Inkblade's cheap self-heal: each mark spilled gives back 5% of your health
+      { type: 'heal', key: 'drink', to: 'self', pctMaxHp: 0.05, scaleCombo: true, canCrit: false, noThreat: true, ability: 'inkblade_spill' },
       { type: 'combo', key: 'consume', consume: true },
     ],
-    text: 'Pop every Ink Mark for {dmg} per mark.',
+    text: 'Pop every Ink Mark for {dmg} per mark. Each mark spilled heals you for 5% of your health.',
   },
   inkblade_fade: {
     id: 'inkblade_fade', name: 'Fade', icon: 'fade', cls: 'inkblade', learnLevel: 3, school: 'shadow',

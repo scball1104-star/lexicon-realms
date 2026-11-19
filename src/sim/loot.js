@@ -7,7 +7,11 @@
 //   resolveItem(content, entry, cls)     -> the finished item: armor type, weapon type, stats (main resolved), armor, damage
 //   itemName(content, entry)             -> 'Keen Iron Sword of the Bear'
 //   bag helpers: bagCount(e, item), bagAdd(e, item, qty, inst, content) -> qty added, bagRemove(e, item, qty) -> qty removed,
-//                bagCapacity(e, content), bagFree(e, content)
+//                bagCapacity(e, content), bagFree(e, content), bagFindUid(e, uid)
+//
+// Quest items (kind 'quest') never take a bag slot: bagAdd puts them in the separate quest bag `e.qbag` (no limit), and
+// bagCount / bagRemove read both lists, so a quest item always fits (PLAYTEST_BOT bug 4). Every bag slot gets a `uid`
+// (per player, never reused) so a command can name the exact slot it means even after the list shifts (bug 16).
 //
 // ctx = { content, rng, questNeeds(player, item) -> bool }. questNeeds says whether the player has an active quest that
 // still needs this item; a quest-item drop only rolls when it does (CONTRACTS 7.3 `quest` on a table entry).
@@ -22,45 +26,74 @@ export function bagCapacity(e, content) {
 export function bagCount(e, item) {
   let n = 0;
   for (const s of e.bag || []) if (s.item === item) n += s.qty;
+  for (const s of e.qbag || []) if (s.item === item) n += s.qty;
   return n;
 }
 export function bagFree(e, content) { return bagCapacity(e, content) - (e.bag || []).length; }
-
+/** A fresh slot uid for this player (never reused within the character; saved with the bag). */
+export function nextUid(e) {
+  if (!(e.uidNext > 0)) {
+    let m = 0;
+    for (const list of [e.bag, e.qbag]) for (const s of list || []) if (s.uid > m) m = s.uid;
+    e.uidNext = m + 1;
+  }
+  return e.uidNext++;
+}
+/** Give every slot that has none a uid (a restored save from before uids). */
+export function ensureUids(e) { for (const list of [e.bag, e.qbag]) for (const s of list || []) if (!(s.uid > 0)) s.uid = nextUid(e); }
+export function bagFindUid(e, uid) { return (e.bag || []).findIndex((s) => s.uid === uid); }
+const isQuestItem = (content, item) => !!(content && content.items && content.items[item] && content.items[item].kind === 'quest');
 /** Add qty of item (stacking up to the item's `stack`). Instanced gear never stacks. Returns how many went in. */
 export function bagAdd(e, item, qty = 1, inst = null, content = null) {
   if (!e.bag) e.bag = [];
+  const quest = isQuestItem(content, item);
+  if (quest && !e.qbag) e.qbag = [];
+  const list = quest ? e.qbag : e.bag;
   const def = content && content.items ? content.items[item] : null;
   const stack = inst ? 1 : (def ? def.stack || 1 : 20);
-  const cap = content ? bagCapacity(e, content) : Infinity;
+  const cap = quest ? Infinity : content ? bagCapacity(e, content) : Infinity;
   let left = qty;
-  if (!inst) for (const s of e.bag) {
+  if (!inst) for (const s of list) {
     if (left <= 0) break;
     if (s.item !== item || s.inst || s.qty >= stack) continue;
     const k = Math.min(stack - s.qty, left);
     s.qty += k; left -= k;
   }
-  while (left > 0 && e.bag.length < cap) {
+  while (left > 0 && list.length < cap) {
     const k = Math.min(stack, left);
-    const slot = { item, qty: k };
+    const slot = { item, qty: k, uid: nextUid(e) };
     if (inst) slot.inst = JSON.parse(JSON.stringify(inst));
-    e.bag.push(slot);
+    list.push(slot);
     left -= k;
   }
   return qty - left;
 }
-
-/** Remove up to qty of item (from the last stacks first). Returns how many were removed. */
+/** Remove up to qty of item (the quest bag first, then the last stacks first). Returns how many were removed. */
 export function bagRemove(e, item, qty = 1) {
-  if (!e.bag) return 0;
   let left = qty;
-  for (let i = e.bag.length - 1; i >= 0 && left > 0; i--) {
-    const s = e.bag[i];
-    if (s.item !== item) continue;
-    const k = Math.min(s.qty, left);
-    s.qty -= k; left -= k;
-    if (s.qty <= 0) e.bag.splice(i, 1);
+  for (const list of [e.qbag, e.bag]) {
+    if (!list) continue;
+    for (let i = list.length - 1; i >= 0 && left > 0; i--) {
+      const s = list[i];
+      if (s.item !== item) continue;
+      const k = Math.min(s.qty, left);
+      s.qty -= k; left -= k;
+      if (s.qty <= 0) list.splice(i, 1);
+    }
   }
   return qty - left;
+}
+/** Move quest items out of the bag into the quest bag (a save written before the quest bag existed). */
+export function migrateQuestItems(e, content) {
+  if (!e.bag || !content || !content.items) return;
+  for (let i = e.bag.length - 1; i >= 0; i--) {
+    const s = e.bag[i];
+    if (!isQuestItem(content, s.item)) continue;
+    e.bag.splice(i, 1);
+    e.qbag = e.qbag || [];
+    const have = e.qbag.find((q) => q.item === s.item);
+    if (have) have.qty += s.qty; else e.qbag.unshift(s);
+  }
 }
 
 // ---------------------------------------------------------------- weighted helpers

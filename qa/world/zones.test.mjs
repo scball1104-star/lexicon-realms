@@ -1,6 +1,26 @@
 // Zones: everything a quest or a player needs is on a walkable cell and reachable on foot from the zone's arrival;
 // joins connect both ways; the closed hooks are visible, signed and really closed.
 import { assert, eq, ZONES, content, reachable } from './_harness.mjs';
+import { canStep } from '../../tools/maps/kit.mjs';
+
+/** Cells you can walk into from the arrival but never walk out of to the arrival or any join (one-way ledge pockets). */
+export function pitsOf(z, ok) {
+  const back = new Uint8Array(z.w * z.h), q = [];
+  const seed = (x, y) => { if (ok(x, y) && !back[y * z.w + x]) { back[y * z.w + x] = 1; q.push([x, y]); } };
+  seed(z.arrival[0], z.arrival[1]);
+  for (const j of z.joins || []) for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) seed(x, y);
+  while (q.length) {
+    const [x, y] = q.pop();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const px = x - dx, py = y - dy;
+      if (!ok(px, py) || back[py * z.w + px]) continue;
+      if (canStep(z, px, py, dx, dy)) { back[py * z.w + px] = 1; q.push([px, py]); }
+    }
+  }
+  const out = [];
+  for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) if (ok(x, y) && !back[y * z.w + x]) out.push([x, y]);
+  return out;
+}
 
 const loaded = (id) => !!ZONES[id];
 
@@ -58,6 +78,17 @@ export const tests = [
       const seen = new Set(['willowmere']), q = ['willowmere'];
       while (q.length) for (const j of ZONES[q.pop()].joins) if (loaded(j.to) && !seen.has(j.to)) { seen.add(j.to); q.push(j.to); }
       eq([...seen].sort().join(','), Object.keys(ZONES).sort().join(','), 'every zone reachable from Willowmere');
+    },
+  },
+  {
+    name: 'world pits (PLAYTEST_BOT bug 2): in every zone, every cell you can reach on foot has a way back to the arrival or a join',
+    fn() {
+      for (const [id, z] of Object.entries(ZONES)) {
+        const pits = pitsOf(z, reachable(id));
+        assert(!pits.length, `${id}: ${pits.length} cells with no way back, e.g. ${pits.slice(0, 6).map((p) => p.join(',')).join(' ')}`);
+      }
+      // the one the bot found: the Downs ledge at (114, 52) over rocks
+      assert(reachable('downs')(114, 53) === false || !pitsOf(ZONES.downs, reachable('downs')).some(([x, y]) => x === 114 && y === 53), 'downs (114, 53) is no pit');
     },
   },
   {

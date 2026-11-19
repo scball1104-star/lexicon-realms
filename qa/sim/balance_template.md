@@ -33,6 +33,24 @@ kill a same-level normal foe 8 to 14 s, solo-able (no bot deaths).
 
 Both belong in CLASSES.md (Kindle's row and the trap's note) when the design owner next edits it.
 
+## Fix pass 1 (2026-11-19): measured from the pull, in the field
+
+The playtest bots and the critic found the first hour slow and deadly (docs/PLAYTEST_BOT.md, docs/CRITIQUE_1.md 7).
+Changes, data only except where marked:
+
+| where | was | now | why |
+|---|---|---|---|
+| `PROGRESSION.mobCurve.lowLevelHp` | none | level 1 to 4 foes x0.78, level 5 x0.85, level 6 x0.92 | kills FROM THE PULL ran 15 to 30 s at levels 1 to 2 (critic, live); x0.7 overshot to 9 s in the questbot |
+| `PROGRESSION.rest.standHpByLevel` | 1%/s standing after 5 s | 5%/s to level 4, 3% to 6, 2% to 8, then 1% | fewer sits early; a sit is still faster |
+| `PROGRESSION.mobAi.socialByLevel` | 48 px for all | level 1 to 2 foes 0 px, 3 to 4 28 px | the first quest pulled slimes in threes |
+| Warden `resource.combatStart` (sim reads it) | 0 | +10 Resolve as a fight starts; Bash on slot 1 | Strike failed on the first press of every fight |
+| `inkblade_spill` | damage only | also heals 5% of health per mark spilled | the Inkblade died 15 times as often as the Mender (bug 15) |
+| `wayfinder_quick_shot` | damage only | also Hobbles 30% for 3 s | the Wayfinder survives by distance; each shot buys some |
+
+The band for this table is therefore 5 to 12 s FROM THE FIRST HIT at level 1 (the lighter foes), 8 to 14 s at 8 and 15.
+The level 1 to 4 target is 10 to 14 s FROM THE PULL (walk-in or a ranged pull included); the questbot measures that on
+the real content with the real foes (often one level over): see docs/PLAYTEST_BOT.md, "After fix pass 1".
+
 ## Notes
 
 - HP lost runs a little above the design column for the Scribe and Wayfinder (the bots never kite; the design notes

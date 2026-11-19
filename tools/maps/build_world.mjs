@@ -12,11 +12,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LQ, loadLqDb, bakeCollision, usedIds, reach, nearestWalk, writeModule } from './kit.mjs';
+import { LQ, loadLqDb, bakeCollision, usedIds, reach, nearestWalk, writeModule, canStep } from './kit.mjs';
 import { importLqMap } from '../dev/import_lq_maps.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const OUT = path.join(ROOT, 'src', 'data', 'maps');
+// --out <dir> writes the zone modules elsewhere (diffing a change); --no-assets skips assets/tiles (the map lane only
+// changes sim data: the tile sheets and tiles.json only change when the tiles a zone uses change)
+const argOut = process.argv.indexOf('--out');
+const OUT = argOut >= 0 ? path.resolve(process.argv[argOut + 1]) : path.join(ROOT, 'src', 'data', 'maps');
+const NO_ASSETS = process.argv.includes('--no-assets');
 const db = loadLqDb();
 const problems = [];
 const warn = (s) => console.warn('  warn: ' + s);
@@ -88,6 +92,25 @@ function finish(z) {
     for (let y = a.y; y < a.y + a.h && !any; y++) for (let x = a.x; x < a.x + a.w; x++) if (x < z.w && y < z.h && ok(x, y)) { any = true; break; }
     if (!any) problems.push(`${z.id}: area ${a.id} has no reachable cell`);
   }
+  // pits: a reachable cell from which neither the arrival nor any join can be reached again (one-way ledges into a
+  // pocket) is a softlock (PLAYTEST_BOT bug 2). Walk the step graph backwards from the arrival and every join cell.
+  const back = new Uint8Array(z.w * z.h);
+  const bq = [];
+  const seed = (x, y) => { if (x >= 0 && y >= 0 && x < z.w && y < z.h && !back[y * z.w + x]) { back[y * z.w + x] = 1; bq.push([x, y]); } };
+  seed(ax, ay);
+  for (const j of z.joins || []) for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) if (ok(x, y)) seed(x, y);
+  while (bq.length) {
+    const [x, y] = bq.pop();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const px = x - dx, py = y - dy;
+      if (px < 0 || py < 0 || px >= z.w || py >= z.h || back[py * z.w + px]) continue;
+      if (!ok(px, py)) continue;
+      if (canStep(z, px, py, dx, dy)) { back[py * z.w + px] = 1; bq.push([px, py]); }
+    }
+  }
+  const pits = [];
+  for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) if (ok(x, y) && !back[y * z.w + x]) pits.push(`${x},${y}`);
+  if (pits.length) problems.push(`${z.id}: ${pits.length} reachable cells with no way back (pits): ${pits.slice(0, 12).join(' ')}`);
   let walk = 0, reached = 0;
   for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) if (isWalk(x, y)) { walk++; if (ok(x, y)) reached++; }
   console.log(`${z.id}: ${z.w}x${z.h}  walkable ${walk}, reachable ${reached} (${(100 * reached / walk).toFixed(1)}%)  spawns ${(z.spawns || []).length} npcs ${(z.npcs || []).length} nodes ${(z.nodes || []).length}`);
@@ -135,8 +158,13 @@ const trimmed = {
 const sheets = new Set();
 for (const k of ['terrains', 'walls', 'tiles', 'objects']) for (const v of Object.values(trimmed[k])) sheets.add(v.sheet);
 const tilesOut = path.join(ROOT, 'assets', 'tiles');
-fs.writeFileSync(path.join(tilesOut, 'tiles.json'), JSON.stringify(trimmed));
-for (const s of sheets) fs.copyFileSync(path.join(LQ, 'assets', 'tiles', s), path.join(tilesOut, s));
-for (const f of ['props.json', 'props.png']) fs.copyFileSync(path.join(LQ, 'assets', 'sprites', f), path.join(tilesOut, f));
+if (NO_ASSETS) {
+  const cur = fs.existsSync(path.join(tilesOut, 'tiles.json')) ? fs.readFileSync(path.join(tilesOut, 'tiles.json'), 'utf8') : '';
+  if (cur !== JSON.stringify(trimmed)) { console.log('  NOTE: assets/tiles/tiles.json would change (tile ids used changed); re-run without --no-assets'); }
+} else {
+  fs.writeFileSync(path.join(tilesOut, 'tiles.json'), JSON.stringify(trimmed));
+  for (const s of sheets) fs.copyFileSync(path.join(LQ, 'assets', 'tiles', s), path.join(tilesOut, s));
+  for (const f of ['props.json', 'props.png']) fs.copyFileSync(path.join(LQ, 'assets', 'sprites', f), path.join(tilesOut, f));
+}
 console.log(`tiles.json: ${Object.keys(trimmed.terrains).length} terrains, ${Object.keys(trimmed.walls).length} walls, ${Object.keys(trimmed.tiles).length} tiles, ${Object.keys(trimmed.objects).length} objects; sheets ${[...sheets].join(', ')}`);
 console.log(problems.length ? `BUILD_WORLD: ${problems.length} problems` : 'BUILD_WORLD_OK');

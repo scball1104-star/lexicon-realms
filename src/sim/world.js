@@ -10,6 +10,8 @@
 //   w.hash()                                         16 hex chars over the full state (determinism tests, desync checks)
 //   w.serialize() / restoreWorld(json, content)      full state round trip (late join, save states)
 //   w.grantXp(id, amount, reason)                    XP from outside the combat rules (quest turn-ins, exploration)
+//   w.saveFields(id)                                 the sim-owned part of a character save (hp, resource, cooldowns,
+//                                                    lasting buffs, quest bag, pending loot, escorts); addPlayer takes it back
 //
 // Positions are integers in SUB (1/16 px). The snapshot reports pixels.
 // Combat runs when content carries classes + abilities + progression; without them the foundation stub rules apply
@@ -27,7 +29,7 @@ import { createScripts } from './scripts.js';
 import { createProgression } from './progression.js';
 import { createHud } from './hud.js';
 import { createQuests } from './quests.js';
-import { rollKill, bagAdd, bagRemove, bagFree, resolveItem } from './loot.js';
+import { rollKill, bagAdd, bagRemove, bagFree, resolveItem, ensureUids, migrateQuestItems, bagFindUid } from './loot.js';
 import { dayFraction, isNight } from './clock.js';
 
 export { distPx };
@@ -106,7 +108,8 @@ function wrap(state, content, rng, systems) {
   const QS = content.quests ? createQuests({
     state, content, emit, rng, get: (id) => index.get(id) || null, ents: () => state.ents,
     grantXp: (e, amount, reason, extra) => (combatOn ? C.prog.grantXp(e, amount, reason, extra) : ((e.xp += amount), amount)),
-    addEntity: add, nextId: () => state.nextId++, spawnMob: (spec) => spawnMob(spec),
+    addEntity: add, removeEntity: (e) => { if (index.has(e.id)) remove(e); }, nextId: () => state.nextId++, spawnMob: (spec) => spawnMob(spec),
+    spotFree, INTERACT_RANGE_PX,
   }) : null;
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
@@ -114,12 +117,49 @@ function wrap(state, content, rng, systems) {
     if (QS) QS.onKill(p, mob);
     if (!content.items) return;
     const drop = rollKill({ content, rng, questNeeds: QS ? QS.needsItem : () => false }, mob, p);
-    const got = [];
-    for (const it of drop.items) { const n = bagAdd(p, it.item, it.qty, it.inst || null, content); if (n) got.push({ item: it.item, qty: n, ...(it.inst ? { inst: it.inst } : {}) }); }
+    const got = [], pending = [];
+    for (const it of drop.items) {
+      const n = bagAdd(p, it.item, it.qty, it.inst || null, content);
+      if (n) got.push({ item: it.item, qty: n, ...(it.inst ? { inst: it.inst } : {}) });
+      if (n < it.qty) pending.push({ item: it.item, qty: it.qty - n, ...(it.inst ? { inst: JSON.parse(JSON.stringify(it.inst)) } : {}) });
+    }
     if (drop.gold) p.gold = (p.gold || 0) + drop.gold;
-    if (got.length || drop.gold) emit({ type: 'loot', id: p.id, from: mob.id, gold: drop.gold || 0, items: got });
+    if (got.length || drop.gold || pending.length) emit({ type: 'loot', id: p.id, from: mob.id, gold: drop.gold || 0, items: got, ...(pending.length ? { pending } : {}) });
+    if (pending.length) addPending(p, pending, mob.id);
     if (drop.gold) emit({ type: 'gold', id: p.id, amount: drop.gold, total: p.gold, source: 'loot' });
     if (QS && got.length) QS.onBag(p);
+  }
+
+  // ---- pending loot (PLAYTEST_BOT bug 4): what did not fit the bag waits on the player until they make room and take it
+  // (command `loot_take`). Nothing is destroyed silently: past PENDING_MAX entries the oldest junk (else the oldest) goes,
+  // with a `loot_lost` event the log can show.
+  const PENDING_MAX = 24;
+  function addPending(p, list, from) {
+    p.pendingLoot = p.pendingLoot || [];
+    for (const it of list) p.pendingLoot.push({ ...it, from: from ?? null, at: state.tick });
+    while (p.pendingLoot.length > PENDING_MAX) {
+      const junkAt = p.pendingLoot.findIndex((x) => (content.items[x.item] || {}).kind === 'junk');
+      const [lost] = p.pendingLoot.splice(junkAt >= 0 ? junkAt : 0, 1);
+      emit({ type: 'loot_lost', id: p.id, item: lost.item, qty: lost.qty });
+    }
+    emit({ type: 'loot_pending', id: p.id, items: list.map((x) => ({ item: x.item, qty: x.qty })), total: p.pendingLoot.length });
+  }
+  function takePending(p, cmd) {
+    const list = p.pendingLoot || [];
+    if (!list.length) return invFail(p, cmd, 'no_item');
+    const which = cmd.index != null ? [cmd.index | 0] : list.map((_, i) => i);
+    const got = [];
+    for (const i of which.sort((a, b) => b - a)) {
+      const x = list[i];
+      if (!x) continue;
+      const n = bagAdd(p, x.item, x.qty, x.inst || null, content);
+      if (n) got.push({ item: x.item, qty: n });
+      if (n >= x.qty) list.splice(i, 1); else x.qty -= n;
+    }
+    if (!got.length) return invFail(p, { ...cmd, item: list[0] && list[0].item }, 'bag_full');
+    emit({ type: 'loot', id: p.id, from: null, gold: 0, items: got.reverse(), pendingLeft: list.length });
+    if (QS) QS.onBag(p);
+    return true;
   }
 
   function spawnMob(sp) {
@@ -149,6 +189,27 @@ function wrap(state, content, rng, systems) {
     Object.assign(e, { name: t.name, level: t.level || 1, faction: 'friendly', sprite: t.sprite, template: sp.npc,
       hp: t.hp || 100, hpMax: t.hp || 100, dir: sp.dir || 'down', spawn: { zone: sp.zone, x: e.x, y: e.y } });
     return add(e);
+  }
+
+  /** hp, resource, cooldowns and lasting buffs from a save (saveFields); anything missing keeps the fresh value. */
+  function restoreVitals(e, spec) {
+    if (spec.hp != null && Number.isFinite(+spec.hp)) e.hp = Math.max(1, Math.min(e.hpMax, Math.round(+spec.hp)));
+    if (spec.res != null && e.res) {
+      const cur = typeof spec.res === 'object' ? (spec.res.kind === e.res.kind ? +spec.res.cur : NaN) : +spec.res;
+      if (Number.isFinite(cur)) e.res.cur = Math.max(0, Math.min(e.res.max, cur));
+    }
+    if (spec.cdLeft && typeof spec.cdLeft === 'object') {
+      for (const [k, v] of Object.entries(spec.cdLeft)) if (Number.isFinite(+v) && +v > 0) e.cd[k] = state.tick + Math.min(Math.round(+v), 20 * 60 * 30);
+    }
+    let auras = 0;
+    for (const a of spec.auras || []) {
+      if (!a || !a.def || !a.id || e.auras.some((x) => x.id === a.id)) continue;
+      const period = a.def.period ? Math.max(1, Math.round(a.def.period * 20)) : 0;
+      e.auras.push({ id: a.id, src: e.id, ab: null, stacks: a.stacks || 1, startTick: state.tick, until: a.left == null ? null : state.tick + a.left,
+        nextTick: period ? state.tick + period : null, absorb: 0, data: {}, def: a.def });
+      auras++;
+    }
+    if (auras) { const hp = e.hp; C.stats.recalc(e); e.hp = Math.min(e.hpMax, hp); }
   }
 
   const w = {
@@ -204,7 +265,9 @@ function wrap(state, content, rng, systems) {
         if (spec.level && spec.level > 1) C.prog.setLevel(e, spec.level);
         C.prog.bindStart(e);
         // restore a saved character (CONTRACTS 3): any of these may come from the save
-        for (const k of ['xp', 'gold', 'bag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));
+        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));
+        migrateQuestItems(e, content);
+        ensureUids(e);
         if (spec.equip) e.equip = JSON.parse(JSON.stringify(spec.equip));
         if (spec.talents) e.talents = { ...spec.talents };
         if (spec.known) for (const kid of spec.known) if (C.data.abilities[kid] && !e.known.includes(kid)) e.known.push(kid);
@@ -213,12 +276,36 @@ function wrap(state, content, rng, systems) {
         C.stats.recalc(e);
         e.hp = e.hpMax;
         if (e.res && e.res.kind === 'mana') e.res.cur = e.res.max;
+        restoreVitals(e, spec);
       }
       add(e);
       emit({ type: 'join', id: e.id, name: e.name });
+      if (QS && combatOn) QS.ensureEscorts(e);            // an escort in the save restarts fresh (PLAYTEST_BOT bug 1)
       return e.id;
     },
 
+    /**
+     * The sim-owned fields of a character save (CONTRACTS 2.4). main.js merges them into its save and passes the whole
+     * save back to addPlayer. hp and resource are kept (quit and return is no free heal); cooldowns as ticks LEFT (a new
+     * world runs its own clock); lasting self buffs (no end, or a minute or more left); the quest bag and pending loot;
+     * `escorts` lists the escort quests in progress (on restore they restart fresh, the npc back at the start).
+     */
+    saveFields(id) {
+      const e = index.get(id);
+      if (!e || e.kind !== 'player') return null;
+      const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
+      const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []) };
+      if (!combatOn) return out;
+      out.hp = e.dead ? e.hpMax : e.hp;
+      out.res = e.res ? { kind: e.res.kind, cur: Math.round(e.res.cur * 100) / 100 } : null;
+      out.cdLeft = {};
+      for (const [k, v] of Object.entries(e.cd || {})) if (v > state.tick) out.cdLeft[k] = v - state.tick;
+      out.auras = e.auras.filter((a) => a.src === e.id && a.def && a.def.kind !== 'debuff' && (a.until == null || a.until - state.tick >= 1200)
+        && !(a.def.flags || []).includes('stealth'))
+        .map((a) => ({ id: a.id, left: a.until == null ? null : a.until - state.tick, stacks: a.stacks || 1, def: clone(a.def) }));
+      out.escorts = Object.entries(e.quests || {}).filter(([, q]) => q.escort != null).map(([k]) => k);
+      return out;
+    },
     get(id) { return index.get(id) || null; },
     /** Remove a player (log-out). Mobs forget them; their placed objects and escorts go. */
     removePlayer(id) {
@@ -328,6 +415,19 @@ function wrap(state, content, rng, systems) {
   // ---------------------------------------------------------------- commands
   function reject(id, cmd, reason) { emit({ type: 'cmd_reject', id, cmd: cmd && cmd.t, reason }); }
 
+  // quest_accept / quest_turnin need the quest's npc within reach in the same zone (PLAYTEST_BOT bug 5): `npc` names the
+  // entity (the dialog's), else any npc of the right template in reach counts. A little slack over INTERACT_RANGE_PX, so
+  // a dialog opened at the edge of reach still works after a half step.
+  const QUEST_REACH_PX = INTERACT_RANGE_PX + 24;
+  function questNpcOk(e, cmd, role) {
+    const q = (content.quests || {})[cmd.quest];
+    if (!q || !q[role]) return true;                      // the quest module rejects unknown quests itself
+    const ok = (n) => !!n && n.kind === 'npc' && !n.escort && n.template === q[role] && n.zone === e.zone && distPx(e, n) <= QUEST_REACH_PX;
+    if (cmd.npc != null ? ok(index.get(cmd.npc)) : state.ents.some(ok)) return true;
+    emit({ type: 'cmd_reject', id: e.id, cmd: cmd.t, reason: 'range', quest: cmd.quest });
+    return false;
+  }
+
   function applyCommand(id, cmd) {
     const e = index.get(id);
     if (!e || e.kind !== 'player') return reject(id, cmd, 'no_actor');
@@ -383,8 +483,9 @@ function wrap(state, content, rng, systems) {
         return;
       }
       case 'train': if (combatOn) C.prog.train(e, cmd); return;
-      case 'quest_accept': if (QS) QS.accept(e, cmd.quest); return;
-      case 'quest_turnin': if (QS) QS.turnIn(e, cmd.quest, cmd.choice | 0); return;
+      case 'quest_accept': if (QS && questNpcOk(e, cmd, 'giver')) QS.accept(e, cmd.quest); return;
+      case 'quest_turnin': if (QS && questNpcOk(e, cmd, 'turnIn')) QS.turnIn(e, cmd.quest, cmd.choice | 0); return;
+      case 'loot_take': if (combatOn) takePending(e, cmd); return;
       case 'quest_abandon': if (QS) QS.abandon(e, cmd.quest); return;
       case 'equip': if (combatOn) equipItem(e, cmd); return;
       case 'unequip': if (combatOn) unequipItem(e, cmd); return;
@@ -432,9 +533,16 @@ function wrap(state, content, rng, systems) {
 
   // ---------------------------------------------------------------- items (CONTRACTS 7.4)
   const ARMOR_CAN = { plate: ['plate', 'mail', 'leather', 'cloth'], mail: ['mail', 'leather', 'cloth'], leather: ['leather', 'cloth'], cloth: ['cloth'] };
+  // A bag command names its slot by `uid` (exact), or by index + `item` (that item must still be there), or by `item`
+  // alone (the first such slot). An index with neither item nor uid is refused: the list may have shifted (bug 16).
   function bagIndex(e, cmd) {
+    if (cmd.uid != null) { const k = bagFindUid(e, cmd.uid | 0); return k >= 0 && (!cmd.item || e.bag[k].item === cmd.item) ? k : -1; }
     const bi = cmd.bag != null ? cmd.bag : cmd.bagSlot;           // the HUD sends bagSlot
-    if (bi != null) { const k = bi | 0; return k >= 0 && k < (e.bag || []).length && (!cmd.item || e.bag[k].item === cmd.item) ? k : -1; }
+    if (bi != null) {
+      if (!cmd.item) return -1;
+      const k = bi | 0;
+      return k >= 0 && k < (e.bag || []).length && e.bag[k].item === cmd.item ? k : -1;
+    }
     return (e.bag || []).findIndex((s) => s.item === cmd.item);
   }
   function invFail(e, cmd, reason) { emit({ type: 'inventory_fail', id: e.id, cmd: cmd.t, item: cmd.item || null, reason }); return false; }
@@ -559,7 +667,18 @@ function wrap(state, content, rng, systems) {
     if (it.kind === 'weapon' && !weapons.includes(it.weaponType)) return invFail(e, cmd, 'weapon');
     if (it.kind === 'armor' && it.armorType && !(ARMOR_CAN[cls.armor] || []).includes(it.armorType)) return invFail(e, cmd, 'armor');
     if (e.inCombat && it.kind === 'armor') return invFail(e, cmd, 'combat');
-    const slot = it.slot === 'two' ? 'main' : it.slot;
+    let slot = it.slot === 'two' ? 'main' : it.slot;
+    // a weapon that may go in either hand (weaponTypes[t].offOk, the Inkblade's daggers) for a class that fights with two:
+    // `slot: 'main' | 'off'` picks the hand; without it the item replaces the weaker hand (main on a tie). PLAYTEST_BOT bug 6.
+    const wt = it.kind === 'weapon' ? (content.weaponTypes || {})[it.weaponType] : null;
+    const twoHands = !!(cls.auto && cls.auto.offHand);
+    if (wt && wt.offOk && twoHands) {
+      if (cmd.slot === 'main' || cmd.slot === 'off') slot = cmd.slot;
+      else {
+        const lvl = (s) => { const v = e.equip[s]; const r = v && resolveItem(content, typeof v === 'string' ? { item: v } : v, e.cls); return r ? r.level : -1; };
+        slot = lvl('off') < lvl('main') ? 'off' : 'main';
+      }
+    } else if (cmd.slot != null && cmd.slot !== slot && cmd.slot !== it.slot) return invFail(e, cmd, 'slot');
     const out = [];
     const take = (s) => { if (e.equip[s]) { out.push(e.equip[s]); delete e.equip[s]; } };
     take(slot);
@@ -693,6 +812,7 @@ function wrap(state, content, rng, systems) {
     e.target = null;
     if (combatOn) { e.autoOn = false; e.combo = null; e.forced = null; if (e.cast) C.combat.cancelCast(e, 'move'); }
     emit({ type: 'zone', id: e.id, from, to: j.to, x: j.tx, y: j.ty });
+    if (combatOn) C.prog.onZoneEnter(e);
   }
 
   function dropBadTarget(e) {
@@ -718,7 +838,8 @@ function wrap(state, content, rng, systems) {
         Object.assign(o, { bar: [...e.bar], known: [...e.known], talents: { ...e.talents }, gold: e.gold, combo: e.combo ? { ...e.combo } : null,
           lantern: e.lantern ? { ...e.lantern } : null, inCombat: !!e.inCombat, autoOn: !!e.autoOn, sitting: !!e.sitting,
           stats: { ...e.stats }, derived: { ...e.derived }, xpToLevel: C.prog.xpToNext(e.level),
-          equip: JSON.parse(JSON.stringify(e.equip || {})), bag: JSON.parse(JSON.stringify(e.bag || [])), bags: e.bags ? [...e.bags] : ['starter_satchel'],
+          equip: JSON.parse(JSON.stringify(e.equip || {})), bag: JSON.parse(JSON.stringify(e.bag || [])),
+          qbag: JSON.parse(JSON.stringify(e.qbag || [])), pendingLoot: JSON.parse(JSON.stringify(e.pendingLoot || [])), bags: e.bags ? [...e.bags] : ['starter_satchel'],
           quests: JSON.parse(JSON.stringify(e.quests || {})), questsDone: [...(e.questsDone || [])] });
       }
     }

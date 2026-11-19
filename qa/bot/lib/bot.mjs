@@ -45,7 +45,11 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     counters: { castFail: {}, reject: {}, invFail: {}, trainFail: {}, talentFail: {}, interactFail: {}, kills: {}, navStuck: 0, potions: 0, sold: 0, soldGold: 0, bought: {}, equips: 0, sits: 0, restSec: 0, zoneMin: {} },
     goldBy: { loot: 0, quest: 0, sell: 0, spentTrain: 0, spentBuy: 0 },
     talents: [], goalsLog: [], done: false, reason: null, endMin: null,
+    // fix pass 1: every kill timed FROM THE PULL (the foe's first threat on the bot, or the bot's first hit, whichever
+    // came first) and from the first hit, with the bot's level, so pacing is read the way a player feels it
+    kills: [],
   };
+  const pullAt = new Map(), hitAt = new Map();
   const viol = (kind, detail) => {
     const key = kind + ':' + (detail.key || '');
     if (!R._vkeys) R._vkeys = new Set();
@@ -234,8 +238,10 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     h.bag.items.forEach((it, k) => {
       if (!it || !wearable(it) || (it.reqLevel || 1) > me().level) return;
       if (it.kind === 'armor' && me().inCombat) return;
-      const slot = slotOf(it);
+      let slot = slotOf(it);
       if (slot === 'off') { const m = h.equip && h.equip.main; if (m && m.slot === 'two') return; }
+      // a dagger for a two-dagger class goes in the weaker hand (the sim's equip `slot` field, fix pass 1)
+      if (it.weaponType === 'dagger' && clsDef.auto && clsDef.auto.offHand && h.equip) { if (score(h.equip.off) < score(h.equip.main)) slot = 'off'; }
       const cur = h.equip ? h.equip[slot] : null;
       let curS = score(cur);
       // a two-hand weapon replaces main + off
@@ -754,6 +760,17 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       if (ev.type === 'train_fail' && ev.id === id) inc(R.counters.trainFail, ev.reason);
       if (ev.type === 'talent_fail' && ev.id === id) inc(R.counters.talentFail, ev.reason);
       if (ev.type === 'interact_fail' && ev.src === id) inc(R.counters.interactFail, ev.reason);
+      if (ev.type === 'threat' && ev.top === id && !pullAt.has(ev.mob)) pullAt.set(ev.mob, ev.tick);
+      if (ev.type === 'threat' && ev.top === null) { pullAt.delete(ev.mob); hitAt.delete(ev.mob); }
+      if (ev.type === 'damage' && ev.src === id && ev.dst !== id && ev.amount > 0) { if (!pullAt.has(ev.dst)) pullAt.set(ev.dst, ev.tick); if (!hitAt.has(ev.dst)) hitAt.set(ev.dst, ev.tick); }
+      if (ev.type === 'death' && ev.kind === 'mob') {
+        if (ev.tagger === id && pullAt.has(ev.id)) {
+          const m = w.get(ev.id);
+          R.kills.push({ min: simMin(), level: me().level, mob: ev.template, mobLevel: m ? m.level : null, fromPull: +((ev.tick - pullAt.get(ev.id)) / 20).toFixed(2),
+            fromHit: hitAt.has(ev.id) ? +((ev.tick - hitAt.get(ev.id)) / 20).toFixed(2) : null, hpLeft: +(me().hp / me().hpMax).toFixed(2) });
+        }
+        pullAt.delete(ev.id); hitAt.delete(ev.id);
+      }
       if (!mine) { if (ev.type === 'death' && ev.tagger === id) inc(R.counters.kills, ev.template); continue; }
       if (ev.type === 'level') {
         R.levels.push({ level: ev.level, min: simMin() });
@@ -828,7 +845,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     // gear: equip upgrades as soon as they show up
     if (now() % 20 === 0) {
       const up = bestUpgrade();
-      if (up) { cmd({ t: 'equip', bag: up.k, item: up.it.item }); return; }
+      if (up) { cmd({ t: 'equip', bag: up.k, item: up.it.item, ...(up.it.weaponType === 'dagger' ? { slot: up.slot } : {}) }); return; }
+      const h = hud();
+      if (h && (h.pendingLoot || []).length && bagFree() > 0) { cmd({ t: 'loot_take' }); return; }
       const bagItem = (p.bag || []).findIndex((s) => C.items[s.item] && C.items[s.item].kind === 'bag');
       if (bagItem >= 0) { cmd({ t: 'equip', bag: bagItem, item: p.bag[bagItem].item }); return; }
     }

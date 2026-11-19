@@ -168,7 +168,9 @@ export function createStats(C) {
     const c = P.mobCurve;
     // a template with a single fixed level may give its own numbers; a family with a level range uses the curve
     const fixed = !Array.isArray(t.level);
-    const hpMax = t.hpOverride || (fixed && t.hp != null ? t.hp : Math.round((c.hp[0] + c.hp[1] * L + c.hp[2] * L * L) * hpM));
+    // low-level foes are lighter (PROGRESSION mobCurve.lowLevelHp, fix pass 1): [upToLevel, mult], first match wins
+    const low = (c.lowLevelHp || []).find(([upTo]) => L <= upTo);
+    const hpMax = t.hpOverride || (fixed && t.hp != null ? t.hp : Math.round((c.hp[0] + c.hp[1] * L + c.hp[2] * L * L) * hpM * (low ? low[1] : 1)));
     let dmg = fixed && t.damage ? t.damage : null;
     if (!dmg) {
       const mean = (c.hit[0] + c.hit[1] * L) * dmgM;

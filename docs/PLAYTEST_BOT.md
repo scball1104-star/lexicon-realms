@@ -337,3 +337,80 @@ Tags: Fact = reproduced, Reported = seen by a bot but not isolated, Inference = 
 - The UI windows themselves (the browser smoke drives the dialog, not bags / talents / map menus).
 - The sim bot rests and pots but never kites, never uses stealth or Fade, never respecs, never buys vendor gear (only
   potions, ethers and the satchel). Its death counts are therefore an upper bound for a careful human (bug 7, 15).
+
+---
+
+## After fix pass 1 (2026-11-19, sim/data lane)
+
+Same bots, same seeds, re-run after the fixes: `node qa/bot/questbot.mjs` (15 runs), `node qa/bot/edges.mjs`,
+`node qa/run.mjs` (all green; 23 new tests in `qa/world/fixpass1.test.mjs` plus the pit test in
+`qa/world/zones.test.mjs`). The bot learned three things a player can do (equip a dagger to a chosen hand, take pending
+loot, and its kill log now times every kill FROM THE PULL); its brain is otherwise unchanged.
+
+### Pacing and deaths (all 15 runs reached level 10; QUESTBOT_DONE runs=15 reached10=15 errors=0)
+
+| class | min to 5, before -> now | min to 10, before -> now | deaths per sim hour, before -> now | kill from the pull at L1-4, mean (median) | kill from the pull at L5-9, mean | sits per run | stuck events |
+|---|---|---|---|---|---|---|---|
+| warden | 15 -> 14 | 52 -> 38 | 18 -> 14 | 9.7 s (9.6) | 12.3 s | 16 | 0 |
+| mender | 15 -> 14 | 48 -> 38 | 3 -> 3 | 10.2 s (8.5) | 11.8 s | 4 | 0 |
+| scribe | 19 -> 16 | 63 -> 50 | 19 -> 13 | 9.6 s (8.6) | 9.8 s | 34 | 0 |
+| wayfinder | 27 -> 17 | 82 -> 64 | 31 -> 23 | 13.8 s (12.9) | 13.6 s | 35 | 1 |
+| inkblade | 29 -> 14 | 83 -> 46 | 53 -> 24 | 12.6 s (11.2) | 14.1 s | 14 | 0 |
+
+- **Time to kill from the pull** (Fact, 543 kills at levels 1 to 4): 9.6 to 13.8 s mean, inside the 10 to 14 s target
+  for three classes and just under it for the Warden and Scribe (9.7 and 9.6). p10 to p90 is about 6 to 18 s. From the
+  first hit it is 8 to 13 s. This is against the real field (foes often one level over), not a same-level dummy.
+- **Deaths**: every class dies less or the same; the two that died most fell by a quarter to a half (Inkblade 53 to 24,
+  Wayfinder 31 to 23 an hour). The target "no class above 2x the safest" is **not met** against the Mender (3 an hour;
+  she heals herself through everything). Against the safest non-healer (Warden 14) the Wayfinder is 1.6x and the
+  Inkblade 1.7x. Inference: the bot never kites, never opens from Fade, never uses Ink in the Eyes on a second foe or a
+  trap ahead of time, so the two classes that "survive by choosing fights / by distance" (CLASSES 6) are played at
+  their worst. Check that settles it: give the bot Fade openers and kiting, then re-measure.
+- Deaths that woke in another zone: 0 of 196 (was 17 of 463, and 300 of 871 in the naive batch).
+- Every run is now well ahead of the PROGRESSION 1 curve (level 10 at 38 to 64 sim minutes against 95). Inference: with
+  a human's reading and wandering the 3 h to 15 target still looks reachable; the faster early game is what the critic
+  asked for. Gold is still no gate (bug 18, a design call, not touched).
+- Top death spots now: mist wolves 10 to 11 on Fifty Paces at level 9 (an explore quest done one level under), the
+  Pilgrim Road wolves at level 3 (quest level, in pairs), thornbacks at level 5 for the hides. No foe more than one
+  level over its quest anywhere (a test checks every kill and drop objective's camps).
+
+### The bug list, one by one
+
+| # | bug | status | how (and the test) |
+|---|---|---|---|
+| 1 | escort lost on save and restore | **fixed** | `world.addPlayer` calls `QS.ensureEscorts`: an active escort restarts with Lark at her start, in the same or a new world. `world.saveFields(id)` names the escorts. fixpass1 `bug 1`, edges `save_restore_mid_escort` |
+| 2 | Downs pit at (114, 53) | **fixed** | the generator keeps the landing strip under every one-way ledge clear; `build_world.mjs` fails the build on any pit; `qa/world/zones.test.mjs` checks every zone (it failed on the old map first: 1 cell, 114,53) |
+| 3 | ambush adds in a wall | **fixed** | adds spawn on walkable cells 3 to 6 steps on foot from Lark (optional `spots` in the data first). fixpass1 `bug 3`, edges (now drives the real escort) |
+| 4 | loot destroyed with a full bag | **fixed** | quest items never take a slot (`player.qbag`); other loot waits in `player.pendingLoot` (command `loot_take`), with `loot_pending` / `loot_lost` events. fixpass1 `bug 4`, edges |
+| 5 | quest accept / turn-in from anywhere | **fixed** | the giver / turn-in npc within 64 px in your zone (`npc` optional), else `cmd_reject` `range`. Trainer and vendor commands already checked range. fixpass1 `bug 5`, edges |
+| 6 | Inkblade off-hand | **fixed** | `equip` takes `slot: 'main' or 'off'` for `offOk` weapons; without it the weaker hand. fixpass1 `bug 6`, edges |
+| 7 | Pilgrim Road wolves over level | **fixed** | wolves 3 to 4 only, 10+ tiles from Penny and the bridge, 5+ from the Fork; Bram and Mira need level 3; the moor chime-road packs 10 to 11. fixpass1 `bug 7` |
+| 8 | NaN ground target | **fixed** | a non-finite `at` fails with `target`. fixpass1 `bug 8`, edges |
+| 9 | quit and return = full heal | **fixed** | the save carries hp, resource, cooldowns (ticks left) and lasting own buffs (`world.saveFields`). fixpass1 `bug 9`, edges. Needs the UI lane to merge `saveFields` into its save |
+| 10 | dead escort entities pile up | **fixed** | an ended escort is removed from the world. fixpass1 `bug 10`, edges |
+| 11 | Lark gets stuck; must stand on the exact spot | **fixed** | Lark follows the player's own breadcrumbs (cells the player stood on) and hops to the next one if blocked 1 s; the escort completes when Lark OR the player (with Lark within 10 tiles) reaches the bridge, radius 4. fixpass1 `bug 11` walks the whole route. Escort stalls: 11 -> 0; quest time 23 -> 10 min |
+| 12 | lanterns bind only within 1 tile | **fixed** | bind within 48 px (3 tiles), checked every 3 ticks; entering a zone binds its nearest lantern (`lantern` event `auto: true`). fixpass1 `bug 12`, edges |
+| 13 | Odo's hut ringed by level 13 foes | **fixed** | Ridgeline wraiths moved east, sentinel rounds 16+ tiles from the hut; a test walks a lane from the moor arrival to Odo with no foe above 10 within 8 tiles. Deaths on the way to Odo: 31 -> 0 |
+| 14 | slimes pull in threes | **fixed** | level 1 to 2 foes call no friends, 3 to 4 only within 28 px. fixpass1 `bug 14` |
+| 15 | survival gap between classes | **improved, not closed** | Spill heals 5% of health per mark; Quick Shot Hobbles (30% slow, 3 s). See the deaths above |
+| 16 | sell by stale index | **fixed** | every bag slot has a `uid`; a command names `uid`, or index + `item`; an index alone is refused. fixpass1 `bug 16`, edges |
+| 17 | south gate turns you 90 degrees | **not fixed** | layout: the town's south gate opens on the valley's west edge; fixing it means moving the valley's town edge (a map redesign). Edges `zone_joins_both_ways` still reports it; every other join is fine |
+| 18 | gold is no constraint | **not touched** | a design call (PROGRESSION 6.5 sinks) |
+| new | a mob that stopped fighting kept a player in combat forever, zones away | **fixed** | found by this pass's questbot (Wayfinder seed 2 stood 200 min at the moor arrival unable to sit: a Downs crow, idle, still listed her). Idle mobs forget threat on anyone not in reach; a DoT tick no longer re-tags an evading mob. fixpass1 `stale threat` |
+
+### Edges: 21 of 22 pass
+
+`EDGES_DONE: cases=22 fail=1 errors=0`. The one fail is bug 17 (layout, above). Four cases were brought up to the new
+rules, not loosened: the off-hand case equips by item (a bag index is now refused once the list shifts); the death case
+compares with the lantern held at death (walking within 3 tiles of one binds it); the save case checks only cooldowns
+still running at the save; the ambush case drives the real escort instead of re-deriving the old formula. The edges
+save path now mirrors the new contract (`saveFields` merged into the save).
+
+### Invariant watch (15 runs)
+
+- `unhittable_mob` x6 (slimes in the south meadow, one wolf, one ram; casters and the Wayfinder): the bot spent 30 s
+  without damaging a foe. Inference: a foe that cannot reach the player round a fence (mobs steer straight, no pathing)
+  leashes and evades while the bot keeps casting. Check that settles it: log the foe's `ai.mode` at the violation.
+  Not fixed in this pass.
+- `node_never_gives` x3 (hay, a stone rubbing): as before.
+- Gone: `entity_inside_wall` / `mob_unreachable` (bug 3) and the five-minute escort stalls (bug 11).

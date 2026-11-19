@@ -142,25 +142,32 @@ export function build(db) {
   // the Chime Road south: mist wolf pairs beside the road
   camp('mist_wolf', [10, 10], [[50, 70], [51, 71]], 'cs_wolves_a');
   camp('mist_wolf', [10, 11], [[30, 66], [31, 67]], 'cs_wolves_b');
-  camp('mist_wolf', [11, 11], [[22, 50], [23, 51]], 'cs_wolves_c');
+  camp('mist_wolf', [10, 11], [[22, 50], [23, 51]], 'cs_wolves_c');
   camp('mist_wolf', [11, 10], [[60, 84], [61, 83]], 'cs_wolves_d');
   // the Chime Road north: packs of three
-  camp('mist_wolf', [11, 12, 11], [[18, 38], [19, 39], [17, 39]], 'cn_pack_a');
-  camp('mist_wolf', [12, 11, 12], [[26, 22], [27, 23], [25, 23]], 'cn_pack_b');
-  camp('mist_wolf', [12, 12, 11], [[52, 13], [53, 14], [51, 14]], 'cn_pack_c');
+  // fix pass 1 (bug 7 rule: no foe more than one over its quest's level): the chime road packs that Fifty Paces (10) and
+  // the Mist Pack (11) send you past are 10 to 11, not 11 to 12
+  camp('mist_wolf', [10, 11, 10], [[18, 38], [19, 39], [17, 39]], 'cn_pack_a');
+  camp('mist_wolf', [11, 10, 11], [[26, 22], [27, 23], [25, 23]], 'cn_pack_b');
+  camp('mist_wolf', [11, 11, 10], [[52, 13], [53, 14], [51, 14]], 'cn_pack_c');
   // the tarn's north shore: page wraiths over the reeds
-  camp('page_wraith', [12, 13, 12, 13, 12, 13, 12, 13], [[30, 26], [38, 24], [46, 27], [54, 25], [62, 27], [70, 24], [42, 21], [58, 21]], 'ns_wraiths');
+  // fix pass 1: the east-most wraith (70, 24) sat on the way back from the chime posts to Odo's hut; it reads the shore further west
+  camp('page_wraith', [12, 13, 12, 13, 12, 13, 12, 13], [[30, 26], [38, 24], [46, 27], [54, 25], [62, 27], [34, 20], [42, 21], [58, 21]], 'ns_wraiths');
   // the gorse heath: boars and scarabs
   camp('gorse_boar', [11, 12, 11], [[112, 56], [120, 62], [128, 52]], 'gh_boars_a');
   camp('gorse_boar', [12, 11, 12], [[138, 66], [132, 76], [116, 72]], 'gh_boars_b');
   camp('gorse_boar', [11, 12], [[146, 56], [106, 64]], 'gh_boars_c');
   camp('moss_scarab', 11, [[124, 66], [140, 80], [110, 78], [148, 48]], 'gh_scarabs');
   // the Ridgeline: ink wraiths
-  camp('ink_wraith', 13, [[96, 30], [112, 28], [120, 38], [108, 44], [124, 44]], 'rl_wraiths');
+  // fix pass 1 (PLAYTEST_BOT bug 13, critique 17): the Ridgeline wraiths sit 14+ tiles from Odo's hut, leaving a lane west
+  // of the Ridgeline (x 84 to 90) and along row 20 to the hut with no foe above level 10 within 8 tiles
+  camp('ink_wraith', 13, [[117, 31], [124, 36], [128, 42], [118, 44], [127, 28]], 'rl_wraiths');   // east of the natural line Ridge Path -> hut
   // the Watchtower: sentinels on their rounds, the elite and its two lamps
-  camp('tower_sentinel', [13, 14, 13], [[104, 6], [110, 12], [126, 12]], 'wt_sentinels_a');
-  camp('tower_sentinel', [14, 13, 14], [[132, 8], [100, 10], [122, 4]], 'wt_sentinels_b');
-  camp('ink_wraith', 13, [[92, 8], [138, 13]], 'wt_wraiths');
+  // fix pass 1 (critique 17): sentinel rounds start 16+ tiles from Odo's hut (they wander 4), and none stands within
+  // 8 tiles of the elite, so its pull is the elite and its own two lamps, the fight you chose
+  camp('tower_sentinel', [13, 14, 13], [[98, 4], [112, 3], [130, 13]], 'wt_sentinels_a');
+  camp('tower_sentinel', [14, 13, 14], [[136, 8], [92, 4], [134, 3]], 'wt_sentinels_b');
+  camp('ink_wraith', 13, [[88, 6], [140, 13]], 'wt_wraiths');
   spawns.push({ mob: 'sentinel_long_watch', level: 14, x: 118, y: 8, wander: 0, respawn: 360, group: 'wt_elite', leash: 16 });
   spawns.push({ mob: 'watch_lamp', level: 13, x: 114, y: 8, wander: 0, respawn: 360, group: 'wt_elite' });
   spawns.push({ mob: 'watch_lamp', level: 13, x: 122, y: 8, wander: 0, respawn: 360, group: 'wt_elite' });

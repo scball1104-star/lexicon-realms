@@ -37,7 +37,8 @@ export function mobSprite(id, level = 1) {
 }
 
 // PROGRESSION 3: hp = round(100 + 40 L + 0.6 L^2), swing mean 2 + 2.2 L (+-15%), gold [floor(L / 3), L]; kind multipliers 3.1.
-export const MOB_CURVE = { hp: [100, 40, 0.6], hit: [2, 2.2], spread: 0.15, attackSpeed: 2.0 };
+// lowLevelHp mirrors PROGRESSION mobCurve.lowLevelHp (fix pass 1): levels 1-4 x0.78, 5 x0.85, 6 x0.92
+export const MOB_CURVE = { hp: [100, 40, 0.6], hit: [2, 2.2], spread: 0.15, attackSpeed: 2.0, lowLevelHp: [[4, 0.78], [5, 0.85], [6, 0.92]] };
 export const MOB_KINDS = {
   normal: { hp: 1, damage: 1, xp: 1 },
   weak: { hp: 0.6, damage: 0.7, xp: 0.6 },
@@ -53,7 +54,8 @@ export function mobStats(id, level) {
   let hpM = 1, dmgM = 1, xpM = 1, goldM = 1;
   for (const k of kinds) { const m = MOB_KINDS[k]; hpM *= m.hp; dmgM *= m.damage; xpM *= m.xp; goldM *= m.gold || 1; }
   const L = level;
-  const hp = Math.round((MOB_CURVE.hp[0] + MOB_CURVE.hp[1] * L + MOB_CURVE.hp[2] * L * L) * hpM);
+  const low = MOB_CURVE.lowLevelHp.find(([upTo]) => L <= upTo);
+  const hp = Math.round((MOB_CURVE.hp[0] + MOB_CURVE.hp[1] * L + MOB_CURVE.hp[2] * L * L) * hpM * (low ? low[1] : 1));
   const mean = (MOB_CURVE.hit[0] + MOB_CURVE.hit[1] * L) * dmgM;
   return {
     level: L, hp: t.hpOverride || hp,

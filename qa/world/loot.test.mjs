@@ -24,7 +24,7 @@ export const tests = [
       }
       // the elite: PROGRESSION 9.3 hp and its always-gear rule
       eq(mobStats('sentinel_long_watch', 14).hp, 1945, 'elite hp');
-      eq(mobStats('ink_slime', 1).hp, 141, 'curve L1 hp');
+      eq(mobStats('ink_slime', 1).hp, 110, 'curve L1 hp (141 x 0.78, lowLevelHp fix pass 1)');
       eq(mobStats('briar_wolf', 8).hp, 458, 'curve L8 hp');
       const rng = createRng(5);
       for (let i = 0; i < 20; i++) {

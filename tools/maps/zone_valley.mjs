@@ -191,12 +191,15 @@ export function build(db) {
   camp('ink_slime', [2, 3, 2, 3], [[60, 52], [66, 56], [72, 58], [62, 59]], 'eb_slimes_a');
   camp('ink_slime', [3, 2, 3], [[78, 50], [84, 56], [76, 60]], 'eb_slimes_b');
   camp('moss_scarab', [2, 3, 3], [[68, 47], [86, 51], [70, 61]], 'eb_scarabs');
-  // the pilgrim road: briar wolf pairs every 8 tiles, 3 tiles off the road
-  camp('briar_wolf', [3, 3], [[66, 40], [67, 41]], 'pr_wolves_a');
-  camp('briar_wolf', [3, 4], [[66, 33], [67, 34]], 'pr_wolves_b');
-  camp('briar_wolf', [4, 4], [[58, 31], [57, 32]], 'pr_wolves_c');
-  camp('briar_wolf', [4, 5], [[64, 27], [65, 28]], 'pr_wolves_d');
-  camp('briar_wolf', [5, 4], [[57, 37], [56, 36]], 'pr_wolves_e');
+  // the pilgrim road: briar wolf pairs every 8 tiles, 3 tiles off the road. Fix pass 1 (PLAYTEST_BOT bug 7, critique 2):
+  // levels 3 to 4 only (Bram's quest is level 3, never a foe more than one over), and every camp at least 10 tiles from
+  // Penny's cart (57, 42) and the stone bridge (the nearest is 10.6), 5+ from the Fork, so the vendor, the crossing and
+  // Quill's milestone stay safe; wander 2
+  camp('briar_wolf', [3, 3], [[69, 34], [70, 35]], 'pr_wolves_a', { wander: 2 });
+  camp('briar_wolf', [3, 3], [[66, 30], [67, 31]], 'pr_wolves_b', { wander: 2 });
+  camp('briar_wolf', [3, 4], [[63, 29], [62, 30]], 'pr_wolves_c', { wander: 2 });
+  camp('briar_wolf', [4, 4], [[65, 25], [66, 26]], 'pr_wolves_d', { wander: 2 });
+  camp('briar_wolf', [4, 3], [[65, 34], [66, 35]], 'pr_wolves_e', { wander: 2 });
   // the north landing: slimes in the shallows (level 3 to 4, Quill's pages)
   camp('ink_slime', [3, 4, 3, 4], [[38, 12], [41, 13], [44, 9], [37, 7]], 'nl_slimes', { wander: 2 });
   camp('ink_slime', [4, 3], [[43, 13], [45, 7]], 'nl_slimes_b', { wander: 2 });
@@ -207,10 +210,12 @@ export function build(db) {
   // the Whisperwood edge: thornback wolf pairs in clearings, ink blots under the trees
   camp('thornback_wolf', [5, 5], [[76, 14], [77, 15]], 'ww_wolves_a');
   camp('thornback_wolf', [5, 6], [[84, 17], [85, 18]], 'ww_wolves_b');
-  camp('thornback_wolf', [6, 5], [[78, 30], [79, 31]], 'ww_wolves_c');
+  // fix pass 1: camps c and e and two blots moved off Lark's way home (her start 88, 26 to the first ambush 74, 30): the
+  // escort is the fight at the ambushes, not a walk through three camps (it was the top killer in the bot runs)
+  camp('thornback_wolf', [6, 5], [[92, 12], [93, 13]], 'ww_wolves_c');      // was 78, 30
   camp('thornback_wolf', [6, 6], [[86, 37], [87, 38]], 'ww_wolves_d');
-  camp('thornback_wolf', [5, 6], [[74, 36], [75, 35]], 'ww_wolves_e');
-  camp('ink_blot', [5, 6, 5, 6, 6], [[80, 10], [88, 12], [82, 22], [90, 32], [80, 40]], 'ww_blots', { wander: 1 });
+  camp('thornback_wolf', [5, 6], [[84, 42], [85, 43]], 'ww_wolves_e');      // was 74, 36
+  camp('ink_blot', [5, 6, 5, 6, 6], [[80, 10], [88, 12], [92, 18], [92, 40], [80, 40]], 'ww_blots', { wander: 1 });   // 82,22 and 90,32 moved
   // clearings: reserve camp cells so the forest leaves room round each camp
   // (done before tree placement would be cleaner; the dresser's later pass treats spawns as reserved)
 

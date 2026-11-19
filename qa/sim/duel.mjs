@@ -10,6 +10,10 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { duelWorld, addMob } from './_fixtures.mjs';
+// The band (fix pass 1, critique 7): from the first hit, 8 to 14 s; at levels 1 to 4 the foes are 30% lighter
+// (PROGRESSION mobCurve.lowLevelHp) and the target is 10 to 14 s FROM THE PULL, which the questbot measures in the field
+// (docs/PLAYTEST_BOT.md "After fix pass 1"); from the first hit that is 5 to 12 s here.
+const inBand = (c) => (c.level <= 4 ? c.ttk >= 5 && c.ttk <= 12 : c.ttk >= 8 && c.ttk <= 14);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const CLASSES = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
@@ -129,7 +133,7 @@ export function table(cells, ref) {
     '|---|---|---|---|---|---|---|---|---|---|---|---|---|'];
   for (const c of cells) {
     const r = ref[`${c.cls} ${c.level}`] || ['', ''];
-    const ok = c.ttk >= 8 && c.ttk <= 14 && c.deaths === 0;
+    const ok = inBand(c) && c.deaths === 0;
     rows.push(`| ${c.cls} | ${c.level} | ${c.mobHp} | ${c.hpMax} | ${fmt(c.ttk)} | ${fmt(c.ttkP10)} to ${fmt(c.ttkP90)} | ${r[0]} | ${fmt(c.pct, 0)}% | ${fmt(c.pctP90, 0)}% | ${r[1]}% | ${c.manaMax ? `${fmt(c.mana, 0)} / ${c.manaMax}` : ''} | ${c.deaths} | ${ok ? 'yes' : 'NO'} |`);
   }
   return rows.join('\n');
@@ -146,13 +150,13 @@ if (isMain) {
   const { ref, source } = reference();
   const tbl = table(cells, ref);
   console.log(tbl);
-  const allOk = cells.every((c) => c.ttk >= 8 && c.ttk <= 14 && c.deaths === 0);
-  console.log(`\n${cells.length} cells, ${cells[0].runs} runs each, ${Date.now() - t0} ms. All in the 8 to 14 s band with no deaths: ${allOk}`);
-  console.log(`DUEL_DONE: cells=${cells.length} runs=${cells[0].runs} in_band=${cells.filter((c) => c.ttk >= 8 && c.ttk <= 14 && c.deaths === 0).length}`);
+  const allOk = cells.every((c) => inBand(c) && c.deaths === 0);
+  console.log(`\n${cells.length} cells, ${cells[0].runs} runs each, ${Date.now() - t0} ms. All in band (8 to 14 s; 5 to 12 s at levels 1 to 4) with no deaths: ${allOk}`);
+  console.log(`DUEL_DONE: cells=${cells.length} runs=${cells[0].runs} in_band=${cells.filter((c) => inBand(c) && c.deaths === 0).length}`);
   if (write) {
     const md = fs.readFileSync(path.join(ROOT, 'qa', 'sim', 'balance_template.md'), 'utf8')
       .replace('{{TABLE}}', tbl).replace('{{RUNS}}', String(cells[0].runs)).replace('{{REF}}', source)
-      .replace('{{VERDICT}}', allOk ? 'Every cell is inside the 8 to 14 s band and no bot died.' : 'Some cells are outside the band; see the table.');
+      .replace('{{VERDICT}}', allOk ? 'Every cell is inside its band (8 to 14 s; 5 to 12 s from the first hit at levels 1 to 4) and no bot died.' : 'Some cells are outside the band; see the table.');
     fs.writeFileSync(path.join(ROOT, 'docs', 'design', 'BALANCE.md'), md);
     console.log('wrote docs/design/BALANCE.md');
   }

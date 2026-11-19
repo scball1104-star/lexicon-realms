@@ -5,14 +5,16 @@
 export const CLASSES = {
   warden: {
     id: 'warden', name: 'Warden', role: 'tank', armor: 'plate', weapons: ['sword', 'shield'],
-    resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 5, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5 },
+    // combatStart: Resolve gained the moment a fight starts (fix pass 1, critique 6): Bash (+15) then Strike (20) works on
+    // the second press of the first fight instead of failing until two auto-attacks land
+    resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 5, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5, combatStart: 10 },
     base: { hp: 60, str: 12, agi: 7, int: 4, spi: 6, sta: 12 },
     perLevel: { hp: 0, str: 1.5, agi: 0.5, int: 0.2, spi: 0.4, sta: 1.5 },
     hpPerSta: 10, apPerStr: 2, critBase: 0.05, blockBase: 0.10, threatMult: 1.5, mainStat: 'str',
     auto: { weapon: 'sword', range: 40 },
     abilities: [{ id: 'warden_strike', level: 1 }, { id: 'warden_shield_bash', level: 1 }, { id: 'warden_taunt', level: 3 },
       { id: 'warden_second_wind', level: 6 }, { id: 'warden_sweeping_blow', level: 10 }, { id: 'warden_oath_of_iron', level: 14 }],
-    startBar: ['warden_strike', 'warden_shield_bash'], talentTree: 'warden', trainer: 'holt',
+    startBar: ['warden_shield_bash', 'warden_strike'], talentTree: 'warden', trainer: 'holt',   // Bash first: "Bash, then Strike" (CLASSES 2)
     startGear: { main: 'gate_sword', off: 'plank_shield', chest: 'padded_jerkin' },
     looks: [{ id: 0, sprite: 'warden_a' }, { id: 1, sprite: 'warden_b' }, { id: 2, sprite: 'warden_c' }],
   },

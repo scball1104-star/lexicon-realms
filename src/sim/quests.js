@@ -229,7 +229,9 @@ export function createQuests(Q) {
       checkReady(p, id);
     }
     const o = offersAt(p, npc);
-    emit({ type: 'quest_dialog', id: p.id, npc, ent: t.id, offers: o.offers, turnins: o.turnins, progress: o.progress, soon: o.soon });
+    const rewards = {};
+    for (const id of [...o.offers, ...o.turnins, ...o.progress]) rewards[id] = rewardsFor(p, id);
+    emit({ type: 'quest_dialog', id: p.id, npc, ent: t.id, offers: o.offers, turnins: o.turnins, progress: o.progress, soon: o.soon, rewards });
     return true;
   }
 
@@ -347,24 +349,90 @@ export function createQuests(Q) {
     const e = Q.addEntity({
       id: Q.nextId(), kind: 'npc', zone: o.from.zone, x, y, dir: 'down', moving: false, name: t.name || o.npc, level: p.level, faction: 'friendly',
       sprite: t.sprite || 'npc_child_b', template: o.npc, hp: hpMax, hpMax, res: null, target: null, cast: null, auras: [], cd: {}, gcdUntil: 0, dead: false,
-      escort: { owner: p.id, quest: id, objective: i, following: false, ambushed: [] },
+      escort: { owner: p.id, quest: id, objective: i, following: false, ambushed: [], trail: [], still: 0 },
     });
     p.quests[id].escort = e.id;
+    emit({ type: 'spawn', id: e.id, template: e.template, zone: e.zone, kind: 'npc', escort: id });
+  }
+
+  /** The escort npc leaves the world for good (PLAYTEST_BOT bug 10: it used to stay in state as a dead `_gone` entity). */
+  function dropEscortEnt(e) {
+    const zone = e.zone;
+    e.dead = true; e.escort = null;
+    if (Q.removeEntity) Q.removeEntity(e); else e.zone = '_gone';
+    emit({ type: 'despawn', id: e.id, template: e.template, zone });
   }
 
   function endEscort(p, id) {
     const s = p.quests && p.quests[id];
     if (!s || s.escort == null) return;
     const e = Q.get(s.escort);
-    if (e) { e.dead = true; e.zone = '_gone'; e.escort = null; emit({ type: 'despawn', id: e.id, template: e.template, zone: e.zone }); }
+    if (e && e.escort) dropEscortEnt(e);
     s.escort = null;
   }
+
+  /**
+   * After a restore (addPlayer from a save) or a join: every active escort objective that is not done gets a fresh
+   * escort at its start, as a fresh accept would (PLAYTEST_BOT bug 1). An escort id in the save that no longer names this
+   * player's live escort is dropped first.
+   */
+  function ensureEscorts(p) {
+    ensure(p);
+    for (const id of active(p)) {
+      const q = QUESTS[id];
+      const s = p.quests[id];
+      q.objectives.forEach((o, i) => {
+        if (o.kind !== 'escort' || s.counts[i] >= need(o)) return;
+        const cur = s.escort != null ? Q.get(s.escort) : null;
+        if (cur && cur.escort && cur.escort.owner === p.id && cur.escort.quest === id) return;
+        s.escort = null;
+        startEscort(p, id, i, o);
+      });
+    }
+  }
+
+  // ---- escort ambush spots: walkable tiles reachable on foot from the escort, 2 to 6 steps away (PLAYTEST_BOT bug 3)
+  function walkableNear(zoneId, fromTx, fromTy, maxSteps) {
+    const zone = C.zones[zoneId];
+    const free = (x, y) => (Q.spotFree ? Q.spotFree(zone, x, y) : zone.collision[y] && zone.collision[y][x] === '.');
+    const seen = new Map([[`${fromTx},${fromTy}`, 0]]);
+    const q = [[fromTx, fromTy]];
+    const out = [];
+    while (q.length) {
+      const [x, y] = q.shift();
+      const d = seen.get(`${x},${y}`);
+      out.push([x, y, d]);
+      if (d >= maxSteps) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy, k = `${nx},${ny}`;
+        if (seen.has(k) || nx < 0 || ny < 0 || nx >= zone.w || ny >= zone.h || !free(nx, ny)) continue;
+        seen.set(k, d + 1);
+        q.push([nx, ny]);
+      }
+    }
+    return out;
+  }
+  function ambushSpots(e, a, n) {
+    const [ex, ey] = feet(e);
+    const near = walkableNear(e.zone, ex, ey, 7);
+    const ok = new Set(near.map(([x, y]) => `${x},${y}`));
+    const picked = [];
+    for (const s of a.spots || []) if (picked.length < n && ok.has(`${s.x},${s.y}`)) picked.push([s.x, s.y]);
+    const rest = near.filter(([x, y, d]) => d >= 3 && d <= 6 && !picked.some(([px, py]) => px === x && py === y))
+      .sort((p1, p2) => Math.abs(p1[2] - 4) - Math.abs(p2[2] - 4) || p1[1] - p2[1] || p1[0] - p2[0]);
+    for (const [x, y] of rest) { if (picked.length >= n) break; if (!picked.some(([px, py]) => Math.abs(px - x) + Math.abs(py - y) < 2)) picked.push([x, y]); }
+    while (picked.length < n) picked.push([ex, ey]);
+    return picked;
+  }
+
+  const TRAIL_STEP = 8 * SUB;                     // a breadcrumb every 8 px the player walks
+  const TRAIL_MAX = 96;
 
   function tickEscort(e) {
     const E = e.escort;
     const p = Q.get(E.owner);
     const s = p && p.quests && p.quests[E.quest];
-    if (!s) { e.dead = true; e.zone = '_gone'; e.escort = null; return; }
+    if (!s || s.escort !== e.id) { dropEscortEnt(e); return; }
     const o = QUESTS[E.quest].objectives[E.objective];
     if (e.dead || e.hp <= 0) {                     // knocked out: she wakes at the start
       emit({ type: 'quest', id: p.id, quest: E.quest, kind: 'fail', objective: E.objective });
@@ -373,37 +441,50 @@ export function createQuests(Q) {
     }
     if (p.zone !== e.zone) { e.moving = false; return; }
     const d = dist(e, p);
-    if (!E.following && d <= 48) { E.following = true; emit({ type: 'quest', id: p.id, quest: E.quest, kind: 'progress', objective: E.objective, cur: 0, need: 1, escort: 'start' }); }
+    if (!E.following && d <= 48) { E.following = true; E.trail = []; emit({ type: 'quest', id: p.id, quest: E.quest, kind: 'progress', objective: E.objective, cur: 0, need: 1, escort: 'start' }); }
+    E.trail = E.trail || [];
+    if (E.following && !p.dead) {
+      // the player's breadcrumbs: every cell on the trail is one the player stood on, so following it never walks her
+      // into the river (PLAYTEST_BOT bug 11)
+      const last = E.trail[E.trail.length - 1];
+      if (!last || Math.hypot(p.x - last[0], p.y - last[1]) >= TRAIL_STEP) E.trail.push([p.x, p.y]);
+      if (E.trail.length > TRAIL_MAX) { const [jx, jy] = E.trail[E.trail.length - TRAIL_MAX]; e.x = jx; e.y = jy; E.trail = E.trail.slice(-TRAIL_MAX + 1); }
+    }
     if (E.following && d > 32) {
       const zone = C.zones[e.zone];
-      const dx = p.x - e.x, dy = p.y - e.y;
+      while (E.trail.length && Math.hypot(E.trail[0][0] - e.x, E.trail[0][1] - e.y) <= 3 * SUB) E.trail.shift();
+      const [gx, gy] = E.trail.length ? E.trail[0] : [p.x, p.y];
+      const dx = gx - e.x, dy = gy - e.y;
       const len = Math.hypot(dx, dy) || 1;
-      const vx = Math.round((dx / len) * ESCORT_SPEED), vy = Math.round((dy / len) * ESCORT_SPEED);
+      const sp = Math.min(ESCORT_SPEED, Math.ceil(len));
+      const vx = Math.round((dx / len) * sp), vy = Math.round((dy / len) * sp);
       const mx = moveAxis(zone, e, vx, 'x', { noJoins: true }), my = moveAxis(zone, e, vy, 'y', { noJoins: true });
       e.moving = mx !== 0 || my !== 0;
       if (Math.abs(dx) > Math.abs(dy)) e.dir = dx < 0 ? 'left' : 'right'; else e.dir = dy < 0 ? 'up' : 'down';
-      if (!e.moving && d > 96) {                   // stuck behind a corner: she catches up the way a follower does
-        const [tx, ty] = feet(p);
-        [e.x, e.y] = tileToSub(tx, ty);
+      E.still = e.moving ? 0 : (E.still || 0) + 1;
+      if (E.still >= 20) {                         // blocked a full second: hop to the next breadcrumb (a cell the player stood on)
+        const [hx, hy] = E.trail.length ? E.trail.shift() : [p.x, p.y];
+        e.x = hx; e.y = hy; E.still = 0;
       }
-    } else e.moving = false;
-    // ambushes
+    } else { e.moving = false; E.still = 0; }
+    // ambushes: the adds come out of the trees a few steps away, on walkable cells she can be reached from
     (o.ambush || []).forEach((a, k) => {
       if (E.ambushed.includes(k)) return;
       const [ax, ay] = feet(e);
       if (Math.hypot(ax - a.at.x, ay - a.at.y) > a.at.r) return;
       E.ambushed.push(k);
       if (!Q.spawnMob) return;
+      const spots = ambushSpots(e, a, a.mobs.length);
       a.mobs.forEach((m, j) => {
-        const mob = Q.spawnMob({ zone: e.zone, mob: m.mob, level: m.level, x: a.at.x + 4 + j, y: a.at.y - 3, temporary: true });
+        const mob = Q.spawnMob({ zone: e.zone, mob: m.mob, level: m.level, x: spots[j][0], y: spots[j][1], temporary: true });
         if (mob) { mob.threat = mob.threat || {}; mob.threat[e.id] = 1; mob.target = e.id; if (mob.ai) mob.ai.mode = 'aggro'; }
       });
       emit({ type: 'quest', id: p.id, quest: E.quest, kind: 'progress', objective: E.objective, cur: 0, need: 1, escort: 'ambush' });
     });
-    // home
+    // home: she arrives, or the player arrives with her following close behind (within 10 tiles)
     if (e.zone === o.to.zone) {
-      const [tx, ty] = feet(e);
-      if (Math.hypot(tx - o.to.x, ty - o.to.y) <= o.to.r) {
+      const at = (u) => { const [tx, ty] = feet(u); return Math.hypot(tx - o.to.x, ty - o.to.y) <= o.to.r; };
+      if (at(e) || (E.following && !p.dead && p.zone === e.zone && at(p) && d <= 160)) {
         setCount(p, E.quest, E.objective, 1);
         checkReady(p, E.quest);
         endEscort(p, E.quest);
@@ -413,7 +494,7 @@ export function createQuests(Q) {
 
   // ---------------------------------------------------------------- the tick
   function step() {
-    for (const e of Q.ents()) {
+    for (const e of [...Q.ents()]) {
       if (e.kind === 'object' && e.node && e.dead && tick() >= e.node.readyAt) {
         e.dead = false;
         emit({ type: 'spawn', id: e.id, template: e.template, zone: e.zone, kind: 'object' });
@@ -432,16 +513,48 @@ export function createQuests(Q) {
     }
   }
 
+  // ---------------------------------------------------------------- where (objective circles in px)
+  const NPC_AT = {};
+  for (const [zid, z] of Object.entries(C.zones || {})) for (const n of z.npcs || []) if (!NPC_AT[n.npc]) NPC_AT[n.npc] = { zone: zid, x: n.x * 16 + 8, y: n.y * 16 + 8, r: 24 };
+  function npcWhere(npc) { return NPC_AT[npc] ? [{ ...NPC_AT[npc] }] : []; }
+  function whereOf(o) { return (o.where || []).map((w) => ({ zone: w.zone, x: w.x, y: w.y, r: w.r })); }
+
+  /** The reward choices of a quest as this player would get them (armor and weapon type rolled to the class) and whether
+   *  the class can use each (critique 13: the dialog shows plate to a Warden, and greys out what the class cannot wear). */
+  function rewardsFor(p, id) {
+    const q = QUESTS[id];
+    if (!q) return null;
+    const r = q.rewards || {};
+    const cg = (C.classGear || {})[p.cls] || null;
+    const view = (it) => {
+      const def = (C.items || {})[it];
+      if (!def) return { item: it, usable: true };
+      const inst = rewardInstance(p, it, q);
+      let usable = true;
+      if (def.kind === 'weapon') { const wt = (inst && inst.weaponType) || def.weaponType; usable = !!(cg && cg.weapons.includes(Array.isArray(wt) ? wt[0] : wt)); }
+      if (def.kind === 'armor' && def.slot !== 'trinket') {
+        const at = (inst && inst.armorType) || def.armorType;
+        const CAN = { plate: ['plate', 'mail', 'leather', 'cloth'], mail: ['mail', 'leather', 'cloth'], leather: ['leather', 'cloth'], cloth: ['cloth'] };
+        usable = !!(cg && (CAN[cg.armor] || []).includes(at));
+      }
+      return { item: it, inst, usable, reqLevel: Math.max(1, ((inst && inst.ilvl) || def.level || 1) - 2) };
+    };
+    return { xp: Math.round((r.xp || 0) * questGapMult(p.level, q.level)), gold: r.gold || 0, items: (r.items || []).map(view), choice: (r.choice || []).map(view) };
+  }
+
   function tracker(p) {
     ensure(p);
     return active(p).map((id) => {
       const q = QUESTS[id];
       const s = p.quests[id];
+      // where (CONTRACTS 7.5): each row's circles ({ zone, x, y, r } px) for the map and minimap; `turnIn` is the npc to go
+      // back to (drawn as the `?` once the quest is ready)
       return { quest: id, name: q.name, level: q.level, ready: s.state === 'ready',
-        rows: q.objectives.map((o, i) => ({ label: o.label, cur: s.counts[i], need: need(o), done: s.counts[i] >= need(o) })) };
+        rows: q.objectives.map((o, i) => ({ label: o.label, cur: s.counts[i], need: need(o), done: s.counts[i] >= need(o), where: whereOf(o) })),
+        turnIn: { npc: q.turnIn, name: ((C.npcs || {})[q.turnIn] || {}).name || q.turnIn, where: npcWhere(q.turnIn) } };
     });
   }
 
   return { accept, abandon, turnIn, interact, onKill, onBag: recountCollect, onMove, onDamaged, tick: step, spawnObjects,
-    marker, status, needsItem, tracker, offersAt, canAccept, inArea, areaAt };
+    marker, status, needsItem, tracker, offersAt, canAccept, inArea, areaAt, ensureEscorts, rewardsFor, whereOf, ambushSpots };
 }

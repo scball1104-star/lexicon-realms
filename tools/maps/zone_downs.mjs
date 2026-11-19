@@ -89,10 +89,11 @@ export function build(db) {
   for (let x = 1; x <= 72; x++) if ((x < 19 || x > 21) && c.at(x, 93) !== '~') c.put(x, 93, 'w');   // the Larchhill field wall to the stream; the gate fills the gap
   // gentle ledges in the open grass (one-way, south), with ways round each end
   const ledge = (x0, x1, y) => { for (let x = x0; x <= x1; x++) c.put(x, y, x === x0 ? 'L' : x === x1 ? 'R' : 'M'); };
+  const ledges = [];
   for (const [x0, x1, y] of [[52, 60, 54], [112, 122, 52], [70, 78, 58], [124, 132, 30]]) {
     let ok = true;
     for (let x = x0; x <= x1; x++) if (!'.,m'.includes(c.at(x, y)) || !'.,m'.includes(c.at(x, y + 1)) || !'.,m'.includes(c.at(x, y - 1))) ok = false;
-    if (ok) ledge(x0, x1, y);
+    if (ok) { ledge(x0, x1, y); ledges.push([x0, x1, y]); }
   }
 
   // ---------------------------------------------------------------- tall grass drifts, off the lanes and out of the hamlet
@@ -131,6 +132,9 @@ export function build(db) {
   d.reserve(OF.x0, OF.y0, OF.x1, OF.y1);
   d.reserve(96, 82, 104, 95); d.reserve(14, 86, 28, 95);    // the two closed roads
   d.reserve(136, 18, 143, 24); d.reserve(136, 40, 143, 45); // the east lanes' mouths
+  // the landing strip under every one-way ledge stays clear: a bush or rock there made a one-cell pit you hop into and
+  // can never leave (PLAYTEST_BOT bug 2, (114, 53))
+  for (const [x0, x1, y] of ledges) d.reserve(x0 - 1, y + 1, x1 + 1, y + 2);
   RING.forEach(([x, y], i) => d.add(i % 3 === 1 ? 'x1_menhir_b' : 'x1_menhir_a', x, y));
   d.add('x1_cairn_moor', RING_C[0], RING_C[1] - 1);
   d.add('x1_blank_slab', 40, 14);                           // the thirteenth stone, apart

@@ -18,6 +18,8 @@ function setup(cls, level, mob, mx = 11, my = 15, opts = {}) {
   d.world.step();
   return { ...d, m };
 }
+/** Resolve the fight's start gave (CLASSES warden resource.combatStart, fix pass 1) if the player entered combat in `evs` */
+function startGain(evs, pid, p) { return ofType(evs, 'combat', (e) => e.id === pid && e.on).length ? (p.cls === 'warden' ? 10 : 0) : 0; }
 function speedOver(world, e, n = 10) { const x0 = e.x, y0 = e.y; stepN(world, n); return Math.hypot(e.x - x0, e.y - y0) / 16 / (n / 20); }
 
 export const tests = [
@@ -31,7 +33,7 @@ export const tests = [
     const d = dmgOf(ev, 'warden_strike')[0];
     assert(d, 'strike hit');
     assert(inRange(d.amount, W(p), 3 + 2.6 * 8, d.crit), `strike ${d.amount} vs W ${W(p)} + ${3 + 2.6 * 8}`);
-    eq(p.res.cur, 30 + 10 * dmgOf(ev, 'auto', m.id).length, 'paid 20 (autos add 10 each)');
+    eq(p.res.cur, 30 + 10 * dmgOf(ev, 'auto', m.id).length + startGain(ev, pid, p), 'paid 20 (autos add 10 each, +10 as the fight starts)');
     near(m.threat[pid], d.amount * 1.5 * 1.5 + (m.threat[pid] - d.amount * 2.25), 0.01, 'threat');
     assert(m.threat[pid] >= d.amount * 2.25 - 0.01, 'threat at least 2.25 x damage');
   } },
@@ -42,6 +44,7 @@ export const tests = [
     for (let i = 0; i < 40 && !m.cast; i++) world.step();
     assert(m.cast && m.cast.ability === 'mob_bolt', 'caster is casting');
     free(world, p);
+    p.res.cur = 0;                                          // the fight already started (+10 Resolve): measure Bash alone
     const ev = castNow(world, pid, 'warden_shield_bash', m.id);
     const d = dmgOf(ev, 'warden_shield_bash')[0];
     eq(d.amount, crit(d, 3 + 1.5 * 5 + 0.25 * p.derived.ap), 'bash damage');
@@ -49,7 +52,7 @@ export const tests = [
     assert(m.cd.mob_bolt >= world.tick + 59, 'bolt locked 3 s');
     const st = m.auras.find((a) => a.id === 'warden_bash_stun');
     eq(st.until - world.tick, 20, 'stun 1 s');
-    eq(Math.round(p.res.cur), 15 + 10 * dmgOf(ev, 'auto', m.id).length, 'resolve +15 (+10 per auto hit)');
+    eq(Math.round(p.res.cur), 15 + 10 * dmgOf(ev, 'auto', m.id).length + startGain(ev, pid, p), 'resolve +15 (+10 per auto hit, +10 as the fight starts)');
     eq(p.cd.warden_shield_bash - world.tick, 120, 'cooldown 6 s');
   } },
   { name: 'warden_taunt: off the GCD, 8 tiles, top threat +10%, the foe must attack you for 3 s and walks in; +10 Resolve; cd 8', fn() {
@@ -62,7 +65,7 @@ export const tests = [
     const ev = castNow(world, pid, 'warden_taunt', m.id);
     assert(ofType(ev, 'cast_start', (e) => e.ability === 'warden_taunt').length, 'taunt works during the GCD');
     assert(m.threat[pid] >= 110, `threat ${m.threat[pid]} >= 110% of top`);
-    eq(Math.round(p.res.cur), 10, '+10 resolve');
+    eq(Math.round(p.res.cur), 10 + startGain(ev, pid, p), '+10 resolve (+10 as the fight starts)');
     const t0 = distPx(m, p);
     stepN(world, 30);
     eq(m.ai.target, pid, 'attacks the Warden');

@@ -98,6 +98,9 @@ export function createHud(C) {
       showAggroRings: data.hasScript(e, 'path_sense'),
       stats: { ...e.stats }, derived: { ...e.derived },
       bag: bagView(e), equip: equipView(e),
+      // quest items never take a bag slot (loot.js): their own list; and loot that did not fit, waiting (command loot_take)
+      questBag: (e.qbag || []).map((s) => itemView(e, s)),
+      pendingLoot: (e.pendingLoot || []).map((s, i) => ({ ...itemView(e, s), index: i })),
       buyback: (e.buyback || []).map((b) => ({ ...itemView(e, b), price: b.price })),
     };
   }
@@ -112,6 +115,7 @@ export function createHud(C) {
     for (const k of ['weaponType', 'armorType', 'damage', 'speed', 'armor', 'text', 'use', 'bagSlots']) if (it[k] != null) v[k] = JSON.parse(JSON.stringify(it[k]));
     if (it.stats && Object.keys(it.stats).length) v.stats = { ...it.stats };
     if (slot.inst) v.inst = JSON.parse(JSON.stringify(slot.inst));
+    if (slot.uid) v.uid = slot.uid;
     return v;
   }
   function bagView(e) {

@@ -1,3 +1,4 @@
+import { bagCount } from '../../src/sim/loot.js';
 // Vendors (CONTRACTS 2.2 buy / sell / buyback, PROGRESSION 4.8 and 6.2): prices, gold and bag checks, range, quest
 // items, buyback, bag items going onto the belt, the interact event's stock, and determinism.
 import { assert, eq, content } from './_harness.mjs';
@@ -55,8 +56,10 @@ export const tests = [
       let e = run({ t: 'sell', npc: n.id, bag: 0, item: 'wolf_pelt' });
       assert(e.some((x) => x.type === 'inventory' && x.kind === 'sell' && x.gold === 20), 'sold 4 x 5');
       eq(p().gold, 20, 'paid');
-      e = run({ t: 'sell', npc: n.id, bag: 0, item: 'stray_hen' });
-      assert(e.some((x) => x.type === 'inventory_fail' && x.reason === 'no_value'), 'quest item refused');
+      e = run({ t: 'sell', npc: n.id, item: 'stray_hen' });
+      // quest items live in the quest bag (fix pass 1), which a vendor never sees: refused either way
+      assert(e.some((x) => x.type === 'inventory_fail' && (x.reason === 'no_value' || x.reason === 'no_item')), 'quest item refused');
+      eq(bagCount(p(), 'stray_hen'), 1, 'the hen is still there');
       eq(p().buyback.length, 1, 'buyback list');
       e = run({ t: 'buyback', npc: n.id, index: 0 });
       assert(e.some((x) => x.type === 'inventory' && x.kind === 'buyback'), 'bought back');
@@ -71,7 +74,7 @@ export const tests = [
       run({ t: 'buy', npc: n.id, item: 'travel_satchel' });
       const k = p().bag.findIndex((s) => s.item === 'travel_satchel');
       assert(k >= 0, 'satchel bought');
-      run({ t: 'equip', bag: k });
+      run({ t: 'equip', bag: k, item: 'travel_satchel' });
       eq(p().bags.length, 2, 'two bags worn');
       const h = w.snapshot().hud[id];
       eq(h.bag.size, 20, '12 + 8 slots');

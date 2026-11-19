@@ -31,7 +31,9 @@ function saveState(world, id) {
   const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : { zone: e.zone, tx: Math.floor(e.x / 256), ty: Math.floor((e.y - 1) / 256) };
   return { v: 1, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
     bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: clone(e.bar), talents: clone(e.talents),
-    quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern) };
+    quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
+    // fix pass 1 (CONTRACTS 2.4): the sim-owned fields (hp, resource, cooldowns ticks left, lasting buffs, quest bag, pending loot)
+    ...(world.saveFields ? world.saveFields(id) : {}) };
 }
 const stripEscorts = (qs) => { if (!qs) return qs; const o = {}; for (const [k, v] of Object.entries(qs)) { const { escort, ...rest } = v; void escort; o[k] = rest; } return o; };
 function specFor(c) {
@@ -40,7 +42,7 @@ function specFor(c) {
   const at = s.zone && C.zones[s.zone] && s.tx != null ? { zone: s.zone, x: s.tx, y: s.ty } : {};
   return { name: c.name, cls: c.cls, look: c.look, ...at, level: s.level, xp: s.xp, gold: s.gold, bag: s.bag, bags: s.bags, equip: s.equip,
     known: s.known, bar: s.bar, talents: s.talents, quests: stripEscorts(s.quests), questsDone: s.questsDone, nodesUsed: s.nodesUsed,
-    respecs: s.respecs, lantern: s.lantern };
+    respecs: s.respecs, lantern: s.lantern, qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras };
 }
 function relog(world, id) { const s = saveState(world, id); const e = world.get(id); world.removePlayer(id); return { id: world.addPlayer(specFor({ name: e.name, cls: e.cls, look: e.look, state: s })), save: s }; }
 
@@ -196,7 +198,7 @@ kase('inkblade_off_hand_dagger', () => {
   const id = w.addPlayer({ name: 'Ink', cls: 'inkblade', zone: 'willowmere', x: 20, y: 24, level: 6, bag: [gear('gear_dagger', 6), gear('gear_dagger', 6)] });
   w.enqueue(id, { t: 'equip', bag: 0, item: 'gear_dagger' });
   run(w, 1);
-  w.enqueue(id, { t: 'equip', bag: 1, item: 'gear_dagger' });   // hoping the second goes to the off hand
+  w.enqueue(id, { t: 'equip', item: 'gear_dagger' });   // the second goes to the weaker hand (fix pass 1; bag indexes shift after an equip)
   run(w, 1);
   const p = w.get(id);
   const off = typeof p.equip.off === 'string' ? p.equip.off : p.equip.off && p.equip.off.item;
@@ -328,13 +330,14 @@ kase('death_lantern_other_zone', () => {
     // walk toward the nearest aggressive foe until it kills us
     const bot = { me: () => w.get(id) };
     void bot;
-    let death = null, resp = null, zoneEv = null, evs = [];
+    let death = null, resp = null, zoneEv = null, evs = [], atDeath = null;
     const tgt = w.state.ents.filter((m) => m.kind === 'mob' && !m.dead && m.zone === zone && (C.mobs[m.template].behavior !== 'passive')).sort((a, b) => Math.hypot(a.x - w.get(id).x, a.y - w.get(id).y) - Math.hypot(b.x - w.get(id).x, b.y - w.get(id).y))[0];
     w.enqueue(id, { t: 'attack', id: tgt.id });
     for (let t = 0; t < 6000 && !resp; t++) {
       const p = w.get(id);
       if (!p.dead && !death) { const dx = Math.sign(tgt.x - p.x), dy = Math.sign(tgt.y - p.y); if (Math.hypot(tgt.x - p.x, tgt.y - p.y) > 20 * SUB) w.enqueue(id, { t: 'move', dx, dy }); else w.enqueue(id, { t: 'stop' }); }
       const ev = w.step(); evs = evs.concat(ev);
+      if (!death && ev.find((e) => e.type === 'death' && e.id === id)) atDeath = { ...w.get(id).lantern };
       death = death || ev.find((e) => e.type === 'death' && e.id === id);
       resp = ev.find((e) => e.type === 'respawn' && e.id === id);
       zoneEv = zoneEv || ev.find((e) => e.type === 'zone' && e.id === id);
@@ -344,7 +347,8 @@ kase('death_lantern_other_zone', () => {
     if (!death) { out.push(`${zone} lantern ${lantern ? lantern.zone + ':' + lantern.id : 'default'}: did not die (${p.hp}/${p.hpMax})`); continue; }
     if (!resp) issues.push('never woke');
     else {
-      const want = start;
+      // the lantern held at death (fix pass 1: walking within 3 tiles of a lantern binds it, so the bound one can change on the way)
+      const want = atDeath && C.zones[atDeath.zone] ? atDeath : start;
       const bogus = want.id === 'fake';
       if (!bogus && p.zone !== want.zone && C.zones[want.zone]) issues.push(`woke in ${p.zone}, lantern in ${want.zone}`);
       if (bogus && p.zone !== C.start.zone) issues.push('a lantern on a wall cell did not fall back to the start');
@@ -418,7 +422,8 @@ kase('save_restore_mid_cast_mid_fight_each_zone', () => {
       if (!spotFree(C.zones[q.zone], ...tileOfSub(q))) notes.push('restored inside a wall');
       if (q.hp > before.hp) { notes.push(`health refilled ${before.hp} -> ${q.hp}`); exploits.push('hp'); }
       if (q.res.cur > before.mana + 1) { notes.push(`mana refilled ${Math.round(before.mana)} -> ${Math.round(q.res.cur)}`); exploits.push('mana'); }
-      if (Object.keys(before.cd).length && !Object.keys(q.cd).length) { notes.push(`cooldowns cleared (${Object.keys(before.cd).join(',')})`); exploits.push('cd'); }
+      const running = Object.keys(before.cd).filter((k) => before.cd[k] > w.tick);       // cooldowns still running at the save
+      if (running.length && !running.every((k) => q.cd[k] > w.tick)) { notes.push(`cooldowns cleared (${running.join(',')})`); exploits.push('cd'); }
       const holders = w.state.ents.filter((e) => e.kind === 'mob' && e.threat && Object.keys(e.threat).length && e.id === m.id);
       if (holders.length) notes.push('the mob still holds old threat');
       out.push(`${zone}: ${fightInfo} -> restored: ${notes.join('; ') || 'same'}`);
@@ -522,12 +527,29 @@ kase('escort_restart_leaks_entities', () => {
 });
 
 kase('escort_ambush_spawns_in_wall', () => {
+  // fix pass 1: drive the real escort: Lark at each ambush spot, then read where the adds really appeared
   const q = C.quests.wm_lark_wanders;
   const o = q.objectives.find((x) => x.kind === 'escort');
   const Z = C.zones[o.from.zone];
-  const bad = [];
-  (o.ambush || []).forEach((a, k) => a.mobs.forEach((m, j) => { const sx = a.at.x + 4 + j, sy = a.at.y - 3; if (!spotFree(Z, sx, sy)) bad.push(`ambush ${k} add ${j} (${m.mob}) at ${sx},${sy}: '${Z.collision[sy][sx]}'`); }));
-  record('escort_ambush_spawns_in_wall', !bad.length, bad.length ? bad : 'all ambush spots free', 'ambush adds appear on walkable cells', { severity: bad.length ? 'major' : 'info', suspect: 'src/sim/quests.js tickEscort(): spawnMob at (at.x + 4 + j, at.y - 3) with no spotFree check; valley row 27 x 77..82 is wall' });
+  const bad = [], seen = [];
+  const w = newWorld(20);
+  const s = standBy('nella');
+  const id = w.addPlayer({ name: 'Esc', cls: 'warden', zone: s.zone, x: s.x, y: s.y, level: 7, questsDone: ['wm_name_twice', 'wm_pilgrim_wolves'] });
+  w.enqueue(id, { t: 'quest_accept', quest: 'wm_lark_wanders' }); run(w, 1);
+  const p = w.get(id);
+  (o.ambush || []).forEach((a, k) => {
+    const lark = w.state.ents.find((e) => e.kind === 'npc' && e.escort && e.escort.owner === id);
+    const [x, y] = freeNear(Z.id, a.at.x, a.at.y, 2);
+    lark.x = x * 256 + 128; lark.y = (y + 1) * 256 - 16; p.zone = Z.id; p.x = lark.x; p.y = lark.y;
+    const before = new Set(w.state.ents.map((e) => e.id));
+    run(w, 1);
+    for (const m of w.state.ents.filter((e) => !before.has(e.id) && e.kind === 'mob')) {
+      const mx = Math.floor(m.x / 256), my = Math.floor((m.y - 1) / 256);
+      seen.push(`${k}:${mx},${my}`);
+      if (boxBlocked(Z, m.x, m.y, 0, 0, -99999, -99999, null)) bad.push(`ambush ${k} add (${m.template}) at ${mx},${my}: '${Z.collision[my][mx]}'`);
+    }
+  });
+  record('escort_ambush_spawns_in_wall', !bad.length && seen.length > 0, bad.length ? bad : `all ambush adds on free cells: ${seen.join(' ')}`, 'ambush adds appear on walkable cells', { severity: bad.length ? 'major' : 'info' });
 });
 
 kase('one_way_ledge_traps', () => {
