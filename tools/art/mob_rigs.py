@@ -143,7 +143,10 @@ class Quad:
         s['head_dead'](cv, X, Y)
         return {}
 
-    # ---- front view (toward the camera)
+    # ---- front view (toward the camera). Polish pass 2026-11-19: a standing beast seen from the 3/4 camera, not a
+    # dog sitting up. The body is a wide, low loaf seen from above BEHIND the head (wider than the head, so the
+    # shoulders and flanks show on both sides); the head sits low, in front of it; the hind paws peek out wide of the
+    # front paws; the tail tip waves over the far end of the back.
     def down(self, cv, anim, i, W, H):
         s = self.s
         GY = H - 1
@@ -155,7 +158,7 @@ class Quad:
         if anim == 'walk':
             lift = [(1, 0), (0, 0), (0, 1), (0, 0)][i]
         if anim == 'attack':
-            head_dy, mouth, hs = [(-2, 0, 0), (3, 2, 1), (1, 1, 0)][i]
+            head_dy, mouth, hs = [(-1, 0, 0), (2, 2, 1), (1, 1, 0)][i]
             oy += [-1, 1, 0][i]
         if anim == 'special':
             head_dy, oy = 2, oy + 1
@@ -169,27 +172,36 @@ class Quad:
         X = lambda x: cx + x
         Y = lambda y: GY + y + oy
         w = s.get('front_w', 5)
-        hump = s.get('hump', (-11, 4.6, 3.6))
-        # the back, seen over the head, and the haunches at the sides (far)
-        for sx in (-1, 1):
-            K.cap(cv, (X(sx * (w - 0.6)), Y(-5)), (X(sx * (w - 0.6)), Y(-1.8 - lift[1 if sx < 0 else 0])), 1.2, 1.0, s.get('legfar', far))
-        K.ell(cv, X(0), Y(hump[0]), hump[1], hump[2], fur, sep=True)
-        K.ell(cv, X(0), Y(-6.5), w, 3.5, fur, sep=True)
-        if s.get('deco'):
-            s['deco'](cv, 'down_back', X, Y, (0, hump[0] - hump[2] + 1.5, w, 3), anim, i)
-        # chest and front legs
-        K.ell(cv, X(0), Y(-5.2), w - 1.4, 3.4, fur, sep=True)
+        bw = w + s.get('loaf_extra', 2.5)                 # half-width of the body loaf seen from above
+        legfar, legn = s.get('legfar', far), s.get('legm', fur)
+        by, bry = s.get('loaf_y', -12.0), s.get('loaf_ry', 4.2)
+        # tail tip over the far end of the back
+        tl = s.get('tail')
+        if tl:
+            sw = [0, 1, 0, -1][i % 4] if anim in ('idle', 'walk') else 0
+            K.cap(cv, (X(3), Y(by - bry + 1.5)), (X(5 + sw), Y(by - bry - 2)), tl[2], tl[3], fur)
+        # hind feet, wide of the front ones, under the flanks (far, darker)
         for k, sx in enumerate((-1, 1)):
-            lx = sx * s.get('front_leg_x', 2.2)
+            l = lift[1 - k]
+            hx = sx * (bw - 2.0)
+            K.cap(cv, (X(hx), Y(-5)), (X(hx), Y(-0.7 - l)), 1.25, 1.0, legfar)
+            K.setp(cv, X(hx) - (sx < 0), Y(-l), foot)
+        # the body loaf seen from above, behind the head
+        K.ell(cv, X(0), Y(by), bw, bry, fur, sep=True, bias=0.12)
+        if s.get('deco'):
+            s['deco'](cv, 'down_back', X, Y, (0, by - bry + 1.6, bw, 3), anim, i)
+        # front legs, planted, 2 px paws
+        for k, sx in enumerate((-1, 1)):
+            lx = sx * s.get('front_leg_x', 3.3)
             l = lift[k]
-            K.cap(cv, (X(lx), Y(-3.2)), (X(lx), Y(-0.6 - l)), 1.35, 1.15, s.get('legm', fur))
+            K.cap(cv, (X(lx), Y(-5)), (X(lx), Y(-0.8 - l)), 1.4, 1.2, legn, sep=True)
             K.setp(cv, X(lx) - 1, Y(-l), foot)
             K.setp(cv, X(lx), Y(-l), foot)
-        K.line(cv, (X(-0.5), Y(-2.5)), (X(-0.5), Y(-0.5)), '0')
-        s['head_front'](cv, X, Y, s.get('head_front_y', -9.5) + head_dy, mouth, eye, hs, anim, i)
-        return {'mouth': [int(X(0)), int(Y(-6 + head_dy))]}
+        s['head_front'](cv, X, Y, s.get('head_low_y', -6.5) + head_dy, mouth, eye, hs, anim, i)
+        return {'mouth': [int(X(0)), int(Y(-3 + head_dy))]}
 
-    # ---- back view (away from the camera)
+    # ---- back view (away from the camera): one wide round rump nearest, the tail hanging over it, short hind legs
+    # under it, the back narrowing up and away, and the head small at the far end (ears and crown only).
     def up(self, cv, anim, i, W, H):
         s = self.s
         GY = H - 1
@@ -214,25 +226,25 @@ class Quad:
         X = lambda x: cx + x
         Y = lambda y: GY + y + oy
         w = s.get('front_w', 5)
-        # head first (it is farther), then the back running up to it, then the rump
-        s['head_back'](cv, X, Y, -14.5 + head_dy, anim, i)
-        for sx in (-1, 1):
-            K.cap(cv, (X(sx * (w - 1.5)), Y(-5)), (X(sx * (w - 1.5)), Y(-1.8 - lift[0 if sx < 0 else 1])), 1.2, 1.0, s.get('legfar', far))
-        K.ell(cv, X(0), Y(-10.5), 4, 3.4, fur, sep=True)
-        K.ell(cv, X(0), Y(-6.4), w + 0.8, 4.4, fur, sep=True)
-        if s.get('deco'):
-            s['deco'](cv, 'up', X, Y, (0, -6.4, w + 0.8, 4.4), anim, i)
+        rw = w + s.get('rump_extra', 2.0)
+        legn = s.get('legm', fur)
+        # head at the far end: ears and crown over the back
+        s['head_back'](cv, X, Y, s.get('head_back_y', -15.0) + head_dy, anim, i)
+        # hind legs under the rump
         for k, sx in enumerate((-1, 1)):
             l = lift[1 - k]
-            lx = sx * (w - 1.8)
-            K.cap(cv, (X(lx), Y(-3.5)), (X(lx), Y(-0.6 - l)), 1.4, 1.15, s.get('legm', fur))
-            K.setp(cv, X(lx) - 1, Y(-l), foot)
-            K.setp(cv, X(lx), Y(-l), foot)
-        K.line(cv, (X(-0.5), Y(-3)), (X(-0.5), Y(-0.5)), '0')
+            hx = sx * 3.0
+            K.cap(cv, (X(hx), Y(-5)), (X(hx), Y(-0.8 - l)), 1.4, 1.15, legn, sep=True)
+            K.setp(cv, X(hx) - 1, Y(-l), foot)
+            K.setp(cv, X(hx), Y(-l), foot)
+        # the body seen from behind and above: one wide loaf
+        K.ell(cv, X(0), Y(-9.5), rw, 5.4, fur, sep=True, bias=0.12)
+        if s.get('deco'):
+            s['deco'](cv, 'up', X, Y, (0, -9.5, rw, 5.4), anim, i)
         tl = s.get('tail')
         if tl:
             sw = [0, 1, 0, -1][i % 4] if anim in ('idle', 'walk') else 0
-            K.cap(cv, (X(0), Y(-5.5)), (X(sw), Y(-2)), tl[2] + 0.2, tl[3], fur, sep=True)
+            K.cap(cv, (X(0), Y(-7.5)), (X(sw * 0.8), Y(-3.2)), tl[2] + 0.4, tl[3] + 0.3, fur, sep=True)
         return {}
 
 
@@ -342,7 +354,8 @@ def back_tufts(kind, mats):
                 K.setp(cv, X(bx + 4.5), Y(top - 2.4), extra)
         elif view == 'down_back':
             top = by
-            for k, sx in enumerate((-3, 0, 3)):
+            spread = brx * 0.6
+            for k, sx in enumerate((-spread, 0, spread)):
                 yy = top - (k == 1) * 0.8
                 if kind == 'leaf':
                     K.ell(cv, X(sx), Y(yy), 1.8, 1.9, a, sep=True)
@@ -433,7 +446,7 @@ def make_boar(fur, far, snout, nose, eye, tusk, ear, deco):
     sd, fr, bk, dd = boar_parts(dict(fur=fur, snout=snout, nose=nose, eye=eye, tusk=tusk, ear=ear))
     return Quad(fur=fur, far=far, foot=fur[0], body=(2, -7.8), body_r=(8.2, 5.0), chest=(-4.0, -7.6, 4.8, 5.0),
                 head=(-7.5, -8.2), legx=(-4.5, 6.5), leg_r=(1.5, 1.2), tail=(2.5, -1, 0.9, 0.7), front_w=5.8,
-                hock=False, hump=(-11.5, 5.4, 4.0), head_front_y=-8.5, deco=deco,
+                hock=False, hump=(-11.5, 5.4, 4.0), head_front_y=-8.5, loaf_extra=1.2, loaf_y=-12.0, deco=deco,
                 head_side=sd, head_front=fr, head_back=bk, head_dead=dd)
 
 
@@ -441,16 +454,31 @@ def make_boar(fur, far, snout, nose, eye, tusk, ear, deco):
 def ram_parts(m):
     face, horn, horn_d, eye_c, wool, nose = m['face'], m['horn'], m['horn_d'], m['eye'], m['wool'], m['nose']
 
-    def curl(cv, cx, cy, sx, r=2.4):
-        """a curled horn: a 3/4 ring around (cx, cy), opening toward the face"""
-        pts = []
-        for k in range(14):
-            t = math.radians(-60 + k * 22) if sx > 0 else math.radians(240 - k * 22)
-            rr = r - k * 0.06
-            pts.append((cx + math.cos(t) * rr, cy + math.sin(t) * rr))
+    def curl(cv, cx, cy, sx, r=3.4):
+        """a curled ram horn (polish 2026-11-19: thick and ridged, it was a 1 px ring): a spiral that starts thick at
+        the skull (top, toward the face), sweeps back and over and curls down and forward to a thin tip. sx = which
+        way it sweeps (+1 = back to the right)."""
         pix = {}
-        for k, (x, y) in enumerate(pts):
-            pix[(int(math.floor(x)), int(math.floor(y)))] = horn[-1] if (y < cy and k > 3) else (horn[1] if y < cy + 1 else horn[0])
+        n = 40
+        for k in range(n):
+            u = k / (n - 1)
+            a = math.radians(-100 + u * 330)                  # from above the base, round and in
+            rr = r * (1 - 0.62 * u)
+            th = 1.55 * (1 - 0.65 * u) + 0.35
+            px = cx + sx * math.cos(a) * rr
+            py = cy + math.sin(a) * rr
+            for yy in range(int(math.floor(py - th - 1)), int(math.ceil(py + th + 1))):
+                for xx in range(int(math.floor(px - th - 1)), int(math.ceil(px + th + 1))):
+                    d = math.hypot(xx + 0.5 - px, yy + 0.5 - py)
+                    if d > th:
+                        continue
+                    # light from the upper left; ridges every few steps
+                    lit = (-(xx + 0.5 - px) * 0.5 - (yy + 0.5 - py) * 0.8) / max(th, 0.5)
+                    lv = 1 if lit > 0.35 else (0 if lit < -0.45 else 1)
+                    lv = 2 if lit > 0.75 else lv
+                    if k % 6 == 5 and lv > 0:
+                        lv -= 1
+                    pix[(xx, yy)] = horn[min(lv, len(horn) - 1)]
         K._apply(cv, pix, True)
         K.setp(cv, cx, cy, horn_d)
 
@@ -461,7 +489,7 @@ def ram_parts(m):
         K.setp(cv, X(hx - 5.6), Y(hy + 1.8), nose)
         if mouth:
             K.line(cv, (X(hx - 5), Y(hy + 3.4)), (X(hx - 3), Y(hy + 3.4)), '0')
-        curl(cv, X(hx + 0.8), Y(hy - 0.2), 1)
+        curl(cv, X(hx + 0.8), Y(hy - 0.4), 1, 3.0)
         if eye == 'open':
             K.setp(cv, X(hx - 2.2), Y(hy - 0.2), eye_c)
         else:
@@ -474,8 +502,8 @@ def ram_parts(m):
         K.setp(cv, X(0), Y(hy + 3.4 + hs), nose)
         if mouth:
             K.line(cv, (X(-1), Y(hy + 4.6 + hs)), (X(0), Y(hy + 4.6 + hs)), '0')
-        curl(cv, X(-3.6), Y(hy - 0.2), -1)
-        curl(cv, X(3.6), Y(hy - 0.2), 1)
+        curl(cv, X(-4.4), Y(hy - 1.0), -1, 3.0)
+        curl(cv, X(4.4), Y(hy - 1.0), 1, 3.0)
         for ex in (-1.8, 0.8):
             K.setp(cv, X(ex), Y(hy), eye_c if eye == 'open' else '0')
 
@@ -501,9 +529,17 @@ def wool_tufts(wool, hi):
                 t = k / 5
                 x = bx - brx * 0.8 + t * brx * 1.6
                 y = by - bry * (0.8 - 0.25 * abs(t - 0.5)) + 0.2
-                K.ell(cv, X(x), Y(y), 1.9, 1.7, wool, sep=False, bias=0.15)
-            for k in range(4):
-                K.setp(cv, X(bx - brx * 0.5 + k * 3), Y(by - 0.5 + (k % 2)), wool[1])
+                K.ell(cv, X(x), Y(y), 2.0, 1.8, wool, sep=False, bias=0.15)
+            # fleece texture (polish 2026-11-19: the side wool read flat): little curl arcs in staggered rows, a lit
+            # top on each, so the coat reads as wool and not as a smooth hide
+            for r, yy in enumerate((by - bry * 0.45, by + bry * 0.15, by + bry * 0.65)):
+                for k in range(5):
+                    x = bx - brx * 0.75 + k * 3.2 + (r % 2) * 1.6
+                    if abs(x - bx) > brx - 1.2:
+                        continue
+                    K.setp(cv, X(x), Y(yy), wool[1])
+                    K.setp(cv, X(x + 1), Y(yy + 0.6), wool[1])
+                    K.setp(cv, X(x - 0.2), Y(yy - 1), wool[-1])
         elif view == 'down_back':
             for k, sx in enumerate((-3.2, 0, 3.2)):
                 K.ell(cv, X(sx), Y(by + 0.5 - (k == 1)), 2.0, 1.7, wool, sep=False, bias=0.15)
@@ -517,5 +553,5 @@ def make_ram(wool, far_wool, face, legm, legfar, horn, horn_d, eye, nose):
     sd, fr, bk, dd = ram_parts(dict(face=face, horn=horn, horn_d=horn_d, eye=eye, wool=wool, nose=nose))
     return Quad(fur=wool, far=far_wool, legm=legm, legfar=legfar, foot='0', body=(2, -8.2), body_r=(7.8, 4.6),
                 chest=(-3.8, -8.4, 4.2, 4.6), head=(-8, -11.5), legx=(-4.5, 6), leg_r=(1.1, 0.9),
-                tail=(1.5, 0, 1.2, 1.0), front_w=5.6, hock=False, hump=(-11.5, 5.2, 3.8), head_front_y=-9.5,
+                tail=(1.5, 0, 1.2, 1.0), front_w=5.6, hock=False, hump=(-11.5, 5.2, 3.8), head_front_y=-9.5, loaf_extra=1.8, head_low_y=-7.0,
                 deco=wool_tufts(wool, None), head_side=sd, head_front=fr, head_back=bk, head_dead=dd)

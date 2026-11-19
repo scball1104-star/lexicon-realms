@@ -477,10 +477,15 @@ def wave(d, mat=INK, rows=2):
 
 
 def bell_waves(d, mat=GOLD):
-    hand_bell(d, mat)
-    for r in (0.36, 0.48):
-        d.ring(0.5, 0.5, r, 'j', 200, 250)
-        d.ring(0.5, 0.5, r, 'j', 290, 340)
+    """polish 2026-11-19: a smaller bell, centred, with two bold sound arcs on EACH side, clear of the bell (the old
+    thin arcs ran over its shoulders and muddied at 16 px)"""
+    sub = Draw(d.cv, d.ox + 0.15 * d.n, d.oy + 0.08 * d.n, d.n * 0.7)
+    hand_bell(sub, mat)
+    for sx in (-1, 1):
+        for k, r in enumerate((0.36, 0.48)):
+            for t in (-28, -10, 10, 28):
+                a = math.radians(t)
+                d.px(0.5 + sx * math.cos(a) * r, 0.52 + math.sin(a) * r, 'j' if k == 0 else 'i')
 
 
 def shout(d, mat='GHI'):
@@ -680,8 +685,15 @@ def two_marks(d, mat='GHI'):
 
 
 def crossed_swords(d):
-    sword(d)
-    sword(d, flip=True)
+    """polish 2026-11-19: two slim blades crossing high, the second one outlined where it crosses the first, guards
+    and pommels in the two bottom corners, bright edges (the old pair merged into one blob at 16 px)"""
+    for flip in (False, True):
+        f = (lambda u: 1 - u) if flip else (lambda u: u)
+        d.cap(f(0.24), 0.76, f(0.9), 0.1, 0.06, 0.035, STEEL, sep=flip)
+        d.line(f(0.3), 0.66, f(0.86), 0.1, 'e')
+        d.cap(f(0.08), 0.62, f(0.36), 0.9, 0.05, 0.05, GOLD, sep=True)
+        d.cap(f(0.2), 0.8, f(0.1), 0.9, 0.04, 0.04, WOOD)
+        d.px(f(0.06), 0.94, 'i')
 
 
 def banner(d, mat='xy'):
@@ -763,11 +775,17 @@ def blot(d, mat=INK):
 
 
 def veins(d, mat=INK):
-    d.ell(0.5, 0.5, 0.42, 0.42, 'z%')
-    for k in range(4):
-        a = math.radians(30 + k * 80)
-        d.line(0.5, 0.5, 0.5 + math.cos(a) * 0.36, 0.5 + math.sin(a) * 0.36, '2')
-        d.line(0.5 + math.cos(a) * 0.2, 0.5 + math.sin(a) * 0.2, 0.5 + math.cos(a + 0.6) * 0.32, 0.5 + math.sin(a + 0.6) * 0.32, '3')
+    """polish 2026-11-19: a dark ink drop shot through with three bright cyan veins that branch from the bottom (the
+    old skin disc with dark lines was mud at 16 px)"""
+    d.poly([(0.5, 0.04), (0.78, 0.46), (0.22, 0.46)], '234')
+    d.ell(0.5, 0.62, 0.32, 0.3, '234')
+    d.line(0.5, 0.88, 0.5, 0.34, '7')
+    d.line(0.5, 0.7, 0.32, 0.5, '7')
+    d.line(0.5, 0.62, 0.68, 0.44, '7')
+    d.px(0.5, 0.3, '8')
+    d.px(0.3, 0.46, '8')
+    d.px(0.7, 0.4, '8')
+    d.px(0.38, 0.52, '6')
 
 
 def storm(d):

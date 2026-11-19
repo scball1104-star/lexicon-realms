@@ -214,6 +214,7 @@ class Scarab:
 class Bird:
     """gorse_crow. Flies HOVER px above the feet point. m: body, wing, beak, eye, sheen, leg"""
     HOVER = 8
+    SCALE = 1.4
 
     def __init__(self, **m):
         self.m = m
@@ -239,48 +240,65 @@ class Bird:
             if i >= 1:
                 return self.dead(cv, W, H)
             wing, ox, oy, tilt = 'ruffle', 1, 4, 2
-        X = lambda x: cx + x + ox
-        Y = lambda y: GY - self.HOVER + y + oy
+        # polish 2026-11-19: the crow is drawn at S = 1.4 (it was small beside the Warden) and the wings are broad,
+        # two-edged feathered blades with a covert line, so the down-stroke reads at 1x (it was a thin spike)
+        S = self.SCALE
+        X = lambda x: cx + (x + ox) * S
+        Y = lambda y: GY - self.HOVER + (y + oy) * S
         body, wg = m['body'], m['wing']
+
+        def blade(p0, p1, tip, back, mat, sep):
+            """a wing from the shoulder edge p0-p1 to the tip, with a trailing edge through `back`"""
+            K.poly(cv, [(X(p0[0]), Y(p0[1])), (X(p1[0]), Y(p1[1])), (X(back[0]), Y(back[1])), (X(tip[0]), Y(tip[1]))],
+                   mat, sep=sep)
+
         if view == 'side':
             # far wing (darker), tail, body, head, near wing
-            tips = {'up': (2, -9), 'mid': (6, -2), 'down': (2, 5), 'back': (7, -4), 'ruffle': (5, -6)}
-            tx, ty = tips[wing]
-            K.poly(cv, [(X(-1), Y(-4)), (X(2), Y(-4)), (X(tx + 1.5), Y(ty - 1))], m['far'])
-            K.poly(cv, [(X(3), Y(-3.5)), (X(8), Y(-1.5 + tilt)), (X(8.5), Y(-4 + tilt)), (X(3), Y(-4.5))], body, sep=True)
-            K.ell(cv, X(0.5), Y(-3 + tilt * 0.3), 4.0, 2.8, body, sep=True)
+            tips = {'up': ((1, -10), (4.5, -8)), 'mid': ((7, -2.5), (6, 0)), 'down': ((0.5, 6), (3.5, 5)),
+                    'back': ((7.5, -5), (7, -2.5)), 'ruffle': ((5, -7), (6.5, -4.5))}
+            (tx, ty), (bx2, by2) = tips[wing]
+            blade((-1, -4), (2, -4), (tx + 1.5, ty - 1), (bx2 + 1.5, by2 - 1), m['far'], False)
+            K.poly(cv, [(X(3), Y(-3.5)), (X(8), Y(-1.5 + tilt)), (X(9), Y(-3 + tilt)), (X(8.5), Y(-4.5 + tilt)),
+                        (X(3), Y(-4.5))], body, sep=True)
+            K.ell(cv, X(0.5), Y(-3 + tilt * 0.3), 4.0 * S, 2.8 * S, body, sep=True)
             hx, hy = -3.4, -5.2 + head_dy + tilt * 0.5
-            K.ell(cv, X(hx), Y(hy), 2.3, 2.1, body, sep=True)
+            K.ell(cv, X(hx), Y(hy), 2.3 * S, 2.1 * S, body, sep=True)
             K.poly(cv, [(X(hx - 1.6), Y(hy - 0.8)), (X(hx - 5), Y(hy + 0.2 + beak_open * 0.5)), (X(hx - 1.6), Y(hy + 0.8))],
                    m['beak'], sep=True)
             if beak_open:
                 K.line(cv, (X(hx - 2), Y(hy + 1.4)), (X(hx - 4), Y(hy + 2.2)), m['beak'][0])
             K.setp(cv, X(hx - 0.6), Y(hy - 0.6), m['eye'])
-            K.poly(cv, [(X(-1.5), Y(-4.5)), (X(2.5), Y(-4)), (X(tx), Y(ty))], wg, sep=True)
-            if wing in ('mid', 'back'):
-                K.setp(cv, X(tx - 1), Y(ty), wg[0])
+            K.setp(cv, X(hx - 0.6) + 1, Y(hy - 0.6), '0')
+            blade((-2, -4.8), (3, -4.2), (tx, ty), (bx2, by2), wg, True)
+            # covert line and feather tips
+            K.line(cv, (X(0.5), Y(-4.2)), (X((tx + bx2) / 2 * 0.55), Y(-4.2 + ((ty + by2) / 2 + 4.2) * 0.55)), wg[0])
+            K.setp(cv, X(bx2), Y(by2), '0')
             K.setp(cv, X(-0.5), Y(-0.4), m['leg'])
             K.setp(cv, X(1), Y(-0.4), m['leg'])
+            K.setp(cv, X(-0.5), Y(0.3), m['leg'])
+            K.setp(cv, X(1), Y(0.3), m['leg'])
             pts = {'mouth': [int(X(hx - 5)), int(Y(hy))]}
         else:
             front = view == 'down'
-            tip = {'up': -9, 'mid': -2, 'down': 4, 'back': -6, 'ruffle': -5}[wing]
-            span = {'up': 6.5, 'mid': 9, 'down': 6.5, 'back': 5, 'ruffle': 8}[wing]
+            tip = {'up': -9, 'mid': -2, 'down': 3, 'back': -6, 'ruffle': -5}[wing]
+            span = {'up': 6.5, 'mid': 9.5, 'down': 9.0, 'back': 5, 'ruffle': 8}[wing]
             for sx in (-1, 1):
-                K.poly(cv, [(X(sx * 2), Y(-5)), (X(sx * 2.5), Y(-2)), (X(sx * span), Y(tip)), (X(sx * (span - 2)), Y(tip - 2 + (tip > 0) * 3))],
-                       wg, sep=False)
+                blade((sx * 1.5, -5.5), (sx * 2.5, -1.5), (sx * span, tip), (sx * (span + 0.5), tip + 3.5) if tip <= 0 else (sx * (span - 3.5), tip - 0.5),
+                      wg, True)
+                K.line(cv, (X(sx * 2.5), Y(-4)), (X(sx * (span * 0.6)), Y(-4 + (tip + 4) * 0.6)), wg[0])
             if not front:
-                K.poly(cv, [(X(-2), Y(-1)), (X(2), Y(-1)), (X(3), Y(4)), (X(-3), Y(4))], body, sep=True)
-            K.ell(cv, X(0), Y(-3), 3.2, 3.6, body, sep=True)
+                K.poly(cv, [(X(-1.5), Y(-1)), (X(1.5), Y(-1)), (X(3), Y(3.5)), (X(0), Y(2.5)), (X(-3), Y(3.5))], body, sep=True)
+            K.ell(cv, X(0), Y(-3), 3.2 * S, 3.6 * S, body, sep=True)
             hy = -7.2 + head_dy
-            K.ell(cv, X(0), Y(hy), 2.4, 2.2, body, sep=True)
+            K.ell(cv, X(0), Y(hy), 2.4 * S, 2.2 * S, body, sep=True)
             if front:
                 K.poly(cv, [(X(-1), Y(hy + 0.6)), (X(1), Y(hy + 0.6)), (X(0), Y(hy + 3.4 + beak_open))], m['beak'], sep=True)
-                K.setp(cv, X(-2), Y(hy - 0.5), m['eye'])
-                K.setp(cv, X(1), Y(hy - 0.5), m['eye'])
+                K.setp(cv, X(-1.8), Y(hy - 0.5), m['eye'])
+                K.setp(cv, X(1.2), Y(hy - 0.5), m['eye'])
                 K.setp(cv, X(-1), Y(1), m['leg'])
-                K.setp(cv, X(0), Y(1), m['leg'])
+                K.setp(cv, X(0.5), Y(1), m['leg'])
             K.setp(cv, X(-1.5), Y(-5), m['sheen'])
+            K.setp(cv, X(-1.5) + 1, Y(-5), m['sheen'])
             pts = {'mouth': [int(X(0)), int(Y(hy + 3))]}
         return pts
 
@@ -288,12 +306,13 @@ class Bird:
         m = self.m
         GY = H - 1
         cx = W / 2
-        X = lambda x: cx + x
-        Y = lambda y: GY + y
+        S = self.SCALE
+        X = lambda x: cx + x * S
+        Y = lambda y: GY + y * S
         K.poly(cv, [(X(-1), Y(-2)), (X(-8), Y(-1)), (X(-6), Y(0))], m['wing'], sep=True)
         K.poly(cv, [(X(3), Y(-2)), (X(8), Y(-3)), (X(7), Y(0))], m['wing'], sep=True)
-        K.ell(cv, X(0.5), Y(-2.2), 4, 2.2, m['body'], sep=True)
-        K.ell(cv, X(-4), Y(-1.8), 2, 1.8, m['body'], sep=True)
+        K.ell(cv, X(0.5), Y(-2.2), 4 * S, 2.2 * S, m['body'], sep=True)
+        K.ell(cv, X(-4), Y(-1.8), 2 * S, 1.8 * S, m['body'], sep=True)
         K.poly(cv, [(X(-5.4), Y(-2)), (X(-8), Y(-1)), (X(-5.4), Y(-0.6))], m['beak'])
         K.line(cv, (X(0), Y(-4.6)), (X(-0.5), Y(-6)), m['leg'])
         K.line(cv, (X(1.5), Y(-4.6)), (X(2), Y(-6)), m['leg'])
@@ -342,7 +361,10 @@ class Wraith:
         # far sleeve
         def sleeve(sx, pose, mat, sepv):
             sh = (X(sx * 4.5 - (1.5 if side else 0)), Y(top + 10))
-            if pose == 'hang':
+            if pose == 'hang' and side and sx < 0.5:
+                # polish 2026-11-19: the near sleeve reaches forward and down, ghost-like (it hung as a straight bar)
+                hand = (X(-6.5), Y(top + 15 + (wave % 2)))
+            elif pose == 'hang':
                 hand = (X(sx * 6.5 - (2 if side else 0)), Y(top + 17 + (wave % 2)))
             elif pose == 'raise':
                 hand = (X(sx * 6 - (1 if side else 0)), Y(top + 3))
@@ -356,6 +378,28 @@ class Wraith:
                 hand = (X(sx * 7 + (1 if side else 0)), Y(top + 9))
             else:
                 hand = (X(sx * 7), Y(top + 4))
+            if side and sx < 0.5:
+                # near sleeve in profile: a flared bell sleeve with a ragged, pointed cuff, the claw out of it
+                dx, dy = hand[0] - sh[0], hand[1] - sh[1]
+                L = math.hypot(dx, dy) or 1.0
+                ux, uy = dx / L, dy / L
+                nx, ny = -uy, ux
+                c = (hand[0] - ux * 0.8, hand[1] - uy * 0.8)
+                pts = [(sh[0] + nx * 1.5, sh[1] + ny * 1.5),
+                       (c[0] + nx * 2.8, c[1] + ny * 2.8),
+                       (c[0] + ux * 1.6 + nx * 1.2, c[1] + uy * 1.6 + ny * 1.2),
+                       (c[0] + ux * 0.4, c[1] + uy * 0.4),
+                       (c[0] + ux * 1.4 - nx * 1.4, c[1] + uy * 1.4 - ny * 1.4),
+                       (c[0] - nx * 2.6, c[1] - ny * 2.6),
+                       (sh[0] - nx * 1.5, sh[1] - ny * 1.5)]
+                K.poly(cv, pts, mat, sep=sepv)
+                # a fold line down the sleeve
+                K.line(cv, (sh[0] + ux * 1.5, sh[1] + uy * 1.5), (c[0] - ux * 0.5 - nx * 0.6, c[1] - uy * 0.5 - ny * 0.6), mat[0])
+                hx, hy = hand[0] + ux * 1.2, hand[1] + uy * 1.2
+                K.setp(cv, hx, hy, m['claw'])
+                K.setp(cv, hx - 1, hy, m['claw'])
+                K.setp(cv, hx - 1, hy + 1, m['claw'])
+                return (hx, hy)
             K.cap(cv, sh, hand, 1.8, 1.2, mat, sep=sepv)
             K.setp(cv, hand[0], hand[1] + 1, m['claw'])
             K.setp(cv, hand[0] - 1, hand[1] + 1, m['claw'])
@@ -429,10 +473,14 @@ class Wraith:
         cx = W / 2
         X = lambda x: cx + x
         Y = lambda y: GY + y
-        K.poly(cv, [(X(-8), Y(0)), (X(-5), Y(-3)), (X(-1), Y(-4)), (X(4), Y(-3.5)), (X(8), Y(0))], m['cloak'], sep=True)
-        K.ell(cv, X(-3), Y(-3.5), 3, 2.4, m['hood'], sep=True)
-        K.setp(cv, X(-4), Y(-3.5), m['face'])
-        K.setp(cv, X(-3), Y(-3.5), m['face'])
+        # polish 2026-11-19: a bigger heap of empty robe, with folds (it was small)
+        K.poly(cv, [(X(-11), Y(0)), (X(-7), Y(-4)), (X(-1), Y(-5.5)), (X(5), Y(-4.5)), (X(8), Y(-2.5)), (X(11), Y(0))],
+               m['cloak'], sep=True)
+        K.line(cv, (X(-4), Y(-1)), (X(2), Y(-3)), m['cloak'][0])
+        K.line(cv, (X(3), Y(-1)), (X(7), Y(-2)), m['cloak'][0])
+        K.ell(cv, X(-4), Y(-4.5), 4, 3, m['hood'], sep=True)
+        K.setp(cv, X(-5), Y(-4.5), m['face'])
+        K.setp(cv, X(-4), Y(-4.5), m['face'])
         for k, (dx, dy) in enumerate(((-2, -8), (1, -10), (3, -7), (0, -13))):
             K.setp(cv, X(dx), Y(dy), m['eye_hi'] if k == 3 else m['wisp'])
             K.setp(cv, X(dx), Y(dy + 1), m['wisp'])

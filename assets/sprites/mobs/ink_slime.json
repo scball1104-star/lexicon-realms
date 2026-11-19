@@ -511,7 +511,7 @@
   "attack_down_0": {
    "mouth": [
     14,
-    18
+    19
    ]
   },
   "attack_down_1": {
@@ -535,7 +535,7 @@
   "attack_left_1": {
    "mouth": [
     3,
-    16
+    15
    ]
   },
   "attack_left_2": {
@@ -553,7 +553,7 @@
   "attack_right_1": {
    "mouth": [
     24,
-    16
+    15
    ]
   },
   "attack_right_2": {
@@ -565,13 +565,13 @@
   "attack_up_0": {
    "mouth": [
     14,
-    20
+    19
    ]
   },
   "attack_up_1": {
    "mouth": [
     14,
-    14
+    15
    ]
   },
   "attack_up_2": {

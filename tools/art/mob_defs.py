@@ -3,6 +3,7 @@ where one exists), cell, body plan and extras. Ids are the mob ids of docs/desig
 `lq` = the closest Lexicon Quest sprites (field / battle), for the world agent's mapping table."""
 import mob_rigs as R
 import mob_rigs2 as R2
+import mob_slime as SL
 
 MOBS = {}
 
@@ -59,27 +60,27 @@ mob('fold_ram', R.make_ram('XxWw', 'XXx', 'fFg', 'fF', 'ff', 'hHj', 'k', 'E', 'n
     lq={'field': 'x1_npcs:animal_sheep_tufted', 'battle': None})
 
 # ------------------------------------------------------------------------------------------------------ oozes
-mob('ink_slime', R2.Ooze(body='abcd', glint='W', spot='Y', specks=[(0.2, -0.2), (0.45, 0.1), (-0.2, 0.35)],
-                         eye='e', eye_hi='E', core='kKL'),
+# Polish 2026-11-19: mob_slime.Slime (drop silhouette, gloss, big eyes, squash-stretch idle) replaces the wave-2
+# ellipse, which read as a bush on grass. Teal-green like LQ's ink slime, but bluer than grass and outlined darker.
+SLIME_LETTERS = 'abcdg'
+mob('ink_slime', SL.Slime(size=(7.5, 11.5)),
     name='Ink Slime', family='ooze', cell=(28, 24),
-    pal={'0': 'foliage_dark:0', 'a': 'grass:0', 'b': 'roof_green:2', 'c': 'roof_green:3', 'd': 'roof_green:4',
-         'W': 'magic_cyan:3', 'Y': 'fire:4', 'e': 'foliage_dark:0', 'E': 'magic_cyan:4', 'k': 'magic_cyan:2',
-         'K': 'magic_cyan:3', 'L': 'magic_cyan:4'},
+    pal={'0': 'shadow:0', 'a': 'foliage_dark:1', 'b': 'roof_green:2', 'c': 'roof_green:3', 'd': 'roof_green:4',
+         'g': '#7cc6a0', 'W': 'ice:3', 'w': 'magic_cyan:3', 'e': 'shadow:0', 'E': 'metal:4', 'm': 'shadow:0',
+         'k': 'magic_cyan:2', 'K': 'magic_cyan:3', 'L': 'magic_cyan:4'},
     lq={'field': 'enemies_field:ink_slime', 'battle': 'enemies_battle:ink_slime'})
-mob('ink_slime_deep', R2.Ooze(body='abcd', glint='W', spot='Y', specks=[(0.2, -0.2), (0.45, 0.1), (-0.2, 0.35)],
-                              eye='e', eye_hi='E', core='kKL'),
+mob('ink_slime_deep', SL.Slime(size=(8.0, 12.0)),
     name='Ink Slime (levels 3-4)', family='ooze', cell=(28, 24), variant_of='ink_slime',
-    pal={'0': 'shadow:0', 'a': 'foliage_dark:0', 'b': 'grass:0', 'c': 'roof_green:2', 'd': 'roof_green:3',
-         'W': 'magic_cyan:2', 'Y': 'gold:3', 'e': 'shadow:0', 'E': 'magic_cyan:3', 'k': 'magic_cyan:2',
-         'K': 'magic_cyan:3', 'L': 'magic_cyan:4'},
-    notes='tier 2 colours of ink_slime (ZONES_QUESTS 2.3 levels 3-4): darker, older ink.',
+    pal={'0': 'shadow:0', 'a': 'foliage_dark:0', 'b': 'foliage_dark:1', 'c': 'roof_green:2', 'd': 'roof_green:3',
+         'g': 'roof_green:4', 'W': 'ice:3', 'w': 'magic_cyan:2', 'e': 'shadow:0', 'E': 'fire:4', 'm': 'shadow:0',
+         'k': 'magic_cyan:2', 'K': 'magic_cyan:3', 'L': 'magic_cyan:4'},
+    notes='tier 2 colours of ink_slime (ZONES_QUESTS 2.3 levels 3-4): darker, older ink, amber eye glints, a little bigger.',
     lq={'field': 'enemies_field:ink_slime', 'battle': 'enemies_battle:ink_slime'})
-mob('ink_blot', R2.Ooze(body='abcd', glint='W', spot='Y', specks=[(0.3, -0.3), (-0.1, 0.3)], eye='e', eye_hi='E',
-                        core='kKL', size=(6.6, 5.2)),
-    name='Ink Blot', family='ooze', cell=(28, 28), extra=CAST, emissive='kKL',
-    pal={'0': 'shadow:0', 'a': 'ink:1', 'b': 'ink:2', 'c': 'ink:3', 'd': 'roof_purple:3', 'W': 'cloth_purple:5',
-         'Y': 'magic_cyan:3', 'e': 'shadow:0', 'E': 'magic_cyan:4', 'k': 'magic_cyan:2', 'K': 'magic_cyan:3',
-         'L': 'magic_cyan:4'},
+mob('ink_blot', SL.Slime(size=(7.0, 12.5)),
+    name='Ink Blot', family='ooze', cell=(28, 28), extra=CAST, emissive='kKLE',
+    pal={'0': 'shadow:0', 'a': 'ink:1', 'b': 'ink:2', 'c': 'roof_purple:2', 'd': 'roof_purple:3', 'g': 'roof_purple:4',
+         'W': 'metal:4', 'w': 'cloth_purple:5', 'e': 'shadow:0', 'E': 'magic_cyan:4', 'm': 'shadow:0',
+         'k': 'magic_cyan:2', 'K': 'magic_cyan:3', 'L': 'magic_cyan:4'},
     notes='cast = ink_spit (2.0 s): the ink drop gathers above it; spawn the bolt at points.cast.',
     lq={'field': 'enemies_field:ink_blot', 'battle': 'enemies_battle:ink_blot'})
 

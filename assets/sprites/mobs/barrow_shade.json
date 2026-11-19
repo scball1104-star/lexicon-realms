@@ -629,25 +629,25 @@
   "attack_left_0": {
    "hand": [
     18,
-    11
+    9
    ]
   },
   "attack_left_1": {
    "hand": [
-    6,
+    5,
     28
    ]
   },
   "attack_left_2": {
    "hand": [
-    12,
-    25
+    11,
+    26
    ]
   },
   "cast_left_0": {
    "hand": [
     13,
-    14
+    12
    ],
    "cast": [
     9,
@@ -657,7 +657,7 @@
   "cast_left_1": {
    "hand": [
     13,
-    13
+    11
    ],
    "cast": [
     9,
@@ -667,25 +667,25 @@
   "attack_right_0": {
    "hand": [
     13,
-    11
+    9
    ]
   },
   "attack_right_1": {
    "hand": [
-    25,
+    26,
     28
    ]
   },
   "attack_right_2": {
    "hand": [
-    19,
-    25
+    20,
+    26
    ]
   },
   "cast_right_0": {
    "hand": [
     18,
-    14
+    12
    ],
    "cast": [
     22,
@@ -695,7 +695,7 @@
   "cast_right_1": {
    "hand": [
     18,
-    13
+    11
    ],
    "cast": [
     22,

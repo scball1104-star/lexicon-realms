@@ -254,8 +254,13 @@ def two_cross(d):
 
 
 def scrolls3(d):
-    for k in range(3):
-        G.scroll(G.Draw(d.cv, d.ox + k * 0.2 * d.n, d.oy + (0.4 - k * 0.2) * d.n, d.n * 0.6))
+    """polish 2026-11-19: three rolled scrolls stacked like logs (two below, one on top), each a parchment roll with
+    a dark rolled end and a red tie, so the three read apart at 16 px (three overlapping flat scrolls were mud)"""
+    for (u0, v0) in ((0.06, 0.66), (0.5, 0.66), (0.28, 0.32)):
+        d.cap(u0 + 0.06, v0, u0 + 0.38, v0, 0.13, 0.13, 'NOPQ', sep=True)
+        d.ell(u0 + 0.06, v0, 0.07, 0.13, 'MN', flat='N')
+        d.px(u0 + 0.06, v0, 'O')
+        d.line(u0 + 0.26, v0 - 0.12, u0 + 0.26, v0 + 0.12, 'G')
 
 
 def well(d):

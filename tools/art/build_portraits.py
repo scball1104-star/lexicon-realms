@@ -70,6 +70,9 @@ LOOKS = {
 }
 
 
+HATS = ('hat_wide', 'chef', 'turban', 'cap', 'helm_round', 'hood_cloth')
+
+
 def hexf(h):
     return np.array(X.hex2rgb(h), np.float32) / 255
 
@@ -154,7 +157,8 @@ def paint(L):
     skin, hair = SKIN[L['skin']], HAIR[L['hair']]
     top_r, sec = L['top'], L['sec']
     FX, FY, FRX, FRY = 64, 60, 21, 26
-    style = L['style']
+    hat = L['style'] if L['style'] in HATS else None      # head-wear styles (NPC portraits, 2026-11-19)
+    style = L.get('under', 'none') if hat else L['style']
     # back hair (long, pony tail behind, hood)
     if style == 'long':
         c.poly([(36, 40), (92, 40), (100, 118), (28, 118)], hair, cx=64, cy=70, rx=40, ry=50)
@@ -268,6 +272,43 @@ def paint(L):
     if style == 'hood':
         hm = (((c.x - 64) / 30) ** 2 + ((c.y - 50) / 30) ** 2 <= 1) & ~((((c.x - 64) / 20) ** 2 + ((c.y - 64) / 22) ** 2) <= 1)
         c.shade(hm & (c.y < 90), L['hood'], 58, 40, 32, 34)
+    if style == 'bald':
+        for sx in (-1, 1):
+            m = (((c.x - (64 + sx * 21)) / 5.5) ** 2 + ((c.y - 58) / 10) ** 2 <= 1)
+            c.shade(m, hair, 60, 54, 26, 20, lo=-0.25, hi=0.9)
+        c.line([(54, 38), (62, 35)], ramp_at(skin, 1.0), 3)
+    if L.get('glasses'):
+        for sx in (-1, 1):
+            ex = FX + sx * 9
+            c.line([(ex - 7, 57), (ex + 7, 57), (ex + 7, 67), (ex - 7, 67), (ex - 7, 57)], '#b3b6c4', 2)
+        c.line([(FX - 2, 60), (FX + 2, 60)], '#b3b6c4', 2)
+    if hat:
+        H = L['hat']
+        if hat == 'hat_wide':
+            c.ell(64, 42, 50, 9, H, lo=-0.4, hi=1.2)
+            c.poly([(40, 42), (88, 42), (82, 14), (46, 14)], H, cx=60, cy=26, rx=28, ry=20)
+            c.line([(41, 36), (87, 36)], ramp_at(H, 0.1), 4)
+        elif hat == 'chef':
+            c.poly([(42, 46), (86, 46), (90, 14), (38, 14)], H, cx=58, cy=28, rx=30, ry=24)
+            c.ell(64, 16, 30, 13, H, lo=-0.2, hi=1.1)
+            c.poly([(40, 40), (88, 40), (88, 48), (40, 48)], H, flat=0.3)
+            c.line([(52, 20), (50, 38)], ramp_at(H, 0.4), 2)
+            c.line([(72, 20), (74, 38)], ramp_at(H, 0.4), 2)
+        elif hat == 'turban':
+            m = (((c.x - 64) / 32) ** 2 + ((c.y - 38) / 22) ** 2 <= 1) & (c.y < 50)
+            c.shade(m, H, 58, 30, 32, 24, lo=-0.3, hi=1.0)
+            for k in range(3):
+                c.line([(36 + k * 6, 46 - k * 9), (92 - k * 4, 30 + k * 6)], ramp_at(H, 0.35), 2)
+            c.ell(64, 34, 4.5, 5, L.get('jewel', [X.color('roof_red:2'), X.color('roof_red:4')]), lo=-0.3, hi=1.0)
+        elif hat in ('cap', 'helm_round'):
+            m = (((c.x - 64) / 28) ** 2 + ((c.y - 48) / 25) ** 2 <= 1) & (c.y < 50)
+            c.shade(m, H, 58, 38, 30, 26, lo=-0.25, hi=1.1)
+            c.poly([(35, 46), (93, 46), (93, 53), (35, 53)], H, flat=0.25 if hat == 'cap' else 0.6)
+            if hat == 'helm_round':
+                c.line([(64, 24), (64, 46)], ramp_at(H, 1.0), 3)
+        elif hat == 'hood_cloth':
+            hm = (((c.x - 64) / 33) ** 2 + ((c.y - 54) / 34) ** 2 <= 1) & ~(face_mask(c, FX, FY + 2, FRX - 1, FRY - 2))
+            c.shade(hm & (c.y < 100), H, 56, 40, 34, 36)
     # light rim, LQ style: a pale line on the top and left edge
     img = Image.fromarray((np.clip(c.rgb, 0, 1) * 255).astype(np.uint8), 'RGB')
     return img

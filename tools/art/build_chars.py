@@ -758,6 +758,73 @@ def frame(cls, lk, anim, d, i):
 
 
 def dead_frame(cls, lk):
+    """Polish 2026-11-19: a drawn lying pose, not the down stand rotated (whose light came from the wrong side and
+    whose head read as a ball). The profile (left view: closed eyes, no arms) is laid on its back by a TRANSPOSE,
+    which keeps the upper-left light (lit top stays lit, lit front becomes the lit top edge): head on the left, face
+    up. The legs are shortened by a few columns so the body fits the 32 px cell, the near arm flops out onto the
+    ground toward the viewer, hand open, and the weapon lies dropped beside it."""
+    C = CLASSES[cls]
+    cv = D.canvas()
+    if C.get('cape'):
+        g, x, y = P.CAPE['left']
+        D.place(cv, g, x, y)
+    body, _ = body_layer(cls, 'left', 'idle', 0)
+    D.over(cv, body)
+    D.over(cv, head_layer(lk, 'left', closed=True))
+    if C.get('caps'):
+        for (g, x, y) in P.CAPS[C['caps']].get('left', []):
+            D.place(cv, g, x, y)
+    ys, xs = np.nonzero(cv != '.')
+    crop = cv[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    lay = crop.T.copy()                               # head left, face up, light still upper left
+    # shorten the legs: drop columns from the shins until it fits with a margin
+    h, w = lay.shape
+    head_w = 13
+    drop = max(0, w - 30)
+    if drop:
+        keep = [c for c in range(w)]
+        legs = list(range(w - 7, w - 2))              # shin columns (feet stay)
+        for c in legs[:drop]:
+            keep.remove(c)
+        lay = lay[:, keep]
+        h, w = lay.shape
+    out = D.canvas()
+    x0 = (D.CW - w) // 2
+    y0 = D.CH - h - 3
+    for yy in range(h):
+        for xx in range(w):
+            if lay[yy, xx] != '.':
+                out[y0 + yy, x0 + xx] = lay[yy, xx]
+    # the near arm flopped out onto the ground toward the viewer (body coords for limb())
+    sx, sy = x0 + head_w + 2 - D.OX, y0 + h - 3 - D.OY
+    hx, hy = sx + 6, D.CH - 2 - D.OY
+    D.limb(out, [(sx, sy), (sx + 1, hy - 1), (hx, hy)], 3, sleeve=C['sleeve'], hand=C['hand'], cuff=C.get('cuff'))
+    pal = dict(lk['pal']); pal['glow'] = GLOW[cls]
+    wcv = D.canvas()
+    W = C['main'] or C['off']
+    gx, gy = hx, D.CH - 2 - D.OY                      # body coords, the ground row in front of the body
+    if W == 'sword':
+        draw_sword(wcv, (gx + 2, gy), 0, L=7)
+    elif W == 'staff':
+        draw_staff(wcv, (gx + 1, gy), 0, up=11, down=1)
+    elif W == 'quill':
+        draw_tome(wcv, 'front', (gx + 6, gy - 1)); draw_quill(wcv, (gx + 1, gy), 20)
+    elif W == 'bow':
+        draw_bow(wcv, (gx + 7, gy - 1), -1, vertical=False, span=6)
+    elif W == 'dagger':
+        draw_dagger(wcv, (gx + 2, gy), 10); draw_dagger(wcv, (x0 - D.OX - 2, gy), 170)
+    img, emi = D.colourize(out, pal)
+    wimg, wemi = D.colourize(wcv, pal)
+    res = X.blank(D.CW, D.CH)
+    X.paste(res, wimg, 0, 0)
+    X.paste(res, img, 0, 0)
+    emi_out = X.blank(D.CW, D.CH)
+    X.paste(emi_out, wemi, 0, 0)
+    X.paste(emi_out, emi, 0, 0)
+    return res, emi_out
+
+
+def dead_frame_wave1(cls, lk):
     p_img, p_emi, _ = frame(cls, lk, 'hurt', 'down', 0)
     # a fresh stand with closed eyes and arms at the sides, no weapon, lying down (rotated)
     C = CLASSES[cls]

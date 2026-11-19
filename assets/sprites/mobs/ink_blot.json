@@ -591,13 +591,13 @@
   "attack_down_0": {
    "mouth": [
     14,
-    22
+    23
    ]
   },
   "attack_down_1": {
    "mouth": [
     14,
-    21
+    22
    ]
   },
   "attack_down_2": {
@@ -609,18 +609,18 @@
   "cast_down_0": {
    "cast": [
     14,
-    12
+    10
    ]
   },
   "cast_down_1": {
    "cast": [
     14,
-    11
+    9
    ]
   },
   "attack_left_0": {
    "mouth": [
-    7,
+    6,
     23
    ]
   },
@@ -638,19 +638,19 @@
   },
   "cast_left_0": {
    "cast": [
-    12,
-    12
+    13,
+    10
    ]
   },
   "cast_left_1": {
    "cast": [
-    12,
-    11
+    13,
+    9
    ]
   },
   "attack_right_0": {
    "mouth": [
-    20,
+    21,
     23
    ]
   },
@@ -668,26 +668,26 @@
   },
   "cast_right_0": {
    "cast": [
-    15,
-    12
+    14,
+    10
    ]
   },
   "cast_right_1": {
    "cast": [
-    15,
-    11
+    14,
+    9
    ]
   },
   "attack_up_0": {
    "mouth": [
     14,
-    24
+    23
    ]
   },
   "attack_up_1": {
    "mouth": [
     14,
-    17
+    19
    ]
   },
   "attack_up_2": {
@@ -699,13 +699,13 @@
   "cast_up_0": {
    "cast": [
     14,
-    12
+    10
    ]
   },
   "cast_up_1": {
    "cast": [
     14,
-    11
+    9
    ]
   }
  },

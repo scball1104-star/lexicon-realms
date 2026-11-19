@@ -1,0 +1,220 @@
+{
+ "image": "npc_heads.png",
+ "cell": [
+  12,
+  12
+ ],
+ "origin": [
+  0,
+  0
+ ],
+ "frameColor": "#14101e",
+ "backColor": "#251d34",
+ "inner": [
+  1,
+  1,
+  10,
+  10
+ ],
+ "frames": {
+  "head_mael": [
+   0,
+   0,
+   12,
+   12
+  ],
+  "head_hob": [
+   12,
+   0,
+   12,
+   12
+  ],
+  "head_holt": [
+   24,
+   0,
+   12,
+   12
+  ],
+  "head_hazel": [
+   36,
+   0,
+   12,
+   12
+  ],
+  "head_iris": [
+   48,
+   0,
+   12,
+   12
+  ],
+  "head_tess": [
+   60,
+   0,
+   12,
+   12
+  ],
+  "head_sloe": [
+   72,
+   0,
+   12,
+   12
+  ],
+  "head_mira": [
+   84,
+   0,
+   12,
+   12
+  ],
+  "head_bram": [
+   0,
+   12,
+   12,
+   12
+  ],
+  "head_oren": [
+   12,
+   12,
+   12,
+   12
+  ],
+  "head_garrick": [
+   24,
+   12,
+   12,
+   12
+  ],
+  "head_pell": [
+   36,
+   12,
+   12,
+   12
+  ],
+  "head_cobb": [
+   48,
+   12,
+   12,
+   12
+  ],
+  "head_nella": [
+   60,
+   12,
+   12,
+   12
+  ],
+  "head_lark": [
+   72,
+   12,
+   12,
+   12
+  ],
+  "head_wick": [
+   84,
+   12,
+   12,
+   12
+  ],
+  "head_pip": [
+   0,
+   24,
+   12,
+   12
+  ],
+  "head_edda": [
+   12,
+   24,
+   12,
+   12
+  ],
+  "head_penny": [
+   24,
+   24,
+   12,
+   12
+  ],
+  "head_quill": [
+   36,
+   24,
+   12,
+   12
+  ],
+  "head_brindle": [
+   48,
+   24,
+   12,
+   12
+  ],
+  "head_tamsin": [
+   60,
+   24,
+   12,
+   12
+  ],
+  "head_odo": [
+   72,
+   24,
+   12,
+   12
+  ],
+  "head_sorrel": [
+   84,
+   24,
+   12,
+   12
+  ]
+ },
+ "npcs": {
+  "mael": "head_mael",
+  "hob": "head_hob",
+  "holt": "head_holt",
+  "hazel": "head_hazel",
+  "iris": "head_iris",
+  "tess": "head_tess",
+  "sloe": "head_sloe",
+  "mira": "head_mira",
+  "bram": "head_bram",
+  "oren": "head_oren",
+  "garrick": "head_garrick",
+  "pell": "head_pell",
+  "cobb": "head_cobb",
+  "nella": "head_nella",
+  "lark": "head_lark",
+  "wick": "head_wick",
+  "pip": "head_pip",
+  "edda": "head_edda",
+  "penny": "head_penny",
+  "quill": "head_quill",
+  "lark_escort": "head_lark",
+  "brindle": "head_brindle",
+  "tamsin": "head_tamsin",
+  "odo": "head_odo",
+  "sorrel": "head_sorrel"
+ },
+ "sprite": {
+  "mael": "npc_elder",
+  "hob": "npc_innkeeper",
+  "holt": "npc_guard",
+  "hazel": "npc_parent",
+  "iris": "npc_scholar",
+  "tess": "npc_tess",
+  "sloe": "npc_sloe",
+  "mira": "mira",
+  "bram": "bram",
+  "oren": "npc_baker",
+  "garrick": "npc_smith",
+  "pell": "npc_shopkeeper",
+  "cobb": "npc_farmer",
+  "nella": "npc_ferry",
+  "lark": "npc_child_b",
+  "wick": "npc_child_a",
+  "pip": "npc_bellkeeper",
+  "edda": "npc_old_woman",
+  "penny": "npc_penny",
+  "quill": "npc_quill",
+  "lark_escort": "npc_child_b",
+  "brindle": "npc_brindle",
+  "tamsin": "npc_tamsin",
+  "odo": "npc_odo",
+  "sorrel": "npc_sorrel"
+ },
+ "notes": "Target-frame / nameplate heads for every NPC in src/data/npcs.js, LQ ui/heads.png format: 12x12 including a 1 px #14101e frame around a 10x10 head on #251d34; draw top-left at the slot. Look up by npc id: npcs[<npc id>] -> frame name (lark_escort shares lark). head_mira / head_bram are LQ's own; the rest are hand-pixeled 10x10 chibi heads in each NPC's field-sprite colours (front facing, like LQ's party heads). Built by tools/art/build_npcs.py."
+}

@@ -114,6 +114,78 @@ vendored with its licence in `tools/art/fonts/`.
 128 px and box-reduced like LQ's, on LQ's portrait blue with the pale top-left rim; skin, hair and outfit ramps are the
 look's own from `build_chars.py`. Build: `python tools/art/build_portraits.py`.
 
+### NPCs (polish pass, 2026-11-19): field sprites, heads, portraits
+
+Build: `python tools/art/build_npcs.py` (reads LQ read-only, writes the three outputs below; asserts every NPC id in
+`src/data/npcs.js` has art). Preview: `tools/art/out/polish_npcs.png` (each NPC's field sprite, head and portrait at 3x
+on grass) and `polish_npcs_1x.png` (heads and portraits at true size on the HUD blue).
+
+**Field sprites: `assets/sprites/lq/npcs.png/.json`** (the atlas the renderer already loads as `npcs`). LQ's npcs atlas
+byte for byte above row 1808 (no existing frame moved); Realms bands appended below in the same block format
+(`<key>_<down|left|right|up>_<0|1|2|blink>`, anims `<key>_walk_<dir>` / `<key>_idle_<dir>`, 24x32, origin 12,31):
+
+| key | what |
+|---|---|
+| `npc_brindle`, `npc_tamsin`, `npc_odo` | LQ x1_npcs, copied pixel for pixel. **Live now**: npcs.js already names these keys |
+| `npc_sloe` | new: Tess's grid in ink and plum, a violet scarf over the lower face (Inkblade trainer) |
+| `npc_sorrel` | new: Hob's head re-haired russet on Cobb's body in peat-brown work clothes, red neckerchief |
+| `npc_penny` | new: Nella's grid, dark skin and hair, Pell's shop gold (she shared Pell's bearded sprite) |
+| `npc_quill` | new: the scholar grid with grey hair and a green pilgrim robe (she shared Iris's sprite) |
+
+**Heads: `assets/portraits/npc_heads.png/.json`**: 12x12, LQ `ui/heads.png` format (1 px `#14101e` frame, 10x10 head on
+`#251d34`), frame `head_<npc id>`. `head_mira` / `head_bram` are LQ's own; the rest are hand-pixeled 10x10 chibi heads
+like LQ's party heads, in each NPC's field-sprite colours (grids in `build_npcs.HEAD` + `SPEC`).
+
+**Portraits: `assets/portraits/npc_portraits.png/.json`**: 32x32 with LQ's bevel, frame `<npc id>_32`. LQ's own,
+copied, for mael mira bram hazel iris tess hob garrick pell nella pip; painted (build_portraits engine, now with hats:
+`hat_wide`, `chef`, `turban`, `cap`, `helm_round`, `hood_cloth`, plus `bald` and `glasses`) for holt sloe oren cobb lark
+wick edda penny quill brindle tamsin odo sorrel. `lark_escort` shares lark's head and portrait.
+
+**Mapping for the integrator** (both JSONs carry `npcs`: npc id -> frame name, and `sprite`: npc id -> field key):
+
+- UI target frame: draw `npc_heads.json` frame `npcs[<npc id>]` (= `head_<id>`, `head_lark` for `lark_escort`).
+  `gfx.head(ctx, who, ...)` reads `art.heads.frames['head_' + who]` from `assets/ui/heads.json`, so: load
+  `assets/portraits/npc_heads.png/.json` in `src/ui/uiassets.js` (e.g. `npcHeads`, `npcHeadsImg`) and have `head()` try
+  that atlas first, then the LQ one. Pass the **npc id** (`npc.id`), not the sprite key.
+- UI dialog window: `npc_portraits.json` frame `npcs[<npc id>]` (= `<id>_32`). Same naming as `assets/ui/portraits.json`,
+  so `gfx.portrait(ctx, npc.id, x, y, 32)` works once the npc atlas is tried first.
+- Renderer: no code change. Data change in `src/data/npcs.js` (not edited by the art lane), the `sprite` field:
+
+  | npc id | sprite now | set to |
+  |---|---|---|
+  | `sloe` | `npc_vessa` (stand-in) | `npc_sloe` |
+  | `sorrel` | `npc_farmer` (Cobb's) | `npc_sorrel` |
+  | `penny` | `npc_shopkeeper` (Pell's, bearded) | `npc_penny` |
+  | `quill` | `npc_scholar` (Iris's) | `npc_quill` |
+
+  Every other NPC keeps its current sprite key; the heads and portraits were drawn to match those sprites.
+
+### Polish pass (2026-11-19): what changed in the existing atlases
+
+No frame name, rect, cell, origin or anim changed in any atlas (checked against the pre-pass copies in
+`tools/art/out/_before/`). Pixels only:
+
+- **Slimes** (`ink_slime`, `ink_slime_deep`, `ink_blot`): new rig `tools/art/mob_slime.py`. Drop silhouette with a
+  leaning tip, darkest-step outline, glossy specular blob and a bounce-light rim, big eyes with a catch-light, a mouth
+  (open on the lunge, `> <` on hurt), ink drips, a squash-and-stretch idle and a hop walk. Ink slime is a bluer teal than
+  the grass. Sheet: `out/polish_slimes.png`.
+- **Beasts from the front and back** (`briar_wolf`, `thornback_wolf`, `mist_wolf`, `gorse_boar`, `fold_ram`): the front
+  view is now a standing beast seen from the 3/4 camera (a wide body loaf behind a low head, four paws showing, tail tip
+  over the back); the back view is one wide rump with the tail over it and the head small at the far end. Side views
+  untouched except the ram: thick ridged spiral horns (all views) and fleece texture on the side. `out/polish_beasts.png`.
+- **Crow**: drawn 1.4x larger; broad two-edged wings with a covert line, the down-stroke now a wide wing below the body
+  (side) and spread wings (front). **Wraiths**: the near sleeve in profile is a flared bell sleeve reaching forward with a
+  ragged cuff (was a straight bar); the death robe heap is bigger with folds. `out/polish_crow_wraiths.png`.
+- **Player dead pose** (`look<n>_dead_down_0`, all 5 classes): a lying profile (head left, face up, light kept upper
+  left), an arm flopped onto the ground, the weapon dropped by the hand. `out/polish_dead.png`.
+- **Talent glyphs** at 16 px: `bell_waves` (smaller bell, bold sound arcs on both sides), `scrolls3` (three rolled
+  scrolls stacked like logs), `veins` (an ink drop with bright cyan veins), `crossed_swords` (slim blades, guards in the
+  corners). `out/polish_icons.png`.
+
+`python tools/art/polish_sheets.py` and `python tools/art/polish_icons_preview.py` rebuild the before/after sheets (3x,
+real grass and dirt tiles, Warden for scale). `python tools/art/check_determinism.py` runs every builder twice and
+compares hashes (last run: DETERMINISTIC, 91 files).
+
 ### Previews: `tools/art/out/`
 
 Wave 2: `mob_<id>_4x.png` (every frame of a mob at 4x), `mobs_overview_3x.png` (every mob beside the Warden on grass),
@@ -219,19 +291,22 @@ what is left of them is listed here.
   most of the impact.
 - Up-facing attacks are mostly hidden by the body (the Wayfinder's bow is drawn over the shoulders, which is a
   cheat but reads).
-- `dead` is the down stand rotated 90 degrees, not a hand-drawn lying pose.
+- `dead` (fixed 2026-11-19: a drawn lying profile). Still: the legs are the profile's, so the lying body ends in a
+  block of boots; the head is large, as in every chibi KO.
 - Robes walk the LQ way (feet swap, hem sway, no bob), so Mender and Scribe walks are subtle.
 
-## Weak spots in the wave 2 art (known)
+## Weak spots in the wave 2 art (known, after the 2026-11-19 polish pass)
 
 - Mobs are code-sculpted from shaded shapes, not hand-pixeled like LQ's grids: they read and stay on-model in colour
-  and silhouette, but are softer than LQ's field sprites. The side views are the strongest; front and back views of
-  the four-legged beasts are the weakest (the wolves read a little like seated dogs from the front).
-- The crow is small (LQ has no crow to follow); its down-stroke wing reads thin.
-- Wraith side views: the near sleeve hangs as a straight bar. The death "empty robe" pile is small.
-- The ram's horns are tiny in profile; wool is flat in the side view.
+  and silhouette, but are softer than LQ's field sprites. The side views are still the strongest.
+- Beasts from the front: no longer seated dogs, but the wolves read a little bear-like (broad loaf, low head), and the
+  **boar's front view is the weakest frame left** (a stump: the loaf sits on the head like a cap). A hand-pixeled
+  front grid per beast would beat the rig here.
+- Ram: side wool texture is a regular pattern of curl marks, a little quilted at 3x; reads as fleece at 1x.
+- Crow: the side down-stroke wing is a broad slab without separated primaries.
 - Hurt frames are a recoil pose only; the renderer should flash the sprite white for the hit.
-- Talent icons at 16 px: a few busy glyphs (bell with sound waves, three scrolls, ink veins, crossed swords) are
-  muddy at 1x; the corner badges carry the difference between rank themes of one glyph.
-- Portraits are painted procedurally, simpler than LQ's painted portraits (no hair strands or cloth folds); good at
-  32 px, plain at 64.
+- Talent icons: the four muddy glyphs were redrawn; `scrolls3` is still the busiest at 1x.
+- Portraits: the 13 NPC portraits painted here (and the 15 class portraits) are procedural, plainer than LQ's painted
+  ones beside them in the same atlas (no hair strands, small eyes at 32 px). The LQ-copied ones are the reference.
+- NPC kitbashes: Sorrel shares Hob's face (re-haired), Quill and Penny keep the grids of Iris and Nella; distinct in
+  colour and costume, not in silhouette.

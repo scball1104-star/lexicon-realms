@@ -511,7 +511,7 @@
   "attack_down_0": {
    "mouth": [
     14,
-    18
+    19
    ]
   },
   "attack_down_1": {
@@ -528,50 +528,50 @@
   },
   "attack_left_0": {
    "mouth": [
-    6,
+    5,
     19
    ]
   },
   "attack_left_1": {
    "mouth": [
     3,
-    16
+    15
    ]
   },
   "attack_left_2": {
    "mouth": [
-    5,
+    4,
     18
    ]
   },
   "attack_right_0": {
    "mouth": [
-    21,
+    22,
     19
    ]
   },
   "attack_right_1": {
    "mouth": [
     24,
-    16
+    15
    ]
   },
   "attack_right_2": {
    "mouth": [
-    22,
+    23,
     18
    ]
   },
   "attack_up_0": {
    "mouth": [
     14,
-    20
+    19
    ]
   },
   "attack_up_1": {
    "mouth": [
     14,
-    14
+    15
    ]
   },
   "attack_up_2": {
@@ -581,7 +581,7 @@
    ]
   }
  },
- "notes": "tier 2 colours of ink_slime (ZONES_QUESTS 2.3 levels 3-4): darker, older ink.",
+ "notes": "tier 2 colours of ink_slime (ZONES_QUESTS 2.3 levels 3-4): darker, older ink, amber eye glints, a little bigger.",
  "lq": {
   "field": "enemies_field:ink_slime",
   "battle": "enemies_battle:ink_slime"

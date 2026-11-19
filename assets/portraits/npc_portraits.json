@@ -1,0 +1,230 @@
+{
+ "image": "npc_portraits.png",
+ "frames": {
+  "mael_32": [
+   0,
+   0,
+   32,
+   32
+  ],
+  "hob_32": [
+   32,
+   0,
+   32,
+   32
+  ],
+  "holt_32": [
+   64,
+   0,
+   32,
+   32
+  ],
+  "hazel_32": [
+   96,
+   0,
+   32,
+   32
+  ],
+  "iris_32": [
+   128,
+   0,
+   32,
+   32
+  ],
+  "tess_32": [
+   160,
+   0,
+   32,
+   32
+  ],
+  "sloe_32": [
+   192,
+   0,
+   32,
+   32
+  ],
+  "mira_32": [
+   224,
+   0,
+   32,
+   32
+  ],
+  "bram_32": [
+   0,
+   32,
+   32,
+   32
+  ],
+  "oren_32": [
+   32,
+   32,
+   32,
+   32
+  ],
+  "garrick_32": [
+   64,
+   32,
+   32,
+   32
+  ],
+  "pell_32": [
+   96,
+   32,
+   32,
+   32
+  ],
+  "cobb_32": [
+   128,
+   32,
+   32,
+   32
+  ],
+  "nella_32": [
+   160,
+   32,
+   32,
+   32
+  ],
+  "lark_32": [
+   192,
+   32,
+   32,
+   32
+  ],
+  "wick_32": [
+   224,
+   32,
+   32,
+   32
+  ],
+  "pip_32": [
+   0,
+   64,
+   32,
+   32
+  ],
+  "edda_32": [
+   32,
+   64,
+   32,
+   32
+  ],
+  "penny_32": [
+   64,
+   64,
+   32,
+   32
+  ],
+  "quill_32": [
+   96,
+   64,
+   32,
+   32
+  ],
+  "brindle_32": [
+   128,
+   64,
+   32,
+   32
+  ],
+  "tamsin_32": [
+   160,
+   64,
+   32,
+   32
+  ],
+  "odo_32": [
+   192,
+   64,
+   32,
+   32
+  ],
+  "sorrel_32": [
+   224,
+   64,
+   32,
+   32
+  ]
+ },
+ "npcs": {
+  "mael": "mael_32",
+  "hob": "hob_32",
+  "holt": "holt_32",
+  "hazel": "hazel_32",
+  "iris": "iris_32",
+  "tess": "tess_32",
+  "sloe": "sloe_32",
+  "mira": "mira_32",
+  "bram": "bram_32",
+  "oren": "oren_32",
+  "garrick": "garrick_32",
+  "pell": "pell_32",
+  "cobb": "cobb_32",
+  "nella": "nella_32",
+  "lark": "lark_32",
+  "wick": "wick_32",
+  "pip": "pip_32",
+  "edda": "edda_32",
+  "penny": "penny_32",
+  "quill": "quill_32",
+  "lark_escort": "lark_32",
+  "brindle": "brindle_32",
+  "tamsin": "tamsin_32",
+  "odo": "odo_32",
+  "sorrel": "sorrel_32"
+ },
+ "sprite": {
+  "mael": "npc_elder",
+  "hob": "npc_innkeeper",
+  "holt": "npc_guard",
+  "hazel": "npc_parent",
+  "iris": "npc_scholar",
+  "tess": "npc_tess",
+  "sloe": "npc_sloe",
+  "mira": "mira",
+  "bram": "bram",
+  "oren": "npc_baker",
+  "garrick": "npc_smith",
+  "pell": "npc_shopkeeper",
+  "cobb": "npc_farmer",
+  "nella": "npc_ferry",
+  "lark": "npc_child_b",
+  "wick": "npc_child_a",
+  "pip": "npc_bellkeeper",
+  "edda": "npc_old_woman",
+  "penny": "npc_penny",
+  "quill": "npc_quill",
+  "lark_escort": "npc_child_b",
+  "brindle": "npc_brindle",
+  "tamsin": "npc_tamsin",
+  "odo": "npc_odo",
+  "sorrel": "npc_sorrel"
+ },
+ "sources": {
+  "mael": "LQ portraits.png (mael_32), copied",
+  "hob": "LQ portraits.png (hob_32), copied",
+  "holt": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "hazel": "LQ portraits.png (hazel_32), copied",
+  "iris": "LQ portraits.png (iris_32), copied",
+  "tess": "LQ portraits.png (tess_32), copied",
+  "sloe": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "mira": "LQ portraits.png (mira_32), copied",
+  "bram": "LQ portraits.png (bram_32), copied",
+  "oren": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "garrick": "LQ portraits.png (garrick_32), copied",
+  "pell": "LQ portraits.png (pell_32), copied",
+  "cobb": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "nella": "LQ portraits.png (nella_32), copied",
+  "lark": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "wick": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "pip": "LQ portraits.png (pip_32), copied",
+  "edda": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "penny": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "quill": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "brindle": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "tamsin": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "odo": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours",
+  "sorrel": "painted (build_npcs.PAINT, build_portraits.paint) in the field sprite colours"
+ },
+ "notes": "Dialog-window portraits for every NPC in src/data/npcs.js, 32x32 like LQ's <name>_32 (bevel included). Look up by npc id: npcs[<npc id>] -> frame name (<id>_32; lark_escort shares lark). Same frame naming as assets/ui/portraits.json, so ui gfx.portrait(ctx, id, x, y, 32) works once this atlas is merged into (or tried before) art.portraits. Built by tools/art/build_npcs.py."
+}
