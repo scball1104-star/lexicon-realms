@@ -29,7 +29,7 @@ function saveState(world, id) {
   if (!e || e.kind !== 'player') return null;
   const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
   const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : { zone: e.zone, tx: Math.floor(e.x / 256), ty: Math.floor((e.y - 1) / 256) };
-  return { v: 1, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
+  return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
     bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: clone(e.bar), talents: clone(e.talents),
     quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
     // fix pass 1 (CONTRACTS 2.4): the sim-owned fields (hp, resource, cooldowns ticks left, lasting buffs, quest bag, pending loot)
@@ -42,7 +42,7 @@ function specFor(c) {
   const at = s.zone && C.zones[s.zone] && s.tx != null ? { zone: s.zone, x: s.tx, y: s.ty } : {};
   return { name: c.name, cls: c.cls, look: c.look, ...at, level: s.level, xp: s.xp, gold: s.gold, bag: s.bag, bags: s.bags, equip: s.equip,
     known: s.known, bar: s.bar, talents: s.talents, quests: stripEscorts(s.quests), questsDone: s.questsDone, nodesUsed: s.nodesUsed,
-    respecs: s.respecs, lantern: s.lantern, qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras };
+    respecs: s.respecs, lantern: s.lantern, qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, build: s.build };
 }
 function relog(world, id) { const s = saveState(world, id); const e = world.get(id); world.removePlayer(id); return { id: world.addPlayer(specFor({ name: e.name, cls: e.cls, look: e.look, state: s })), save: s }; }
 

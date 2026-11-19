@@ -117,11 +117,11 @@ async function boot() {
   /** addPlayer spec for a stored character: a new hero, or the full restore (CONTRACTS 2.4). */
   function specFor(c) {
     const s = c.state;
-    if (!s) return { name: c.name, cls: c.cls, look: c.look };
+    if (!s) return { name: c.name, cls: c.cls, look: c.look, ...(c.build ? { build: c.build } : {}) };   // save v2: a migrated hero not yet played
     const at = s.zone && content.zones[s.zone] && s.tx != null ? { zone: s.zone, x: s.tx, y: s.ty } : {};
     return { name: c.name, cls: c.cls, look: c.look, ...at, level: s.level, xp: s.xp, gold: s.gold, bag: s.bag, bags: s.bags, equip: s.equip,
       known: s.known, bar: s.bar, talents: s.talents, quests: stripEscorts(s.quests), questsDone: s.questsDone, nodesUsed: s.nodesUsed,
-      respecs: s.respecs, lantern: s.lantern,
+      respecs: s.respecs, lantern: s.lantern, build: s.build || c.build,     // build: Builds 2 (save v2, src/data/builds2.js)
       // fix pass 1: the sim-owned part (health, resource, cooldowns, lasting buffs, quest bag, loot waiting, escorts)
       qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts };
   }
@@ -134,7 +134,7 @@ async function boot() {
     const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
     // a dead hero saves at the lantern they will wake at
     const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : { zone: e.zone, tx: Math.floor(e.x / (TILE * 16)), ty: Math.floor((e.y - 1) / (TILE * 16)) };   // SUB -> tiles
-    return { v: 1, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
+    return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
       bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: clone(e.bar), talents: clone(e.talents),
       quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
       ...(world.saveFields ? clone(world.saveFields(id)) || {} : {}) };

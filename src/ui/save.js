@@ -5,14 +5,24 @@
 //   store.list()  store.add({ name, cls, look })  store.remove(id)  store.update(id, patch)  store.get(id)
 //   validateName('scott', store.list()) -> { ok: true, name: 'Scott' } | { ok: false, reason }
 //
-// Schema v1 (key `lexicon_realms.chars`):
-//   { v: 1, nextId: 3, chars: [{ id, name, cls, look, level, xp, zone, x, y, createdSeq, lastPlayedSeq }] }
+// Schema v2 (key `lexicon_realms.chars`; Builds 2, docs/design/BUILDS_2.md section 8):
+//   { v: 2, nextId: 3, seq: 9, chars: [{ id, name, cls, look, level, xp, zone, zoneName, x, y, createdSeq, lastPlayedSeq,
+//     state?, hinted?, build?, migratedFrom? }] }
+//   state: the full character (CONTRACTS 2.4 addPlayer restore) with `v: 2` and `build` (src/data/builds2.js newBuild:
+//   talent ranks, undo, skill picks, signatures, leaning, auto-spend, respec counter, free respec flag).
+//   build at the top level: only for a v1 hero that never entered the world (no state yet); entering moves it into state.
 // `x, y` are tiles (null = the class start spot). Seqs are counters, not wall-clock times.
-// A corrupt or newer-version blob is never overwritten: it is copied to `<key>.bad` and the list starts empty.
+//
+// v1 -> v2 (migrateV1): every hero keeps name, class, look, level, XP, gold, gear, bags, quests and position; a build is
+// added with a one-time free respec flagged (`freeRespecWhy: 'builds2'`), because today's talents are retired by Builds 2.
+// The v1 blob is copied to `<key>.v1` the first time it is migrated, so a rollback can always get it back.
+// A corrupt, unknown or newer-version blob is never overwritten: it is copied to `<key>.bad` and the list starts empty.
+import { buildFromV1 } from '../data/builds2.js';
 
 export const CHAR_KEY = 'lexicon_realms.chars';
 export const OPTIONS_KEY = 'lexicon_realms.options';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+export const STATE_VERSION = 2;                  // the per-hero `state` blob (main.js saveState)
 export const MAX_CHARS = 6;
 export const NAME_MIN = 2, NAME_MAX = 12;
 export const CLASS_IDS = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
@@ -32,28 +42,56 @@ export function validateName(raw, existing = []) {
 
 function blank() { return { v: SAVE_VERSION, nextId: 1, seq: 0, chars: [] }; }
 
-/** Bring any stored blob to the current schema, or report why not. */
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const validChar = (c) => isObj(c) && typeof c.name === 'string' && CLASS_IDS.includes(c.cls);
+
+/** One v1 hero in the v2 shape. Nothing the hero earned is dropped: every field of the old state is kept. */
+export function migrateCharV1(c) {
+  const out = { id: c.id | 0, name: c.name, cls: c.cls, look: Math.max(0, Math.min(LOOKS - 1, c.look | 0)), level: Math.max(1, c.level | 0 || 1),
+    xp: c.xp | 0, zone: c.zone || null, zoneName: c.zoneName || null, x: c.x ?? null, y: c.y ?? null, createdSeq: c.createdSeq | 0, lastPlayedSeq: c.lastPlayedSeq | 0,
+    ...(c.hinted ? { hinted: true } : {}), migratedFrom: 1 };
+  const s = isObj(c.state) ? c.state : null;
+  if (s) {
+    const level = Math.max(1, (s.level | 0) || out.level);
+    const build = buildFromV1({ cls: c.cls, level, xp: s.xp | 0, known: Array.isArray(s.known) ? s.known : [], talents: isObj(s.talents) ? s.talents : {},
+      questsDone: Array.isArray(s.questsDone) ? s.questsDone : [] });
+    out.state = { ...s, v: STATE_VERSION, build };
+  } else {
+    out.build = buildFromV1({ cls: c.cls, level: out.level, xp: out.xp });
+  }
+  return out;
+}
+
+/** Bring any stored blob to the current schema, or report why not. `migrated` names the version it came from. */
 export function migrate(raw) {
   if (raw == null) return { data: blank(), bad: false };
   let o;
   try { o = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return { data: blank(), bad: true }; }
-  if (!o || typeof o !== 'object' || !Array.isArray(o.chars)) return { data: blank(), bad: true };
+  if (!isObj(o) || !Array.isArray(o.chars)) return { data: blank(), bad: true };
+  if (o.v === 1) {
+    const chars = o.chars.filter(validChar).slice(0, MAX_CHARS).map(migrateCharV1);
+    const nextId = Math.max(o.nextId | 0, 1 + Math.max(0, ...chars.map((c) => c.id)));
+    return { data: { v: SAVE_VERSION, nextId, seq: o.seq | 0, chars }, bad: false, migrated: 1 };
+  }
   if (o.v !== SAVE_VERSION) return { data: blank(), bad: true };       // newer or unknown: keep it aside, never clobber
-  const chars = o.chars.filter((c) => c && typeof c.name === 'string' && CLASS_IDS.includes(c.cls)).slice(0, MAX_CHARS)
-    .map((c) => ({ id: c.id | 0, name: c.name, cls: c.cls, look: Math.max(0, Math.min(LOOKS - 1, c.look | 0)), level: Math.max(1, c.level | 0 || 1),
-      xp: c.xp | 0, zone: c.zone || null, zoneName: c.zoneName || null, x: c.x ?? null, y: c.y ?? null, createdSeq: c.createdSeq | 0, lastPlayedSeq: c.lastPlayedSeq | 0,
-      // the full character (CONTRACTS 2.4 addPlayer restore: gold, bag, equip, known, bar, talents, quests, lantern ...) and the one-time hint flag
-      ...(c.state && typeof c.state === 'object' ? { state: c.state } : {}), ...(c.hinted ? { hinted: true } : {}) }));
-  const nextId = Math.max(o.nextId | 0, 1 + Math.max(0, ...chars.map((c) => c.id)));
-  return { data: { v: SAVE_VERSION, nextId, seq: o.seq | 0, chars }, bad: false };
+  // already v2: loaded as stored (a valid blob comes back unchanged); only entries that cannot be a hero are dropped
+  const chars = o.chars.filter(validChar).slice(0, MAX_CHARS);
+  if (chars.length === o.chars.length && Number.isInteger(o.nextId) && o.nextId > Math.max(0, ...chars.map((c) => c.id | 0))) return { data: o, bad: false };
+  const nextId = Math.max(o.nextId | 0, 1 + Math.max(0, ...chars.map((c) => c.id | 0)));
+  return { data: { ...o, nextId, chars }, bad: false };
 }
 
 export function createCharStore(storage) {
   const read = () => {
     let raw = null;
     try { raw = storage ? storage.getItem(CHAR_KEY) : null; } catch { raw = null; }
-    const { data, bad } = migrate(raw);
+    const { data, bad, migrated } = migrate(raw);
     if (bad && raw != null) { try { storage.setItem(CHAR_KEY + '.bad', String(raw)); } catch { /* full or blocked */ } }
+    // keep the old blob once, then write the new one so the next load is a plain v2 load
+    if (migrated && raw != null) {
+      try { if (storage.getItem(CHAR_KEY + '.v1') == null) storage.setItem(CHAR_KEY + '.v1', String(raw)); } catch { /* full or blocked */ }
+      try { storage.setItem(CHAR_KEY, JSON.stringify(data)); } catch { /* the migrated list still loads from memory */ }
+    }
     return data;
   };
   let data = read();

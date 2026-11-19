@@ -895,3 +895,29 @@ Scott, 2026-11-19: "Each class should have its own unique strength(s) and weakne
 - New `when` conditions: `targetTrait`, `attackerTrait`, `targetCasting`, `inCombatFor` (seconds; reads `e.combatSince`, set when a hero enters combat).
 - Talent branches carry `kind` (`strength`, `counter` or `flavor`, one of each per class) and `purpose` (at most 28 characters, shown in the talents window).
 - A move effect `kind: 'blink'` cast on self with no attacker goes away from where the mob faces (its foe), not toward it.
+
+## Builds 2 phase 1 additions (2026-11-19, BEHIND A FLAG)
+
+Approved design: `docs/design/BUILDS_2.md`. Off for players: `content.progression.builds2.enabled` is `false`
+(`src/data/progression.js`); while off, every hero runs today's talents and every `b2_*` command refuses with
+`b2_fail { reason: 'off' }`. Phase 1 covers the Mender only (`builds2.classes`).
+
+- **Data:** `src/data/builds2.js`: `BUILDS2[cls] = { tracks, nodes, signatures, builds, defaultBuild, baseline }`,
+  `SKILL_PICKS` (all five classes), `RULES`, `B2_ABILITIES` (the Blessings; joined to the sim's ability table only when
+  the flag is on). `content.builds2 = { rules, classes, skillPicks, abilities }` (`buildContent`).
+- **Entity:** `e.build` (always; the save shape) and `e.b2` (true when the flag is on and the class has tracks). Node
+  effects reuse the talent effect engine (`src/sim/data.js` reads `e.build.ranks` when `e.b2`).
+- **Rules:** `src/sim/builds2.js` (`C.b2`): 1 point per level from 1; tier n needs (n - 1) x 2 in its track; tier 3 fork
+  exclusive; keystones need level 10, 1 slot at 10, 2 at 25, 3 at 40; undo the last 3 points free out of combat; respec
+  free once when flagged, free at a lantern under 10, at the trainer from 10 (first free, then 10 + 5 x level, cap 250);
+  skill picks at 1 (after the first kill), 3, 6; the other skill bought back at the trainer; auto-spend to level 5.
+- **Commands:** `b2_learn { node }`, `b2_undo`, `b2_respec { npc? }`, `b2_pick { level, ability }`, `b2_leaning { build }`,
+  `b2_auto { on }`, `b2_suggest`. **Events:** `b2_talent`, `b2_fail`, `b2_pick`, `b2_pick_ready`, `b2_respec`,
+  `b2_leaning`, `b2_auto`, `b2_brand_jump`. HUD: `hud.builds2` (null while off). Snapshot: `b2`, `build`.
+- **Effect engine additions:** conds `combatUnder`, `targetIsSelf`, `solo`, `cooling`; mod flag `direct`; stats
+  `overflowShield`, `leechLowest`, `autoSp`, `brandJump`; recipients `allies_near_target`, `lowest_ally`, `my_target`,
+  `excludeHolder`; `resource.pctOfMax`; object `pulseAllies`; proc and `consumeOn` ability lists; aura `recalc: true`;
+  script `all_light` (Pure Light) and effect script `unbroken`.
+- **Save v2** (`src/ui/save.js`): `SAVE_VERSION 2`; v1 migrates (every field kept, `state.v = 2`, `state.build` with a
+  flagged free respec, old talents kept in `build.legacyTalents`); the v1 blob is copied once to `<key>.v1`; a corrupt or
+  newer blob still goes to `<key>.bad`. `main.js` saves `state.v: 2` and passes `build` to `addPlayer`.

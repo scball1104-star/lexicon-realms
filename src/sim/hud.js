@@ -88,6 +88,10 @@ export function createHud(C) {
       target: t && t.zone === e.zone ? unitView(t, e.id) : null,
       xp: { cur: e.xp, need: G().xpToNext(e.level), level: e.level, cap: e.level >= C.P.maxLevel },
       talents: pts,
+      // Builds 2 (null while the flag is off): points, the gold-star node, open skill picks, what a respec costs
+      builds2: e.b2 ? { points: C.b2.points(e), suggested: C.b2.suggested(e), picks: C.b2.picksOpen(e), respec: C.b2.respecCost(e),
+        leaning: (C.b2.leaningOf(e) || {}).id || null, auto: !!e.build.auto, freeRespec: !!e.build.freeRespec, freeRespecWhy: e.build.freeRespecWhy || null,
+        undo: e.build.undo.length } : null,
       gold: e.gold || 0,
       inCombat: !!e.inCombat,
       autoOn: !!e.autoOn,

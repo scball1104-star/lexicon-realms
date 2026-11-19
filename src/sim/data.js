@@ -9,25 +9,40 @@ export const ticks = (sec) => Math.round((sec || 0) * TICK_HZ);
 export const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 
 export function createData(content) {
-  const abilities = { ...(content.mobAbilities || {}), ...(content.abilities || {}) };
+  // Builds 2 (src/data/builds2.js): its new skills join the table only when the flag is on, so the live game cannot learn them
+  const b2 = content.builds2 || null;
+  const b2On = !!(b2 && content.progression && content.progression.builds2 && content.progression.builds2.enabled);
+  const abilities = { ...(content.mobAbilities || {}), ...(content.abilities || {}), ...(b2On ? b2.abilities || {} : {}) };
   const classes = content.classes || {};
   const talentTrees = content.talents || {};
   const talentIndex = {};
   for (const [cls, tree] of Object.entries(talentTrees)) for (const t of Object.values(tree.talents)) talentIndex[t.id] = { ...t, cls };
+  // Builds 2 track nodes: their own index (ids start b2_), read from e.build.ranks when the hero runs Builds 2 (e.b2)
+  const b2Index = {};
+  if (b2) for (const [cls, c] of Object.entries(b2.classes || {})) for (const n of Object.values(c.nodes || {})) b2Index[n.id] = { ...n, cls };
   const cache = new Map();          // entity id -> { key, mods, procs, scripts, patches, eff: {} }
 
   function talentKey(e) {
     const t = e.talents || {};
-    return Object.keys(t).sort().map((k) => `${k}:${t[k]}`).join(',');
+    const key = Object.keys(t).sort().map((k) => `${k}:${t[k]}`).join(',');
+    if (!e.b2 || !e.build) return key;
+    const r = e.build.ranks || {};
+    return `${key}|b2|${Object.keys(r).sort().map((k) => `${k}:${r[k]}`).join(',')}`;
+  }
+  /** Every (node, rank) that applies to `e`: today's talents, plus the Builds 2 ranks when the hero runs Builds 2. */
+  function rankedNodes(e) {
+    const out = [];
+    for (const [id, r] of Object.entries(e.talents || {})) { const t = talentIndex[id]; if (t && r) out.push([t, r]); }
+    if (e.b2 && e.build) for (const [id, r] of Object.entries(e.build.ranks || {})) { const t = b2Index[id]; if (t && r) out.push([t, r]); }
+    return out;
   }
   function talentInfo(e) {
     const key = talentKey(e);
     let c = cache.get(e.id);
     if (c && c.key === key) return c;
     c = { key, mods: [], procs: [], scripts: new Set(), patches: {}, eff: {} };
-    for (const [id, r] of Object.entries(e.talents || {})) {
-      const t = talentIndex[id];
-      if (!t || !r) continue;
+    for (const [t, r] of rankedNodes(e)) {
+      const id = t.id;
       const fx = t.byRank[Math.min(r, t.byRank.length) - 1];
       if (!fx) continue;
       for (const m of fx.mods || []) c.mods.push({ ...m, src: id });
@@ -41,6 +56,9 @@ export function createData(content) {
       for (const m of pas.mods || []) c.mods.push({ ...m, src: 'class' });
       for (const p of pas.procs || []) c.procs.push({ ...p, src: 'class' });
     }
+    // Builds 2 baseline strengths and weaknesses (BUILDS_2 4.x, e.g. the Mender's healing +10%)
+    const base = e.b2 && b2 && b2.classes[e.cls] ? b2.classes[e.cls].baseline : null;
+    if (base) for (const m of base.mods || []) c.mods.push({ ...m, src: 'b2_baseline' });
     cache.set(e.id, c);
     return c;
   }
@@ -62,7 +80,7 @@ export function createData(content) {
 
   const hasScript = (e, name) => e.kind === 'player' && talentInfo(e).scripts.has(name);
 
-  return { abilities, classes, talentTrees, talentIndex, talentInfo, ability, hasScript, forget: (id) => cache.delete(id) };
+  return { abilities, classes, talentTrees, talentIndex, b2Index, b2, b2On, talentInfo, ability, hasScript, forget: (id) => cache.delete(id) };
 }
 
 // ------------------------------------------------------------------------------------------- ability patch engine

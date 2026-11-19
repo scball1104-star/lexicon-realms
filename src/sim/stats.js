@@ -24,6 +24,11 @@ export function createStats(C) {
     return null;
   }
 
+  function isSolo(e) {
+    for (const u of C.state.ents) if (u.kind === 'player' && u !== e && !u.dead && u.zone === e.zone && distPx(u, e) <= 256) return false;
+    return true;
+  }
+
   function cond(e, when, ctx = {}) {
     if (!when) return true;
     const t = ctx.target;
@@ -49,6 +54,12 @@ export function createStats(C) {
         case 'attackerTrait': if (!ctx.attacker || !ctx.attacker.mob || !(ctx.attacker.mob.traits || []).includes(v)) return false; break;
         case 'targetCasting': if (!t || !!t.cast !== v) return false; break;
         case 'inCombatFor': if (!e.inCombat || C.state.tick - (e.combatSince || 0) < v * TICK_HZ) return false; break;
+        // Builds 2 (src/data/builds2.js): the first v s of a fight; a heal on yourself; no other hero within 16 tiles;
+        // an ability of yours still cooling down
+        case 'combatUnder': if (!e.inCombat || C.state.tick - (e.combatSince || 0) >= v * TICK_HZ) return false; break;
+        case 'targetIsSelf': if ((!!t && t.id === e.id) !== v) return false; break;
+        case 'solo': if (isSolo(e) !== v) return false; break;
+        case 'cooling': if (!((e.cd && e.cd[v]) > C.state.tick)) return false; break;
         default: return false;
       }
     }
@@ -65,6 +76,7 @@ export function createStats(C) {
       else if (m.school !== ctx.school) return false;
     }
     if (m.periodic && !ctx.periodic) return false;
+    if (m.direct && ctx.periodic) return false;          // Builds 2: direct (not over time) only
     return true;
   }
 
@@ -209,5 +221,5 @@ export function createStats(C) {
     else if (e.kind === 'mob') recalcMob(e);
   }
 
-  return { mod, cond, slowOf, hasFlag, findAura, recalc, weaponFor };
+  return { mod, cond, slowOf, hasFlag, findAura, recalc, weaponFor, isSolo };
 }

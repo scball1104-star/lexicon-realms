@@ -27,6 +27,7 @@ import { createStats } from './stats.js';
 import { createCombat } from './combat.js';
 import { createScripts } from './scripts.js';
 import { createProgression } from './progression.js';
+import { createBuilds2 } from './builds2.js';
 import { createHud } from './hud.js';
 import { createQuests } from './quests.js';
 import { rollKill, bagAdd, bagRemove, bagFree, resolveItem, ensureUids, migrateQuestItems, bagFindUid } from './loot.js';
@@ -98,6 +99,7 @@ function wrap(state, content, rng, systems) {
     C.combat = createCombat(C);
     C.ai = createAi(C);
     C.prog = createProgression(C);
+    C.b2 = createBuilds2(C);                 // Builds 2 (off unless content.progression.builds2.enabled)
     C.hud = createHud(C);
     C.onDeath = (dst, killer) => { C.prog.onDeath(dst, killer); if (dst.kind === 'mob') questKill(dst, killer); };
     C.onDamaged = (e) => { if (QS) QS.onDamaged(e); };
@@ -273,6 +275,7 @@ function wrap(state, content, rng, systems) {
         if (spec.known) for (const kid of spec.known) if (C.data.abilities[kid] && !e.known.includes(kid)) e.known.push(kid);
         if (spec.bar) e.bar = spec.bar.filter((kid) => e.known.includes(kid)).slice(0, 12);
         if (spec.lantern && content.zones[spec.lantern.zone]) e.lantern = { ...spec.lantern };
+        C.b2.attach(e, spec);                      // Builds 2: the build from the save (save v2), or a new one
         C.stats.recalc(e);
         e.hp = e.hpMax;
         if (e.res && e.res.kind === 'mana') e.res.cur = e.res.max;
@@ -304,6 +307,7 @@ function wrap(state, content, rng, systems) {
         && !(a.def.flags || []).includes('stealth'))
         .map((a) => ({ id: a.id, left: a.until == null ? null : a.until - state.tick, stacks: a.stacks || 1, def: clone(a.def) }));
       out.escorts = Object.entries(e.quests || {}).filter(([, q]) => q.escort != null).map(([k]) => k);
+      out.build = C.b2.saveOf(e);                // Builds 2 (save v2: state.build)
       return out;
     },
     get(id) { return index.get(id) || null; },
@@ -496,6 +500,14 @@ function wrap(state, content, rng, systems) {
       case 'learn_talent': if (combatOn) C.prog.learnTalent(e, cmd); return;
       case 'unlearn_talent': if (combatOn) C.prog.unlearnTalent(e, cmd); return;
       case 'respec': if (combatOn) C.prog.respec(e, cmd); return;
+      // Builds 2 (src/sim/builds2.js); each refuses with b2_fail reason 'off' while the flag is off
+      case 'b2_learn': if (combatOn) C.b2.learn(e, cmd); return;
+      case 'b2_undo': if (combatOn) C.b2.undo(e); return;
+      case 'b2_respec': if (combatOn) C.b2.respec(e, cmd); return;
+      case 'b2_pick': if (combatOn) C.b2.pick(e, cmd); return;
+      case 'b2_leaning': if (combatOn) C.b2.setLeaning(e, cmd); return;
+      case 'b2_auto': if (combatOn) C.b2.setAuto(e, cmd); return;
+      case 'b2_suggest': if (combatOn) C.b2.spendSuggested(e); return;
       case 'interact': {
         const t = index.get(cmd.id);
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');
@@ -840,7 +852,8 @@ function wrap(state, content, rng, systems) {
           stats: { ...e.stats }, derived: { ...e.derived }, xpToLevel: C.prog.xpToNext(e.level),
           equip: JSON.parse(JSON.stringify(e.equip || {})), bag: JSON.parse(JSON.stringify(e.bag || [])),
           qbag: JSON.parse(JSON.stringify(e.qbag || [])), pendingLoot: JSON.parse(JSON.stringify(e.pendingLoot || [])), bags: e.bags ? [...e.bags] : ['starter_satchel'],
-          quests: JSON.parse(JSON.stringify(e.quests || {})), questsDone: [...(e.questsDone || [])] });
+          quests: JSON.parse(JSON.stringify(e.quests || {})), questsDone: [...(e.questsDone || [])],
+          b2: !!e.b2, build: e.build ? JSON.parse(JSON.stringify(e.build)) : null });
       }
     }
     if (e.kind === 'mob' && combatOn) {

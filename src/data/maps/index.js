@@ -17,6 +17,7 @@ import { ABILITIES, MOB_ABILITIES } from '../abilities.js';
 import { TALENTS } from '../talents.js';
 import { PROGRESSION } from '../progression.js';
 import { packOf } from '../packs.js';
+import { BUILDS2, RULES as BUILDS2_RULES, SKILL_PICKS, B2_ABILITIES } from '../builds2.js';
 
 export const ZONES = { willowmere, valley, downs, moor };
 
@@ -44,6 +45,8 @@ export function buildContent() {
     zones: ZONES,
     zoneNames: ZONE_NAMES,
     classes: CLASSES, abilities: ABILITIES, talents: TALENTS, progression: PROGRESSION,
+    // Builds 2 data (off for players: progression.builds2.enabled is false)
+    builds2: { rules: BUILDS2_RULES, classes: BUILDS2, skillPicks: SKILL_PICKS, abilities: B2_ABILITIES },
     mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES },
     mobs: MOBS, mobSprites: MOB_SPRITES, npcs: NPCS,
     items: ITEMS, rarity: RARITY, affixes: AFFIXES, dropRules: DROP_RULES, weaponTypes: WEAPON_TYPES, armorTypes: ARMOR_TYPES, classGear: CLASS_GEAR,

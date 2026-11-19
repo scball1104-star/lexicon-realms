@@ -37,6 +37,16 @@ export function createCombat(C) {
   const isElite = (e) => e.kind === 'mob' && e.mob && e.mob.elite;
   const sameZone = (a, b) => a && b && a.zone === b.zone;
   const losOk = (a, b) => hasLos(C.zoneOf(a), a, b);
+  // an ability filter that may be one id or a list of ids (Builds 2: Balance, Bell and Rod)
+  const abMatch = (want, id) => (Array.isArray(want) ? want.includes(id) : want === id);
+  /** The friendly hero (player) within 8 tiles of `src`, `src` included, with the lowest health share (Builds 2). */
+  function lowestAlly(src) {
+    const list = unitsNear(src.x, src.y, src.zone, 128, (u) => u.kind === 'player' && !u.dead && isFriendly(src, u));
+    if (!list.includes(src) && !src.dead) list.push(src);
+    list.sort((a, b) => a.hp / a.hpMax - b.hp / b.hpMax || a.id - b.id);
+    return list[0] || null;
+  }
+  const recalcAura = (e, def) => { if (def && def.recalc && e.kind === 'player') stats.recalc(e); };
 
   function facingVec(e) {
     const t = e.target != null ? get(e.target) : null;
@@ -415,7 +425,7 @@ export function createCombat(C) {
       case 'enemies_near_holder': {
         const h = ctx.holder || ctx.target;
         if (!h) return [];
-        const list = unitsNear(h.x, h.y, h.zone, fx.radius || 48, (u) => isHostile(src, u)).sort((a, b) => a.id - b.id);
+        const list = unitsNear(h.x, h.y, h.zone, fx.radius || 48, (u) => isHostile(src, u) && !(fx.excludeHolder && u === h)).sort((a, b) => a.id - b.id);
         if (!fx.maxTargets) return list;
         // capped (Briar Trap's burst): the holder first, then the nearest
         list.sort((a, b) => (a === h ? -1 : b === h ? 1 : distPxXY(a.x, a.y, h.x, h.y) - distPxXY(b.x, b.y, h.x, h.y) || a.id - b.id));
@@ -429,6 +439,20 @@ export function createCombat(C) {
         return n ? [n] : [];
       }
       case 'allies_near': return unitsNear(src.x, src.y, src.zone, fx.radius || 96, (u) => u !== src && isFriendly(src, u) && u.kind !== 'npc');
+      // Builds 2: friends near the target (Many Names), the lowest friend (Wellspring), the caster's own target in reach (Focused Peal)
+      case 'allies_near_target': {
+        const h = ctx.target;
+        if (!h) return [];
+        const list = unitsNear(h.x, h.y, h.zone, fx.radius || 80, (u) => u !== h && !u.dead && isFriendly(src, u) && u.kind !== 'npc')
+          .sort((a, b) => a.hp / a.hpMax - b.hp / b.hpMax || a.id - b.id);
+        return fx.maxTargets ? list.slice(0, fx.maxTargets) : list;
+      }
+      case 'lowest_ally': { const l = lowestAlly(src); return l ? [l] : []; }
+      case 'my_target': {
+        const t = src.target != null ? get(src.target) : null;
+        const reach = fx.radius || (ctx.ab && ctx.ab.area && ctx.ab.area.radius) || 96;
+        return t && !t.dead && sameZone(src, t) && isHostile(src, t) && distPx(src, t) <= reach ? [t] : [];
+      }
       default: return ctx.target ? [ctx.target] : [];
     }
   }
@@ -495,7 +519,7 @@ export function createCombat(C) {
       }
       case 'interrupt': interrupt(r, fx.lockout); return 1;
       case 'threat': if (fx.taunt) taunt(src, r, fx.duration || 3); else if (r.kind === 'mob') addThreat(r, src, fx.amount || 0, 1); return 1;
-      case 'resource': gainRes(r, fx.kind, fx.amount || 0); return 1;
+      case 'resource': gainRes(r, fx.kind, (fx.amount || 0) + (fx.pctOfMax && r.res && r.res.kind === fx.kind ? fx.pctOfMax * r.res.max : 0)); return 1;
       case 'combo': comboEffect(src, r, fx, ctx); return 1;
       case 'move': moveEffect(src, r, fx, ctx); return 1;
       case 'summon': if (fx.mob) summonMobs(src, fx, ctx); else summon(src, fx.object, ctx); return 1;
@@ -521,7 +545,9 @@ export function createCombat(C) {
   function dealDamage(src, dst, raw, info = {}) {
     if (!dst || dst.dead) return null;
     const ability = info.ability || 'auto';
-    const school = info.school || 'physical';
+    let school = info.school || 'physical';
+    // Builds 2 Pure Light: all the hero's damage is light
+    if (school === 'physical' && src.kind === 'player' && data.hasScript(src, 'all_light')) { school = 'light'; info = { ...info, school }; }
     const base = { type: 'damage', src: src.id, dst: dst.id, ability, school, amount: 0, crit: false, result: 'hit', absorbed: 0, blocked: 0, overkill: 0, periodic: !!info.periodic };
     if (dst.kind === 'mob' && dst.ai && dst.ai.mode === 'reset') { emit({ ...base, result: 'immune' }); return null; }
     if (stats.hasFlag(dst, 'immune') || stats.hasFlag(dst, 'untargetable')) { emit({ ...base, result: 'immune' }); return null; }
@@ -647,7 +673,7 @@ export function createCombat(C) {
       if (!caster) continue;
       for (const p of a.def.procs || []) {
         if (p.on !== 'hitTaken') continue;
-        if (p.ability && p.ability !== info.ability) continue;
+        if (p.ability && !abMatch(p.ability, info.ability)) continue;
         if (p.fromCaster && a.src !== src.id) continue;
         if (p.chance != null && p.chance < 1 && !rng.chance(p.chance)) continue;
         runEffects(caster, p.effects, { caster, holder: dst, target: dst, attacker: src, damage: total, abId: a.ab, auraInst: a });
@@ -658,6 +684,9 @@ export function createCombat(C) {
     if (src.kind === 'player' && total > 0) {
       const lm = stats.mod(src, 'leech', { ability: info.ability, periodic: !!info.periodic, school: info.school });
       if (lm.add > 0) heal(src, src, total * lm.add, { ability: 'leech', canCrit: false, noThreat: true });
+      // Builds 2 Radiance: part of the damage heals the lowest friend (you, alone)
+      const ll = stats.mod(src, 'leechLowest', { ability: info.ability, periodic: !!info.periodic, school: info.school }).add;
+      if (ll > 0) { const to = lowestAlly(src); if (to) heal(src, to, total * ll, { ability: 'leech', canCrit: false, noThreat: true }); }
     }
   }
 
@@ -673,6 +702,14 @@ export function createCombat(C) {
     emit({ type: 'heal', src: src.id, dst: dst.id, ability: info.ability || null, amount: eff, overheal: amt - eff, crit, periodic: !!info.periodic });
     if (!info.noThreat && eff > 0 && src.kind === 'player') healThreat(src, dst, eff);
     if (info.ability !== 'leech') procs(src, 'heal', { ability: info.ability, target: dst, heal: amt });
+    // Builds 2 Overflow: part of the overhealing becomes a shield on the healed friend (at most 20% of their max health)
+    const ofl = src.kind === 'player' && amt > eff ? stats.mod(src, 'overflowShield').add : 0;
+    if (ofl > 0) {
+      const cap = Math.round(0.2 * dst.hpMax), add = (amt - eff) * ofl;
+      const have = stats.findAura(dst, 'b2_overflow', src.id);
+      if (have) { have.absorb = Math.min(cap, have.absorb + add); have.until = now() + T(10); }
+      else applyAura(src, dst, { id: 'b2_overflow', name: 'Overflow', icon: 'mender_warding_word', kind: 'buff', duration: 10, absorb: { amount: Math.min(cap, add) } }, {});
+    }
     S().afterHeal(src, dst, amt, eff, info);
     return { amount: eff, overheal: amt - eff, crit };
   }
@@ -755,6 +792,7 @@ export function createCombat(C) {
       if (ctx.combo != null && def.scaleCombo) a.data.combo = ctx.combo;
       if (def.fromDamage) a.data.per = ((ctx.damage || 0) * def.fromDamage) / Math.max(1, Math.round((dur || period) / (period || 1)));
       emit({ type: 'aura_add', dst: dst.id, src: src.id, aura: def.id, stacks: a.stacks, until: a.until, refresh: true });
+      recalcAura(dst, def);
       return a;
     }
     if (def.limitPerCaster) {
@@ -772,6 +810,7 @@ export function createCombat(C) {
     if (def.upkeep) a.data.upkeepAt = now() + T(def.upkeep.every);
     dst.auras.push(a);
     emit({ type: 'aura_add', dst: dst.id, src: src.id, aura: def.id, stacks: 1, until: a.until });
+    recalcAura(dst, def);
     if (flags.includes('stun') || flags.includes('incap') || flags.includes('fear')) {
       cancelCast(dst, 'interrupt');
       dst.mx = 0; dst.my = 0; dst.forced = null;
@@ -804,6 +843,7 @@ export function createCombat(C) {
     if (i < 0) return;
     e.auras.splice(i, 1);
     emit({ type: 'aura_remove', dst: e.id, aura: a.id, src: a.src, reason });
+    recalcAura(e, a.def);
     const caster = get(a.src) || e;
     const ctx = { caster, holder: e, target: e, aura: null, absorbFull: a.data.absorbFull || 0, absorbUsed: !!extra.absorbUsed, abId: a.ab };
     if (reason === 'expire' && a.def.onExpire) runEffects(caster, a.def.onExpire, ctx);
@@ -824,7 +864,7 @@ export function createCombat(C) {
   }
 
   function consumeAuras(e, abilityId) {
-    for (const a of [...e.auras]) if (a.def.consumeOn && a.def.consumeOn.cast === abilityId && !a.def.comboBonus) removeAura(e, a, 'consume');
+    for (const a of [...e.auras]) if (a.def.consumeOn && abMatch(a.def.consumeOn.cast, abilityId) && !a.def.comboBonus) removeAura(e, a, 'consume');
   }
 
   function tickAuras(e) {
@@ -979,6 +1019,8 @@ export function createCombat(C) {
     let list = unitsNear(o.x, o.y, o.zone, def.radius, (u) => isHostile(owner, u)).sort((a, b) => distPxXY(a.x, a.y, o.x, o.y) - distPxXY(b.x, b.y, o.x, o.y) || a.id - b.id);
     if (def.maxTargets) list = list.slice(0, def.maxTargets);
     for (const u of list) runEffects(owner, def.pulse, { caster: owner, target: u, abId: ob.abId, ab: { school: (def.pulse[0] && def.pulse[0].school) || 'physical', threatMult: 1 } });
+    // Builds 2 Great Bell: the same pulse heals friends inside
+    if (def.pulseAllies) for (const u of unitsNear(o.x, o.y, o.zone, def.radius, (u) => isFriendly(owner, u) && u.kind !== 'npc')) runEffects(owner, def.pulseAllies, { caster: owner, target: u, abId: ob.abId });
   }
   function tickObjects() {
     for (const o of state.ents.filter((x) => x.kind === 'object' && x.obj)) {
@@ -1055,6 +1097,7 @@ export function createCombat(C) {
     const cls = data.classes[e.cls];
     let raw = swing(e, p.hand || 'main') * (p.mult || 1);
     if (p.hand === 'off') raw *= (cls.offHandMult || 0.5) + stats.mod(e, 'offHand').add;
+    else raw += stats.mod(e, 'autoSp').add * ((e.derived && e.derived.sp) || 0) * (p.mult || 1);     // Builds 2 Bell and Rod
     const res = dealDamage(e, t, raw, { ability: 'auto', school: 'physical', canCrit: true, melee: cls.auto.range <= 40, threatMult: 1, opener: p.opener });
     if (res && cls.resource.kind === 'resolve') gainRes(e, 'resolve', cls.resource.onHitDealt + stats.mod(e, 'autoResolve').add);
   }
@@ -1164,7 +1207,7 @@ export function createCombat(C) {
     const list = data.talentInfo(e).procs;
     for (const p of list) {
       if (p.on !== on) continue;
-      if (p.ability && p.ability !== pctx.ability) continue;
+      if (p.ability && !abMatch(p.ability, pctx.ability)) continue;
       if (p.when && !stats.cond(e, p.when, pctx)) continue;
       const key = `${p.src}:${on}`;
       e.icd = e.icd || {};

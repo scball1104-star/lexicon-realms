@@ -176,6 +176,19 @@ export function createScripts(C) {
       for (const a of dst.auras) {
         const owner = get(a.src);
         if (!owner || owner.dead) continue;
+        // Builds 2 Lingering Brand: Brand jumps to the nearest foe within 4 tiles with part of its time left
+        if (a.id === 'mender_brand' && owner.kind === 'player') {
+          const k = stats.mod(owner, 'brandJump').add;
+          if (k > 0 && a.until != null) {
+            const left = Math.round((a.until - now()) * Math.min(1, k));
+            const list = K().unitsNear(dst.x, dst.y, dst.zone, 64, (u) => u !== dst && !u.dead && K().isHostile(owner, u) && !myAura(u, 'mender_brand', owner.id));
+            const n = K().nearest(list, dst.x, dst.y);
+            if (n && left >= 20) {
+              const b = K().applyAura(owner, n, a.def, { abId: a.ab });
+              if (b) { b.until = now() + left; emit({ type: 'b2_brand_jump', src: owner.id, from: dst.id, to: n.id }); }
+            }
+          }
+        }
         if (a.id === 'scribe_underline' && has(owner, 'smudge')) {
           for (const u of K().unitsNear(dst.x, dst.y, dst.zone, 32, (u) => u !== dst && K().isHostile(owner, u))) {
             const n = K().applyAura(owner, u, a.def, { abId: a.ab });
@@ -266,6 +279,15 @@ export function createScripts(C) {
       }
     },
 
-    run() {},
+    /** Effect scripts (`{ type: 'script', name }` in ability data). */
+    run(name, src, r, args, ctx) {
+      // Builds 2 Unbroken: a Warding Word the Mender put on herself breaks; she may cast it again 5 s later
+      if (name === 'unbroken') {
+        const h = ctx && ctx.holder;
+        if (!h || !ctx.caster || h.id !== ctx.caster.id) return;
+        const sf = stats.findAura(h, 'mender_spoken_for');
+        if (sf && (sf.until == null || sf.until > now() + T(5))) sf.until = now() + T(5);
+      }
+    },
   };
 }

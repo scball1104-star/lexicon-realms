@@ -68,7 +68,8 @@ export function createProgression(C) {
     if (e.res && e.res.kind === 'mana') e.res.cur = e.res.max;
     const pts = talentPoints(e);
     const cls = data.classes[e.cls];
-    const newAbilities = (cls ? cls.abilities : []).filter((a) => a.level === e.level).map((a) => a.id);
+    // Builds 2: new skills come from skill picks (b2_pick_ready), not the trainer
+    const newAbilities = e.b2 ? [] : (cls ? cls.abilities : []).filter((a) => a.level === e.level).map((a) => a.id);
     // where to learn them (critique 16): the class trainer's npc id, name and zone, so the log can say "New ability at your
     // trainer: Taunt (Sergeant Holt, Willowmere)"
     let trainer = null;
@@ -79,7 +80,8 @@ export function createProgression(C) {
       }
     }
     emit({ type: 'level', id: e.id, level: e.level, hpMax: e.hpMax, talentPoints: pts.free, trainable: newAbilities, trainer,
-      firstTalentAt: e.level < P.talents.firstLevel ? P.talents.firstLevel : null });
+      firstTalentAt: e.level < P.talents.firstLevel ? P.talents.firstLevel : null, ...(e.b2 ? { b2: true, b2Free: C.b2.points(e).free + 0 } : {}) });
+    if (e.b2) C.b2.onLevel(e);
   }
 
   function setLevel(e, L) {
@@ -116,6 +118,7 @@ export function createProgression(C) {
 
   /** What a trainer offers this player (the `interact` event carries it for the trainer window). */
   function trainerOffer(e) {
+    if (e.b2) return C.b2.trainOffer(e);         // Builds 2: only the skill you did not pick, at the buy-back price
     const cls = data.classes[e.cls];
     return cls.abilities.map((a) => ({ ability: a.id, level: a.level, cost: trainCost(a.level), known: e.known.includes(a.id), canLearn: !e.known.includes(a.id) && e.level >= a.level && (e.gold || 0) >= trainCost(a.level) }));
   }
@@ -124,6 +127,7 @@ export function createProgression(C) {
     const n = atTrainer(e, cmd.npc);
     const no = (reason) => { emit({ type: 'train_fail', id: e.id, ability: cmd.ability || null, reason }); return false; };
     if (!n) return no('range');
+    if (e.b2) { const why = C.b2.buyBack(e, cmd.ability, n); return why ? no(why) : true; }
     const cls = data.classes[e.cls];
     const entry = cls.abilities.find((a) => a.id === cmd.ability);
     if (!entry) return no('unknown');
@@ -139,7 +143,8 @@ export function createProgression(C) {
 
   // ------------------------------------------------------------------------------------------------ talents
   function talentPoints(e) {
-    const total = e.level >= P.talents.firstLevel ? (e.level - P.talents.firstLevel + 1) * P.talents.pointsPerLevel : 0;
+    // a Builds 2 hero has no points in today's trees (B.points has its own)
+    const total = e.b2 ? 0 : e.level >= P.talents.firstLevel ? (e.level - P.talents.firstLevel + 1) * P.talents.pointsPerLevel : 0;
     const byBranch = {};
     let spent = 0;
     for (const [id, r] of Object.entries(e.talents || {})) {
@@ -156,6 +161,7 @@ export function createProgression(C) {
     const t = data.talentIndex[cmd.talent];
     const no = (reason) => { emit({ type: 'talent_fail', id: e.id, talent: cmd.talent || null, reason }); return false; };
     if (!t || t.cls !== e.cls) return no('unknown');
+    if (e.b2) return no('builds2');
     const pts = talentPoints(e);
     const r = (e.talents[t.id] || 0);
     if (r >= t.maxRanks) return no('max');
@@ -243,6 +249,7 @@ export function createProgression(C) {
     if (dst.kind === 'mob') {
       const who = C.get(dst.tagger) || (killer && killer.kind === 'player' ? killer : null);
       if (who && who.kind === 'player' && !who.dead) grantXp(who, killXp(who, dst), 'kill', { mob: dst.id, template: dst.template });
+      if (who && who.kind === 'player' && who.b2) C.b2.onKill(who);     // Builds 2: the first kill opens the level 1 skill pick
       dst.respawnAt = now() + respawnTicks(dst);
       dst.threat = {};
       if (dst.ai) { dst.ai.mode = 'dead'; dst.ai.vx = 0; dst.ai.vy = 0; }
