@@ -82,7 +82,9 @@ export function createCombat(C) {
     const w = e.weapon && e.weapon[hand];
     if (!w) return 0;
     const roll = w.min + rng.next() * (w.max - w.min);
-    return roll + (w.speed * (e.derived.ap || 0)) / 14;
+    const v = roll + (w.speed * (e.derived.ap || 0)) / 14;
+    // Builds 2 Greatblade: a two-hand blade, every weapon swing heavier
+    return e.kind === 'player' ? v * stats.mod(e, 'weaponMul').mul : v;
   }
   function mobSwing(e) {
     const d = e.mob ? e.mob.damage : [1, 2];
@@ -102,7 +104,27 @@ export function createCombat(C) {
     let amt = levelValue(c.amount, e.level);
     if (typeof c.amount === 'object' && c.amount.pctBase != null) amt = c.amount.pctBase * (e.res ? e.res.max : 0);
     const m = stats.mod(e, 'cost', { ability: ab.id, target });
+    // Builds 2 Dancing Bow: every 3rd instant shot is free
+    if (S().freeCast(e, ab)) return { kind: c.kind, amount: 0 };
     return { kind: c.kind, amount: Math.max(0, Math.round(amt * m.mul + m.add)) };
+  }
+  /**
+   * How `e` pays `cost` now: { res: n } from the resource, { hp: n } from health (Builds 2 Blood Ink when the mana runs
+   * out, Bottomless Well always), or null when it cannot pay.
+   */
+  function payPlan(e, ab, cost) {
+    if (!cost || cost.amount <= 0) return { res: 0 };
+    const hp = S().hpCost(e, ab, cost);
+    if (hp != null) return e.hp > hp + 1 ? { hp } : null;
+    if (e.res && e.res.kind === cost.kind && e.res.cur + 1e-9 >= cost.amount) return { res: cost.amount };
+    const blood = S().bloodInk(e, ab, cost);
+    if (blood != null) return e.hp > blood + 1 ? { hp: blood } : null;
+    return null;
+  }
+  function pay(e, cost, plan) {
+    if (!cost || !plan) return;
+    if (plan.hp) { e.hp = Math.max(1, e.hp - plan.hp); emit({ type: 'b2_proc', id: e.id, what: 'hp_cost', amount: plan.hp }); }
+    else if (plan.res) gainRes(e, cost.kind, -plan.res);
   }
 
   // ------------------------------------------------------------------------------------------------ cooldowns
@@ -172,8 +194,11 @@ export function createCombat(C) {
     if (r.targetHpBelow && t && t.hp / t.hpMax >= r.targetHpBelow) return 'requires';
     if (r.aura && !stats.findAura(e, r.aura)) return 'requires';
     if (r.behind && t && inFront(t, e)) return 'requires';
+    if (r.notElite && t && isElite(t)) return 'requires';           // Builds 2 Rewrite: elites cannot be rewritten
     return null;
   }
+  // Builds 2 Running Hand: the Scribe casts while she walks (at half speed)
+  const castsMoving = (e) => e.kind === 'player' && stats.mod(e, 'castMove').add > 0;
 
   function castTimeOf(e, ab, t) {
     let ct = ab.castTime || 0;
@@ -241,20 +266,24 @@ export function createCombat(C) {
     if (t && t !== e && !losOk(e, t)) return fail(e, ab, 'los');
     if (at && !losBetween(C.zoneOf(e), e.x, e.y, at.x, at.y)) return fail(e, ab, 'los');
     const cost = costOf(e, ab, t);
-    if (cost && (!e.res || e.res.kind !== cost.kind || e.res.cur + 1e-9 < cost.amount)) return fail(e, ab, 'resource');
-    const ct = ab.channel ? 0 : castTimeOf(e, ab, t);
-    const interruptsOnMove = ab.moveInterrupts !== false && (ct > 0 || !!ab.channel);
+    const plan = cost ? payPlan(e, ab, cost) : null;
+    if (cost && !plan) return fail(e, ab, 'resource');
+    let ct = ab.channel ? 0 : castTimeOf(e, ab, t);
+    const ctx = { opener: false };
+    // Builds 2 Shorthand Master: a spell under 2 s is instant, for 25% less; Hasty Note: after a 2 s walk, one spell instant
+    const quick = ct > 0 ? S().instantCast(e, ab, ct) : null;
+    if (quick) { ct = 0; if (quick.mult) ctx.mult = quick.mult; }
+    const interruptsOnMove = ab.moveInterrupts !== false && (ct > 0 || !!ab.channel) && !castsMoving(e);
     if (interruptsOnMove && isMovingInput(e)) return fail(e, ab, 'moving');
 
     // ---- success
     if (t && t !== e) face(e, t);
     if (gcdTicks) e.gcdUntil = now() + gcdTicks;
-    const ctx = { opener: false };
     if (!ab.keepsStealth) ctx.opener = breakStealth(e, 'action');
     consumeAuras(e, ab.id);
     if (e.kind === 'player' && t && isHostile(e, t) && (ab.school === 'physical' || (data.classes[e.cls] || {}).auto?.range > 40)) startAuto(e, t);
     if (ab.channel) {
-      if (cost) gainRes(e, cost.kind, -cost.amount);
+      if (cost) pay(e, cost, plan);
       startCd(e, ab);
       const dur = T(ab.channel.duration), n = ab.channel.ticks || 1;
       e.cast = { ability: ab.id, target: t ? t.id : null, at, startTick: now(), endTick: now() + dur, kind: 'channel',
@@ -269,9 +298,10 @@ export function createCombat(C) {
       emit({ type: 'cast_start', src: e.id, ability: ab.id, target: t ? t.id : null, castTicks: ticksCt });
       return true;
     }
-    if (cost) gainRes(e, cost.kind, -cost.amount);
+    if (cost) pay(e, cost, plan);
     if (special && special.after) special.after();
     else startCd(e, ab);
+    S().paid(e, ab);
     emit({ type: 'cast_start', src: e.id, ability: ab.id, target: t ? t.id : null, castTicks: 0 });
     if (special && special.charge) special.charge(ctx);
     else fire(e, ab, t, at, ctx);
@@ -290,14 +320,15 @@ export function createCombat(C) {
       return;
     }
     if (c.cost) {
-      if (!e.res || e.res.cur + 1e-9 < c.cost.amount) {
+      const plan = payPlan(e, ab, c.cost);
+      if (!plan) {
         emit({ type: 'cast_stop', src: e.id, ability: c.ability, target: c.target, reason: 'resource' });
         return;
       }
-      gainRes(e, c.cost.kind, -c.cost.amount);
+      pay(e, c.cost, plan);
     }
     startCd(e, ab);
-    fire(e, ab, t, c.at, { opener: c.opener });
+    fire(e, ab, t, c.at, { opener: c.opener, ...(c.mult ? { mult: c.mult } : {}) });
     emit({ type: 'cast_stop', src: e.id, ability: c.ability, target: c.target, reason: 'done' });
   }
 
@@ -313,17 +344,20 @@ export function createCombat(C) {
     const c = e.cast;
     if (!c || c.kind !== 'cast' || c.pushes >= PC.pushbackMax) return;
     if (stats.hasFlag(e, 'nopushback')) return;
-    const m = stats.mod(e, 'pushback');
+    const m = stats.mod(e, 'pushback', { ability: c.ability });      // Builds 2 Final Draft: an Inkbolt is never pushed back
     const add = Math.round(T(PC.pushback) * m.mul);
     if (add <= 0) return;
     c.endTick += add; c.pushes++;
   }
 
-  function interrupt(t, lockout) {
+  function interrupt(t, lockout, src = null) {
     if (!t.cast) return;
     const id = t.cast.ability;
+    const castTarget = t.cast.target;
     cancelCast(t, 'interrupt');
     t.cd[id] = Math.max(t.cd[id] || 0, now() + T(lockout || PC.interruptLock));
+    // Builds 2: Silence, Spellthief, Unwritten, Spellbreaker react to an interrupt the hero made
+    if (src && src.kind === 'player') S().interrupted(src, t, id, castTarget);
   }
 
   // ------------------------------------------------------------------------------------------------ fire
@@ -368,6 +402,8 @@ export function createCombat(C) {
     const ctx = { ...ctx0, ab, abId: ab.id, target: t, at, caster: e, combo: comboFor(e, t) };
     if (ab.area) ctx.area = areaUnits(e, ab, t, at);
     S().beforeFire(e, ab, t, ctx);
+    // Builds 2 Gatewheel: effects on the caster the moment it casts (the projectile's own effects land later)
+    if (ab.onCast && !ctx.skip) runEffects(e, ab.onCast, { ...ctx, target: e });
     if (ctx.skip) {
       // a script took this cast over (Bellward)
     } else if (ab.projectile && t && t !== e && !ab.area) {
@@ -383,7 +419,7 @@ export function createCombat(C) {
     state.proj = state.proj || [];
     const p = { id: state.nextId++, src: e.id, dst: t.id, ability: ab.id, zone: e.zone, x: e.x, y: e.y - 6 * SUB,
       speed: Math.max(1, Math.round((ab.projectile.speed * SUB) / TICK_HZ)), opener: !!ctx.opener, combo: ctx.combo || 0,
-      mult: ctx.mult || 1, auto: !!ctx.auto, hand: ctx.hand || null, born: now() };
+      mult: ctx.mult || 1, auto: !!ctx.auto, hand: ctx.hand || null, born: now(), forceCrit: !!ctx.forceCrit };
     state.proj.push(p);
     emit({ type: 'projectile', id: p.id, src: e.id, dst: t.id, ability: ab.id, speed: ab.projectile.speed });
   }
@@ -400,7 +436,20 @@ export function createCombat(C) {
         if (p.auto) autoLand(src, t, p);
         else {
           const ab = data.ability(src, p.ability);
-          if (ab) runEffects(src, ab.effects, { ab, abId: ab.id, target: t, caster: src, opener: p.opener, combo: p.combo, mult: p.mult, projectile: true });
+          if (ab) runEffects(src, ab.effects, { ab, abId: ab.id, target: t, caster: src, opener: p.opener, combo: p.combo, mult: p.mult, projectile: true, forceCrit: !!p.forceCrit });
+          // Builds 2 Gatewheel: the shield bounces on to the nearest foe it has not hit yet
+          if (ab && ab.bounce) {
+            const hit = [...(p.hits || []), t.id];
+            if (hit.length < ab.bounce.count) {
+              const list = unitsNear(t.x, t.y, t.zone, ab.bounce.radius, (u) => !hit.includes(u.id) && isHostile(src, u) && losOk(t, u));
+              const n = nearest(list, t.x, t.y);
+              if (n) {
+                const q = { ...p, id: state.nextId++, dst: n.id, x: t.x, y: t.y - 6 * SUB, opener: false, hits: hit, born: now() };
+                keep.push(q);
+                emit({ type: 'projectile', id: q.id, src: src.id, from: t.id, dst: n.id, ability: p.ability, speed: ab.projectile.speed });
+              }
+            }
+          }
         }
         continue;
       }
@@ -448,6 +497,20 @@ export function createCombat(C) {
         return fx.maxTargets ? list.slice(0, fx.maxTargets) : list;
       }
       case 'lowest_ally': { const l = lowestAlly(src); return l ? [l] : []; }
+      // Builds 2 Horizon: every other foe on the line from the hero through the target (to `length` px)
+      case 'enemies_in_line': {
+        const h = ctx.target;
+        if (!h) return [];
+        const [fx_, fy_] = unitTo(src, h, src.dir);
+        const len = fx.length || 256, w = fx.width || 16;
+        return unitsNear(src.x, src.y, src.zone, len, (u) => {
+          if (u === h || !isHostile(src, u)) return false;
+          const rx = (u.x - src.x) / SUB, ry = (u.y - src.y) / SUB;
+          return rx * fx_ + ry * fy_ >= 0 && Math.abs(rx * fy_ - ry * fx_) <= w / 2;
+        }).sort((a, b) => distPx(a, src) - distPx(b, src) || a.id - b.id);
+      }
+      // Builds 2: foes within `radius` of the hero (Ember Leap's landing, Furnace Form's burn)
+      case 'enemies_near_self': return unitsNear(src.x, src.y, src.zone, fx.radius || 40, (u) => isHostile(src, u)).sort((a, b) => a.id - b.id).slice(0, fx.maxTargets || 99);
       case 'my_target': {
         const t = src.target != null ? get(src.target) : null;
         const reach = fx.radius || (ctx.ab && ctx.ab.area && ctx.ab.area.radius) || 96;
@@ -486,6 +549,7 @@ export function createCombat(C) {
     if (fx.fromData && ctx.aura) v += ctx.aura.data.per || 0;
     if (fx.scaleCombo) v *= ctx.combo || 0;
     if (ctx.aura && ctx.aura.def.scaleCombo) v *= ctx.aura.data.combo || 0;
+    if (ctx.aura && ctx.aura.def.scaleStacks) v *= ctx.aura.stacks || 1;          // Builds 2 Envenom: each stack ticks
     if (fx.mult != null) v *= fx.mult;
     if (ctx.mult != null && !ctx.aura) v *= ctx.mult;
     if (fx.perHit) v *= ctx.hitCount || 0;
@@ -500,7 +564,8 @@ export function createCombat(C) {
         if (raw <= 0) return 0;
         const res = dealDamage(src, r, raw, { ability: fx.ability || ctx.abId, school: fx.school || (ctx.ab && ctx.ab.school) || 'physical',
           canCrit: fx.canCrit !== false, periodic: !!(ctx.periodic || fx.periodic), noArmor: !!fx.noArmor, opener: ctx.opener,
-          melee: !!(ctx.ab && ctx.ab.range && ctx.ab.range.max <= 40 && !ctx.periodic), threatMult: ctx.ab ? ctx.ab.threatMult : 1, auraSrc: ctx.aura || null });
+          melee: !!(ctx.ab && ctx.ab.range && ctx.ab.range.max <= 40 && !ctx.periodic), threatMult: ctx.ab ? ctx.ab.threatMult : 1, auraSrc: ctx.aura || null,
+          forceCrit: !!ctx.forceCrit, copied: !!ctx.copied });
         if (res) ctx.damage = res.amount + (res.absorbed || 0);
         return res ? 1 : 0;
       }
@@ -517,9 +582,19 @@ export function createCombat(C) {
         if (a && fx.proc) procs(src, fx.proc, { target: r });
         return a ? 1 : 0;
       }
-      case 'interrupt': interrupt(r, fx.lockout); return 1;
-      case 'threat': if (fx.taunt) taunt(src, r, fx.duration || 3); else if (r.kind === 'mob') addThreat(r, src, fx.amount || 0, 1); return 1;
-      case 'resource': gainRes(r, fx.kind, (fx.amount || 0) + (fx.pctOfMax && r.res && r.res.kind === fx.kind ? fx.pctOfMax * r.res.max : 0)); return 1;
+      case 'interrupt': interrupt(r, fx.lockout, ctx.caster || src); return 1;
+      case 'threat':
+        if (fx.drop) dropThreat(r);                    // Builds 2 Inkwalk, Vanish: every foe loses you (they wait, they do not reset)
+        else if (fx.taunt) taunt(src, r, fx.duration || 3);
+        else if (r.kind === 'mob') addThreat(r, src, fx.amount || 0, 1);
+        return 1;
+      case 'resource': {
+        let amt = (fx.amount || 0) + (fx.pctOfMax && r.res && r.res.kind === fx.kind ? fx.pctOfMax * r.res.max : 0);
+        // Builds 2 Reclaim: part of the cost of the spell that crit comes back
+        if (fx.pctOfCost && ctx.procAbility) { const pab = data.ability(src, ctx.procAbility); const c = pab && costOf(src, pab, null); if (c) amt += fx.pctOfCost * c.amount; }
+        gainRes(r, fx.kind, amt);
+        return 1;
+      }
       case 'combo': comboEffect(src, r, fx, ctx); return 1;
       case 'move': moveEffect(src, r, fx, ctx); return 1;
       case 'summon': if (fx.mob) summonMobs(src, fx, ctx); else summon(src, fx.object, ctx); return 1;
@@ -542,15 +617,39 @@ export function createCombat(C) {
   }
 
   // ------------------------------------------------------------------------------------------------ damage
+  /** Builds 2 pets and doubles (Ink Hound, Mirrorshade, Afterimage): a placed object with health or a hit count. */
+  function hitObject(src, o, raw, info) {
+    const def = o.obj && o.obj.def;
+    if (!def || !(def.hpPct || def.hits)) return null;
+    const amount = Math.max(1, Math.round(raw));
+    o.hp = def.hits ? o.hp : o.hp - amount;
+    if (def.hits) o.obj.hitsLeft = (o.obj.hitsLeft ?? def.hits) - 1;
+    emit({ type: 'damage', src: src.id, dst: o.id, ability: info.ability || 'auto', school: info.school || 'physical', amount, crit: false, result: 'hit', absorbed: 0, blocked: 0, overkill: 0, periodic: !!info.periodic });
+    if (o.hp <= 0 || (def.hits && o.obj.hitsLeft <= 0)) despawnObject(o, 'killed');
+    return { amount, absorbed: 0, crit: false, blocked: false, before: o.hp + amount };
+  }
+
   function dealDamage(src, dst, raw, info = {}) {
     if (!dst || dst.dead) return null;
+    if (dst.kind === 'object') return hitObject(src, dst, raw, info);
     const ability = info.ability || 'auto';
     let school = info.school || 'physical';
     // Builds 2 Pure Light: all the hero's damage is light
     if (school === 'physical' && src.kind === 'player' && data.hasScript(src, 'all_light')) { school = 'light'; info = { ...info, school }; }
+    // Builds 2 Storm Arrows, Storm Quiver: the Wayfinder's shots are storm (nature) damage, past armor and plating
+    if (school === 'physical' && src.kind === 'player' && stats.mod(src, 'stormShots', { ability }).add > 0) { school = 'nature'; info = { ...info, school }; }
     const base = { type: 'damage', src: src.id, dst: dst.id, ability, school, amount: 0, crit: false, result: 'hit', absorbed: 0, blocked: 0, overkill: 0, periodic: !!info.periodic };
     if (dst.kind === 'mob' && dst.ai && dst.ai.mode === 'reset') { emit({ ...base, result: 'immune' }); return null; }
     if (stats.hasFlag(dst, 'immune') || stats.hasFlag(dst, 'untargetable')) { emit({ ...base, result: 'immune' }); return null; }
+    // Builds 2 dodge (Slippery, Shadowskin, Ink Cloak, Sand Cloak): base dodge is 0; a dodged hit does nothing
+    if (dst.kind === 'player' && !info.periodic && src.kind !== 'player' && isHostile(src, dst)) {
+      const dg = Math.min(PC.dodgeCap || 0.6, stats.mod(dst, 'dodge', { attacker: src }).add);
+      if (dg > 0 && rng.next() < dg) {
+        emit({ ...base, result: 'dodge' });
+        procs(dst, 'dodge', { attacker: src, target: src });
+        return null;
+      }
+    }
     const ctx = { ability, school, target: dst, attacker: src, periodic: !!info.periodic, opener: !!info.opener };
     let mul = stats.mod(src, 'damageDone', ctx).mul;
     const gap = Math.max(-PC.levelGapMax, Math.min(PC.levelGapMax, (dst.level || 1) - (src.level || 1)));
@@ -561,25 +660,36 @@ export function createCombat(C) {
     if (info.canCrit !== false && src.kind === 'player') critChance = (src.derived.crit || 0) + stats.mod(src, 'crit', ctx).add;
     let blockChance = 0;
     // the heavy trait (class identity pass): its blows cannot be blocked
-    if (!(src.mob && src.mob.unblockable) && info.melee !== false && !info.periodic && dst.derived && dst.derived.block > 0 && (info.melee || ability === 'auto' || src.kind === 'mob') && inFront(dst, src)) {
-      blockChance = dst.derived.block + stats.mod(dst, 'block', { attacker: src }).add;
+    // Builds 2 Moving Wall: the shield also covers the sides and back
+    if (!(src.mob && src.mob.unblockable) && info.melee !== false && !info.periodic && dst.derived && dst.derived.block > 0 && (info.melee || ability === 'auto' || src.kind === 'mob') && (inFront(dst, src) || (dst.kind === 'player' && data.hasScript(dst, 'b2_moving_wall')))) {
+      blockChance = Math.max(0, dst.derived.block + stats.mod(dst, 'block', { attacker: src }).add);
     }
     const roll = rng.next();
     let crit = false, blocked = false;
     if (roll < blockChance) blocked = true;
-    else if (roll < blockChance + critChance) crit = true;
+    else if (roll < blockChance + critChance || (info.forceCrit && src.kind === 'player')) crit = true;
     let amount = raw * mul * (crit ? PC.critMult : 1);
+    const armorOf = () => {
+      const a = ((dst.stats && dst.stats.armor) || 0) * stats.mod(dst, 'armorMul').mul;       // Builds 2 Etch, Sunder, Erase
+      return a > 0 ? Math.min(PC.armor.cap, a / (a + PC.armor.perLevel * (src.level || 1) + PC.armor.flat)) : 0;
+    };
     if (school === 'physical' && !info.noArmor) {
-      const arm = (dst.stats && dst.stats.armor) || 0;
-      if (arm > 0) amount *= 1 - Math.min(PC.armor.cap, arm / (arm + PC.armor.perLevel * (src.level || 1) + PC.armor.flat));
+      const cut = armorOf();
+      if (cut > 0) amount *= 1 - cut;
       if (dst.mob && dst.mob.physReduce) amount *= 1 - dst.mob.physReduce;
+    } else if (school !== 'physical' && dst.kind === 'player') {
+      // Builds 2 Runed Plate: armor works on spells at part of its strength
+      const k = stats.mod(dst, 'spellArmor').add;
+      if (k > 0) amount *= 1 - armorOf() * Math.min(1, k);
     }
     // the armored trait's plating (class identity pass): a flat cut off every weapon hit, never off damage over time
-    if (school === 'physical' && !info.noArmor && dst.mob && dst.mob.plating && !info.periodic) {
+    if (school === 'physical' && !info.noArmor && dst.mob && dst.mob.plating && !info.periodic && !stats.findAura(dst, 'b2_redacted')) {
       const owner = src.kind === 'object' ? get(src.owner) : src;
-      const seam = owner ? Math.min(1, Math.max(0, stats.mod(owner, 'platingIgnore').add)) : 0;     // Find the Seam
+      const seam = owner && owner.kind === 'player' ? Math.min(1, Math.max(0, stats.mod(owner, 'platingIgnore').add)) : 0;     // Find the Seam
       amount = Math.max(1, amount - dst.mob.plating * (1 - seam));
     }
+    // Builds 2 Redacted: a Redacted tough foe loses its damage bonus
+    if (src.mob && (src.mob.traits || []).includes('tough') && stats.findAura(src, 'b2_redacted')) amount /= ((P.mobTraits || {}).tough || {}).damage || 1;
     amount *= stats.mod(dst, 'damageTaken', { attacker: src, ability, school }).mul;
     let blockedAmt = 0;
     if (blocked) { blockedAmt = amount * PC.block.reduce; amount -= blockedAmt; }
@@ -587,6 +697,11 @@ export function createCombat(C) {
     blockedAmt = Math.round(blockedAmt);
     // Kept Name and similar: part of the hit lands on someone else
     amount = S().redirect(src, dst, amount, info);
+    // Builds 2 Living Manuscript: part of the hit comes out of mana instead (2 mana per health)
+    if (dst.kind === 'player' && dst.res && dst.res.kind === 'mana') {
+      const ms = stats.mod(dst, 'manaShield').add;
+      if (ms > 0) { const part = Math.min(Math.floor(amount * ms), Math.floor(dst.res.cur / 2)); if (part > 0) { dst.res.cur -= part * 2; amount -= part; } }
+    }
     // absorbs
     let absorbed = 0;
     for (const a of [...dst.auras]) {
@@ -605,7 +720,29 @@ export function createCombat(C) {
     if (dst.hp <= 0) {
       if (!S().cheatDeath(dst, src)) kill(dst, src);
     }
+    if (src.kind === 'player' && !info.periodic && !info.cleave && !info.copied) splash(src, dst, raw, info);
     return { amount, absorbed, crit, blocked, before };
+  }
+
+  /**
+   * Builds 2: a direct hit also lands on more foes. Furnace Heart and Furnace Form (cleave: the next foes within
+   * `cleaveRange`, default 2 tiles, for `cleavePct`), Storm Quiver (the arrow jumps), and Mirrorshade (the ink double
+   * copies the hit at its own share).
+   */
+  function splash(src, dst, raw, info) {
+    const mctx = { ability: info.ability || 'auto', school: info.school, target: dst };
+    const n = Math.floor(stats.mod(src, 'cleave', mctx).add);
+    if (n > 0) {
+      const pct = stats.mod(src, 'cleavePct', mctx).add || 0.5;
+      const range = stats.mod(src, 'cleaveRange', mctx).add || 32;
+      const list = unitsNear(dst.x, dst.y, dst.zone, range, (u) => u !== dst && isHostile(src, u))
+        .sort((a, b) => distPxXY(a.x, a.y, dst.x, dst.y) - distPxXY(b.x, b.y, dst.x, dst.y) || a.id - b.id).slice(0, n);
+      for (const u of list) dealDamage(src, u, raw * pct, { ...info, cleave: true, opener: false, melee: false });
+    }
+    if (src.cls === 'inkblade') for (const o of state.ents) {
+      if (o.kind !== 'object' || !o.obj || o.owner !== src.id || !o.obj.def.copy || o.zone !== dst.zone || dst.dead) continue;
+      dealDamage(o, dst, raw * o.obj.def.copy, { ...info, copied: true, opener: false, melee: false, ability: o.obj.def.id });
+    }
   }
 
   function openerBonus(src) {
@@ -622,6 +759,10 @@ export function createCombat(C) {
       if (src.kind === 'player') src.lastCombat = t;
       if (dst.kind === 'player') { dst.lastCombat = t; if (!info.periodic) dst.lastHitTaken = t; }
     }
+    // who hurt a mob last (the AI's leash: a held foe its target keeps hurting stays in the fight)
+    if (dst.kind === 'mob' && total > 0) { const by = src.kind === 'object' ? src.owner : src.id; dst.lastHurt = { by, tick: t }; }
+    // Builds 2 Rewrite: a foe fighting for a hero credits the hero
+    if (src.charmedBy != null && dst.kind === 'mob' && !dst.tagger) dst.tagger = src.charmedBy;
     // threat
     if (dst.kind === 'mob' && (src.kind === 'player' || src.kind === 'object')) {
       const owner = src.kind === 'object' ? get(src.owner) : src;
@@ -649,7 +790,7 @@ export function createCombat(C) {
     // resource on hits (Warden: +3 per hit taken, +5 per block)
     if (dst.kind === 'player' && !info.periodic && isHostile(src, dst)) {
       const r = (data.classes[dst.cls] || {}).resource;
-      if (r && r.onHitTaken) gainRes(dst, r.kind, r.onHitTaken);
+      if (r && r.onHitTaken) gainRes(dst, r.kind, r.onHitTaken + stats.mod(dst, 'hitResolve').add);   // Builds 2 Kindled Resolve
       // the heavy trait (class identity pass): each heavy blow knocks some of that resource out of you (the Warden's Resolve)
       if (src.mob && src.mob.drain && dst.res && src.mob.drain[dst.res.kind] && amount + absorbed > 0) {
         const loss = Math.max(0, src.mob.drain[dst.res.kind] - stats.mod(dst, 'drainResist').add);       // Unshaken
@@ -658,10 +799,17 @@ export function createCombat(C) {
       if (res.result === 'block' && r && r.onBlock) gainRes(dst, r.kind, r.onBlock + stats.mod(dst, 'blockResolve').add);
     }
     // procs
-    const pctx = { ability: info.ability, target: dst, damage: total, periodic: !!info.periodic, school: info.school };
+    const pctx = { ability: info.ability, target: dst, damage: total, periodic: !!info.periodic, school: info.school, opener: !!info.opener, cleave: !!info.cleave };
     if (!info.periodic) {
       procs(src, 'hit', pctx);
       if (res.crit) procs(src, 'crit', pctx);
+      // Builds 2 Sand Rush, Kick and Shoot: a buff that lasts a number of hits
+      if (src.kind === 'player' && !info.cleave && !info.copied) for (const a of [...src.auras]) {
+        const hc = a.def.hitCharges;
+        if (!hc || (a.def.hitAbility && !abMatch(a.def.hitAbility, info.ability))) continue;
+        a.data.hits = (a.data.hits || 0) + 1;
+        if (a.data.hits >= hc) removeAura(src, a, 'consume');
+      }
     } else if (info.auraSrc) {
       procs(src, 'periodic', { ...pctx, ability: info.auraSrc.ab });
     }
@@ -727,6 +875,15 @@ export function createCombat(C) {
     mob.threat[p.id] = (mob.threat[p.id] || 0) + add;
     if (first || (mob.ai && mob.ai.mode !== 'combat' && mob.ai.mode !== 'flee')) C.ai.engage(mob, p);
   }
+  /** Builds 2 Inkwalk, Vanish, Never Seen: every foe that holds `p` keeps it on its list at almost nothing and looks away. */
+  function dropThreat(p) {
+    for (const m of state.ents) {
+      if (m.kind !== 'mob' || m.dead || !m.threat || m.threat[p.id] == null) continue;
+      m.threat[p.id] = 0.001;
+      if (m.ai && m.ai.target === p.id) m.ai.target = null;
+      if (m.cast && m.cast.target === p.id) cancelCast(m, 'target');
+    }
+  }
   function healThreat(src, dst, eff) {
     const mobs = state.ents.filter((m) => m.kind === 'mob' && !m.dead && m.threat && (m.threat[src.id] != null || m.threat[dst.id] != null));
     if (!mobs.length) return;
@@ -762,6 +919,11 @@ export function createCombat(C) {
       const hold = owner ? Math.min(1, Math.max(0, stats.mod(owner, 'snareFast').add)) : 0;
       const k = dst.mob.snareMult + (1 - dst.mob.snareMult) * hold;
       if (k < 1) dur = Math.max(1, Math.round(dur * k));
+    }
+    // Builds 2 Long Pause, Long Bramble: the hero's roots and slows last longer
+    if (dur != null && def.kind === 'debuff' && (flags.includes('root') || flags.includes('slow'))) {
+      const owner = src.kind === 'object' ? get(src.owner) : src;
+      if (owner && owner.kind === 'player') { const k = stats.mod(owner, 'snareDuration').mul; if (k !== 1) dur = Math.max(1, Math.round(dur * k)); }
     }
     if (isElite(dst) && def.kind === 'debuff') {
       if (def.eliteImmune) { emit({ type: 'damage', src: src.id, dst: dst.id, ability: def.id, school: 'physical', amount: 0, crit: false, result: 'immune', absorbed: 0, blocked: 0, overkill: 0, periodic: false }); return null; }
@@ -906,7 +1068,12 @@ export function createCombat(C) {
   function comboEffect(src, t, fx, ctx) {
     if (src.kind !== 'player') return;
     if (fx.add) {
-      if (!src.combo || src.combo.target !== t.id || src.combo.until <= now()) src.combo = { target: t.id, n: 0, until: 0 };
+      if (!src.combo || src.combo.target !== t.id || src.combo.until <= now()) {
+        // Builds 2 Spreading Ink, Inkflood, Black Fan: marks left on this foe earlier (the 'inkblade_marks' aura) carry in
+        const spare = stats.findAura(t, 'inkblade_marks', src.id);
+        src.combo = { target: t.id, n: spare ? Math.min(comboMax(src), spare.stacks) : 0, until: 0 };
+        if (spare) removeAura(t, spare, 'consume');
+      }
       let add = fx.add;
       if (ctx.opener) add += (src.lastOpener && src.lastOpener.combo) || 1;
       for (const a of [...src.auras]) if (a.def.comboBonus && (!a.def.consumeOn || a.def.consumeOn.cast === ctx.abId)) { add += a.def.comboBonus; removeAura(src, a, 'consume'); }
@@ -929,13 +1096,36 @@ export function createCombat(C) {
   function moveEffect(src, r, fx, ctx) {
     const t = ctx.target;
     const timeOf = (dist) => fx.time || (fx.speed ? dist / fx.speed : 0.3);
+    // Builds 2 Ember Leap, Gate Charge: an ability with `land` effects fires them where the mover arrives
+    const land = ctx.ab && (ctx.ab.land || ctx.ab.arrive) && r === src ? { kind: 'land', ability: ctx.ab.id, target: t ? t.id : null } : null;
     if (fx.kind === 'leap') {
       let vx, vy, dist = fx.distance;
       if (fx.dir === 'moving' && (r.mx || r.my)) { const d = Math.hypot(r.mx, r.my); vx = r.mx / d; vy = r.mx === 0 && r.my === 0 ? 0 : r.my / d; }
+      else if (fx.dir === 'point' && ctx.at) {
+        const d = distPxXY(r.x, r.y, ctx.at.x, ctx.at.y);
+        vx = d > 0 ? (ctx.at.x - r.x) / (d * SUB) : 0; vy = d > 0 ? (ctx.at.y - r.y) / (d * SUB) : 0; dist = Math.min(fx.distance, d);
+      }
       else if (fx.dir !== 'back' && t && t !== r) { [vx, vy] = unitTo(r, t, r.dir); dist = Math.max(0, Math.min(fx.distance, distPx(r, t) - 16)); }
       else { const [fx_, fy_] = facingVec(r); vx = -fx_; vy = -fy_; }
-      setForced(r, vx, vy, dist, timeOf(dist));
+      setForced(r, vx, vy, dist, timeOf(dist), land);
       emit({ type: 'leap', id: r.id, kind: 'leap', dx: Math.round(vx * fx.distance), dy: Math.round(vy * fx.distance) });
+    } else if (fx.kind === 'pull' && t && r !== src) {
+      // Builds 2 Iron Chain, Grapple Line: drag the foe to the hero
+      if (immuneTo(r, 'knockback')) return;
+      const d = Math.max(0, distPx(src, r) - 20);
+      if (d > 0) { const [vx, vy] = unitTo(r, src, r.dir); setForced(r, vx, vy, d, fx.time || 0.3); cancelCast(r, 'interrupt'); }
+      emit({ type: 'leap', id: r.id, kind: 'pull', dx: 0, dy: 0 });
+    } else if (fx.kind === 'blink_to' && ctx.at) {
+      // Builds 2 Ellipsis: reappear at a point (or the nearest free spot short of it)
+      const zone = C.zoneOf(src);
+      const d = distPxXY(src.x, src.y, ctx.at.x, ctx.at.y);
+      const k0 = d > fx.distance ? fx.distance / d : 1;
+      for (const k of [1, 0.85, 0.7, 0.55, 0.4, 0.25]) {
+        const x = Math.round(src.x + (ctx.at.x - src.x) * k0 * k), y = Math.round(src.y + (ctx.at.y - src.y) * k0 * k);
+        if (C.boxFree(zone, x, y)) { src.x = x; src.y = y; break; }
+      }
+      src.forced = null;
+      emit({ type: 'leap', id: src.id, kind: 'blink', dx: 0, dy: 0 });
     } else if (fx.kind === 'knockback') {
       if (immuneTo(r, 'knockback') || r === src) return;
       const [vx, vy] = unitTo(src, r, src.dir);
@@ -953,7 +1143,9 @@ export function createCombat(C) {
       emit({ type: 'leap', id: src.id, kind: 'blink', dx: 0, dy: 0 });
     } else if (fx.kind === 'charge' && t) {
       const d = Math.min(fx.distance || 9999, distPx(src, t) - 20);
-      if (d > 0) { const [vx, vy] = unitTo(src, t, src.dir); setForced(src, vx, vy, d, timeOf(d), ctx.onArrive); }
+      if (d > 0) { const [vx, vy] = unitTo(src, t, src.dir); setForced(src, vx, vy, d, timeOf(d), ctx.onArrive || land); }
+      else if (land) S().arrive(src, land);
+      emit({ type: 'leap', id: src.id, kind: 'charge', dx: 0, dy: 0 });
     } else if (fx.kind === 'blink') {
       const from = ctx.attacker || t;
       // Away from whoever we fight. A self-cast blink has no attacker, and a mob faces its foe, so back off.
@@ -992,9 +1184,63 @@ export function createCombat(C) {
       obj: { def, armAt: now() + T(def.armTime || 0), until: def.duration == null ? null : now() + T(def.duration),
         nextPulse: def.period ? now() + T(def.period) : null, abId: ctx.abId || null, target: ctx.target ? ctx.target.id : null },
     };
+    // Builds 2 pets and doubles: a share of the owner's health (or a number of hits), and they may pull the foes' eyes
+    if (def.hpPct) { o.hp = o.hpMax = Math.max(1, Math.round(owner.hpMax * def.hpPct)); }
+    if (def.hits) { o.obj.hitsLeft = def.hits; o.hp = o.hpMax = def.hits; }
+    if (def.pet) o.obj.nextAct = now() + T(def.pet.first != null ? def.pet.first : 0.5);
     C.add(o);
     emit({ type: 'spawn', id: o.id, template: def.id, zone: o.zone, kind: 'object', owner: owner.id, x: x / SUB, y: y / SUB, radius: def.radius || (def.trigger && def.trigger.radius) || 0 });
+    if (def.holdThreat) holdThreat(o, owner);
     return o;
+  }
+
+  /** Builds 2: every foe fighting the owner within 10 tiles turns on the object (a taunt that names the object). */
+  function holdThreat(o, owner) {
+    for (const m of state.ents) {
+      if (m.kind !== 'mob' || m.dead || m.zone !== o.zone || !m.threat || m.threat[owner.id] == null) continue;
+      if (distPx(m, o) > 160) continue;
+      taunt(owner, m, Math.min(4, o.obj.until != null ? (o.obj.until - now()) / TICK_HZ : 4), o.id);
+    }
+  }
+
+  /**
+   * Builds 2 pets (Ink Hound, Sand Kestrel, Mirrorshade): `def.pet = { period, range, effects, speed, interrupt, leash }`.
+   * The pet goes for its owner's target (else the nearest foe on the owner's threat), hits it every `period`, and
+   * follows the owner when there is no fight. Pet damage is the owner's numbers (its level and spell power) dealt by the
+   * pet, so the threat it makes is the owner's and the foe's hits go where its taunt points.
+   */
+  function petTick(o, owner) {
+    const ob = o.obj, def = ob.def, pet = def.pet;
+    let t = owner.target != null ? get(owner.target) : null;
+    if (!t || t.dead || t.zone !== o.zone || !isHostile(owner, t) || distPx(owner, t) > 192) t = null;
+    if (!t) {
+      const list = state.ents.filter((m) => m.kind === 'mob' && !m.dead && m.zone === o.zone && m.threat && m.threat[owner.id] != null && isHostile(owner, m) && distPx(m, owner) <= 160);
+      t = nearest(list, owner.x, owner.y);
+    }
+    const speed = Math.round(((pet.speed || 72) * SUB) / TICK_HZ);
+    const step = (tx, ty, stopAt) => {
+      const d = distPxXY(o.x, o.y, tx, ty);
+      if (d <= stopAt) return;
+      const k = Math.min(speed, (d - stopAt) * SUB) / (d * SUB);
+      const nx = Math.round(o.x + (tx - o.x) * k), ny = Math.round(o.y + (ty - o.y) * k);
+      if (pet.fly || C.boxFree(C.zoneOf(o), nx, ny)) { o.x = nx; o.y = ny; }
+    };
+    if (!pet.still) {
+      if (t) step(t.x, t.y, Math.max(8, (pet.range || 24) - 6));
+      else step(owner.x, owner.y, 20);
+    }
+    if (!t || now() < ob.nextAct) return;
+    if (distPx(o, t) > (pet.range || 24) + 2) return;
+    ob.nextAct = now() + T(pet.period || 2);
+    o.target = t.id;
+    for (const fx of pet.effects || []) {
+      if (fx.type !== 'damage') continue;
+      const raw = rawAmount(owner, t, fx, {});
+      dealDamage(o, t, raw, { ability: def.id, school: fx.school || 'physical', canCrit: false, melee: (pet.range || 24) <= 40, threatMult: 1 });
+    }
+    // the Sand Kestrel: it breaks a cast once per `interrupt.every` s
+    if (pet.interrupt && t.cast && !t.dead && now() >= (ob.nextInterrupt || 0)) { ob.nextInterrupt = now() + T(pet.interrupt.every); interrupt(t, pet.interrupt.lockout || 2, owner); }
+    if (def.holdThreat && !t.dead) holdThreat(o, owner);
   }
   /** Mob adds (CONTRACTS 5.2 summon with `mob`): spawned beside the caster (or a zone script spot), joining its fight. */
   function summonMobs(src, fx, ctx) {
@@ -1027,7 +1273,7 @@ export function createCombat(C) {
       const ob = o.obj;
       const owner = get(o.owner);
       const expired = ob.until != null && now() >= ob.until;
-      if (!owner) { despawnObject(o, 'expire'); continue; }
+      if (!owner || (ob.def.pet && owner.dead) || (ob.def.pet && owner.zone !== o.zone)) { despawnObject(o, 'expire'); continue; }
       const def = ob.def;
       if (expired) {
         // the last pulse lands on the tick the zone ends (6 s zone, pulses at 2, 4 and 6 s)
@@ -1037,11 +1283,14 @@ export function createCombat(C) {
       }
       if (now() < ob.armAt) continue;
       if (def.script) { S().objectTick(o, owner); continue; }
+      if (def.pet) { petTick(o, owner); continue; }
       if (def.trigger) {
         const r = def.trigger.radius;
         const hit = unitsNear(o.x, o.y, o.zone, r, (u) => isHostile(owner, u)).sort((a, b) => a.id - b.id)[0];
         if (hit) {
           runEffects(owner, def.effects, { caster: owner, target: hit, abId: ob.abId, at: { x: o.x, y: o.y }, objSrc: o });
+          // Builds 2 Hunter's Ground: a trap re-arms once after it bursts
+          if (def.trigger.once && (def.rearm || 0) > (ob.rearmed || 0)) { ob.rearmed = (ob.rearmed || 0) + 1; ob.armAt = now() + T(def.armTime || 1); emit({ type: 'b2_proc', id: owner.id, what: 'rearm', object: o.id }); continue; }
           if (def.trigger.once) { despawnObject(o, 'sprung'); continue; }
         }
       }
@@ -1072,14 +1321,21 @@ export function createCombat(C) {
     if (distPx(e, t) > range) return;
     if (cls.auto.range > 40 && !losOk(e, t)) return;
     let mult = 1;
-    if (cls.autoNeedsStill && e.moving) { if (!data.hasScript(e, 'running_shot')) return; mult = 0.7; }
+    if (cls.autoNeedsStill && e.moving) {
+      // Builds 2 Skirmisher (60%) and Dancing Bow (full): Auto Shot while moving
+      const ms = stats.mod(e, 'moveShot').add;
+      if (ms > 0) mult = Math.min(1, ms);
+      else { if (!data.hasScript(e, 'running_shot')) return; mult = 0.7; }
+    }
     e.swing = e.swing || { main: 0, off: 0 };
+    // Builds 2 Snap Shot: the first Auto Shot after you stop comes sooner
+    if (cls.autoNeedsStill && !e.moving && e.stillSince === now() - 1) { const ss = stats.mod(e, 'snapShot').add; if (ss > 0) e.swing.main = Math.max(now(), e.swing.main - T(ss)); }
     if (now() >= e.swing.main) {
       e.swing.main = now() + autoInterval(e, 'main');
       face(e, t);
       autoSwing(e, t, 'main', mult, cls);
     }
-    if (cls.auto.offHand && e.weapon.off && now() >= e.swing.off) {
+    if (cls.auto.offHand && e.weapon.off && now() >= e.swing.off && !(stats.mod(e, 'noOffHand').add > 0)) {
       e.swing.off = now() + autoInterval(e, 'off');
       autoSwing(e, t, 'off', mult, cls);
     }
@@ -1097,7 +1353,10 @@ export function createCombat(C) {
     const cls = data.classes[e.cls];
     let raw = swing(e, p.hand || 'main') * (p.mult || 1);
     if (p.hand === 'off') raw *= (cls.offHandMult || 0.5) + stats.mod(e, 'offHand').add;
-    else raw += stats.mod(e, 'autoSp').add * ((e.derived && e.derived.sp) || 0) * (p.mult || 1);     // Builds 2 Bell and Rod
+    else {
+      raw += stats.mod(e, 'autoSp').add * ((e.derived && e.derived.sp) || 0) * (p.mult || 1);     // Builds 2 Bell and Rod
+      raw *= stats.mod(e, 'autoWeaponMul').mul;                                                 // Builds 2 Heavy Knife
+    }
     const res = dealDamage(e, t, raw, { ability: 'auto', school: 'physical', canCrit: true, melee: cls.auto.range <= 40, threatMult: 1, opener: p.opener });
     if (res && cls.resource.kind === 'resolve') gainRes(e, 'resolve', cls.resource.onHitDealt + stats.mod(e, 'autoResolve').add);
   }
@@ -1139,6 +1398,7 @@ export function createCombat(C) {
         gainRes(e, 'focus', (r.regen + stats.mod(e, 'focusRegen').add) * sec);
       } else if (r.kind === 'resolve') {
         if (ooc && now() - (e.combatEnd || 0) >= T(r.decayDelay)) gainRes(e, 'resolve', -r.decayOoc * sec);
+        else if (!ooc) { const dr = stats.mod(e, 'resDrain').add; if (dr) gainRes(e, 'resolve', -dr * sec); }   // Builds 2 Furnace Heart
       }
     }
     let hpPerSec = 0;
@@ -1208,13 +1468,17 @@ export function createCombat(C) {
     for (const p of list) {
       if (p.on !== on) continue;
       if (p.ability && !abMatch(p.ability, pctx.ability)) continue;
+      // Builds 2: a proc may name a school ('spell' = any non-physical) and skip the extra hits of a cleave or splash
+      if (p.school && (p.school === 'spell' ? !pctx.school || pctx.school === 'physical' : p.school !== pctx.school)) continue;
+      if (p.direct && pctx.cleave) continue;
       if (p.when && !stats.cond(e, p.when, pctx)) continue;
       const key = `${p.src}:${on}`;
       e.icd = e.icd || {};
       if (p.icd && (e.icd[key] || 0) > now()) continue;
       if (p.chance != null && p.chance < 1 && !rng.chance(p.chance)) continue;
-      if (p.icd) e.icd[key] = now() + T(p.icd);
-      const ctx = { caster: e, target: pctx.target || null, attacker: pctx.attacker || null, damage: pctx.damage || 0, heal: pctx.heal || 0, abId: p.src };
+      // Builds 2 Quick Cut: a proc's own cooldown cut by a named stat (Cut the Word's)
+      if (p.icd) e.icd[key] = now() + T(Math.max(0.5, p.icd + (p.icdStat ? stats.mod(e, p.icdStat).add : 0)));
+      const ctx = { caster: e, target: pctx.target || null, attacker: pctx.attacker || null, damage: pctx.damage || 0, heal: pctx.heal || 0, abId: p.src, procAbility: pctx.ability || null };
       runEffects(e, p.effects, ctx);
     }
   }
@@ -1227,7 +1491,7 @@ export function createCombat(C) {
     cancelCast(dst, 'death');
     dst.forced = null; dst.mx = 0; dst.my = 0; dst.autoOn = false;
     for (const a of [...dst.auras]) removeAura(dst, a, 'death');
-    const killer = src && src.kind === 'object' ? get(src.owner) : src;
+    const killer = src && src.kind === 'object' ? get(src.owner) : src && src.charmedBy != null ? get(src.charmedBy) || src : src;
     emit({ type: 'death', id: dst.id, killer: killer ? killer.id : null, template: dst.template, kind: dst.kind, tagger: dst.tagger || null });
     for (const u of state.ents) {
       if (u.combo && u.combo.target === dst.id) u.combo = null;
@@ -1241,6 +1505,6 @@ export function createCombat(C) {
     cast, castAbility, cancelCast, completeCast, tickUnit, tickWorld, dealDamage, heal, applyAura, removeAura, addThreat, taunt, kill,
     isHostile, isFriendly, cannotAct, cannotMove, mobAttack, interrupt, runEffects, summon, despawnObject, breakStealth, startAuto,
     comboFor, castTimeOf, costOf, cdReady, chargeState, abRange, fire, launch, procs, unitsNear, nearest, facingVec, face, losOk,
-    isElite, setForced, gainRes, resolveAbilityId, rawAmount,
+    isElite, setForced, gainRes, resolveAbilityId, rawAmount, dropThreat, holdThreat, areaUnits, recipients,
   };
 }

@@ -76,9 +76,9 @@ export const CLASSES = {
     perLevel: { hp: 0, str: 0.6, agi: 1.6, int: 0.2, spi: 0.4, sta: 1.1 },
     hpPerSta: 10, apPerAgi: 2, critBase: 0.05, offHandMult: 0.5, mainStat: 'agi',
     // class identity pass: Cut the Word. +30% damage to casters, and a hit on a foe that is casting breaks the spell (once per
-    // 4 s; the spell is not locked)
+    // 4 s; the spell is not locked). Builds 2: Quick Cut shortens the 4 s (icdStat), Unwritten turns it off (noScript)
     passives: { mods: [{ stat: 'damageDone', mul: 1.3, when: { targetTrait: 'caster' } }],
-      procs: [{ on: 'hit', chance: 1, icd: 4, when: { targetCasting: true }, effects: [{ type: 'interrupt', to: 'target', lockout: 0.05 }] }] },
+      procs: [{ on: 'hit', chance: 1, icd: 4, icdStat: 'cutWordIcd', when: { targetCasting: true, noScript: 'b2_unwritten' }, effects: [{ type: 'interrupt', to: 'target', lockout: 0.05 }] }] },
     auto: { weapon: 'dagger', range: 40, offHand: true },
     // combat role pass: Inkstep (now the area strike) at 6 (was 14), Ink in the Eyes at 14 (was 6)
     abilities: [{ id: 'inkblade_nick', level: 1 }, { id: 'inkblade_spill', level: 1 }, { id: 'inkblade_fade', level: 3 },

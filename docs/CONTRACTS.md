@@ -928,3 +928,87 @@ Builds 2; every other class runs today's talents, and its `b2_*` commands refuse
 - **Save v2** (`src/ui/save.js`): `SAVE_VERSION 2`; v1 migrates (every field kept, `state.v = 2`, `state.build` with a
   flagged free respec, old talents kept in `build.legacyTalents`); the v1 blob is copied once to `<key>.v1`; a corrupt or
   newer blob still goes to `<key>.bad`. `main.js` saves `state.v: 2` and passes `build` to `addPlayer`.
+
+## Builds 2 phase 2 additions (2026-11-19, ON for every class)
+
+Design: `docs/design/BUILDS_2.md` 4.1, 4.3, 4.4, 4.5 with the `BUILDS_2_PLAY.md` 1.3 amendments (Inkblade keystone costs,
+the axis chips, the Iron Sweep tweak) and 1.4 (every named build spelled out). The flag:
+`content.progression.builds2 = { enabled: true, classes: ['mender', 'warden', 'scribe', 'wayfinder', 'inkblade'] }`.
+No class shows the old talents window now; `src/data/talents.js` (the 162 nodes) and `src/ui/talents.js` stay as dead
+data and code (save v1 heroes keep their old ranks in `build.legacyTalents`; the old tests still exercise them with the
+fixture flag off).
+
+- **Data:** one file per class, `src/data/builds2_warden.js`, `_scribe`, `_wayfinder`, `_inkblade` (shared helpers in
+  `builds2_kit.js`), joined in `src/data/builds2.js`. Each exports `{ tracks, nodes, signatures, signatureAxis, builds,
+  defaultBuild, baseline }` and its new abilities (the 16 pick skills, the +skill nodes' skills, the 12 signatures), which
+  `B2_ABILITIES` merges. A named build carries `picks` (1, 3, 6, 14), `signature` and `signatures` (its order), `forks`,
+  `keystone`, a 15-point `path`, optional `buy` ({ level: ability }, a pick bought back at the trainer) and `answers`
+  ({ trait: fromLevel }, BUILDS_2_PLAY 3.3's solo answer to its class's struggle, read by `qa/sim/builds2.mjs --struggle`).
+- **Signature pick:** `RULES.signatureLevels` [10, 20, 35]. `B.picksOpen` adds `{ level: 10, options, signature: true, axis }`
+  while the hero has fewer signatures than levels reached; `b2_pick { level: 10, ability }` takes one into `build.sigs`.
+  Only `ready` signatures are offered (the Mender's three are still data only).
+- **+skill nodes:** a node rank may carry `grant: abilityId`; `data.talentInfo(e).grants` lists them and `B.syncGrants`
+  (run on every change and on attach) learns them, records them in `build.granted`, and removes one (known and bar) when
+  the node goes, unless a pick, a purchase or a signature also gives it. Event `b2_grant { id, ability, on }`.
+- **Attach:** a hero who reaches Builds 2 with trainer skills gets the picks it already covers recorded (the other side,
+  when known too, counts as bought), so no pick is offered for a skill it has.
+- **Window:** `src/ui/talents2.js` `pickSlots(cls)` (the skill picks and the level 10 signature slot, three options),
+  `slotTaken(build, slot)`. Desktop slots size by option count; a phone with five slots goes compact (the level beside
+  the icons, no name line). The hero's name gives way to a long leaning name. Region label `b2pick:10:<ability>`.
+- **Effect engine additions** (src/sim/combat.js, stats.js):
+  - mod stats `weaponMul` (every swing), `autoWeaponMul` (auto-attacks), `noOffHand`, `cleave` + `cleavePct` + `cleaveRange`
+    (a direct hit also lands on more foes), `stormShots` (physical shots become nature), `dodge` (a dodged hit does
+    nothing, `result: 'dodge'`, fires `dodge` procs; capped at 60%), `spellArmor` (armor on spells), `armorMul` (on the
+    holder's armor), `hitResolve`, `resDrain`, `crowdResolve`, `snareDuration` (the hero's roots and slows), `castMove`
+    (cast while walking at that speed share), `hastyNote`, `moveShot`, `snapShot`, `manaShield`, `ruthless`, plus the proc
+    field `icdStat` (Cut the Word's `cutWordIcd`).
+  - mod filters `notAbility`, `perNear: { radius, max }` (per foe near), aura-mod `selfOnly` / `othersOnly` (the attacker is
+    / is not the aura's caster). Proc filters `school` ('spell' = non-physical) and `direct` (skip cleave hits).
+  - conds `resAbove`, `targetBeyond`, `targetSnared`, `targetHeld`, `targetAlone`, `selfAura`, `noScript`.
+  - recipients `enemies_in_line` (`length`, `width`: through the target), `enemies_near_self` (`radius`).
+  - effects: `threat { drop: true }` (foes keep the hero at almost no threat and look away), `resource.pctOfCost` (of the
+    proc's ability), `move` kinds `pull` (the target to the caster), `blink_to` (to `at`), `leap` with `dir: 'point'`;
+    damage `forceCrit` (Capital Letter).
+  - ability fields `onCast` (effects on the caster at cast time), `bounce: { count, radius }` (a projectile hops to the
+    nearest foe it has not hit; `projectile` events carry `from`), `land` + `landRadius` + `landResolve` and `arrive` (effects
+    where a leap or charge ends; the move effect needs `to: 'self'`), `requires.notElite`.
+  - aura fields `hitCharges` + `hitAbility` (a buff that lasts that many hits), `scaleStacks` (a tick per stack).
+  - placed objects: `pet: { period, range, speed, fly, still, effects, interrupt: { every, lockout } }` (follows its owner,
+    hits the owner's target with the owner's numbers), `hpPct` (health as a share of the owner's), `hits` (dies after that
+    many hits), `holdThreat` (foes fighting the owner are taunted to it), `copy` (it repeats the owner's direct hits at that
+    share), `rearm` (a trap re-arms that many times). Mobs strike an object with `hpPct` or `hits` (`dealDamage` to an object).
+  - costs: `payPlan` / `pay`: a cost can be paid in health (Blood Ink when the mana runs out, Bottomless Well always;
+    event `b2_proc { what: 'hp_cost' }`); `freeCast` (Dancing Bow).
+- **AI** (src/sim/ai.js): mode `charmed` (Rewrite: `m.charmedBy`, faction 'player' for its time, it fights its old side;
+  kills credit the charmer); a foe whose only threat is an untargetable hero waits (`'lost'`) instead of resetting; a held
+  foe that its target keeps hurting does not leash (CONTRACTS 5.7 "or being hurt by its target"; `m.lastHurt`).
+- **Play rules:** `src/sim/scripts_b2.js` (hooked from scripts.js): `b2_moving_wall`, `b2_oathbreaker`, `b2_gatekeeper`,
+  `b2_spellbreaker` (Warden); `b2_capital`, `b2_shorthand_master`, `b2_blood_ink`, `b2_bottomless`, effect scripts
+  `b2_paragraph`, `b2_rewrite`, `b2_rewrite_end` (Scribe); `b2_point_blank`, `b2_hunting_spear`, `b2_dancing_bow`,
+  `b2_kick_and_shoot`, effect script `b2_grapple`, the Kestrel's Dive (Wayfinder); `b2_vanish`, `b2_silence`, `b2_spellthief`,
+  `b2_unwritten`, effect scripts `b2_never_seen`, `b2_spread_marks` (Inkblade). Spare Ink Marks live on foes as the aura
+  `inkblade_marks` (stacks); a new combo on that foe starts from them. Event `b2_proc { id, what }` for the rest.
+- **Baselines** (`BUILDS2[cls].baseline`): Warden move -5%, +2 Resolve a second per foe in melee beyond the first, damage
+  -25% to a foe alone (tuned); Wayfinder move +5%, shots within 2 tiles -20% (Point Blank lifts it), damage -10% (tuned);
+  Inkblade damage -8% (tuned). The Inkblade's Cut the Word proc reads `icdStat` and stops on an ordinary hit with Unwritten.
+- **Gate:** `node qa/sim/builds2.mjs` covers all five classes (15 named builds x levels 1 to 15); `--struggle` checks each
+  class's BUILDS_2_PLAY struggle foe on qa/sim/matchup.mjs's measure. Tests: `qa/sim/builds2_classes.test.mjs`.
+
+### TODO (data only, later phases)
+
+- **Signatures 2 and 3** (levels 20 and 35): the pick rule is built; each class's other two signatures are real skills
+  already, but levels past 15 do not exist yet. The Mender's three signatures are `ready: false` (Tolling Hammers, Riptide
+  Step, Kindred Light): not built.
+- **Grapple points** in zone maps (`grapple: true` objects) for Grapple Line's "pull yourself to a point"; today it targets
+  foes only.
+- **Furnace Form's size +30%** and every signature's own look: the renderers draw them with existing fx (projectile, leap,
+  aura and object looks; pets and doubles use the `ink_double` object look, the Ellipsis dots the trap look, the Paragraph
+  the hedge look, the dust cloud `zone_peal`). No new renderer event types were needed; `b2_proc`, `b2_grant` are ignored
+  by the renderers.
+- **Level 25 picks** (BUILDS_2_PLAY 1.3: Slag Brand / Hammerfall, Run-On Sentence / Full Caps, Tanglewire / Broadhead, Gall
+  Ink / Opened Vein, Sanctuary Toll / Inner Bell): not written into the data yet (the cap is 15).
+- **Flourishes, class hooks (Ring Block, Bright Thread, Punctuate, Snap Draw, Clean Spill), setup states and cross-class
+  combos, party keystones, Many Hands** (BUILDS_2_PLAY 2, 4): a later phase. Hook room left: node `byRank` effects take
+  any extra field, and setup states can be auras on foes like `inkblade_marks`.
+- **Skill bar:** the HUD draws 6 slots; a 7th skill (the level 14 pick, a +skill node) is known but off the bar until the
+  bar grows to 7 at 10 and 8 at 20 (BUILDS_2 3.2, a HUD change in src/ui).

@@ -4,6 +4,7 @@
 import { SUB } from './constants.js';
 import { ticks as T } from './data.js';
 import { distPx } from './geom.js';
+import { createB2Scripts } from './scripts_b2.js';
 
 export function createScripts(C) {
   const { state, data, stats, emit } = C;
@@ -14,8 +15,12 @@ export function createScripts(C) {
   const counters = (e) => (e.counters = e.counters || {});
 
   function myAura(t, id, src) { return t ? stats.findAura(t, id, src) : null; }
+  const B2 = createB2Scripts(C);      // Builds 2, the other four classes (src/sim/scripts_b2.js)
 
   return {
+    // Builds 2 hooks (scripts_b2.js): costs, instant casts, interrupts
+    freeCast: B2.freeCast, hpCost: B2.hpCost, bloodInk: B2.bloodInk, instantCast: B2.instantCast, paid: B2.paid, interrupted: B2.interrupted,
+
     // ---------------------------------------------------------------------------- casting
     castTimeMul(e, ab, t) {
       if (ab.id === 'mender_kindle' && has(e, 'pyre_word') && t && myAura(t, 'mender_brand', e.id)) {
@@ -45,6 +50,7 @@ export function createScripts(C) {
     },
     /** Arrival of a forced move that carries a follow-up (Sworn Strike). */
     arrive(e, key) {
+      if (B2.arrive(e, key)) return;
       if (!key || key.kind !== 'sworn_strike') return;
       const t = get(key.target);
       if (!t || t.dead) return;
@@ -54,11 +60,13 @@ export function createScripts(C) {
     },
 
     fadeInCombat(e, ab) {
+      if (B2.fadeInCombat(e, ab)) return true;
       return ab.id === 'inkblade_fade' && has(e, 'unwritten') && (e.cd.inkblade_unwritten || 0) <= now();
     },
 
     beforeFire(e, ab, t, ctx) {
       ctx.mult = ctx.mult || 1;
+      B2.beforeFire(e, ab, t, ctx);
       if (ab.id === 'warden_shield_bash' && has(e, 'oathbreaker') && e.res) {
         const spent = Math.max(0, Math.floor(e.res.cur) - 20);
         e.res.cur -= spent;
@@ -104,6 +112,7 @@ export function createScripts(C) {
     },
 
     afterFire(e, ab, t, ctx) {
+      B2.afterFire(e, ab, t, ctx);
       if (ab.id === 'scribe_inkbolt' && t && !t.dead) {
         if (ctx.capital) K().applyAura(e, t, { id: 'scribe_capital_stun', name: 'Capital Letter', icon: 'inkbolt', kind: 'debuff', duration: 1, flags: ['stun'] }, {});
         if (has(e, 'footnote')) K().applyAura(e, t, { id: 'scribe_footnote', name: 'Footnote', icon: 'talent_footnote', kind: 'debuff', duration: 30 }, { abId: ab.id });
@@ -173,6 +182,7 @@ export function createScripts(C) {
     },
 
     beforeDeath(dst, killer) {
+      B2.beforeDeath(dst, killer);
       for (const a of dst.auras) {
         const owner = get(a.src);
         if (!owner || owner.dead) continue;
@@ -222,6 +232,7 @@ export function createScripts(C) {
     },
 
     comboConsumed(src, t, n) {
+      B2.comboConsumed(src, t, n);
       if (has(src, 'second_cut') && n > 0 && t && !t.dead && t.hp > 0) {
         src.combo = { target: t.id, n: 1, until: now() + T(20 + stats.mod(src, 'comboDuration').add) };
       }
@@ -246,6 +257,7 @@ export function createScripts(C) {
     auraRemoved() {},
 
     playerTick(e) {
+      B2.playerTick(e);
       if (e.pendingFade != null) {
         e.pendingFade = null;
         const fab = data.ability(e, 'inkblade_fade');
@@ -281,6 +293,7 @@ export function createScripts(C) {
 
     /** Effect scripts (`{ type: 'script', name }` in ability data). */
     run(name, src, r, args, ctx) {
+      if (name.startsWith('b2_')) { B2.run(name, src, r, args, ctx); return; }
       // Builds 2 Unbroken: a Warding Word the Mender put on herself breaks; she may cast it again 5 s later
       if (name === 'unbroken') {
         const h = ctx && ctx.holder;

@@ -4,7 +4,8 @@
 import { menuRect, bagGrid } from './layout.js';
 import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, resourceLabel } from './gamedata.js';
 import { drawMarkers } from './minimap.js';
-import { drawAreas, drawTooltip } from './hud.js';
+import { drawAreas, drawTooltip, drawGoalArrow } from './hud.js';
+import { whereLabel } from './questnav.js';
 import { ACTIONS, effectiveBinds, keyLabel } from './keymap.js';
 
 const SLOT_ICON = { head: 'icon_helm', chest: 'icon_armor', legs: 'icon_mantle', feet: 'icon_boots', main: 'icon_sword', off: 'icon_shield', hands: 'icon_charm', trinket: 'icon_star' };
@@ -247,7 +248,7 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
   const lx = r.x + 8, lw = 170, ly = r.y + 26, lh = r.h - 34;
   g.window(ctx, lx, ly, lw, lh, 'thin', 'blue', 0.5);
   if (!qs.length) { g.text(ctx, 'No quests yet. Look for a gold ! over a head.', r.x + r.w / 2, r.y + r.h / 2, 'gray', { align: 'center' }); return; }
-  if (!st.questSel || !qs.find((q) => q.id === st.questSel)) st.questSel = qs[0].id;
+  if (!st.questSel || !qs.find((q) => q.id === st.questSel)) st.questSel = (m.selectedQuest && qs.find((q) => q.id === m.selectedQuest)) ? m.selectedQuest : qs[0].id;
   const rowH = Math.max(13, env.L.minHit || 0);
   const vis = Math.floor((lh - 6) / rowH);
   st.questScroll = Math.max(0, Math.min(Math.max(0, qs.length - vis), st.questScroll || 0));
@@ -258,7 +259,7 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
     g.text(ctx, `${q.level || '?'}`, lx + 6, y + Math.floor((rowH - 11) / 2), 'dim');
     g.text(ctx, g.clip(q.name, lw - 32), lx + 22, y + Math.floor((rowH - 11) / 2), q.done ? 'green' : sel ? 'cream' : 'white');
     if (q.tracked !== false) g.rect(ctx, lx + lw - 7, y + Math.floor(rowH / 2) - 1, 3, 3, '#f9d77a');
-    regions.push({ rect: { x: lx, y, w: lw, h: rowH }, kind: 'quest_row', on: () => { st.questSel = q.id; st.confirm = null; } });
+    regions.push({ rect: { x: lx, y, w: lw, h: rowH }, kind: 'quest_row', id: q.id, on: () => { st.confirm = null; act.selectQuest(q.id); } });
   });
   if (qs.length > vis) {
     g.text(ctx, `${st.questScroll + 1}-${Math.min(qs.length, st.questScroll + vis)} of ${qs.length}`, lx + lw / 2, ly + lh - 12, 'dim', { align: 'center' });
@@ -303,16 +304,29 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
   button(r.x + r.w - 10 - 112, 112, confirm ? 'Abandon? Again' : 'Abandon', confirm ? 'orange' : 'red',
     () => { if (confirm) { st.confirm = null; act.abandonQuest(q.id); } else st.confirm = `abandon:${q.id}`; });
   button(r.x + r.w - 10 - 112 - 6 - 80, 80, q.tracked === false ? 'Track' : 'Untrack', 'cream', () => act.trackQuest(q.id, q.tracked === false));
+  // where it sends you: select it and open the map on its goal (Scott, 2026-11-19)
+  button(r.x + r.w - 10 - 112 - 6 - 80 - 6 - 96, 96, 'Show on map', 'gold', () => act.showOnMap(q.id));
 }
 
 // ---------------------------------------------------------------- world map
 
+const SIDE_ANGLE = { east: 0, south: Math.PI / 2, west: Math.PI, north: -Math.PI / 2 };
+
+/** The world map. It opens on the zone of the SELECTED quest's goal (questnav.js), lists your quests on the left (a
+ *  tap selects one), pulses the selected quest's circles with what to do there ("Slay Ink Slimes 2/6", "Hand in to
+ *  Oren") and dims the rest. When the goal is in another zone, both zones' maps say which way to go ("Go to Shepherd's
+ *  Downs (east exit)") and your zone's map points a gold arrow at that exit. */
 export function drawMap(ctx, env, m, st, regions, act) {
   const { g, mapBook } = env;
   const r = menuRect('map');
   frame(ctx, env, r, 'World Map', regions, act, 'map');
   const zones = env.zoneList || [];
-  const cur = st.mapZone || (m.minimap && m.minimap.zone) || (zones[0] && zones[0].id);
+  const nav = m.nav || null;
+  const here = m.minimap && m.minimap.zone;
+  const goalZone = nav && nav.goal ? nav.goal.zone : null;
+  const cur = st.mapZone || goalZone || here || (zones[0] && zones[0].id);
+  st.mapShown = cur;
+  const pulse = ((st.now || 0) * 1.2) % 1;
   // zone tabs
   let tx = r.x + 120;
   const th = Math.max(16, env.L.minHit || 0);
@@ -321,17 +335,46 @@ export function drawMap(ctx, env, m, st, regions, act) {
     const on = z.id === cur;
     g.window(ctx, tx, r.y + 4, w, Math.min(th, 18), 'thin', on ? 'ember' : 'slate', 0.95);
     g.text(ctx, z.name, tx + 7, r.y + 7, on ? 'cream' : 'gray');
-    regions.push({ rect: { x: tx, y: r.y + 4, w, h: th }, kind: 'button', on: () => { st.mapZone = z.id; } });
+    regions.push({ rect: { x: tx, y: r.y + 4, w, h: th }, kind: 'button', label: `map_zone:${z.id}`, on: () => { st.mapZone = z.id; } });
     tx += w + 4;
+  }
+  // your quests (a tap selects one; the map moves to its zone)
+  const sel = m.selectedQuest ? (m.quests || []).find((q) => q.id === m.selectedQuest) : null;
+  const list = [...(m.tracked || [])];
+  if (sel && !list.some((q) => q.id === sel.id)) list.push(sel);
+  const lg = { x: r.x + 8, y: r.y + 28, w: 108, h: r.h - 52 };
+  g.window(ctx, lg.x, lg.y, lg.w, lg.h, 'thin', 'blue', 0.5);
+  g.text(ctx, 'Your quests', lg.x + 6, lg.y + 4, 'gold');
+  const rowH = Math.max(15, env.L.minHit || 0);
+  let ly = lg.y + 17;
+  if (!list.length) g.text(ctx, 'None tracked', lg.x + 6, ly + 2, 'dim');
+  for (const q of list) {
+    if (ly + rowH > lg.y + lg.h - 2) break;
+    const on = sel && q.id === sel.id;
+    g.window(ctx, lg.x + 3, ly, lg.w - 6, rowH - 2, 'thin', on ? 'ember' : 'slate', on ? 0.95 : 0.6);
+    const tyy = ly + Math.floor((rowH - 2 - 11) / 2);
+    if (on) drawGoalArrow(ctx, lg.x + 10, tyy + 6, 0, 0.6);
+    g.text(ctx, g.clip(q.name, lg.w - 24), lg.x + 17, tyy, q.done ? 'green' : on ? 'cream' : 'gray');
+    regions.push({ rect: { x: lg.x + 3, y: ly, w: lg.w - 6, h: rowH }, kind: 'button', label: `map_quest:${q.id}`, tip: { title: q.name, sub: 'Show where it sends you' },
+      on: () => { act.selectQuest(q.id); st.mapZone = null; } });
+    ly += rowH;
+  }
+  // what to do next, under the list when there is room
+  if (nav && nav.goal && ly + 26 < lg.y + lg.h) {
+    let ny = ly + 4;
+    g.text(ctx, 'Next', lg.x + 6, ny, 'gold'); ny += 11;
+    const lines = [nav.goal.label, nav.line].filter(Boolean).flatMap((s) => g.wrap(s, lg.w - 12));
+    for (const ln of lines) { if (ny + 11 > lg.y + lg.h - 2) break; g.text(ctx, ln, lg.x + 6, ny, 'cream'); ny += 11; }
   }
   const zone = mapBook.zone(cur);
   if (!zone) return;
-  const area = { x: r.x + 10, y: r.y + 28, w: r.w - 20, h: r.h - 52 };
+  const area = { x: lg.x + lg.w + 6, y: r.y + 28, w: r.x + r.w - 10 - (lg.x + lg.w + 6), h: r.h - 52 };
   const ppt = Math.max(1, Math.floor(Math.min(area.w / zone.w, area.h / zone.h)));
   const img = mapBook.image(cur, ppt);
   const mx = area.x + Math.floor((area.w - img.width) / 2), my = area.y + Math.floor((area.h - img.height) / 2);
   g.rect(ctx, mx - 2, my - 2, img.width + 4, img.height + 4, '#14101e');
   ctx.drawImage(img, mx, my);
+  const exitHere = nav && nav.exit && cur === here ? nav.exit : null;
   // joins (edges to other zones)
   for (const j of zone.joins || []) {
     const z2 = zones.find((o) => o.id === j.to);
@@ -339,9 +382,10 @@ export function drawMap(ctx, env, m, st, regions, act) {
     const jx = mx + (j.x + j.w / 2) * ppt, jy = my + (j.y + j.h / 2) * ppt;
     const lw = g.textW(label);
     const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, jx - lw / 2));
-    const ly = Math.max(my + 2, Math.min(my + img.height - 13, jy - 5));
-    g.scrim(ctx, lx - 2, ly - 1, lw + 4, 12, 170);
-    g.text(ctx, label, lx, ly - 1, z2 ? 'gold' : 'dim');
+    const lyy = Math.max(my + 2, Math.min(my + img.height - 13, jy - 5));
+    const isExit = exitHere && j.to === exitHere.to;
+    g.scrim(ctx, lx - 2, lyy - 1, lw + 4, 12, isExit ? 220 : 170);
+    g.text(ctx, label, lx, lyy - 1, isExit ? 'cream' : z2 ? 'gold' : 'dim');
   }
   // place names (the Fork, the North Landing...): quest text names them, so the map does too (CRITIQUE_1 item 9)
   const view = { x: mx, y: my, w: img.width, h: img.height };
@@ -349,33 +393,78 @@ export function drawMap(ctx, env, m, st, regions, act) {
   for (const ar of zone.areas || []) {
     if (!ar.name || ar.w * ar.h < 30) continue;
     const lw = g.textW(ar.name);
-    const lx = Math.round(mx + (ar.x + ar.w / 2) * ppt - lw / 2), ly = Math.round(my + (ar.y + ar.h / 2) * ppt - 5);
-    const box = { x: lx - 2, y: ly - 1, w: lw + 4, h: 12 };
+    const lx = Math.round(mx + (ar.x + ar.w / 2) * ppt - lw / 2), lyy = Math.round(my + (ar.y + ar.h / 2) * ppt - 5);
+    const box = { x: lx - 2, y: lyy - 1, w: lw + 4, h: 12 };
     if (box.x < mx || box.y < my || box.x + box.w > mx + img.width || box.y + box.h > my + img.height) continue;
     if (placed.some((b) => b.x < box.x + box.w && box.x < b.x + b.w && b.y < box.y + box.h && box.y < b.y + b.h)) continue;
     placed.push(box);
     g.scrim(ctx, box.x, box.y, box.w, box.h, 110);
-    g.text(ctx, ar.name, lx, ly - 1, 'cream');
+    g.text(ctx, ar.name, lx, lyy - 1, 'cream');
   }
-  // objective areas of your quests in this zone: soft gold circles with the quest's name
+  // objective areas of your quests in this zone: the selected quest's pulse, the others are dimmed
   const areas = ((m.minimap && m.minimap.areas) || []).filter((a) => a.zone === cur);
-  drawAreas(ctx, areas, view, ppt, 0, 0, cur, 2);
+  drawAreas(ctx, areas, view, ppt, 0, 0, cur, 2, { sel: sel ? sel.id : null, pulse });
   const named = new Set();
+  const labelAt = (w, label, color, alpha) => {
+    const lw = g.textW(label);
+    const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, mx + w.x * ppt - lw / 2)), lyy = Math.max(my + 2, Math.min(my + img.height - 12, my + (w.y + (w.r || 2)) * ppt + 3));
+    ctx.globalAlpha = alpha;
+    g.scrim(ctx, lx - 2, lyy - 1, lw + 4, 12, 190);
+    g.text(ctx, label, lx, lyy - 1, color);
+    ctx.globalAlpha = 1;
+  };
   for (const q of m.tracked || []) {
+    if (sel && q.id === sel.id) continue;
     for (const w of q.wheres || []) {
       if (w.zone !== cur || named.has(q.id)) continue;
       named.add(q.id);
-      const label = g.clip(q.done ? `Hand in: ${q.name}` : q.name, 130);
-      const lw = g.textW(label);
-      const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, mx + w.x * ppt - lw / 2)), ly = Math.max(my + 2, Math.min(my + img.height - 12, my + (w.y + (w.r || 2)) * ppt + 2));
-      g.scrim(ctx, lx - 2, ly - 1, lw + 4, 12, 170);
-      g.text(ctx, label, lx, ly - 1, 'gold');
+      labelAt(w, g.clip(q.done ? `Hand in: ${q.name}` : q.name, 130), 'gold', sel ? 0.5 : 1);
     }
+  }
+  // the selected quest: one label per objective here, saying what to do ("Slay Ink Slimes 2/6", "Hand in to Oren")
+  const selLabels = [];
+  if (sel) {
+    const seen = new Set();
+    const ws = (sel.wheres || []).filter((w) => w.zone === cur);
+    const gi = nav && nav.goal ? ws.findIndex((w) => w.x === nav.goal.x && w.y === nav.goal.y && w.zone === nav.goal.zone) : -1;
+    if (gi > 0) ws.unshift(ws.splice(gi, 1)[0]);   // the goal's circle gets its objective's label
+    for (const w of ws) {
+      const label = g.clip(whereLabel(w, sel), 160);
+      if (seen.has(label)) continue;
+      seen.add(label);
+      labelAt(w, label, 'cream', 1);
+      selLabels.push(label);
+    }
+  }
+  st.mapLabels = selLabels;
+  // which way to go when the goal is in another zone: a line on both zones' maps, an arrow at the exit on yours
+  let routeText = '';
+  if (nav && nav.goal && here && goalZone !== here && nav.line) {
+    const hereName = (zones.find((z) => z.id === here) || {}).name || here;
+    if (cur === here) routeText = nav.line;
+    else if (cur === goalZone) routeText = `You are in ${hereName}. ${nav.line}`;
+  }
+  st.mapRoute = routeText;
+  if (routeText) {
+    // under the map, where the key line goes, so it never covers a place name
+    const t = g.clip(routeText, area.w - 12);
+    const tw = g.textW(t);
+    const bx = area.x + Math.floor((area.w - tw) / 2);
+    g.window(ctx, bx - 6, r.y + r.h - 21, tw + 12, 16, 'thin', 'ember', 0.95);
+    g.text(ctx, t, bx, r.y + r.h - 19, 'cream');
+  }
+  if (exitHere) {
+    const ex = mx + exitHere.x * ppt, ey = my + exitHere.y * ppt;
+    const ang = SIDE_ANGLE[exitHere.side] || 0;
+    const back = 12 + Math.round(pulse * 4);
+    const ax = Math.round(Math.max(mx + 8, Math.min(mx + img.width - 8, ex - Math.cos(ang) * back)));
+    const ay = Math.round(Math.max(my + 8, Math.min(my + img.height - 8, ey - Math.sin(ang) * back)));
+    drawGoalArrow(ctx, ax, ay, ang, 1.3);
   }
   const markers = m.minimap && m.minimap.zone === cur ? m.minimap.markers.filter((k) => k.kind !== 'foe') : [];
   drawMarkers(g, ctx, markers, view, ppt, 0, 0);
-  const here = markers.find((k) => k.kind === 'me');
-  g.text(ctx, here ? 'White arrow: you.  Gold !: a quest.  Gold ?: hand it in.  Gold circle: where to go.' : 'You are not in this zone.  Gold circles: where your quests send you.', r.x + r.w / 2, r.y + r.h - 18, 'gray', { align: 'center' });
+  const meHere = markers.find((k) => k.kind === 'me');
+  if (!routeText) g.text(ctx, meHere ? 'White arrow: you.  Gold !: a quest.  Gold ?: hand it in.  Bright circle: the quest you picked.' : 'You are not in this zone.  Bright circle: the quest you picked.', area.x + area.w / 2, r.y + r.h - 18, 'gray', { align: 'center' });
 }
 
 // ---------------------------------------------------------------- options / game menu

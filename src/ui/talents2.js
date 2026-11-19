@@ -5,7 +5,8 @@
 // joins by adding its tracks there (and to progression.builds2.classes); nothing here names a class.
 //
 //   six tracks (strengths blue, weaknesses violet), 5 tiers each; tier 3 a fork of two (one side only, an "X vs Y" chip);
-//   tier 5 a keystone (double gold frame; 1 at level 10, 2 at 25, 3 at 40); the skill picks (one of two at 1, 3, 6, 14);
+//   tier 5 a keystone (double gold frame; 1 at level 10, 2 at 25, 3 at 40); the skill picks (one of two at 1, 3, 6, 14)
+//   and the signature pick (one of the class's three at 10; phase 2, 2026-11-19);
 //   the gold star on the leaning's next step, "Spend suggested", Undo (the last 3 points, free), Respec (its rules), the
 //   auto-spend switch (on by default to level 5), and the free-respec notice for a migrated hero.
 //
@@ -20,6 +21,19 @@ import { inRect } from './layout.js';
 import { abilityInfo, abilityTooltip, abilityName, classInfo, liveStats } from './gamedata.js';
 
 export const b2Class = (cls) => (cls && BUILDS2[cls]) || null;
+/**
+ * The pick slots the window shows: the class's skill picks (one of two) and its first signature pick (one of three, at
+ * SIGNATURE_LEVELS[0]; `signature: true`). A signature slot is ready when every one of its skills is built.
+ */
+export function pickSlots(cls) {
+  const out = [...(SKILL_PICKS[cls] || [])];
+  const cd = b2Class(cls);
+  const sigs = (cd && cd.signatures) || [];
+  if (sigs.length) out.push({ level: RULES.signatureLevels[0], options: sigs.map((x) => x.id), axis: cd.signatureAxis || 'Signature skill', ready: sigs.every((x) => x.ready), signature: true });
+  return out;
+}
+/** The skill a hero took in a slot ('' when none): b.picks[level] for a skill pick, the first of b.sigs for the signature. */
+export const slotTaken = (build, slot) => (slot.signature ? (build.sigs || []).find((id) => slot.options.includes(id)) || '' : (build.picks || {})[slot.level] || '');
 /** Does this HUD model run Builds 2 (the sim says so and the UI has the class's tracks)? */
 export const isBuilds2 = (m) => !!(m && m.builds2 && m.player && b2Class(m.player.cls));
 
@@ -112,7 +126,10 @@ export function talents2Layout(R, cls, { touch = false, hit = 15, tab = 'strengt
   const rowsTop = colTop + 30;
   const rowY = [0, step, 2 * step, 3 * step + chipGap, 4 * step + chipGap].map((d) => rowsTop + d);
   const colH = rowY[4] + sz + 14 - colTop;
-  const sideW = touch ? Math.max(140, 2 * hit + 30) : 0;
+  // the phone's side column holds the picks: wide enough for a signature's three 44 css px targets
+  // with a signature (five slots) the phone's picks go compact: the level beside the icons, no name line (the card names them)
+  const maxOpts = Math.max(2, ...pickSlots(cls).map((p) => p.options.length));
+  const sideW = touch ? Math.max(140, 2 * hit + 30, maxOpts * Math.max(hit, 28) + (pickSlots(cls).length > 4 ? 22 : 12)) : 0;
   const colW6 = Math.floor((R.w - 2 * pad - (sideW ? sideW + 4 : 0)) / cd.tracks.length);
   const tabs = touch && colW6 < Math.max(96, 2 * hit + 8);
   const shown = !tabs ? cd.tracks : tab === 'skills' ? [] : cd.tracks.filter((t) => t.kind === (tab === 'weakness' ? 'weakness' : 'strength'));
@@ -153,25 +170,33 @@ export function talents2Layout(R, cls, { touch = false, hit = 15, tab = 'strengt
 
   // the side column (phone): skill picks (six columns) or the tabs, Respec and Auto (tabs)
   let picks = null, tabRects = [];
-  const pickList = SKILL_PICKS[cls] || [];
+  const pickList = pickSlots(cls);
   const slotsV = (P) => {
     const rowH = Math.floor((P.h - 22) / Math.max(1, pickList.length));
     const isz = 28, pitch = Math.max(hit, isz), off = Math.floor((pitch - isz) / 2);
+    const compact = rowH < 11 + pitch;
     return pickList.map((p, i) => {
       const sx = P.x + 6, sy = P.y + 22 + i * rowH;
-      return { level: p.level, sx, sy, nameW: P.w - 12, isz,
-        opts: p.options.map((id, k) => ({ id, x: sx + k * pitch + off, y: sy + 11 + off, isz, hit: { x: sx + k * pitch, y: sy + 11, w: pitch, h: pitch } })),
-        orX: sx + pitch, orY: sy + 11 + Math.floor(pitch / 2) - 5 };
+      const ix = compact ? sx + 16 : sx, iy = compact ? sy : sy + 11;
+      return { level: p.level, sx, sy: compact ? sy + Math.floor(pitch / 2) - 5 : sy, nameW: compact ? 0 : P.w - 12, isz, signature: !!p.signature, compact,
+        opts: p.options.map((id, k) => ({ id, x: ix + k * pitch + off, y: iy + off, isz, hit: { x: ix + k * pitch, y: iy, w: pitch, h: pitch } })),
+        orX: ix + pitch, orY: iy + Math.floor(pitch / 2) - 5 };
     });
   };
   if (!touch) {
     const P = { x: R.x + pad + 2, y: colTop + colH + 4, w: R.w - 2 * pad - 4, h: 46, vertical: false };
-    const sw = Math.floor((P.w - 80) / Math.max(1, pickList.length));
-    P.slots = pickList.map((p, i) => {
-      const sx = P.x + 74 + i * sw, sy = P.y + 4, isz = 20;
-      return { level: p.level, sx, sy, nameW: sw - 6, isz,
-        opts: p.options.map((id, k) => ({ id, x: sx + 26 + k * 38, y: sy, isz, hit: { x: sx + 26 + k * 38 - 2, y: sy - 2, w: isz + 4, h: isz + 4 } })),
-        orX: sx + 26 + isz + 9, orY: sy + 5 };
+    // each slot's width follows its option count (a signature offers three)
+    const wt = (p) => (p.options.length > 2 ? 2.6 : 2);       // three icons fit in 2.6 units
+    const units = pickList.reduce((n, p) => n + wt(p), 0);
+    const unit = (P.w - 80) / Math.max(1, units);
+    let ux = 0;
+    P.slots = pickList.map((p) => {
+      const sw = Math.floor(unit * wt(p));
+      const sx = P.x + 74 + Math.floor(ux * unit), sy = P.y + 4, isz = 20;
+      ux += wt(p);
+      return { level: p.level, sx, sy, nameW: sw - 6, isz, signature: !!p.signature,
+        opts: p.options.map((id, k) => ({ id, x: sx + 30 + k * 38, y: sy, isz, hit: { x: sx + 30 + k * 38 - 2, y: sy - 2, w: isz + 4, h: isz + 4 } })),
+        orX: sx + 30 + isz + 9, orY: sy + 5 };
     });
     picks = P;
   } else if (!tabs) {
@@ -235,21 +260,23 @@ export function nodeTip(cd, o, build, level, free, { touch = false, pinned = fal
 export function pickTip(m, slot, id, { touch = false } = {}) {
   const level = m.player.level;
   const build = m.builds2.build || {};
-  const p = (SKILL_PICKS[m.player.cls] || []).find((x) => x.level === slot.level) || { options: [], ready: false };
-  const taken = (build.picks || {})[slot.level];
+  const p = pickSlots(m.player.cls).find((x) => x.level === slot.level) || { options: [], ready: false };
+  const taken = slotTaken(build, p);
   const open = (m.builds2.picks || []).some((x) => x.level === slot.level);
   const a = abilityInfo(id) || (B2_ABILITIES[id] ? { ...B2_ABILITIES[id] } : null);
   const res = (classInfo(m.player.cls) || {}).resource || 'mana';
   const base = a && p.ready ? abilityTooltip(a, Math.max(level, slot.level), res, liveStats(m)) : null;
   const other = p.options.find((x) => x !== id);
   const tip = base ? { ...base } : { title: skillName(id), body: 'This skill comes in a later update.' };
-  tip.right = `Lv ${slot.level} pick`;
-  tip.sub = `${p.axis || 'Skill pick'}: ${skillName(id)} or ${other ? skillName(other) : ''}`.trim();
+  tip.right = p.signature ? `Lv ${slot.level} signature` : `Lv ${slot.level} pick`;
+  tip.sub = p.signature ? `${p.axis}: one of three. The other two come at 20 and 35.` : `${p.axis || 'Skill pick'}: ${skillName(id)} or ${other ? skillName(other) : ''}`.trim();
   let foot, ok = false;
   if (!p.ready) foot = 'Comes in a later update.';
   else if (taken === id) { foot = 'You chose this one.'; ok = true; }
   else if ((build.bought || []).includes(id)) { foot = 'Bought at your trainer.'; ok = true; }
+  else if (taken && p.signature) foot = 'You chose another signature. This one can be your next, at level 20.';
   else if (taken) foot = 'You chose the other one. Your trainer sells this one for gold.';
+  else if (open && p.signature) { foot = `${touch ? 'Tap Learn' : 'Click'} to take it. You get another signature at 20 and the last at 35.`; ok = true; }
   else if (open) { foot = touch ? `Tap Learn to take it. ${other ? skillName(other) : 'The other'} stays at your trainer for gold.` : `Click to take it. ${other ? skillName(other) : 'The other'} stays at your trainer for gold.`; ok = true; }
   else if (level >= slot.level && slot.level === 1) foot = 'Win your first fight to choose.';
   else foot = `Choose one at level ${slot.level}.`;
@@ -304,7 +331,9 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
   charArt.portrait(ctx, cls, p.look || 0, R.x + 10, R.y + hy + 9, 32, 32);
   g.text(ctx, g.clip(`${p.clsName || (classInfo(cls) || {}).name || cls} Talents`, 196, true), R.x + 50, R.y + hy + 8, 'cream', { large: true });
   const lb = cd.builds.find((b) => b.id === B.leaning) || cd.builds.find((b) => b.id === cd.defaultBuild) || cd.builds[0];
-  const subW = g.text(ctx, `${g.clip(p.name || '', 74)}   Lv ${p.level}`, R.x + 50, R.y + hy + 26, 'gray');
+  // the leaning is shown whole (a long one, "Grapple Skirmisher", takes room from the hero's name, never the other way)
+  const nameRoom = Math.max(40, Math.min(74, 196 - 22 - g.textW(`   Lv ${p.level}`) - g.textW(lb ? lb.name : '')));
+  const subW = g.text(ctx, `${g.clip(p.name || '', nameRoom)}   Lv ${p.level}`, R.x + 50, R.y + hy + 26, 'gray');
   g.icon(ctx, 'icon_star', R.x + 50 + subW + 8, R.y + hy + 24);
   g.text(ctx, g.clip(lb ? lb.name : '', 196 - subW - 22), R.x + 50 + subW + 22, R.y + hy + 26, 'gold');
   regions.push({ rect: lay.buttons.leaning, kind: 'button', label: 'b2:leaning',
@@ -445,13 +474,13 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
     g.window(ctx, P.x, P.y, P.w, P.h, 'thin', 'blue', 0.6);
     if (!P.vertical) { g.text(ctx, 'Skill picks', P.x + 8, P.y + 4, 'gold'); g.text(ctx, '(one of two)', P.x + 8, P.y + 15, 'gray'); }
     else g.text(ctx, 'Skill picks', P.x + P.w / 2, P.y + 3, 'gold', { large: true, align: 'center' });
-    const defs = SKILL_PICKS[cls] || [];
+    const defs = pickSlots(cls);
     for (const s of P.slots) {
       const def = defs.find((x) => x.level === s.level) || { options: [], ready: false };
-      const taken = (build.picks || {})[s.level];
+      const taken = slotTaken(build, def);
       const open = (B.picks || []).some((x) => x.level === s.level);
       const reached = p.level >= s.level;
-      g.text(ctx, `Lv ${s.level}`, s.sx, s.sy + (P.vertical ? 0 : 1), reached ? 'cream' : 'dim');
+      g.text(ctx, s.compact ? String(s.level) : `Lv ${s.level}`, s.sx, s.sy + (P.vertical ? 0 : 1), reached ? (s.signature ? 'gold' : 'cream') : 'dim');
       for (const o of s.opts) {
         const isTaken = taken === o.id, bought = (build.bought || []).includes(o.id);
         const lit = def.ready && (isTaken || bought || open);
@@ -459,7 +488,8 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
         g.iconIn(ctx, skillIcon(o.id), o.x, o.y, o.isz, o.isz, lit ? 1 : 0.4);
         if (isTaken) g.outline(ctx, o.x - 1, o.y - 1, o.x + o.isz, o.y + o.isz, '#f9d77a');
         else if (open && def.ready) g.outline(ctx, o.x - 1, o.y - 1, o.x + o.isz, o.y + o.isz, '#b6cc58');
-        if (def.ready && open && !taken && lb && lb.picks && lb.picks[s.level] === o.id) g.icon(ctx, 'icon_star', o.x + o.isz - 6, o.y - 6);
+        const starred = s.signature ? lb && lb.signature === o.id : lb && lb.picks && lb.picks[s.level] === o.id;
+        if (def.ready && open && !taken && starred) g.icon(ctx, 'icon_star', o.x + o.isz - 6, o.y - 6);
         const key = `pick:${s.level}:${o.id}`;
         const isHov = hov && inRect(o.hit, hov.x, hov.y);
         if (isHov || sel === key) { g.outline(ctx, o.x - 2, o.y - 2, o.x + o.isz + 1, o.y + o.isz + 1, '#fff7d6'); if (isHov) hovered = { kind: 'pick', s, id: o.id, o }; }
@@ -471,12 +501,14 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
             else act.toast(pickTip(m, s, o.id).foot);
           } });
       }
-      g.text(ctx, 'or', s.orX, s.orY, 'dim', { align: 'center' });
+      if (!s.signature && !s.compact) g.text(ctx, 'or', s.orX, s.orY, 'dim', { align: 'center' });
       const nm = (id) => skillName(id);
-      const line = !def.ready ? `${nm(def.options[0])} or ${nm(def.options[1])}${P.vertical ? '' : ': later'}` : taken ? nm(taken)
-        : open ? 'Choose one' : `${nm(def.options[0])} or ${nm(def.options[1])}`;
+      const both = s.signature ? 'Signature: one of three' : `${nm(def.options[0])} or ${nm(def.options[1])}`;
+      const line = !def.ready ? both : taken ? nm(taken)
+        : open ? (s.signature ? 'Choose a signature' : 'Choose one') : both;
       const lc = !def.ready ? 'dim' : taken ? 'gold' : open ? 'green' : 'gray';
-      if (P.vertical) g.text(ctx, g.clip(line, s.nameW - 34), s.sx + 32, s.sy, lc);
+      if (s.compact) { /* compact phone slots: no name line (the card names the skill) */ }
+      else if (P.vertical) g.text(ctx, g.clip(line, s.nameW - 34), s.sx + 32, s.sy, lc);
       else g.text(ctx, g.clip(line, s.nameW), s.sx, s.sy + s.isz + 4, lc);
     }
   }
@@ -524,9 +556,9 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
     } else {
       const { s, o } = picksAt[sel];
       tip = pickTip(m, s, o.id, { touch: true });
-      const def = (SKILL_PICKS[cls] || []).find((x) => x.level === s.level) || {};
+      const def = pickSlots(cls).find((x) => x.level === s.level) || {};
       at = { x: o.x, y: o.y, w: o.isz, h: o.isz, colX: lay.picks.x, colW: lay.picks.w };
-      can = !!def.ready && (B.picks || []).some((x) => x.level === s.level) && !(build.picks || {})[s.level];
+      can = !!def.ready && (B.picks || []).some((x) => x.level === s.level) && !slotTaken(build, def);
       learn = () => { act.b2({ t: 'b2_pick', level: s.level, ability: o.id }); st.talentSel = null; };
       label = `Learn ${skillName(o.id)}`;
     }

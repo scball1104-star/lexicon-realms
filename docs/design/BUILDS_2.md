@@ -394,6 +394,34 @@ Named builds:
 | **Fan Dancer** | Splatter (Ink Burst), Inkbody, Edge | Black Fan | throw knives into a pack, Spill the marks, dodge the rest |
 | **Venom Knife** | Blot (Envenom), Inkbody (Thirst), Spellcutter | Mirrorshade | poison ignores plating; the patient armor killer |
 
+### 4.6 Phase 2 tuning (2026-11-19, the Warden, Scribe, Wayfinder and Inkblade)
+
+Built and ON for every class (CONTRACTS "Builds 2 phase 2 additions"). The gate `node qa/sim/builds2.mjs` now runs all 15
+named builds at every level 1 to 15: every one solos with no deaths, kills one plain foe in 9 to 14 s from level 5 (5 to 12
+s below), and the slowest build of a class is within 25% of its fastest at every level. Design numbers changed to get
+there (before, after):
+
+| class | what | before | after | why |
+|---|---|---|---|---|
+| Warden | W1 "slow to kill one foe" as a baseline rule | none | damage -25% to a foe with no other foe within 3 tiles | the bare Warden killed one foe in 7 s at level 5 |
+| Warden | Greatblade | weapon +55%, Strike +20% | weapon +15%, Strike +10% | the Forge Reaver ran 1.3x faster than the Shieldwheel |
+| Warden | Forge Reaver path | Oathbreaker at 10 | left past 15 | spending all Resolve on one Strike lost about a third of its damage (16 s at 15) |
+| Scribe | Ellipsis Duelist level 1 pick | Full Stop | Underline | 1.6x slower than the others at 1 to 6; Quill's Underscore needs Underline |
+| Scribe | Exclamation | 8 + 3 L + 0.5 SP | 8 + 2 L + 0.35 SP (20 s cooldown) | it took 17% off a fight at 14 |
+| Wayfinder | baseline | none | every shot -10% | Briar Trap at 1 and Aimed Shot at 3 (were 3 and 10): one foe in 8 s at 5 |
+| Wayfinder | Sand Kestrel | every 1.5 s | every 2 s | the Falconer ran 1.3x faster at 10 |
+| Wayfinder | Grapple Skirmisher level 3 pick | Aimed Shot | Volley | 1.5x faster than the trap builds; Aimed Shot is a 2 s stand |
+| Wayfinder | Stormcaller | no Aimed Shot | buys it back at 6 | its Longshot track and Horizon are Aimed Shot nodes |
+| Inkblade | baseline | none | damage -8% | Fade at 1 (was 3): one foe in 8 s at 5 |
+| Inkblade | Mirrorshade | copies at 40% | copies at 10% | the Venom Knife ran 1.4x faster from 10 |
+
+Track names shortened to fit the 98 px column: Cinder Press -> Cinder, Windrunner -> Windstep, Running Fire -> On the Run,
+Close Quarters -> Close Fight. Keystones and second forks some paths reach after 15: Final Draft (Duelist) and Living
+Manuscript (Author) at 15, Hunting Spear, Herbal Smoke, Kept Name. Struggles (`--struggle`, matchup.mjs's measure): the
+Warden against heavy foes 1.2 to 2.3x, the Wayfinder's Stormcaller against casters 1.4 to 2.0x, the Inkblade against
+armored 1.2 to 1.6x (the Venom Knife, its answer, 1.0x at 15); the Scribe against fast foes only 1.0 to 1.08x (her Builds 2
+builds rarely root, so half-length snares do not bite), an open question.
+
 ---
 
 ## 5. Levels past 15

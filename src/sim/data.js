@@ -40,7 +40,7 @@ export function createData(content) {
     const key = talentKey(e);
     let c = cache.get(e.id);
     if (c && c.key === key) return c;
-    c = { key, mods: [], procs: [], scripts: new Set(), patches: {}, eff: {} };
+    c = { key, mods: [], procs: [], scripts: new Set(), patches: {}, eff: {}, grants: [] };
     for (const [t, r] of rankedNodes(e)) {
       const id = t.id;
       const fx = t.byRank[Math.min(r, t.byRank.length) - 1];
@@ -48,6 +48,8 @@ export function createData(content) {
       for (const m of fx.mods || []) c.mods.push({ ...m, src: id });
       for (const p of fx.procs || []) c.procs.push({ ...p, src: id });
       if (fx.script) c.scripts.add(fx.script);
+      for (const sc of fx.scripts || []) c.scripts.add(sc);
+      if (fx.grant && !c.grants.includes(fx.grant)) c.grants.push(fx.grant);     // Builds 2 +skill nodes (Gate Charge, Vellum Ward, ...)
       for (const p of fx.modAbility || []) (c.patches[p.id] = c.patches[p.id] || []).push(p);
     }
     // class passives (class identity pass): every hero of the class has them, talents or not (CLASSES.md strengths table)
@@ -58,7 +60,10 @@ export function createData(content) {
     }
     // Builds 2 baseline strengths and weaknesses (BUILDS_2 4.x, e.g. the Mender's healing +10%)
     const base = e.b2 && b2 && b2.classes[e.cls] ? b2.classes[e.cls].baseline : null;
-    if (base) for (const m of base.mods || []) c.mods.push({ ...m, src: 'b2_baseline' });
+    if (base) {
+      for (const m of base.mods || []) c.mods.push({ ...m, src: 'b2_baseline' });
+      for (const p of base.procs || []) c.procs.push({ ...p, src: 'b2_baseline' });
+    }
     cache.set(e.id, c);
     return c;
   }

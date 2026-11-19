@@ -20,7 +20,7 @@ import { distPx, distPxXY } from './geom.js';
 const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
 
 export function emptyBuild() {
-  return { v: 1, ranks: {}, undo: [], picks: {}, bought: [], sigs: [], leaning: null, auto: true, respecs: 0,
+  return { v: 1, ranks: {}, undo: [], picks: {}, bought: [], sigs: [], granted: [], leaning: null, auto: true, respecs: 0,
     freeRespec: false, freeRespecWhy: null, firstKill: false, legacyTalents: null };
 }
 
@@ -35,15 +35,28 @@ export function createBuilds2(C) {
   const enabledFor = (cls) => !!(flag.enabled && classData(cls) && (!flag.classes || flag.classes.includes(cls)));
   const nodeOf = (e, id) => { const n = C.data.b2Index[id]; return n && n.cls === e.cls ? n : null; };
   const picksOf = (cls) => ((B2 && B2.skillPicks) || {})[cls] || [];
+  // signature picks (BUILDS_2 3.2): one of the class's three at 10, 20 and 35; only `ready` ones are offered
+  const sigLevels = () => R.signatureLevels || [10, 20, 35];
+  const sigsOf = (cls) => ((classData(cls) || {}).signatures || []).filter((x) => x.ready);
   const tierNeed = (tier) => (tier - 1) * (R.tierStep || 2);
 
   function attach(e, spec = {}) {
     const b = spec.build && typeof spec.build === 'object' ? { ...emptyBuild(), ...clone(spec.build) } : emptyBuild();
     for (const k of ['ranks', 'picks']) if (!b[k] || typeof b[k] !== 'object') b[k] = {};
-    for (const k of ['undo', 'bought', 'sigs']) if (!Array.isArray(b[k])) b[k] = [];
+    for (const k of ['undo', 'bought', 'sigs', 'granted']) if (!Array.isArray(b[k])) b[k] = [];
     e.build = b;
     e.b2 = enabledFor(e.cls);
     if (!e.b2) return;
+    // a hero who learned skills at the trainer before Builds 2 reached the class: a pick they already cover is taken
+    // (and the other side, when known too, counts as bought), so nobody loses a button and no pick is offered twice
+    for (const p of picksOf(e.cls)) {
+      if (b.picks[p.level]) continue;
+      const have = p.options.find((id) => (e.known || []).includes(id));
+      if (!have) continue;
+      b.picks[p.level] = have;
+      const other = p.options.find((id) => id !== have && (e.known || []).includes(id));
+      if (other && !b.bought.includes(other)) b.bought.push(other);
+    }
     // today's talents are retired (BUILDS_2 8): kept aside, refunded, and a free respec is flagged for the talents screen
     if (e.talents && Object.keys(e.talents).length) {
       b.legacyTalents = { ...(b.legacyTalents || {}), ...e.talents };
@@ -53,7 +66,29 @@ export function createBuilds2(C) {
     // drop ranks the data no longer has (a renamed node), and anything the rules no longer allow
     for (const id of Object.keys(b.ranks)) if (!nodeOf(e, id) || !(b.ranks[id] > 0)) delete b.ranks[id];
     if (!legal(e, b.ranks)) { b.ranks = {}; b.undo = []; b.freeRespec = true; b.freeRespecWhy = b.freeRespecWhy || 'rules'; }
+    for (const id of b.sigs) if (C.data.abilities[id] && !e.known.includes(id)) C.prog.learn(e, id);
     C.data.forget(e.id);
+    syncGrants(e);
+  }
+
+  /**
+   * +skill nodes (Gate Charge, Vellum Ward, Field Dressing, Kick, Ink Lash): the skill is known while the node is held.
+   * A skill the hero also has from a pick, a purchase or a signature is never taken away.
+   */
+  function syncGrants(e) {
+    if (!e.b2 || !e.build) return;
+    const b = e.build;
+    const want = C.data.talentInfo(e).grants.filter((id) => C.data.abilities[id]);
+    for (const id of want) if (!e.known.includes(id)) { C.prog.learn(e, id); if (!b.granted.includes(id)) b.granted.push(id); emit({ type: 'b2_grant', id: e.id, ability: id, on: true }); }
+    const keep = new Set([...Object.values(b.picks), ...b.bought, ...b.sigs]);
+    for (const id of [...b.granted]) {
+      if (want.includes(id)) continue;
+      b.granted = b.granted.filter((x) => x !== id);
+      if (keep.has(id)) continue;
+      e.known = e.known.filter((x) => x !== id);
+      e.bar = e.bar.filter((x) => x !== id);
+      emit({ type: 'b2_grant', id: e.id, ability: id, on: false });
+    }
   }
 
   // ------------------------------------------------------------------------------------------------ points
@@ -118,6 +153,7 @@ export function createBuilds2(C) {
     C.data.forget(e.id);
     C.stats.recalc(e);
     e.hp = Math.min(e.hp, e.hpMax);
+    syncGrants(e);
   }
   const fail = (e, what, reason) => { emit({ type: 'b2_fail', id: e.id, what: what || null, reason }); return false; };
 
@@ -199,14 +235,35 @@ export function createBuilds2(C) {
   }
 
   // ------------------------------------------------------------------------------------------------ skill picks
+  function sigOpen(e) {
+    const b = e.build;
+    const lv = sigLevels();
+    const i = b.sigs.length;
+    if (i >= lv.length || e.level < lv[i]) return null;
+    const options = sigsOf(e.cls).map((x) => x.id).filter((id) => !b.sigs.includes(id) && C.data.abilities[id]);
+    return options.length ? { level: lv[i], options, signature: true, axis: (classData(e.cls) || {}).signatureAxis || 'Signature skill' } : null;
+  }
   function picksOpen(e) {
     if (!e.b2) return [];
     const b = e.build;
-    return picksOf(e.cls).filter((p) => p.ready && e.level >= p.level && !b.picks[p.level] && (p.level > 1 || b.firstKill || e.level >= 2))
+    const out = picksOf(e.cls).filter((p) => p.ready && e.level >= p.level && !b.picks[p.level] && (p.level > 1 || b.firstKill || e.level >= 2))
       .map((p) => ({ level: p.level, options: [...p.options], axis: p.axis }));
+    const sg = sigOpen(e);
+    if (sg) out.push(sg);
+    return out.sort((a, b2) => a.level - b2.level);
+  }
+  function pickSignature(e, cmd) {
+    const sg = sigOpen(e);
+    if (!sg || sg.level !== (cmd.level | 0)) return fail(e, cmd.ability, e.build.sigs.includes(cmd.ability) ? 'taken' : 'level');
+    if (!sg.options.includes(cmd.ability)) return fail(e, cmd.ability, e.build.sigs.includes(cmd.ability) ? 'taken' : 'unknown');
+    e.build.sigs.push(cmd.ability);
+    C.prog.learn(e, cmd.ability);
+    emit({ type: 'b2_pick', id: e.id, level: sg.level, ability: cmd.ability, signature: true });
+    return true;
   }
   function pick(e, cmd) {
     if (!e.b2) return fail(e, cmd.ability, 'off');
+    if (sigLevels().includes(cmd.level | 0) && !picksOf(e.cls).some((x) => x.level === (cmd.level | 0))) return pickSignature(e, cmd);
     const p = picksOf(e.cls).find((x) => x.level === (cmd.level | 0));
     if (!p || !p.ready) return fail(e, cmd.ability, 'unknown');
     if (!p.options.includes(cmd.ability)) return fail(e, cmd.ability, 'unknown');
@@ -300,5 +357,5 @@ export function createBuilds2(C) {
   const saveOf = (e) => clone(e.build || emptyBuild());
 
   return { enabledFor, attach, points, legal, whyNot, learn, undo, respec, respecCost, atLantern, picksOpen, pick, trainOffer, buyBack,
-    suggested, spendSuggested, setLeaning, setAuto, autoSpend, onLevel, onKill, keystoneSlots, saveOf, leaningOf };
+    suggested, spendSuggested, setLeaning, setAuto, autoSpend, onLevel, onKill, keystoneSlots, saveOf, leaningOf, syncGrants, sigOpen };
 }

@@ -219,7 +219,9 @@ export function createHud(env) {
       } else {
         // a gold ? when the quest is ready to hand in, a small parchment bullet while it is in progress (a yellow ! means
         // "a quest to take" everywhere else, CRITIQUE_1 item 11+)
-        if (row.kind === 'quest') { if (row.done) drawQuestMark(ctx, '?', T.x + 9, y + 10); else { g.rect(ctx, T.x + 6, y + 3, 5, 5, '#14101e'); g.rect(ctx, T.x + 7, y + 4, 3, 3, '#d8c8a0'); } }
+        // the selected quest (the one the map and the gold arrow follow) has a gold bullet
+        const isSel = row.id && row.id === m.selectedQuest;
+        if (row.kind === 'quest') { if (row.done) drawQuestMark(ctx, '?', T.x + 9, y + 10); else { g.rect(ctx, T.x + 6, y + 3, 5, 5, '#14101e'); g.rect(ctx, T.x + 7, y + 4, 3, 3, isSel ? '#ffd23a' : '#d8c8a0'); } }
         const col = row.kind === 'area' ? 'dim' : row.kind === 'obj' ? (row.done ? 'green' : 'gray') : row.done ? 'green' : 'white';
         g.text(ctx, row.text, T.x + (row.kind === 'obj' || row.kind === 'area' ? 27 : 19), y, col);
         if (row.right) g.text(ctx, row.right, T.x + T.w - 5, y, 'green', { align: 'right' });
@@ -407,22 +409,45 @@ export function createHud(env) {
 }
 
 /** Soft objective areas (a dithered gold disc) on a minimap or world map. areas: [{ zone, x, y, r }] in tiles. */
-export function drawAreas(ctx, areas, view, ppt, sx, sy, zone, minR = 1) {
+export function drawAreas(ctx, areas, view, ppt, sx, sy, zone, minR = 1, look = null) {
   if (!areas || !areas.length) return;
-  for (const a of areas) {
+  // look (the world map): { sel: questId, pulse: 0..1 }. The selected quest's circles are brighter, with a ring that
+  // pulses out from the edge; every other quest's circles are dimmed. They draw last so they sit on top.
+  const isSel = (a) => !!(look && look.sel && a.quest === look.sel);
+  const order = look ? [...areas.filter((a) => !isSel(a)), ...areas.filter(isSel)] : areas;
+  for (const a of order) {
     if (a.zone && zone && a.zone !== zone) continue;
+    const sel = isSel(a), dim = !!(look && look.sel && !sel);
     const cx = view.x + a.x * ppt - sx, cy = view.y + a.y * ppt - sy, r = Math.max(minR * ppt, (a.r || 2) * ppt);
-    const x0 = Math.max(view.x, Math.floor(cx - r)), x1 = Math.min(view.x + view.w - 1, Math.ceil(cx + r));
-    const y0 = Math.max(view.y, Math.floor(cy - r)), y1 = Math.min(view.y + view.h - 1, Math.ceil(cy + r));
+    const ring = sel ? r + 1 + Math.round((look.pulse || 0) * 4) : r;
+    const edgeC = sel ? 'rgba(255,240,150,1)' : dim ? 'rgba(255,210,58,0.4)' : 'rgba(255,210,58,0.9)';
+    const fillC = sel ? `rgba(255,214,70,${(0.45 + 0.2 * (look.pulse || 0)).toFixed(2)})` : dim ? 'rgba(255,210,58,0.14)' : 'rgba(255,210,58,0.35)';
+    const ringC = sel ? `rgba(255,236,140,${(0.85 * (1 - (look.pulse || 0))).toFixed(2)})` : null;
+    const x0 = Math.max(view.x, Math.floor(cx - ring)), x1 = Math.min(view.x + view.w - 1, Math.ceil(cx + ring));
+    const y0 = Math.max(view.y, Math.floor(cy - ring)), y1 = Math.min(view.y + view.h - 1, Math.ceil(cy + ring));
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
       const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+      if (ringC && d <= ring && d > ring - 1.2 && d > r) { ctx.fillStyle = ringC; ctx.fillRect(x, y, 1, 1); continue; }
       if (d > r) continue;
-      const edge = d > r - 1.2;
+      const edge = d > r - (sel ? 2 : 1.2);
       if (!edge && (x + y) % 2) continue;
-      ctx.fillStyle = edge ? 'rgba(255,210,58,0.9)' : 'rgba(255,210,58,0.35)';
+      ctx.fillStyle = edge ? edgeC : fillC;
       ctx.fillRect(x, y, 1, 1);
     }
   }
+}
+
+/** The gold goal arrow (questnav.js): a chevron at (x, y) pointing along `ang` (radians, screen), `s` times its
+ *  desktop size, on a dark outline so it reads on grass and on snow. */
+export function drawGoalArrow(ctx, x, y, ang, s = 1) {
+  const c = Math.cos(ang), sn = Math.sin(ang);
+  const P = [[6, 0], [-4, -5], [-1.5, 0], [-4, 5]];
+  const rot = (k) => P.map(([px, py]) => [(px * c - py * sn) * s * k, (px * sn + py * c) * s * k]);
+  const quad = (Q, color) => { fillTri(ctx, x, y, [Q[0], Q[1], Q[2]], color); fillTri(ctx, x, y, [Q[0], Q[2], Q[3]], color); };
+  quad(rot(1.4), '#2a1a10');
+  quad(rot(1), '#ffd23a');
+  const hi = rot(0.55);
+  fillTri(ctx, x, y, [hi[0], hi[1], hi[2]], '#fff1a8');
 }
 
 function fillTri(ctx, x, y, P, color) {

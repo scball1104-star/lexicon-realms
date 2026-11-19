@@ -4,7 +4,7 @@
 
 Starts its own static server on a free 127.0.0.1 port (and stops it at the end), then runs four sessions:
   A desktop 1600x900: title (3D loading behind it) -> create a Warden -> walk with WASD -> right-click Hob to talk
-    (3D picking) -> level 12 via ?dev=1 -> B, right-click a helm in the bag (real equip) -> the hero changes on screen
+    (3D picking), accept: the gold quest arrow shows -> level 12 via ?dev=1 -> B, right-click a helm in the bag (real equip) -> the hero changes on screen
   B desktop: a Scribe in the valley -> Tab + 1 casts Inkbolt at a slime (projectile and impact effects, numbers)
   C desktop: a Warden fights a slime with right-click + 1 (melee swing, hit, death), then night in Willowmere
   D phone 844x390 at dpr 2 (touch): tap the ground to walk (3D devToWorld), tap a foe to target it (3D pick)
@@ -216,9 +216,16 @@ def session_a(b):
     d = g.ev('__drv.dialog()')
     g.shot('04_talk', f'right-clicked Hob in 3D: dialog {d}')
     assert d, 'right-clicking an NPC in 3D opens the talk window'
+    # take Hob's quest: the gold quest arrow (a HUD overlay placed with the 3D worldToHud) points the way to Mael
+    g.click_region(label='Accept', wait=0.6)
     g.key('Escape', 0.3)
     if g.ev('__drv.dialog()'):
         g.key('Escape', 0.3)
+    time.sleep(0.4)
+    ga = g.ev('window.__realms.ui.state.goalArrow')
+    log('  goal arrow', ga)
+    assert ga and ga['mode'] in ('arrow', 'pin'), f'the gold quest arrow shows in 3D: {ga}'
+    g.shot('04b_goal_arrow', f'3D: the gold quest arrow toward Elder Mael ({ga["mode"]}, {ga["dist"]} tiles)')
     # equip: a helm and a better chest change the hero on screen
     g.walk('willowmere', 22, 21, near=0)      # an open spot on Lantern Square for the close-up
     g.ev('window.__realms.dev.level(12)')

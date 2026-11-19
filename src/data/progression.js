@@ -19,9 +19,10 @@ export const PROGRESSION = {
   questGap: { '2': 1.0, '3': 0.75, '4': 0.5, '5': 0.25 },
 
   // Builds 2 (docs/design/BUILDS_2.md, src/data/builds2.js, src/sim/builds2.js): six tracks, points from level 1, skill
-  // picks. ON for the Mender since Scott approved the talents screen stills (2026-11-19, "Ok. Approved."; qa/out/builds2/).
-  // `classes`: the classes it covers. Every other class keeps today's talents below.
-  builds2: { enabled: true, classes: ['mender'] },
+  // picks. ON for the Mender since Scott approved the talents screen stills (2026-11-19, "Ok. Approved."; qa/out/builds2/),
+  // and for the other four classes since their tracks landed (2026-11-19, phase 2). `classes`: the classes it covers; a
+  // class not listed would keep today's talents below (none now; the old trees stay as dead data in talents.js).
+  builds2: { enabled: true, classes: ['mender', 'warden', 'scribe', 'wayfinder', 'inkblade'] },
 
   // Talents (TALENTS 0, PROGRESSION 8).
   talents: { firstLevel: 5, pointsPerLevel: 1, tierStep: 2 },     // tier n opens at (n - 1) * tierStep points in its branch

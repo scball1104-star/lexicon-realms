@@ -231,15 +231,18 @@ export function createAi(C) {
       const f = C.get(a.data.forced);
       if (f && !f.dead && f.zone === m.zone) return f;
     }
+    // Builds 2 Inkwalk, Vanish, Never Seen: an untargetable hero stays on the list, but the foe cannot pick her
+    const hidden = (u) => u.kind === 'player' && stats.hasFlag(u, 'untargetable');
     let cur = m.ai.target != null ? C.get(m.ai.target) : null;
-    if (cur && (cur.dead || cur.zone !== m.zone || m.threat[cur.id] == null)) cur = null;
-    let best = null, bv = -1;
+    if (cur && (cur.dead || cur.zone !== m.zone || m.threat[cur.id] == null || hidden(cur))) cur = null;
+    let best = null, bv = -1, lost = false;
     for (const [id, v] of Object.entries(m.threat)) {
       const u = C.get(Number(id));
       if (!u || u.dead || u.zone !== m.zone) { delete m.threat[id]; continue; }
+      if (hidden(u)) { lost = true; continue; }
       if (v > bv || (v === bv && best && u.id < best.id)) { bv = v; best = u; }
     }
-    if (!best) return null;
+    if (!best) return lost ? 'lost' : null;
     if (!cur) return best;
     if (best !== cur) {
       const need = distPx(best, m) <= A.meleeReach ? C.P.combat.threatSwitchMelee : C.P.combat.threatSwitchRanged;
@@ -297,11 +300,15 @@ export function createAi(C) {
     scriptTick(m);
     if (K().cannotAct(m)) { stop(m); return; }
     const t = pickTarget(m);
+    if (t === 'lost') { stop(m); m.ai.reachTick = now(); return; }      // the foe looks for a hero it cannot see
     if (!t) { reset(m); return; }
     if (t.id !== m.ai.target) { m.ai.target = t.id; emit({ type: 'threat', mob: m.id, top: t.id }); }
     m.target = t.id;
     const home = distPxXY(m.x, m.y, m.spawn.x, m.spawn.y);
     const leashDist = template(m).leash != null ? template(m).leash : A.leashDist;
+    // CONTRACTS 5.7 "10 s without reaching or being hurt by its target": a held foe that its target keeps hurting does not
+    // leash (Builds 2 Long Bramble and Thorn Garden roots can outlast the 10 s)
+    if (K().cannotMove(m) && m.lastHurt && m.lastHurt.by === t.id && now() - m.lastHurt.tick <= 20) m.ai.reachTick = now();
     if (home > leashDist || now() - m.ai.reachTick > T(A.leashTime)) { reset(m); return; }
     // flee once at low health
     const flee = template(m).flee;
@@ -347,7 +354,8 @@ export function createAi(C) {
     if (d > reach && !isObj && useAbilities(m, t, d)) return;
     if (d > reach && !isObj) { if (cannotReach(m)) { reset(m); return; } } else notChasing(m);
     if (d > A.standOff) chase(m, t.x, t.y, speedOf(m), A.standOff - 4); else if (isObj || !spread(m, t, d)) stop(m);
-    if (isObj) return;
+    // Builds 2: an ink double or hound with health (or a hit count) is struck like a hero; a plain decoy only draws the foe
+    if (isObj && !(t.obj && t.obj.def && (t.obj.def.hpPct || t.obj.def.hits))) return;
     if (d <= reach) meleeSwing(m, t);
   }
 
@@ -372,6 +380,25 @@ export function createAi(C) {
     const sp = Math.max(1, Math.round(speedOf(m) * 0.4));
     m.ai.vx = Math.round((vx / vl) * sp); m.ai.vy = Math.round((vy / vl) * sp);
     return true;
+  }
+
+  /**
+   * Builds 2 Rewrite: a foe that fights for a hero for a while (m.charmedBy). It goes for the nearest foe of its old side
+   * within 10 tiles (the hero's target first) and swings at it; with none, it stays by the hero. The hero's scripts end it.
+   */
+  function charmed(m) {
+    if (K().cannotAct(m)) { stop(m); return; }
+    const owner = C.get(m.charmedBy);
+    if (!owner || owner.dead || owner.zone !== m.zone) { stop(m); return; }
+    let t = owner.target != null ? C.get(owner.target) : null;
+    const foe = (u) => u && u !== m && u.kind === 'mob' && !u.dead && u.zone === m.zone && u.faction === 'hostile' && distPx(u, m) <= 160;
+    if (!foe(t)) t = K().nearest(state.ents.filter(foe), m.x, m.y);
+    if (!t) { if (distPx(m, owner) > 32) chase(m, owner.x, owner.y, speedOf(m), 24); else stop(m); return; }
+    m.target = t.id;
+    const d = distPx(m, t);
+    if (d > A.meleeReach) { chase(m, t.x, t.y, speedOf(m), A.standOff - 4); return; }
+    stop(m);
+    meleeSwing(m, t);
   }
 
   function meleeSwing(m, t) {
@@ -407,6 +434,7 @@ export function createAi(C) {
       const f = first != null ? C.get(Number(first)) : null;
       if (f) engage(m, f, false);
     }
+    if (ai.mode === 'charmed') { charmed(m); return; }
     if (ai.mode === 'combat') { combat(m); return; }
     if (K().cannotAct(m)) { ai.vx = 0; ai.vy = 0; return; }
     switch (ai.mode) {

@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { assert, eq, newWorld } from './_helpers.mjs';
 import { BitmapFont } from '../../src/core/font.js';
 import { hitPx } from '../../src/ui/layout.js';
-import { talents2Rect, talents2Layout, layoutTargets, nodeWhy, nodeTip, tipSize, cardPlace, skillName, b2Class, isBuilds2, trackSpend } from '../../src/ui/talents2.js';
+import { talents2Rect, talents2Layout, layoutTargets, nodeWhy, nodeTip, tipSize, cardPlace, skillName, b2Class, isBuilds2, trackSpend, pickSlots } from '../../src/ui/talents2.js';
 import { BUILDS2, SKILL_PICKS, RULES } from '../../src/data/builds2.js';
 import { buildViewModel } from '../../src/core/viewmodel.js';
 import { buildHudModel } from '../../src/ui/uivm.js';
@@ -34,14 +34,16 @@ const LAYERS = [
 ];
 const Lof = (ly) => ({ touch: ly.touch, W: ly.W, H: ly.H, minHit: ly.touch ? hitPx(ly.css) : 15 });
 
-function checkLayout(ly, tab) {
+// every class runs Builds 2 (phase 2, 2026-11-19): the window's geometry and copy are checked for each
+const ALL = ['mender', 'warden', 'scribe', 'wayfinder', 'inkblade'];
+function checkLayout(ly, tab, cls = 'mender') {
   const L = Lof(ly);
   const R = talents2Rect(L);
   assert(R.x >= 0 && R.y >= 0 && R.x + R.w <= L.W && R.y + R.h <= L.H, `${ly.name}: window inside the layer`);
-  const lay = talents2Layout(R, 'mender', { touch: L.touch, hit: L.minHit, tab });
+  const lay = talents2Layout(R, cls, { touch: L.touch, hit: L.minHit, tab });
   const T = layoutTargets(lay);
   for (const t of T) {
-    assert(inside(t.r, R), `${ly.name} ${tab}: ${t.id} inside the window ${JSON.stringify(t.r)}`);
+    assert(inside(t.r, R), `${cls} ${ly.name} ${tab}: ${t.id} inside the window ${JSON.stringify(t.r)}`);
     if (L.touch) assert(Math.min(t.r.w, t.r.h) * ly.css >= 44, `${ly.name} ${tab}: ${t.id} is ${Math.min(t.r.w, t.r.h) * ly.css} css px`);
   }
   for (let i = 0; i < T.length; i++) for (let j = i + 1; j < T.length; j++) {
@@ -58,14 +60,16 @@ export const tests = [
   {
     name: 'talents2 layout: every layer (desktop, wide and narrow phones): targets inside, none overlapping, 44 css px on a phone',
     fn() {
-      for (const ly of LAYERS) {
-        const { lay } = checkLayout(ly, 'strength');
-        if (lay.mode === 'tabs') { checkLayout(ly, 'weakness'); checkLayout(ly, 'skills'); }
+      for (const cls of ALL) for (const ly of LAYERS) {
+        const { lay } = checkLayout(ly, 'strength', cls);
+        if (lay.mode === 'tabs') { checkLayout(ly, 'weakness', cls); checkLayout(ly, 'skills', cls); }
         if (!ly.touch) eq(lay.mode, 'six', 'desktop: six columns');
       }
       // Scott's default: six columns on the phone, tabs only on narrower phones
-      eq(talents2Layout(talents2Rect(Lof(LAYERS[1])), 'mender', { touch: true, hit: 44 }).mode, 'six', '844x390: six columns (the approved still)');
-      eq(talents2Layout(talents2Rect(Lof(LAYERS[4])), 'mender', { touch: true, hit: 44 }).mode, 'tabs', '667x375: tabs');
+      for (const cls of ALL) {
+        eq(talents2Layout(talents2Rect(Lof(LAYERS[1])), cls, { touch: true, hit: 44 }).mode, 'six', `${cls} 844x390: six columns (the approved still)`);
+        eq(talents2Layout(talents2Rect(Lof(LAYERS[4])), cls, { touch: true, hit: 44 }).mode, 'tabs', `${cls} 667x375: tabs`);
+      }
     },
   },
   {
@@ -88,22 +92,26 @@ export const tests = [
   {
     name: 'talents2 copy: worst-case copy fits (12-letter name at 15, every track, chip, button, pick, notice), measured in the game fonts',
     fn() {
-      const cd = BUILDS2.mender;
-      for (const ly of LAYERS) {
+      for (const cls of ALL) for (const ly of LAYERS) {
+        const cd = BUILDS2[cls];
         const L = Lof(ly);
         const R = talents2Rect(L);
         for (const tab of ['strength', 'weakness', 'skills']) {
-          const lay = talents2Layout(R, 'mender', { touch: L.touch, hit: L.minHit, tab });
+          const lay = talents2Layout(R, cls, { touch: L.touch, hit: L.minHit, tab });
           for (const c of lay.cols) {
-            assert(tm.textW(c.track.name, true) <= c.w - 4, `${ly.name}: track name ${c.track.name} fits ${c.w - 4}`);
+            assert(tm.textW(c.track.name, true) <= c.w - 4, `${cls} ${ly.name}: track name ${c.track.name} fits ${c.w - 4}`);
             assert(tm.textW(`${c.track.kind === 'strength' ? 'Strength' : 'Weakness'}  17 pts`) <= c.w - 4, `${ly.name}: track line fits`);
             assert(tm.textW(c.track.chip) + 8 <= c.w - 2, `${ly.name}: chip "${c.track.chip}" fits ${c.w - 2}`);
           }
           // header: title, hero line (12 letters, Lv 15, the longest leaning), then the buttons, then the points
-          assert(tm.textW('Mender Talents', true) <= 196, 'title');
-          const subW = tm.textW('Wwwwwwwwwwww   Lv 15');
-          const longestLean = Math.max(...cd.builds.map((b) => tm.textW(b.name)));
-          assert(subW + 22 + longestLean <= 196, `hero line: ${subW + 22 + longestLean} px`);
+          assert(tm.textW(`${cls[0].toUpperCase()}${cls.slice(1)} Talents`, true) <= 196, `${cls} title`);
+          // the hero's name gives way to a long leaning (at least 40 px of it stays); the leaning always shows whole
+          const lvW = tm.textW('   Lv 15');
+          for (const bd of cd.builds) {
+            const room = Math.max(40, Math.min(74, 196 - 22 - lvW - tm.textW(bd.name)));
+            const used = Math.min(room, tm.textW('Wwwwwwwwwwww')) + lvW + 22 + tm.textW(bd.name);
+            assert(used <= 196, `${cls} hero line with ${bd.name}: ${used} px`);
+          }
           const right = Math.max(...Object.entries(lay.buttons).filter(([k, b]) => b.y < R.y + lay.headH && k !== 'close' && k !== 'leaning').map(([, b]) => b.x + b.w));
           const ptsW = Math.max(tm.textW('Points left: 15', true), tm.textW('Spent 15 of 15'));
           assert(right + 4 <= lay.pointsRight - ptsW, `${ly.name}: buttons (${right}) clear of the points (${lay.pointsRight - ptsW})`);
@@ -123,13 +131,14 @@ export const tests = [
           for (const t of lay.tabs) assert(tm.textW(t.label) <= t.rect.w - 8, `${ly.name}: tab ${t.label}`);
           if (lay.picks) {
             for (const s of lay.picks.slots) {
-              const def = SKILL_PICKS.mender.find((x) => x.level === s.level);
+              if (s.compact) continue;                 // compact slots (a phone with a signature) show no name line
+              const def = pickSlots(cls).find((x) => x.level === s.level);
               const names = def.options.map(skillName);
-              const lines = lay.picks.vertical ? [names[0] + ' or ' + names[1], ...names] : [`${names[0]} or ${names[1]}${def.ready ? '' : ': later'}`, ...names];
+              const both = def.signature ? 'Signature: one of three' : `${names[0]} or ${names[1]}`;
               const room = lay.picks.vertical ? s.nameW - 34 : s.nameW;
-              // a ready pick shows one name (or "Choose one"); a later pick shows both
-              const need = def.ready ? Math.max(...names.map((n) => tm.textW(n)), tm.textW('Choose one')) : tm.textW(lines[0]);
-              assert(need <= room, `${ly.name}: pick Lv ${s.level} "${def.ready ? names.join('/') : lines[0]}" ${need} fits ${room}`);
+              // a ready pick shows one name (or "Choose one"); a later pick shows both (a signature: one line)
+              const need = def.ready ? Math.max(...names.map((n) => tm.textW(n)), tm.textW(def.signature ? 'Choose a signature' : 'Choose one')) : tm.textW(both);
+              assert(need <= room, `${cls} ${ly.name}: pick Lv ${s.level} "${def.ready ? names.join('/') : both}" ${need} fits ${room}`);
             }
           }
         }
@@ -146,12 +155,12 @@ export const tests = [
   {
     name: 'talents2 copy: every node\'s tooltip (desktop) and pinned card with Learn and Close (phone) fit on screen',
     fn() {
-      const cd = BUILDS2.mender;
       const build = { ranks: {}, undo: [], picks: {}, bought: [] };
-      for (const ly of LAYERS) {
+      for (const cls of ALL) for (const ly of LAYERS) {
+        const cd = BUILDS2[cls];
         const L = Lof(ly);
         const R = talents2Rect(L);
-        const lay = talents2Layout(R, 'mender', { touch: L.touch, hit: L.minHit, tab: 'strength' });
+        const lay = talents2Layout(R, cls, { touch: L.touch, hit: L.minHit, tab: 'strength' });
         for (const level of [1, 9, 15]) for (const o of Object.values(cd.nodes)) {
           const tip = nodeTip(cd, o, build, level, level, { touch: L.touch, pinned: L.touch });
           if (!L.touch) {
@@ -176,13 +185,14 @@ export const tests = [
   {
     name: 'talents2 rules mirror: the window lights exactly the nodes the sim would let you learn (random builds, levels 1 to 15)',
     fn() {
-      const cd = BUILDS2.mender;
-      const ids = Object.keys(cd.nodes);
       let checked = 0, seed = 7;
       const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-      for (let trial = 0; trial < 12; trial++) {
+      for (let trial = 0; trial < 20; trial++) {
+        const cls = ALL[trial % ALL.length];
+        const cd = BUILDS2[cls];
+        const ids = Object.keys(cd.nodes);
         const level = 1 + Math.floor(rnd() * 15);
-        const { p, C } = duelWorld({ cls: 'mender', level, learnAll: false, builds2: true });
+        const { p, C } = duelWorld({ cls, level, learnAll: false, builds2: true });
         for (let k = 0; k < level + 4; k++) {
           const free = C.b2.points(p).free;
           for (const id of ids) {
@@ -227,7 +237,7 @@ export const tests = [
     },
   },
   {
-    name: 'talents2 model: the live HUD model carries Builds 2 for a Mender (points from level 1, the gold star) and not for the others',
+    name: 'talents2 model: the live HUD model carries Builds 2 for a Mender (points from level 1, the gold star) and for every other class',
     fn() {
       const { world } = newWorld(3);
       const m1 = world.addPlayer({ name: 'Wren', cls: 'mender' });
@@ -240,7 +250,8 @@ export const tests = [
       assert(mm.builds2.suggested && b2Class('mender').nodes[mm.builds2.suggested], 'a gold-star node');
       assert(mm.builds2.build && mm.builds2.build.auto === true, 'auto-spend on for a new hero');
       const wm = buildHudModel(buildViewModel(snap, w1, {}), snap, { state: {} });
-      assert(!isBuilds2(wm) && wm.builds2 === null, 'the Warden keeps the old window');
+      // phase 2 (2026-11-19): every class runs Builds 2, so no class shows the old window
+      assert(isBuilds2(wm) && wm.builds2.points.total === 1, 'the Warden runs Builds 2 too');
     },
   },
 ];

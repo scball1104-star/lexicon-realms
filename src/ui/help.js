@@ -31,7 +31,12 @@ export function helpSections(binds) {
       ['Gold ?', 'Ready to hand in', ''],
       ['Grey ! or ?', 'Later, or still in progress', ''],
       ['Item info', 'Point at it in Bags', 'Tap it; tap again to use'],
-      ['Quest log', `${k(b, 'quests')}, or click the tracker`, '! button, or tracker'],
+      ['Quest log', k(b, 'quests'), '! button'],
+    ] },
+    { title: 'Where to go', rows: [
+      ['Map', `${k(b, 'map')}: bright circles for the quest you picked`, 'Map button: same'],
+      ['Pick a quest', 'Click its tracker line, or Show on map', 'Tap its tracker line'],
+      ['Gold arrow', 'At your feet: points the way', 'Same'],
     ] },
     { title: 'Menus and view', rows: [
       ['Windows', `${menus}`, 'Buttons along the top'],
@@ -57,7 +62,7 @@ export function drawHelp(ctx, env, st, regions, act, binds) {
   g.text(ctx, touch ? 'Phone controls' : 'Keyboard and mouse (your own key bindings)', r.x + r.w - 30, r.y + 8, 'dim', { align: 'right' });
   const secs = helpSections(binds);
   const colW = 280, gap = 12, lw = 82;
-  const cols = [[secs[0], secs[1], secs[3]], [secs[2], secs[4]]];
+  const cols = [[secs[0], secs[1], secs[4]], [secs[2], secs[3], secs[5]]];
   cols.forEach((col, ci) => {
     const x = r.x + 10 + ci * (colW + gap);
     let y = r.y + 28;

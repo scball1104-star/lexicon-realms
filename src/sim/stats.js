@@ -60,6 +60,21 @@ export function createStats(C) {
         case 'targetIsSelf': if ((!!t && t.id === e.id) !== v) return false; break;
         case 'solo': if (isSolo(e) !== v) return false; break;
         case 'cooling': if (!((e.cd && e.cd[v]) > C.state.tick)) return false; break;
+        // Builds 2, the other four classes: Resolve at or above v (Furnace Heart); the target at v px or more (Lethal
+        // Distance); the target rooted or slowed (Run to Ground); rooted, stunned or held (Full Sentence); no other foe within
+        // v px of the target (Single Mind); an aura of your own on you (Kick and Shoot); a script you do NOT have (Point Blank
+        // lifts the close-range cut, Unwritten stops Cut the Word on an ordinary hit)
+        case 'resAbove': if (!e.res || e.res.cur < v) return false; break;
+        case 'targetBeyond': if (!t || distPx(e, t) < v) return false; break;
+        case 'targetSnared': if (!t || (hasFlag(t, 'root') || hasFlag(t, 'slow')) !== v) return false; break;
+        case 'targetHeld': if (!t || (hasFlag(t, 'root') || hasFlag(t, 'stun') || hasFlag(t, 'incap')) !== v) return false; break;
+        case 'targetAlone': {
+          if (!t) return false;
+          for (const u of C.state.ents) if (u !== t && u.kind === 'mob' && !u.dead && u.zone === t.zone && u.faction === 'hostile' && distPx(u, t) <= v) return false;
+          break;
+        }
+        case 'selfAura': if (!findAura(e, v, e.id)) return false; break;
+        case 'noScript': if (e.kind === 'player' && data.hasScript(e, v)) return false; break;
         default: return false;
       }
     }
@@ -77,7 +92,15 @@ export function createStats(C) {
     }
     if (m.periodic && !ctx.periodic) return false;
     if (m.direct && ctx.periodic) return false;          // Builds 2: direct (not over time) only
+    // Builds 2 Living off the Land: every source but one
+    if (m.notAbility && (Array.isArray(m.notAbility) ? m.notAbility.includes(ctx.ability) : m.notAbility === ctx.ability)) return false;
     return true;
+  }
+  /** Builds 2 Bellows: hostile foes within `radius` px of `e`, at most `max`. */
+  function foesNear(e, { radius = 48, max = 4 } = {}) {
+    let n = 0;
+    for (const u of C.state.ents) if (u.kind === 'mob' && !u.dead && u.zone === e.zone && u.faction === 'hostile' && distPx(u, e) <= radius && ++n >= max) break;
+    return n;
   }
 
   function mod(e, stat, ctx = {}) {
@@ -85,8 +108,9 @@ export function createStats(C) {
     if (e.kind === 'player') {
       for (const m of data.talentInfo(e).mods) {
         if (m.stat !== stat || !matches(m, ctx) || !cond(e, m.when, ctx)) continue;
-        if (m.add != null) add += m.add;
-        if (m.mul != null) mul *= m.mul;
+        const n = m.perNear ? foesNear(e, m.perNear) : 1;
+        if (m.add != null) add += m.add * n;
+        if (m.mul != null) mul *= Math.pow(m.mul, n);
       }
     }
     for (const a of e.auras) {
@@ -94,6 +118,9 @@ export function createStats(C) {
       if (!mods) continue;
       for (const m of mods) {
         if (m.stat !== stat || !matches(m, ctx) || !cond(e, m.when, ctx)) continue;
+        // Builds 2 Shadow Mark (only the hero who marked) and Corrode (everyone but the hero)
+        if (m.selfOnly && !(ctx.attacker && (ctx.attacker.id === a.src || ctx.attacker.owner === a.src))) continue;
+        if (m.othersOnly && ctx.attacker && (ctx.attacker.id === a.src || ctx.attacker.owner === a.src)) continue;
         const n = m.perStack ? a.stacks : 1;
         if (m.add != null) add += m.add * n;
         if (m.mul != null) mul *= Math.pow(m.mul, n);

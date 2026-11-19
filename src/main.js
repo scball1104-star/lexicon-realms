@@ -103,6 +103,9 @@ async function boot() {
       },
       worldMarks: () => worldMarks(),
       unitRects: () => unitRects(),
+      // the gold quest arrow (ui.js drawGoalPointer): world px -> HUD px, and where the hero was drawn this frame
+      toHud: (wx, wy) => renderer.worldToHud(wx, wy),
+      heroAnchor: () => (playerId != null ? renderer.anchorOf(playerId) : null),
     },
   });
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });

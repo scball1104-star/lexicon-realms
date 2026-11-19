@@ -12,7 +12,8 @@ import { loadUiArt } from './uiassets.js';
 import { createGfx } from './gfx.js';
 import { createCharArt } from './charsprite.js';
 import { createMinimapBook } from './minimap.js';
-import { createHud, drawTooltip, drawQuestMark } from './hud.js';
+import { createHud, drawTooltip, drawQuestMark, drawGoalArrow } from './hud.js';
+import { arrowMode } from './questnav.js';
 import { hudLayout, hitPx, inRect, menuRect, W, H } from './layout.js';
 import { buildHudModel } from './uivm.js';
 import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions } from './menus.js';
@@ -45,7 +46,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   // ---- state
   const st = {
     mode: 'title', open: new Set(), hover: null, regions: [], toast: null, chatScroll: 0, trackerCollapsed: false,
-    confirm: null, rebinding: null, talentSel: null, questSel: null, mapZone: null, joystick: null, pressed: null,
+    confirm: null, rebinding: null, talentSel: null, questSel: null, navQuest: null, mapZone: null, joystick: null, pressed: null,
     name: '', nameFocus: false, cls: null, look: 0, err: null, selId: null, charId: null, longTip: null, itemPick: null,
     drag: null, metrics: { cssPerHud: 1, touch }, now: 0,
     dialog: null, untracked: new Set(), trained: new Set(), hint: null, levelUp: null, quiet: { text: null, t: -99 }, chatFade: 0,
@@ -114,6 +115,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       st.charId = id;
       playerId = hooks.enterWorld ? hooks.enterWorld(c) : null;
       st.mode = 'game'; st.open.clear(); st.dialog = null; st.trained = new Set();
+      st.navQuest = c.navQuest || null; st.questSel = null; st.mapZone = null;
       log.length = 0;
       if (!c.state) {
         // a brand-new hero: a short welcome and, once per hero, the controls card
@@ -140,6 +142,18 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (st.metrics.touch) st.open.clear();         // one window at a time on a phone
       st.open.add(id); st.confirm = null; st.itemPick = null;
       if (id === 'map') st.mapZone = null;
+    },
+    /** The selected quest (questnav.js): the map, the minimap arrow and the gold arrow in the world follow it. Saved
+     *  with the character. */
+    selectQuest(id) {
+      st.navQuest = id || null; st.questSel = id || st.questSel;
+      if (st.charId != null) store.update(st.charId, { navQuest: st.navQuest });
+    },
+    /** Select a quest and open the map on the zone of its goal (quest log "Show on map", tracker rows, the map list). */
+    showOnMap(id) {
+      act.selectQuest(id);
+      if (!st.open.has('map')) act.toggle('map');
+      st.mapZone = null;           // the map opens on the selected quest's zone
     },
     learnTalent(id) {
       send({ t: 'learn_talent', talent: id });
@@ -275,10 +289,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t));
     else if (st.mode === 'create') centred(ctx, L, regions, () => drawCreate(ctx, env, st, regions, act, t));
     else {
-      let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked }, tickHz: 20, zoneNames, zones });
+      let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones });
       if (demoExtra) m = applyDemo(m);
       lastModel = m;
       st.openMenu = [...st.open].pop() || null;
+      if (m.player && !m.player.dead) drawGoalPointer(ctx, m, L, t);
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
       regions.push(...hud.draw(ctx, m, L, st, { log, fade, keyLabels: Array.from({ length: 6 }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
@@ -399,6 +414,46 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     }
   }
 
+  /** The gold arrow in the world (questnav.js arrowMode): at the hero's feet, pointing at the selected quest's goal in
+   *  this zone (or the exit toward its zone) while that is off screen or far; a small bobbing pin over it when it is
+   *  near and on screen; nothing inside the circle. A HUD overlay, so the 2D and 3D renderers both get it: the direction
+   *  is the screen direction of a short step toward the goal from the hero's feet (worldToHud), right under a tilted
+   *  3D camera too. */
+  function drawGoalPointer(ctx, m, L, t) {
+    const goal = m.minimap && m.minimap.goal;
+    if (!goal || goal.zone !== m.minimap.zone || !hooks.toHud) return;
+    const a = (hooks.heroAnchor && hooks.heroAnchor()) || { x: m.minimap.x, y: m.minimap.y };
+    const gx = goal.x * 16, gy = goal.y * 16;
+    const dist = Math.hypot(gx - a.x, gy - a.y) / 16;
+    const [px, py] = hooks.toHud(gx, gy);
+    // "on screen" means well inside it: a goal at the edge sits under the chat, the bars or the tracker
+    const padX = Math.round(L.W * 0.18), padY = Math.round(L.H * 0.2);
+    const onScreen = px >= padX && py >= padY && px <= L.W - padX && py <= L.H - padY;
+    const mode = arrowMode(dist, goal.r, onScreen);
+    st.goalArrow = { mode, dist: Math.round(dist * 10) / 10 };
+    if (mode === 'none') return;
+    const s = L.touch ? 1.4 : 1.35;
+    const pulse = 0.8 + 0.2 * Math.sin(t * 4);
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    if (mode === 'pin') {
+      const bob = Math.round(Math.sin(t * 3) * 2);
+      drawGoalArrow(ctx, px, py - 10 * s + bob, Math.PI / 2, s);
+      st.goalArrow.at = [px, py];
+    } else {
+      const [hx, hy] = hooks.toHud(a.x, a.y);
+      const k = 32 / Math.max(1e-6, dist * 16);
+      const [sx, sy] = hooks.toHud(a.x + (gx - a.x) * k, a.y + (gy - a.y) * k);
+      const ang = Math.atan2(sy - hy, sx - hx);
+      const R = 18 * s;
+      const ax = Math.round(hx + Math.cos(ang) * R), ay = Math.round(hy - 4 + Math.sin(ang) * R * 0.7);
+      drawGoalArrow(ctx, ax, ay, ang, s);
+      st.goalArrow.at = [ax, ay];
+      st.goalArrow.ang = Math.round(ang * 100) / 100;
+    }
+    ctx.restore();
+  }
+
   /** The one-time controls card for a new hero (desktop and phone versions). */
   function drawHint(ctx, L, regions) {
     const lines = L.touch
@@ -475,7 +530,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       case 'menu_button': act.toggle(r.id); return true;
       case 'minimap': act.toggle('map'); return true;
       case 'tracker_head': st.trackerCollapsed = !st.trackerCollapsed; return true;
-      case 'tracker_quest': st.questSel = r.id; if (!st.open.has('quests')) act.toggle('quests'); return true;
+      // a tracker row selects its quest and opens the map on it (the question it answers is "where do I go?"; the quest
+      // log is one key or button away); the same row again closes the map
+      case 'tracker_quest':
+        if (st.open.has('map') && st.navQuest === r.id) { act.close('map'); return true; }
+        act.showOnMap(r.id); return true;
       case 'chat': case 'window': case 'xp': return true;
       case 'player': case 'target': case 'party': return true;
       default: return true;

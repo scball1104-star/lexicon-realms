@@ -31,10 +31,10 @@ const tests = [];
 const T = (name, fn) => tests.push({ name: `builds2: ${name}`, fn });
 
 // ------------------------------------------------------------------------------------------------ the flag
-T('ON in the live data for the Mender only: a new Mender has a point at level 1; other classes keep their talents', () => {
+T('ON in the live data for every class (Mender phase 1, the other four phase 2): a new hero has a point at level 1', () => {
   const content = buildContent();
   eq(content.progression.builds2.enabled, true, 'live flag on (Scott approved the talents screen 2026-11-19)');
-  eq(JSON.stringify(content.progression.builds2.classes), JSON.stringify(['mender']), 'phase 1: the Mender');
+  eq(JSON.stringify(content.progression.builds2.classes), JSON.stringify(['mender', 'warden', 'scribe', 'wayfinder', 'inkblade']), 'all five classes');
   const w = createWorld({ seed: 1, content });
   const pid = w.addPlayer({ name: 'Wren', cls: 'mender' });
   const p = w.get(pid);
@@ -45,11 +45,14 @@ T('ON in the live data for the Mender only: a new Mender has a point at level 1;
   const ev = cmd(w, pid, { t: 'b2_learn', node: id('hearth', 'gentle_hands') });
   eq(ofType(ev, 'b2_talent').length, 1, 'learned');
   assert(w.internals.hud.build(p).builds2, 'the HUD carries the Builds 2 block');
-  // every other class stays on today's talents (no tracks yet)
+  // every other class runs Builds 2 too, and refuses another class's node
   for (const cls of ['warden', 'scribe', 'wayfinder', 'inkblade']) {
     const q = w.get(w.addPlayer({ name: `T${cls}`, cls }));
-    eq(q.b2, false, `${cls}: today's talents`);
-    eq(fails(cmd(w, q.id, { t: 'b2_learn', node: id('hearth', 'gentle_hands') }), 'off').length, 1, `${cls}: b2 refused`);
+    eq(q.b2, true, `${cls}: Builds 2`);
+    eq(w.internals.prog.talentPoints(q).total, 0, `${cls}: no old talent points`);
+    eq(fails(cmd(w, q.id, { t: 'b2_learn', node: id('hearth', 'gentle_hands') }), 'unknown').length, 1, `${cls}: a Mender node is refused`);
+    const first = BUILDS2[cls].builds[0].path[0];
+    eq(ofType(cmd(w, q.id, { t: 'b2_learn', node: first }), 'b2_talent').length, 1, `${cls}: its own first suggested node learns`);
   }
 });
 

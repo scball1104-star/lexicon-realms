@@ -80,7 +80,7 @@ export function createProgression(C) {
       }
     }
     emit({ type: 'level', id: e.id, level: e.level, hpMax: e.hpMax, talentPoints: pts.free, trainable: newAbilities, trainer,
-      firstTalentAt: e.level < P.talents.firstLevel ? P.talents.firstLevel : null, ...(e.b2 ? { b2: true, b2Free: C.b2.points(e).free + 0 } : {}) });
+      firstTalentAt: !e.b2 && e.level < P.talents.firstLevel ? P.talents.firstLevel : null, ...(e.b2 ? { b2: true, b2Free: C.b2.points(e).free + 0 } : {}) });
     if (e.b2) C.b2.onLevel(e);
   }
 

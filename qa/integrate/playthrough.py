@@ -2,8 +2,10 @@
 
     python qa/integrate/playthrough.py            (needs python tools/dev/serve.py on :8790; starts it if not)
 
-title -> create a Warden -> Hob's first quest -> Mael -> Oren's slimes (kill with abilities, loot) -> turn in -> level up
--> learn an ability at Holt -> buy and sell at Pell -> die on purpose and wake at the lantern -> talent point at 5
+title -> create a Warden -> Hob's first quest -> Mael -> Oren's slimes (tracker click: the map on the quest, the way
+there, Show on map, the gold arrow; kill with abilities, loot) -> turn in -> level up
+-> take the level 1 skill pick, then buy the other side back at Holt -> buy and sell at Pell -> die on purpose and wake at
+the lantern -> a Builds 2 talent point at 6 (the Warden: phase 2, every class runs Builds 2)
 -> quit to select -> reload -> continue (same level / xp / gold / quests / place) -> a new Mender on Builds 2: Spend
 suggested at level 1, Hearth to its fork with real clicks, the other side closed, Undo, a skill pick, the level-up
 prompt. Screenshots in qa/out/integrate/.
@@ -178,6 +180,37 @@ def quest_state(g, qid):
     return None
 
 
+def quest_nav_desktop(g):
+    """Where to go (Scott, 2026-11-19). The slimes are in the valley, the hero is in Willowmere: a click on the tracker
+    row selects the quest and opens the map on the VALLEY, its circle bright and saying what to do, with the way there;
+    Willowmere's map says the same and points a gold arrow at the exit; the quest log's Show on map does the same; the
+    gold arrow at the hero's feet points the way."""
+    st = 'window.__realms.ui.state'
+    ga = g.ev(f'{st}.goalArrow')
+    log('  goal arrow in Willowmere', ga)
+    assert ga and ga['mode'] == 'arrow', f'the gold arrow points toward the exit: {ga}'
+    g.shot('05b_goal_arrow', f'the gold quest arrow at the feet of the hero ({ga["dist"]} tiles to the exit)')
+    g.click_region(kind='tracker_quest', id='wm_yard_slimes', wait=0.5)
+    nav = g.ev(f'({{ open: window.__realms.ui.isOpen("map"), sel: {st}.navQuest, zone: {st}.mapShown, labels: {st}.mapLabels, route: {st}.mapRoute }})')
+    log('  tracker click ->', nav)
+    assert nav['open'] and nav['sel'] == 'wm_yard_slimes', f'the tracker click opens the map on the quest: {nav}'
+    assert nav['zone'] == 'valley', f'the map opens on the quest zone, not the hero zone: {nav}'
+    assert nav['labels'] and nav['labels'][0].startswith('Slay Ink Slimes'), f'the circle says what to do: {nav}'
+    assert nav['route'].startswith('You are in Willowmere. Go to Willowmere Valley'), f'the way there: {nav}'
+    g.shot('05c_map_quest', f'map on the valley: {nav["labels"][0]}; {nav["route"]}')
+    g.click_region(label='map_zone:willowmere', wait=0.4)
+    route = g.ev(f'{st}.mapRoute')
+    assert route.startswith('Go to Willowmere Valley ('), f'Willowmere map: the exit to take: {route}'
+    g.shot('05d_map_exit', f'Willowmere map: {route}, gold arrow at the exit')
+    g.key('KeyM', 0.3)
+    assert not g.ev('window.__realms.ui.isOpen("map")'), 'M closes the map'
+    g.key('KeyL', 0.3)
+    g.click_region(label='Show on map', wait=0.4)
+    assert g.ev('window.__realms.ui.isOpen("map")') and g.ev(f'{st}.mapShown') == 'valley', 'Show on map opens the map on the quest'
+    g.key('KeyM', 0.2)
+    assert not g.ev('window.__realms.ui.isOpen("map")') and not g.ev('window.__realms.ui.isOpen("quests")'), 'windows closed'
+
+
 def run():
     with sync_playwright() as pw:
         b = pw.chromium.launch(args=GPU)
@@ -216,9 +249,13 @@ def run():
         g.click_region(label='Accept', wait=0.6)
         g.key('Escape', 0.2)
         assert quest_state(g, 'wm_yard_slimes'), 'slime quest active'
+        quest_nav_desktop(g)
         log('to the valley')
         g.walk('valley', 12, 48, near=2, timeout=180)
         g.shot('06_valley', 'arrived in the valley meadow (zone change, valley music)')
+        ga = g.ev('window.__realms.ui.state.goalArrow')
+        log('  goal arrow in the valley', ga)
+        assert ga and ga['mode'] in ('arrow', 'pin', 'none'), f'goal arrow state in the valley: {ga}'
         log('  audio', json.dumps(g.ev('window.__realms.audio.debug()'))[:400])
         kills, fps_seen = 0, None
         t0 = time.time()
@@ -266,10 +303,18 @@ def run():
         g.key('Escape', 0.2)
         assert me['level'] > lvl0 or me['level'] >= 2, 'levelled up'
 
-        # ---- trainer: reach level 3 (DEV xp) and learn the level-3 ability at Holt
+        # ---- Builds 2 (the Warden runs it since phase 2): the level 1 skill pick in the talents window (one of two), then
+        # the trainer sells the other side back ("double gold")
         if g.me()['level'] < 3:
             g.ev('window.__realms.dev.xp(900)')
             time.sleep(0.5)
+        g.key('KeyN', 0.4)
+        assert 'b2:close' in g.ev('__drv.labels()'), 'the Warden has the Builds 2 window'
+        g.click_region(label='b2pick:1:warden_sweeping_blow', wait=0.5)
+        assert 'warden_sweeping_blow' in g.me()['known'], 'Sweeping Blow picked through the window'
+        g.key('Escape', 0.2)
+        if (g.me()['gold'] or 0) < 10:
+            g.ev('window.__realms.dev.gold(20)')
         known0 = set(g.me()['known'])
         d = g.talk('holt')
         g.click_region(label='Train me.', wait=0.4)
@@ -329,17 +374,20 @@ def run():
         g.shot('15_lantern', f'woke at the lantern: {me["zone"]} {me["tx"]},{me["ty"]}, hp {me["hp"]}/{me["hpMax"]}')
         assert not me['dead'], 'awake again'
 
-        # ---- a talent point at level 5 (DEV xp)
-        while g.me()['level'] < 5:
+        # ---- a Builds 2 talent point at level 6 (DEV xp; auto-spend took the points to 5): the Warden clicks the gold star
+        while g.me()['level'] < 6:
             g.ev('window.__realms.dev.xp(1500)')
             time.sleep(0.2)
         g.key('KeyN', 0.4)
-        nodes = g.ev("window.__realms.ui.regions.filter((r) => r.kind === 'talent').map((r) => r.id)")
-        t_before = dict(g.me()['talents'] or {})
-        g.click_region(kind='talent', id=nodes[0], wait=0.6)
-        t_after = dict(g.me()['talents'] or {})
-        g.shot('16_talent', f'spent a talent point at level 5: {t_after}')
-        assert sum(t_after.values()) > sum(t_before.values()), 'talent learned'
+        hud = g.ev('window.__realms.hud().builds2')
+        assert hud and hud['points']['free'] >= 1, f'a Builds 2 point to spend at 6: {hud and hud["points"]}'
+        star = hud['suggested']
+        t_before = b2_ranks(g)
+        g.click_region(label=f'b2node:{star}', wait=0.6)
+        t_after = b2_ranks(g)
+        g.shot('16_talent', f'the Warden spent a Builds 2 point at level 6 on the gold star ({star}): {t_after}')
+        assert sum(t_after.values()) == sum(t_before.values()) + 1 and t_after.get(star) == t_before.get(star, 0) + 1, f'talent learned: {t_after}'
+        assert g.me()['talents'] == {}, 'no old talents'
         g.key('Escape', 0.2)
 
         # ---- take one more quest (Cobb's hens) so the save carries an active quest

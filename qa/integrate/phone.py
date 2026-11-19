@@ -4,7 +4,7 @@ through CDP Input.dispatchTouchEvent, taps through page.touchscreen).
     python qa/integrate/phone.py
 
 create a Scribe -> walk with the joystick -> tap Hob to talk, accept -> walk to the valley -> tap a slime to target it
--> cast Inkbolt from the cluster -> open bags and talents -> a new Mender on Builds 2: a tap pins a talent card, Learn
+-> tap the tracker row: the map on the quest (Show on map from the log too) -> cast Inkbolt from the cluster -> open bags and talents -> a new Mender on Builds 2: a tap pins a talent card, Learn
 spends the point, Hearth to its fork with taps, the other side stays closed. Screenshots in qa/out/integrate/phone_*.png.
 Prints PHONE_DONE: ok=<bool> errors=<n>.
 """
@@ -136,6 +136,7 @@ def run():
         ph.tap_region(label='Accept', wait=0.5)
         if ph.ev('__drv.dialog()'):
             ph.tap_region(label='Goodbye.', wait=0.3)
+        quest_nav_phone(ph)
 
         # ---- to the valley, tap a slime, cast Inkbolt from the cluster
         ph.walk('valley', 12, 48, near=2, timeout=200)
@@ -192,8 +193,8 @@ def run():
         ph.tap_region(label='card:close', wait=0.3)
         assert 'card:close' not in ph.ev('__drv.labels()'), 'Close shuts the card'
         ph.tap_region(kind='menu_button', id='talents', wait=0.4)
-        assert 'b2:close' not in ph.ev('__drv.labels()'), 'a Scribe keeps the old talents window'
-        ph.shot('phone_09_talents', 'talents window on the phone (Scribe: the old window)')
+        assert 'b2:close' in ph.ev('__drv.labels()'), 'a Scribe has the Builds 2 window (phase 2: every class)'
+        ph.shot('phone_09_talents', 'talents window on the phone (Scribe: Builds 2)')
         ph.tap_region(kind='menu_button', id='talents', wait=0.3)
         fps = ph.ev('window.__realms.fps()')
         log('  phone fps', fps)
@@ -201,6 +202,34 @@ def run():
         # ---- Builds 2: a new Mender spends a point and takes a fork with taps (the pinned card: Learn, Close)
         mender_builds2(ph)
         b.close()
+
+
+def quest_nav_phone(ph):
+    """Where to go (Scott, 2026-11-19): a tap on the tracker row selects the quest and opens the map on it (the bright
+    circle says what to do); the quest log's Show on map does the same; one window at a time."""
+    st = 'window.__realms.ui.state'
+    qid = ph.ev("(() => { const r = window.__realms.ui.regions.filter((o) => o.kind === 'tracker_quest'); return r.length ? r[0].id : null; })()")
+    assert qid, 'a tracker row to tap'
+    ph.tap_region(kind='tracker_quest', id=qid, wait=0.5)
+    nav = ph.ev(f'({{ open: window.__realms.ui.isOpen("map"), sel: {st}.navQuest, zone: {st}.mapShown, labels: {st}.mapLabels, arrow: {st}.goalArrow }})')
+    log('  tracker tap ->', nav)
+    assert nav['open'] and nav['sel'] == qid, f'the tracker tap opens the map on the quest: {nav}'
+    assert nav['labels'] and nav['labels'][0], f'the selected circle says what to do: {nav}'
+    rows = ph.ev("window.__realms.ui.regions.filter((o) => String(o.label || '').startsWith('map_quest:')).map((o) => o.rect.h)")
+    mh = ph.ev('window.__realms.ui.layout().minHit')
+    assert rows and min(rows) >= mh, f'map quest rows are 44 css px: {rows} vs {mh}'
+    ph.shot('phone_05b_map_quest', f'tracker tap: the map on {nav["zone"]}, {nav["labels"][0]}')
+    ph.tap_region(kind='menu_button', id='quests', wait=0.4)
+    assert not ph.ev('window.__realms.ui.isOpen("map")'), 'one window at a time'
+    ph.tap_region(label='Show on map', wait=0.5)
+    assert ph.ev('window.__realms.ui.isOpen("map")') and not ph.ev('window.__realms.ui.isOpen("quests")'), 'Show on map swaps the log for the map'
+    ph.tap_region(kind='menu_button', id='map', wait=0.3)
+    assert not ph.ev('window.__realms.ui.isOpen("map")'), 'the map button closes it'
+    time.sleep(0.3)
+    ga = ph.ev(f'{st}.goalArrow')
+    log('  goal arrow', ga)
+    assert ga and ga['mode'] in ('arrow', 'pin', 'none'), f'goal arrow state: {ga}'
+    ph.shot('phone_05c_goal_arrow', f'the gold quest arrow on the phone ({ga["mode"]}, {ga["dist"]} tiles)')
 
 
 def b2_ranks(ph):

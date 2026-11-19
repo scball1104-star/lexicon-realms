@@ -200,7 +200,9 @@ export const tests = [
       known: ['scribe_inkbolt', 'scribe_scrawl', 'scribe_full_stop', 'scribe_underline'], bar: ['scribe_inkbolt', 'scribe_scrawl', 'scribe_underline'],
       bag: [{ item: 'potion', qty: 3 }], questsDone: ['wm_name_twice'] });
     const p = w.get(pid);
-    eq(p.level, 9); eq(p.xp, 300); eq(p.gold, 77); eq(p.talents.scribe_quill_sharp_nib, 2);
+    eq(p.level, 9); eq(p.xp, 300); eq(p.gold, 77);
+    // Builds 2 is on for every class (2026-11-19): the old talents come back as points, kept aside, with a free respec
+    eq(Object.keys(p.talents).length, 0, 'old talents retired'); eq(p.build.legacyTalents.scribe_quill_sharp_nib, 2, 'kept aside'); eq(p.build.freeRespec, true, 'free respec');
     eq(p.bar.length, 3); eq(p.bag[0].qty, 3); eq(p.questsDone[0], 'wm_name_twice');
     eq(p.hp, p.hpMax, 'full health');
     assert(w.removePlayer(pid), 'removed'); eq(w.get(pid), null, 'gone');

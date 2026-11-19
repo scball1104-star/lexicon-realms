@@ -7,6 +7,10 @@ Boots the game headless with ?dev=1, makes a Mender at the still's level, writes
 window.__realms.world), opens the window through real input (N on desktop, the star button on a phone), then hovers
 (desktop) or taps (phone) the still's node. Also a narrow phone (667x375: the tabs layout). Writes
 qa/out/builds2/real1_desktop.png, real2_phone.png, real3_worst_case.png, real4_narrow_phone.png.
+Phase 2 (2026-11-19): for each of the Warden, Scribe, Wayfinder and Inkblade, a level 15 hero on its default named build
+(its 15 points, its skill picks and its signature, spent through the sim's own rules), the desktop window hovering the
+node with the longest tooltip, and the phone window with that node pinned as a card: qa/out/builds2/<cls>_desktop.png and
+<cls>_phone.png.
 Prints TALENTS2_SHOTS: shots=<n> errors=<n> (machine-read sentinel). Every wait is bounded.
 """
 import json, os, sys
@@ -43,7 +47,7 @@ STILL3 = {
 }
 
 
-def open_page(browser, sc, w, h, mobile):
+def open_page(browser, sc, w, h, mobile, cls='mender'):
     kw = dict(viewport={'width': w, 'height': h}, device_scale_factor=3 if mobile else 1)
     if mobile:
         kw.update(is_mobile=True, has_touch=True)
@@ -51,7 +55,7 @@ def open_page(browser, sc, w, h, mobile):
     page = ctx.new_page()
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
-    q = f'skiptitle=1&paused=1&dev=1&cls=mender&name={sc["name"]}&look={sc["look"]}'
+    q = f'skiptitle=1&paused=1&dev=1&cls={cls}&name={sc["name"]}&look={sc["look"]}'
     page.goto(f'http://127.0.0.1:{PORT}/index.html?{q}', timeout=20000)
     page.wait_for_function('window.__realms && (window.__realms.ready || window.__realms.error)', timeout=20000)
     err = page.evaluate('window.__realms.error || null')
@@ -59,11 +63,20 @@ def open_page(browser, sc, w, h, mobile):
         raise SystemExit(f'game failed to boot: {err}')
     page.evaluate(DRV)
     page.evaluate(f'window.__realms.dev.level({sc["level"]})')
-    # DEV: the still's build on the hero (the sim's own state; the window reads it back through the snapshot and HUD)
-    page.evaluate('''(sc) => { const R = window.__realms; const e = R.world.get(R.playerId);
-      Object.assign(e.build, JSON.parse(JSON.stringify(sc.build)));
-      for (const k of sc.known) { if (!e.known.includes(k)) e.known.push(k); }
-      R.world.internals.data.forget(e.id); R.world.internals.stats.recalc(e); }''', sc)
+    if sc.get('named'):
+        # DEV: the class's default named build, spent through the sim's own rules (picks, signature, its 15 points)
+        page.evaluate('''() => { const R = window.__realms; const e = R.world.get(R.playerId); const C = R.world.internals;
+          const cd = C.content.builds2.classes[e.cls]; const b = cd.builds.find((x) => x.id === cd.defaultBuild);
+          e.build.ranks = {}; e.build.undo = []; e.build.firstKill = true; e.build.freeRespec = false; e.build.auto = false; e.build.leaning = b.id;
+          for (const lv of [1, 3, 6, 14]) if (b.picks[lv] && !e.build.picks[lv]) C.b2.pick(e, { level: lv, ability: b.picks[lv] });
+          if (b.signature && !e.build.sigs.length) C.b2.pick(e, { level: 10, ability: b.signature });
+          for (const id of b.path.slice(0, e.level)) C.b2.learn(e, { node: id }); }''')
+    else:
+        # DEV: the still's build on the hero (the sim's own state; the window reads it back through the snapshot and HUD)
+        page.evaluate('''(sc) => { const R = window.__realms; const e = R.world.get(R.playerId);
+          Object.assign(e.build, JSON.parse(JSON.stringify(sc.build)));
+          for (const k of sc.known) { if (!e.known.includes(k)) e.known.push(k); }
+          R.world.internals.data.forget(e.id); R.world.internals.stats.recalc(e); }''', sc)
     page.evaluate('window.__realms.step(2)')
     page.wait_for_timeout(200)
     return ctx, page
@@ -84,6 +97,18 @@ def shot(page, name):
     page.screenshot(path=path)
     print(json.dumps({'shot': name, 'path': path}), flush=True)
     return path
+
+
+def longest_node(page):
+    """The node of the hero's class with the longest tooltip text (the worst case for the tooltip and the card)."""
+    return page.evaluate('''() => { const R = window.__realms; const e = R.world.get(R.playerId);
+      const nodes = Object.values(R.world.internals.content.builds2.classes[e.cls].nodes);
+      nodes.sort((a, b) => (b.text.length + b.name.length) - (a.text.length + a.name.length) || a.id.localeCompare(b.id));
+      return nodes[0].id; }''')
+
+
+CLASSES2 = ['warden', 'scribe', 'wayfinder', 'inkblade']
+NAMED = {'name': 'Wwwwwwwwwwww', 'level': 15, 'look': 0, 'named': True}
 
 
 def main():
@@ -130,6 +155,25 @@ def main():
                 page.wait_for_timeout(200)
                 shots.append(shot(page, 'real4_narrow_phone'))
                 ctx.close()
+                # phase 2: each other class's window at 15 on its default named build
+                for cls in CLASSES2:
+                    ctx, page = open_page(browser, NAMED, 1920, 1080, False, cls)
+                    page.keyboard.press('KeyN')
+                    page.wait_for_timeout(100)
+                    page.evaluate('window.__realms.redraw()')
+                    node = longest_node(page)
+                    page.mouse.move(*css_of(page, f'b2node:{node}'))
+                    shots.append(shot(page, f'{cls}_desktop'))
+                    ctx.close()
+                    ctx, page = open_page(browser, NAMED, 844, 390, True, cls)
+                    page.evaluate('window.__realms.redraw()')
+                    page.touchscreen.tap(*page.evaluate("__drv.region({kind: 'menu_button', id: 'talents'})"))
+                    page.wait_for_timeout(200)
+                    page.evaluate('window.__realms.redraw()')
+                    page.touchscreen.tap(*css_of(page, f'b2node:{longest_node(page)}'))
+                    page.wait_for_timeout(200)
+                    shots.append(shot(page, f'{cls}_phone'))
+                    ctx.close()
             finally:
                 browser.close()
     finally:
@@ -138,7 +182,7 @@ def main():
     for e in errors:
         print('console:', e)
     print(f'TALENTS2_SHOTS: shots={len(shots)} errors={len(errors)}')
-    sys.exit(0 if len(shots) == 4 and not errors else 1)
+    sys.exit(0 if len(shots) == 4 + 2 * len(CLASSES2) and not errors else 1)
 
 
 if __name__ == '__main__':

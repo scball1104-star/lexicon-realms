@@ -6,6 +6,7 @@
 // so the screens work end to end. The fields are named exactly as CONTRACTS section 10 lists them, so moving this
 // code into buildViewModel later changes no HUD code. See the report for the sim fields still needed.
 import { classInfo, abilityInfo, abilityCost, seconds, rangePx, xpToNext, talentPointsAt, resourceWord, resourceLabel, resourceGauge, questInfo, npcInfo } from './gamedata.js';
+import { selectedQuest, questNav } from './questnav.js';
 
 export const SLOT_KEYS = ['1', '2', '3', '4', '5', '6'];
 
@@ -25,7 +26,7 @@ export function questWheres(r) {
   const out = [];
   if (r && r.ready) { for (const w of list(r.turnIn && r.turnIn.where)) out.push(tiles(w, { turnIn: true })); }
   else {
-    for (const o of (r && r.rows) || []) if (!(o.done || (o.need && o.cur >= o.need))) for (const w of list(o.where)) out.push(tiles(w, { obj: o.label }));
+    for (const o of (r && r.rows) || []) if (!(o.done || (o.need && o.cur >= o.need))) for (const w of list(o.where)) out.push(tiles(w, { obj: o.label, cur: o.cur, need: o.need }));
     if (!out.length) for (const w of list(r && r.where)) out.push(tiles(w));
   }
   return out.filter((w) => Number.isFinite(w.x) && Number.isFinite(w.y));
@@ -53,27 +54,21 @@ export function questRows(rows, untracked = new Set(), zoneNames = {}, zones = {
   });
 }
 
-/** Minimap objective areas and the goal the edge arrow points at (the first tracked quest's nearest place, or its
- *  turn-in npc when it is ready). Tiles. */
-function questPlaces(tracked, snap, meE) {
+/** Minimap objective areas, the SELECTED quest (questnav.js: the picked one, else the first tracked) and where it sends
+ *  you: `nav` (goal circle, zone route, exit) and `goal`, what the arrows point at in your zone (the goal or the exit).
+ *  A ready quest whose hand-in npc has no fixed spot uses the npc's live position. Tiles. */
+function questPlaces(quests, tracked, snap, meE, pickedId, zones, zoneNames) {
   const areas = [];
-  for (const q of tracked) for (const w of q.wheres || []) areas.push(w);
-  let goal = null;
-  const q = tracked[0];
-  if (q && meE) {
-    const me = { x: meE.x / 16, y: meE.y / 16 };
-    if (q.done && !(q.wheres || []).length && q.turnIn) {
-      const n = snap.entities.find((e) => e.kind === 'npc' && e.template === q.turnIn && !e.dead);
-      if (n) goal = { zone: n.zone, x: n.x / 16, y: n.y / 16 - 1, r: 1 };
-    } else {
-      let best = Infinity;
-      for (const w of q.wheres || []) {
-        const d = w.zone === meE.zone ? Math.hypot(w.x - me.x, w.y - me.y) : 1e6;
-        if (d < best) { best = d; goal = w; }
-      }
-    }
+  for (const q of tracked) for (const w of q.wheres || []) areas.push({ ...w, quest: q.id });
+  let sel = selectedQuest(quests, pickedId);
+  if (sel && sel.done && !(sel.wheres || []).length && sel.turnIn) {
+    const n = snap.entities.find((e) => e.kind === 'npc' && e.template === sel.turnIn && !e.dead);
+    if (n) sel = { ...sel, wheres: [{ zone: n.zone, x: n.x / 16, y: n.y / 16 - 1, r: 1, turnIn: true }] };
   }
-  return { areas, goal };
+  if (sel && !tracked.some((q) => q.id === sel.id)) for (const w of sel.wheres || []) areas.push({ ...w, quest: sel.id });
+  const me = meE ? { zone: meE.zone, x: meE.x / 16, y: meE.y / 16 } : null;
+  const nav = sel ? questNav(sel, me, zones || {}, zoneNames || {}) : null;
+  return { areas, goal: nav ? nav.target : null, nav, selected: sel ? sel.id : null };
 }
 
 export function buildHudModel(vm, snap, ctx = {}) {
@@ -193,7 +188,7 @@ function fromSimHud(vm, snap, ctx) {
   const castBar = c ? { ability: c.ability, name: c.name, frac: c.kind === 'channel' ? 1 - c.frac : c.frac, left: c.left, channel: c.kind === 'channel' } : null;
   const quests = questRows(h.quests, st.untracked || new Set(), ctx.zoneNames || {}, ctx.zones || {});
   const tracked = quests.filter((q) => q.tracked).slice(0, 5);
-  const places = questPlaces(tracked, snap, meE);
+  const places = questPlaces(quests, tracked, snap, meE, st.navQuest, ctx.zones, ctx.zoneNames);
   // minimap: quest marks from the sim (npcMarkers), everything else from positions
   const markers = [];
   if (meE) {
@@ -221,7 +216,8 @@ function fromSimHud(vm, snap, ctx) {
     player: { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resWord: resourceWord(resKind), resGauge: resourceGauge(resKind),
       xp: xp.cur || 0, xpToLevel: xp.cap ? 0 : xp.need || 0, derived: h.derived, inCombat: h.inCombat, sitting: h.sitting, respawnIn: h.respawnIn },
     target, party: vm.party || [], zone: vm.zone, log: vm.log || [],
-    bar, castBar, quests, tracked, minimap: meE ? { zone: meE.zone, x: meE.x, y: meE.y, markers, areas: places.areas, goal: places.goal } : null,
+    bar, castBar, quests, tracked, selectedQuest: places.selected, nav: places.nav,
+    minimap: meE ? { zone: meE.zone, x: meE.x, y: meE.y, markers, areas: places.areas, goal: places.goal } : null,
     talents: (meE && meE.talents) || {}, talentPoints: { total: h.talents.total, spent: h.talents.spent, free: h.talents.free },
     bag: h.bag || { size: 12, items: [] }, equip: h.equip || {}, gold: h.gold || 0,
     stats: h.stats ? { ...h.stats, derived: h.derived } : null, buyback: h.buyback || [], combo: h.combo, questBag: h.questBag || [], pendingLoot: h.pendingLoot || [],

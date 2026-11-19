@@ -747,6 +747,7 @@ function wrap(state, content, rng, systems) {
     const sm = C.stats.mod(e, 'speed');
     let m = Math.max(0, 1 + sm.add + ((e.derived && e.derived.gearSpeed) || 0)) * sm.mul * (1 - slow);
     if (e.cast && e.cast.kind === 'channel' && e.cast.walk) m *= e.cast.walk;
+    if (e.cast && e.kind === 'player' && C.stats.mod(e, 'castMove').add > 0) m *= C.stats.mod(e, 'castMove').add;   // Builds 2 Running Hand
     return m;
   }
 
@@ -759,7 +760,10 @@ function wrap(state, content, rng, systems) {
       e.forced.left--;
     } else if (e.kind === 'player') {
       dx = e.mx; dy = e.my;
-      if (dx === 0 && dy === 0) { e.moving = false; return; }
+      if (dx === 0 && dy === 0) {
+        if (e.moving) { e.moveRun = state.tick - (e.moveStart ?? state.tick); e.moveStop = state.tick; }
+        e.moving = false; return;
+      }
       const sp = Math.round(PLAYER_SPEED * speedMult(e));
       vx = dx * sp; vy = dy * sp;
       if (dx !== 0 && dy !== 0) { vx = Math.trunc((vx * DIAG) / 256); vy = Math.trunc((vy * DIAG) / 256); }
@@ -785,7 +789,13 @@ function wrap(state, content, rng, systems) {
       e.forced = null;
       if (arrive && combatOn) C.scripts.arrive(e, arrive);
     }
+    const wasMoving = !!e.moving;
     e.moving = mx !== 0 || my !== 0;
+    // Builds 2 Hasty Note: how long the hero's last walk lasted (moveRun, ticks), read when she stops
+    if (e.kind === 'player') {
+      if (e.moving && !wasMoving) e.moveStart = state.tick;
+      else if (!e.moving && wasMoving) { e.moveRun = state.tick - (e.moveStart ?? state.tick); e.moveStop = state.tick; }
+    }
     if (e.forced == null && (dx || dy)) e.dir = dirFor(dx, dy, e.dir);
     else if (e.moving && e.kind === 'mob') e.dir = dirFromVec(mx, my, e.dir);
     if (e.kind === 'mob' && !e.moving && (vx || vy)) e.ai.blocked = (e.ai.blocked || 0) + 1;
@@ -796,7 +806,7 @@ function wrap(state, content, rng, systems) {
         C.combat.breakStealth(e, 'move');
         if (e.cast && !e.forced) {
           const ab = C.data.ability(e, e.cast.ability);
-          if (ab && ab.moveInterrupts !== false && !(e.cast.kind === 'channel' && e.cast.walk)) C.combat.cancelCast(e, 'move');
+          if (ab && ab.moveInterrupts !== false && !(e.cast.kind === 'channel' && e.cast.walk) && !(C.stats.mod(e, 'castMove').add > 0)) C.combat.cancelCast(e, 'move');
         }
       }
     }

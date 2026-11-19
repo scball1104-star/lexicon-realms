@@ -2,10 +2,11 @@
 // tier 3, a keystone at tier 5, a point every level from level 1, skill picks at 1, 3, 6 and 14, signature skills at 10,
 // 20 and 35. Plain data plus two tiny pure helpers for the save shape (newBuild, buildFromV1).
 //
-// PHASE 1 (this file): the Mender only, as BUILDS_2 section 9 says. The other classes list their skill picks so a saved
-// hero can be migrated (save v2), but have no tracks yet. ON for the Mender since Scott approved the talents screen stills
-// (2026-11-19, "Ok. Approved."): src/data/progression.js `builds2 = { enabled: true, classes: ['mender'] }`. The other four
-// classes keep today's talents until their tracks land here (data only: the window in src/ui/talents2.js reads this file).
+// PHASE 1 (this file): the Mender, as BUILDS_2 section 9 says, ON since Scott approved the talents screen stills
+// (2026-11-19, "Ok. Approved."). PHASE 2 (2026-11-19): the Warden, Scribe, Wayfinder and Inkblade, one file each
+// (src/data/builds2_warden.js, _scribe, _wayfinder, _inkblade: six tracks, forks, keystones, the skill picks' new skills and
+// the three signatures, with the BUILDS_2_PLAY 1.3 amendments). src/data/progression.js `builds2 = { enabled: true,
+// classes: [all five] }`. The window in src/ui/talents2.js reads this file only.
 //
 // Node shape (the same effect engine as src/data/talents.js; src/sim/data.js reads both):
 //   { id, cls, track, tier, maxRanks, fork?: 'a' | 'b', keystone?: true, name, icon, text, byRank: [effect at rank r] }
@@ -19,6 +20,10 @@ const pct = (x) => Math.round(x * 1e6) / 1e6;
 const lv = (base, perLevel) => ({ base, perLevel });
 const mod = (stat, op, extra = {}) => ({ stat, ...op, ...extra });
 const abl = (id, path, op) => ({ id, path, ...op });
+import { WARDEN, WARDEN_ABILITIES } from './builds2_warden.js';
+import { SCRIBE, SCRIBE_ABILITIES } from './builds2_scribe.js';
+import { WAYFINDER, WAYFINDER_ABILITIES } from './builds2_wayfinder.js';
+import { INKBLADE, INKBLADE_ABILITIES } from './builds2_inkblade.js';
 
 export const BUILD_VERSION = 1;
 export const PICK_LEVELS = [1, 3, 6, 14];
@@ -36,18 +41,20 @@ export const RULES = {
   respec: { base: 10, perLevel: 5, cap: 250, firstFree: true },   // from 10: at a trainer, the first one free
   autoSpendUntil: 5,            // auto-spend (on by default) spends each new point on the suggested path to level 5
   buyBack: { 1: 10, 3: 10, 6: 30, 14: 180 },   // gold to learn the skill you did not pick, at your trainer ("double gold")
+  signatureLevels: SIGNATURE_LEVELS,           // a signature pick (one of the class's three) at each
   lanternReach: 96,             // px: "at a lantern" for the free respec under 10 (2 x the lantern touch distance)
 };
 
 // ------------------------------------------------------------------------------------------------ skill picks
 // Every class (BUILDS_2 4.x "Skill picks"). `ready: false` = the skill is not built yet (phase 3 of the build order); the
-// sim never offers it. Core skills (the two level 1 skills) are known at creation, as today.
+// sim never offers it. Core skills (the two level 1 skills) are known at creation, as today. The Warden's level 6 and 14
+// axes are the BUILDS_2_PLAY 1.3 retags ("Others vs Self", "Bank vs Spend").
 export const SKILL_PICKS = {
   warden: [
     { level: 1, options: ['warden_sweeping_blow', 'warden_second_wind'], axis: 'Pack vs Self', ready: true },
-    { level: 3, options: ['warden_taunt', 'warden_hurl_hammer'], axis: 'Hold vs Reach', ready: false },
-    { level: 6, options: ['warden_war_cry', 'warden_iron_hide'], axis: 'Attack boost vs Armor boost', ready: false },
-    { level: 14, options: ['warden_oath_of_iron', 'warden_anvil_drop'], axis: 'Defense vs Burst', ready: false },
+    { level: 3, options: ['warden_taunt', 'warden_hurl_hammer'], axis: 'Hold vs Reach', ready: true },
+    { level: 6, options: ['warden_war_cry', 'warden_iron_hide'], axis: 'Others vs Self', ready: true },
+    { level: 14, options: ['warden_oath_of_iron', 'warden_anvil_drop'], axis: 'Bank vs Spend', ready: true },
   ],
   mender: [
     { level: 1, options: ['mender_brand', 'mender_warding_word'], axis: 'Drain vs Shield', ready: true },
@@ -58,20 +65,20 @@ export const SKILL_PICKS = {
   scribe: [
     { level: 1, options: ['scribe_full_stop', 'scribe_underline'], axis: 'Control vs Over time', ready: true },
     { level: 3, options: ['scribe_scatter_letters', 'scribe_bracket'], axis: 'Area vs Single control', ready: true },
-    { level: 6, options: ['scribe_erase', 'scribe_inkwell_pause'], axis: 'Group utility vs Self fuel', ready: false },
-    { level: 14, options: ['scribe_exclamation', 'scribe_paragraph'], axis: 'Push away vs Wall off', ready: false },
+    { level: 6, options: ['scribe_erase', 'scribe_inkwell_pause'], axis: 'Group utility vs Self fuel', ready: true },
+    { level: 14, options: ['scribe_exclamation', 'scribe_paragraph'], axis: 'Push away vs Wall off', ready: true },
   ],
   wayfinder: [
     { level: 1, options: ['wayfinder_briar_trap', 'wayfinder_light_foot'], axis: 'Trap vs Escape', ready: true },
     { level: 3, options: ['wayfinder_aimed_shot', 'wayfinder_volley'], axis: 'One target vs Area', ready: true },
-    { level: 6, options: ['wayfinder_hunters_mark', 'wayfinder_sand_cloak'], axis: 'Attack boost vs Defense boost', ready: false },
-    { level: 14, options: ['wayfinder_hush_arrow', 'wayfinder_scatter_shot'], axis: 'Duel casters vs Push a pack', ready: false },
+    { level: 6, options: ['wayfinder_hunters_mark', 'wayfinder_sand_cloak'], axis: 'Attack boost vs Defense boost', ready: true },
+    { level: 14, options: ['wayfinder_hush_arrow', 'wayfinder_scatter_shot'], axis: 'Duel casters vs Push a pack', ready: true },
   ],
   inkblade: [
     { level: 1, options: ['inkblade_fade', 'inkblade_inkstep'], axis: 'Stealth vs Pack', ready: true },
     { level: 3, options: ['inkblade_bleed_line', 'inkblade_ink_in_the_eyes'], axis: 'Over time vs Control', ready: true },
-    { level: 6, options: ['inkblade_shadow_mark', 'inkblade_ink_cloak'], axis: 'Attack boost vs Defense boost', ready: false },
-    { level: 14, options: ['inkblade_quiet_wire', 'inkblade_throwing_knife'], axis: 'Assassin vs Ranged', ready: false },
+    { level: 6, options: ['inkblade_shadow_mark', 'inkblade_ink_cloak'], axis: 'Attack boost vs Defense boost', ready: true },
+    { level: 14, options: ['inkblade_quiet_wire', 'inkblade_throwing_knife'], axis: 'Assassin vs Ranged', ready: true },
   ],
 };
 
@@ -86,6 +93,7 @@ const BLESS = (id, name, icon, mods, text) => ({
   text,
 });
 export const B2_ABILITIES = {
+  ...WARDEN_ABILITIES, ...SCRIBE_ABILITIES, ...WAYFINDER_ABILITIES, ...INKBLADE_ABILITIES,
   mender_blessing_stone: BLESS('mender_blessing_stone', 'Blessing of Stone', 'icon_protect', [{ stat: 'armor', mul: 1.2 }],
     'You and friends within 8 tiles: armor +20% for 10 minutes. One Blessing at a time.'),
   mender_blessing_flame: BLESS('mender_blessing_flame', 'Blessing of Flame', 'icon_fire', [{ stat: 'damageDone', mul: 1.08 }],
@@ -244,6 +252,10 @@ const MENDER_BUILDS = [
 ];
 
 export const BUILDS2 = {
+  warden: WARDEN,
+  scribe: SCRIBE,
+  wayfinder: WAYFINDER,
+  inkblade: INKBLADE,
   mender: {
     tracks: MENDER_TRACKS,
     nodes: Object.fromEntries(MENDER_NODES.map((n) => [n.id, n])),
@@ -258,7 +270,7 @@ export const BUILDS2 = {
 // ------------------------------------------------------------------------------------------------ save shape helpers
 /** A fresh v1 build record (lives in the character save at state.build, save v2). */
 export function newBuild() {
-  return { v: BUILD_VERSION, ranks: {}, undo: [], picks: {}, bought: [], sigs: [], leaning: null, auto: true, respecs: 0,
+  return { v: BUILD_VERSION, ranks: {}, undo: [], picks: {}, bought: [], sigs: [], granted: [], leaning: null, auto: true, respecs: 0,
     freeRespec: false, freeRespecWhy: null, firstKill: false, legacyTalents: null };
 }
 

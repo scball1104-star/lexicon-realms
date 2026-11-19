@@ -456,9 +456,12 @@ export const tests = [
     const lv = ev.find((e) => e.type === 'level' && e.id === target);
     assert(lv, 'level event');
     eq(lv.level, 3, 'level 3');
-    eq(lv.trainable.join(','), 'warden_sweeping_blow', 'Sweeping Blow is new (level 3 since the combat role pass)');
-    eq(lv.trainer.npc, 'holt', 'trainer npc'); eq(lv.trainer.name, 'Sergeant Holt', 'trainer name'); eq(lv.trainer.zone, 'willowmere', 'trainer zone');
-    eq(lv.firstTalentAt, 5, 'talents start at 5');
+    // Builds 2 is on for every class (2026-11-19): a new skill is a skill pick, not a trainer lesson, and talents start at 1
+    eq(lv.b2, true, 'a Builds 2 level');
+    eq(lv.trainable.length, 0, 'nothing to train: the level 3 skill is a pick');
+    const pr = ev.find((e) => e.type === 'b2_pick_ready' && e.id === target && e.level === 3);
+    assert(pr && pr.options.join(',') === 'warden_taunt,warden_hurl_hammer', 'the level 3 pick: Taunt or Hurl Hammer');
+    eq(lv.firstTalentAt, null, 'talent points from level 1');
   } },
   // ------------------------------------------------------------------------------------------- bug 15 (survival gap)
   { name: 'bug 15: the Inkblade Spill heals 8% of health per mark (5% before the combat role pass, 7% before the class identity pass); the Wayfinder Quick Shot Hobbles (30% slow, 3 s)', fn() {
