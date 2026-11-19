@@ -33,6 +33,7 @@ Approved stills (the look and HUD target): `D:\LQOnline\mockups\out\still1_quest
 | Graphics | Level 2 "upgraded 2D": LQ pixel art plus real lighting, shadows, glowing spell effects, weather, day/night. 3D may come later, so rendering MUST stay swappable (section 3) |
 | View | Internal 640x360, 16 px tiles, integer-scaled nearest-neighbor (3x at 1080p). Plan a zoom option (characters read small) |
 | Pace | Up to 6 agents at once under the usage guard |
+| Phone (Scott, 2026-11-19) | Phone playable in phase 1, landscape. Tap a foe to target it. A floating joystick appears wherever the left thumb touches. Abilities and Interact sit in a small cluster on the right; cooldown shows as a shadowed clock sweep over each icon. Added by the orchestrator: a Next Target button in the cluster (no Tab key on a phone), tap an NPC to talk, menus reachable from a small top bar, HUD compact on small screens |
 
 ## 2. Phase 1 scope (the solo slice)
 
@@ -56,7 +57,7 @@ Approved stills (the look and HUD target): `D:\LQOnline\mockups\out\still1_quest
 - Done when: a bot plays a new character of each class from level 1 to 10 without getting stuck, and a
   human can do the same and want to keep going.
 
-Not in phase 1: networking, dungeons, raids, PvP, auction house, guilds, phone controls.
+Not in phase 1: networking, dungeons, raids, PvP, auction house, guilds.
 
 ## 3. Architecture (non-negotiable, it protects online play and a later 3D swap)
 
