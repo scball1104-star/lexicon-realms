@@ -118,16 +118,17 @@ Auto-attack: sword, 2.4 s, +10 Resolve per hit.
 |---|---|---|---|---|---|---|---|---|---|
 | `warden_strike` | Strike | 1 | 20 resolve | instant | none | on | 1.5 | `W + 3 + 2.6 * L` physical | x1.5 |
 | `warden_shield_bash` | Shield Bash | 1 | none, **gives +15 resolve** | instant | 6 | on | 1.5 | `3 + 1.5 * L + 0.25 * AP` physical, **interrupt**, stun 1.0 s | x2 |
-| `warden_taunt` | Taunt | 3 | none, gives +10 resolve | instant | 8 | off | 8 | target must attack you for 3 s and **walks to melee** (a caster stops casting and comes to you); your threat becomes highest +10% | sets |
+| `warden_sweeping_blow` | Sweeping Blow | 3 | 25 resolve | instant | 6 | on | 2, frontal 120 deg | up to 4 targets: `0.7 * W + 2 + L` each, and each one **bleeds** `1 + 0.5 * L` every 2 s for 6 s (3 ticks, armor ignored) | x2 |
 | `warden_second_wind` | Second Wind | 6 | 30 resolve | instant | 45 | on | self | heal 25% max HP over 6 s (3 ticks, 2 s apart) | 0.5 per point healed |
-| `warden_sweeping_blow` | Sweeping Blow | 10 | 25 resolve | instant | 6 | on | 2, frontal 120 deg | up to 4 targets: `0.7 * W + 2 + L` each | x2 |
+| `warden_taunt` | Taunt | 10 | none, gives +10 resolve | instant | 8 | off | 8 | target must attack you for 3 s and **walks to melee** (a caster stops casting and comes to you); your threat becomes highest +10% | sets |
 | `warden_oath_of_iron` | Oath of Iron | 14 | 30 resolve | instant | 60 | off | self | damage taken -40% for 8 s; immune to stun and knockback while it lasts | none |
 
 Notes
 - Shield Bash is the builder, Strike the spender. Bash on cooldown, Strike whenever Resolve is 20 or more, Sweep when
-  two or more foes stand in front. That is the whole loop, and it already feels right at level 1.
-- Taunt is the solo Warden's answer to casters and runners: a Barrow Shade that would stand back and cast walks into
-  your shield instead.
+  two or more foes stand in front (from level 3, so the first wolf pairs have an answer). That is the whole loop, and it
+  already feels right at level 1.
+- Taunt (now at 10, combat role pass) is the Warden's answer to casters and runners: a Barrow Shade that would stand back
+  and cast walks into your shield instead. Before 10, Sweeping Blow's double threat holds a pack on you.
 - First 5 minutes: **Strike and Shield Bash**. The first slime takes two Bashes and three Strikes. The Bash has a crunch
   (screen nudge 1 px, a short stun star) and the Resolve bar visibly jumps by 15. The player learns "Bash, then Strike"
   without a tutorial box.
@@ -159,16 +160,16 @@ Auto-attack: rod, 3.0 s, melee (an emergency only).
 | `mender_kindle` | Kindle | 1 | `7 + 1.4 * L` | 1.5 | none | on | 8 | `8 + 4.2 * L + 0.55 * SP` light damage | x1 |
 | `mender_mend` | Mend | 1 | `10 + 2.2 * L` | 2.0 | none | on | 8, friendly (self if none) | heal `15 + 7 * L + 1.0 * SP` | 0.5 per point |
 | `mender_brand` | Brand | 3 | `9 + 1.6 * L` | instant | none | on | 8 | light DoT 12 s, 6 ticks (2 s), total `14 + 5 * L + 0.6 * SP`; **while your Brand is on a target, your Kindle hits on it heal you for 25% of the damage dealt** | x1 |
-| `mender_warding_word` | Warding Word | 6 | `12 + 2.5 * L` | instant | none | on | 8, friendly | absorb `20 + 8 * L + 0.8 * SP` for 15 s; casting is not pushed back while it holds; target is **Spoken For** 15 s (cannot be Warded again) | 0.5 per point absorbed |
-| `mender_steady_name` | Steady Name | 10 | `10 + 2 * L` | instant | none | on | 8, friendly | HoT 12 s, 4 ticks (3 s), total `20 + 9 * L + 1.0 * SP` | 0.5 per point |
-| `mender_chorus` | Chorus | 14 | `25 + 4 * L` | 2.5 | 20 | on | self, radius 6 | heal every ally in range `12 + 5 * L + 0.5 * SP`, and deal `8 + 3 * L + 0.35 * SP` light damage to up to 6 enemies in range | x1 / 0.5 |
+| `mender_chorus` | Chorus | 6 | `25 + 4 * L` | 2.5 | 20 | on | self, radius 6 | heal every ally in range `12 + 5 * L + 0.5 * SP`, and deal `8 + 3 * L + 0.35 * SP` light damage to up to 6 enemies in range | x1 / 0.5 |
+| `mender_warding_word` | Warding Word | 10 | `12 + 2.5 * L` | instant | none | on | 8, friendly | absorb `20 + 8 * L + 0.8 * SP` for 15 s; casting is not pushed back while it holds; target is **Spoken For** 15 s (cannot be Warded again) | 0.5 per point absorbed |
+| `mender_steady_name` | Steady Name | 14 | `10 + 2 * L` | instant | none | on | 8, friendly | HoT 12 s, 4 ticks (3 s), total `20 + 9 * L + 1.0 * SP` | 0.5 per point |
 
 Notes
 - Brand at level 3 is when the Mender starts to feel strong solo: one Brand, three Kindles, and the fight costs her
   almost no health.
-- Warding Word before a pull is the healer's "armor". In groups it is the tank's opener.
-- Chorus doubles as her only area damage, so a Mender caught by three wolves on the Downs has an answer at 14 (and
-  before that, the Bell talents).
+- Warding Word (10) before a pull is the healer's "armor". In groups it is the tank's opener.
+- Chorus (now at 6, combat role pass) doubles as her only area damage, so a Mender caught by three wolves on the Downs
+  has an answer: it heals her and burns the pack in one cast. Before 10, Mend and Brand's Kindle heal carry her.
 - First 5 minutes: **Kindle and Mend**. Kindle is a small sun thrown from the bell (a bright ring, a soft chime on
   hit). The first slime takes about four Kindles; the player takes a little damage and Mends herself once, so both
   buttons have a reason inside the first fight.
@@ -199,7 +200,7 @@ Auto-attack: quill, 3.0 s, melee (an emergency only).
 |---|---|---|---|---|---|---|---|---|---|
 | `scribe_inkbolt` | Inkbolt | 1 | `8 + 1.8 * L` | 2.0 | none | on | 9 | `12 + 5.4 * L + 0.8 * SP` ink damage | x1 |
 | `scribe_scrawl` | Scrawl | 1 | `6 + 1.5 * L` | instant | 6 | on | 9 | `5 + 2 * L + 0.3 * SP` ink damage, slow 30% for 4 s | x1 |
-| `scribe_full_stop` | Full Stop | 3 | `10 + 2 * L` | instant | 20 | on | self, radius 3 | every enemy in range: `3 + L + 0.15 * SP` damage and **root 4 s** | x1 |
+| `scribe_full_stop` | Full Stop | 3 | `10 + 2 * L` | instant | 15 | on | self, radius 3 | every enemy in range: `6 + 2.4 * L + 0.4 * SP` damage and **root 4 s** | x1 |
 | `scribe_underline` | Underline | 6 | `10 + 2 * L` | instant | none | on | 9 | ink DoT 12 s, 6 ticks (2 s), total `10 + 4 * L + 0.5 * SP`; **your Inkbolt at an Underlined target casts 0.5 s faster** | x1 |
 | `scribe_scatter_letters` | Scatter Letters | 10 | `20 + 3 * L` | instant | 12 | on | ground, 9; radius 2.5 | 6 s zone, 3 ticks (2 s): `4 + 1.6 * L + 0.2 * SP` to every enemy inside (max 8), slow 20% while inside | x1 |
 | `scribe_bracket` | Bracket | 14 | `15 + 2 * L` | 1.5 | none (one Bracket active at a time) | on | 9 | target is held in two great brackets: **incapacitated 10 s**, heals 5% max HP per second while held. Breaks on damage. Elites immune | none |
@@ -208,6 +209,8 @@ Notes
 - The loop: Underline, Inkbolt (now 1.5 s), Inkbolt, Scrawl when it gets close, Full Stop when it arrives, step back
   four tiles, Inkbolt.
 - Bracket is the Scribe's way to fight two at once: hold one, burn the other, then the first.
+- Full Stop is the Scribe's first area hit (combat role pass: `6 + 2.4 * L + 0.4 * SP`, cooldown 15 s): a pack that
+  reaches you is hurt and held, and you walk out.
 - First 5 minutes: **Inkbolt and Scrawl**. The bolt is a fat, wet ink stroke with a splat; Scrawl is a quick scribble
   that sticks to the foe's feet (the slow is visible as ink drag marks). A new Scribe opens with Inkbolt, Scrawls the
   slime as it comes, and finishes with a second Inkbolt before it arrives: the first fight teaches kiting.
@@ -237,15 +240,16 @@ Auto-attack: **Auto Shot**, bow, 2.6 s, range 9, only while standing still.
 | id | name | learn | cost (focus) | cast | cooldown | gcd | range | effect | threat |
 |---|---|---|---|---|---|---|---|---|---|
 | `wayfinder_quick_shot` | Quick Shot | 1 | 25 | instant | none | on | 9 | `0.7 * W + 3 + 1.5 * L` physical | x1 |
-| `wayfinder_pinning_shot` | Pinning Shot | 1 | 15 | instant | 8 | on | 9 | `0.5 * W + 2 + L` physical, slow 50% for 6 s | x1 |
-| `wayfinder_briar_trap` | Briar Trap | 3 | 20 | instant | 15 | on | placed at your feet | arms after 1.0 s, lasts 30 s, max 1 placed; the first enemy to step in takes `4 + 2 * L` and is **rooted 6 s** | x1 |
+| `wayfinder_pinning_shot` | Pinning Shot | 1 | 15 | instant | 8 | on | 9 | `0.5 * W + 2 + L` physical, slow 50% for 6 s; the arrow stays in and **bleeds** `3 + 1.5 * L` every 2 s (3 ticks, armor ignored) | x1 |
+| `wayfinder_briar_trap` | Briar Trap | 3 | 20 | instant | 15 | on | placed at your feet | arms after 1.0 s, lasts 30 s, max 1 placed; when an enemy steps in it **bursts**: that enemy and every enemy within 2 tiles of it (max 4) take `8 + 3 * L` and are **rooted 6 s**. The briar root does not break on damage | x1 |
 | `wayfinder_light_foot` | Light Foot | 6 | 10 | instant | 18 | off | self | leap 5 tiles straight back (away from your facing) over 0.3 s; removes slows and roots on you | none |
-| `wayfinder_aimed_shot` | Aimed Shot | 10 | 30 | 2.0 (stand still) | 8 | on | 10 | `1.4 * W + 6 + 3 * L` physical | x1 |
+| `wayfinder_aimed_shot` | Aimed Shot | 10 | 30 | 2.0 (stand still) | 8 | on | 10 | `1.4 * W + 8 + 3.6 * L` physical | x1 |
 | `wayfinder_volley` | Volley | 14 | 35 | channel 3.0 (stand still) | 12 | on | ground, 9; radius 2.5 | 3 waves, each `0.35 * W + 2 + L` to every enemy inside (max 8) | x1 |
 
 Notes
 - Briar Trap is placed **before** the pull: lay it, shoot, let the wolf run into it, then Pinning Shot and walk back
-  while it struggles.
+  while it struggles. Since the combat role pass it bursts on the whole pack at your heels and its root holds, so a
+  Wayfinder's answer to three wolves is the trap and then Light Foot out of their reach.
 - Light Foot plus Briar Trap is the Wayfinder's whole defense. It has no heal; it has distance.
 - First 5 minutes: **Quick Shot and Pinning Shot**. The arrows are fast, bright streaks with a thunk on hit. Pinning
   Shot leaves the arrow standing in the foe and its walk visibly drags. A slime at range 9 takes an opening Pinning
@@ -275,16 +279,18 @@ Auto-attack: both daggers, 1.6 s each; the off hand deals 50%.
 | id | name | learn | cost (focus) | cast | cooldown | gcd | range | effect | threat |
 |---|---|---|---|---|---|---|---|---|---|
 | `inkblade_nick` | Nick | 1 | 30 | instant | none | on | 1.5 | `0.9 * W + 2 + 1.2 * L` physical, **+1 Ink Mark** | x1 |
-| `inkblade_spill` | Spill | 1 | 25 | instant | none | on | 1.5 | needs 1+ mark: `(4 + 1.8 * L + 0.1 * AP)` per mark, consumes all marks | x1 |
+| `inkblade_spill` | Spill | 1 | 25 | instant | none | on | 1.5 | needs 1+ mark: `(4 + 1.8 * L + 0.1 * AP)` per mark, consumes all marks; heals you 7% of your max health per mark spilled | x1 |
 | `inkblade_fade` | Fade | 3 | none | instant | 6 (starts when you leave combat) | on | self | stealth, out of combat only: move speed -20%, enemies notice you only within 1.5 tiles (+0.5 per level they are above you). Your first attack from Fade deals +50% and adds +1 extra Ink Mark. Any attack or damage ends it | none |
-| `inkblade_ink_in_the_eyes` | Ink in the Eyes | 6 | 20 | instant | 30 | on | 3 | **incapacitate 6 s** (elite 2 s), breaks on damage. Usable from Fade without ending it | none |
+| `inkblade_inkstep` | Inkstep | 6 | 25 | instant | 8 | on | 8 | step through the shadows to the tile behind the target, **interrupt** its cast (locked 3 s) and **cut every enemy within 2 tiles of it** (max 4) for `0.6 * W + 2 + L`; they are **Smudged** (deal 20% less damage) for 10 s; +1 Ink Mark on your target, and your next Nick within 3 s adds +1 extra mark | x1 |
 | `inkblade_bleed_line` | Bleed Line | 10 | 25 | instant | none | on | 1.5 | needs 1+ mark: DoT 12 s, 6 ticks, total `(5 + 2.2 * L + 0.12 * AP)` per mark, consumes all marks | x1 |
-| `inkblade_inkstep` | Inkstep | 14 | 15 | instant | 20 | off | 8 | step through the shadows to the tile behind the target; used from Fade you stay in Fade; your next Nick within 3 s adds +1 extra mark | none |
+| `inkblade_ink_in_the_eyes` | Ink in the Eyes | 14 | 20 | instant | 30 | on | 3 | **incapacitate 6 s** (elite 2 s), breaks on damage. Usable from Fade without ending it | none |
 
 Notes
 - The loop: Fade, walk up, Nick (2 marks from Fade), Nick, Spill (3 marks), Nick, Nick, Nick, Spill. From 10:
   Bleed Line with the first three marks, Spill with the next three.
-- Two foes: Ink in the Eyes on one, kill the other, then open on the first while it is still dazed.
+- Packs (combat role pass): Inkstep (6) cuts every foe around the target, marks it and Smudges them all (20% less
+  damage). Use it on cooldown, on one foe too: it is a mark builder and a defense.
+- Two foes from 14: Ink in the Eyes on one, kill the other, then open on the first while it is still dazed.
 - First 5 minutes: **Nick and Spill**. Each Nick paints a small ink dot over the target's head (the marks show as
   1 to 3 dots in the target frame). Spill pops all of them with a splash and a number that is clearly bigger than a
   Nick. "Three dots, then pop" is learned on the first slime.
@@ -295,13 +301,36 @@ Notes
 
 | class | kills with | survives by | a bad pull of three | travel tool |
 |---|---|---|---|---|
-| Warden | steady Strike/Bash, Sweep for packs | plate, block, Second Wind, Oath of Iron | stands in it and Sweeps (from 10) | Taunt pulls things to you |
-| Mender | Brand + Kindle | Brand self-heal, Warding Word, Mend | Ward self, Chorus (14), Mend through it | none; the safest walker because she heals |
+| Warden | steady Strike/Bash, Sweep for packs | plate, block, Second Wind, Oath of Iron | stands in it and Sweeps (from 3) | Taunt pulls things to you (10) |
+| Mender | Brand + Kindle | Brand self-heal, Mend, Warding Word (10) | Chorus (6), Mend through it, Ward self | none; the safest walker because she heals |
 | Scribe | Inkbolt burst | never being touched: Scrawl, Full Stop, Bracket | Full Stop, walk out, Scatter Letters on the clump | none |
-| Wayfinder | shots at range, traps | distance: Pinning Shot, Briar Trap, Light Foot | trap, Light Foot, Volley (14) | Light Foot over a gap |
-| Inkblade | marks and finishers | choosing fights: Fade, Ink in the Eyes | Ink in the Eyes on one, Spill the others fast | Fade past a camp |
+| Wayfinder | shots at range, traps | distance: Pinning Shot, Briar Trap, Light Foot | trap catches the pack, Light Foot out, Volley (14) | Light Foot over a gap |
+| Inkblade | marks and finishers | choosing fights: Fade, Inkstep's Smudge, Spill heals, Ink in the Eyes (14) | Inkstep the pack, Spill fast, Ink in the Eyes on one (14) | Fade past a camp |
 
-Time to kill a same-level foe is 9.7 to 13.5 s for every class at levels 1, 8 and 15 (PROGRESSION.md 9).
+Time to kill a same-level foe is 9.7 to 13.5 s for every class at levels 1, 8 and 15 (PROGRESSION.md 9). A 3-pack
+(BALANCE.md, "Combat role pass") takes 16 to 31 s at levels 6 to 15 (18 to 31 s for all but the Warden at 6).
+
+### 6.1 Kit roles (combat role pass, Scott 2026-11-19: "Spells and skills and attacks should consider DPS, AOE, etc")
+
+Every kit, by 15, has a single-target filler, an area option by level 3 to 6, a damage over time or sustained source, a
+big hit or long cooldown, and a defensive tool. The bar stays 6 slots; ids and names are unchanged.
+
+| class | filler | area (learned) | over time / sustained | big hit / cooldown | defense |
+|---|---|---|---|---|---|
+| Warden | Strike | Sweeping Blow (3) | Sweeping Blow's bleed; the Resolve loop | Shield Bash; Oath of Iron (14) | Second Wind (6), Oath of Iron, block |
+| Mender | Kindle | Chorus (6) | Brand (3) | Chorus (20 s) | Mend, Brand's heal, Warding Word (10), Steady Name (14) |
+| Scribe | Inkbolt | Full Stop (3), Scatter Letters (10) | Underline (6), Scatter Letters | Inkbolt (2 s cast) | Scrawl, Full Stop, Bracket (14) |
+| Wayfinder | Quick Shot, Auto Shot | Briar Trap (3), Volley (14) | Pinning Shot's bleed; Auto Shot | Aimed Shot (10) | Briar Trap's root, Pinning Shot, Light Foot (6) |
+| Inkblade | Nick | Inkstep (6) | Bleed Line (10); both daggers | Spill with 3 marks | Spill's heal, Inkstep's Smudge, Fade, Ink in the Eyes (14) |
+
+What moved, and why: Sweeping Blow 10 to 3 and Taunt 3 to 10 (the Warden had no area answer until 10; its double threat
+holds a pack before Taunt arrives). Chorus 14 to 6, Warding Word 6 to 10, Steady Name 10 to 14 (the Mender's only area
+spell came at 14). Inkstep is the Inkblade's one swapped ability: same id and name, now a 10 s area cut learned at 6
+instead of a 20 s gap closer at 14 (cooldown 8 s, interrupts, Smudge 10 s); Ink in the Eyes moves 6 to 14 (the Inkblade had no area option at all). New effects:
+Sweeping Blow and Pinning Shot bleed, Briar Trap bursts on every foe near it and its root holds, Inkstep Smudges.
+Full Stop hits harder and comes back in 15 s. Aimed Shot hits a little harder. Spill heals 7% per mark (was 5%). Talents changed to match: Blank Margin
+(Full Stop cooldown 10 s, from 15), Slip (Inkstep cooldown -1 / -2 / -3 s, from -2 / -4 / -6), Semicolon (keeps the
+new Full Stop damage). Talents on Taunt, Warding Word, Steady Name and Ink in the Eyes now wait for those learn levels.
 
 ## 7. Data (CONTRACTS 7.1 and 5.1 field names)
 
@@ -323,8 +352,8 @@ export const CLASSES = {
     resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 5, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5 },
     base: { hp: 60, str: 12, agi: 7, int: 4, spi: 6, sta: 12 }, perLevel: { hp: 0, str: 1.5, agi: 0.5, int: 0.2, spi: 0.4, sta: 1.5 },
     hpPerSta: 10, apPerStr: 2, critBase: 0.05, blockBase: 0.10, threatMult: 1.5,
-    abilities: [{ id: 'warden_strike', level: 1 }, { id: 'warden_shield_bash', level: 1 }, { id: 'warden_taunt', level: 3 },
-      { id: 'warden_second_wind', level: 6 }, { id: 'warden_sweeping_blow', level: 10 }, { id: 'warden_oath_of_iron', level: 14 }],
+    abilities: [{ id: 'warden_strike', level: 1 }, { id: 'warden_shield_bash', level: 1 }, { id: 'warden_sweeping_blow', level: 3 },
+      { id: 'warden_second_wind', level: 6 }, { id: 'warden_taunt', level: 10 }, { id: 'warden_oath_of_iron', level: 14 }],
     startBar: ['warden_strike', 'warden_shield_bash'], talentTree: 'warden',
     startGear: { main: 'gate_sword', off: 'plank_shield', chest: 'padded_jerkin' } },
   mender: { id: 'mender', name: 'Mender', role: 'healer', armor: 'cloth', weapons: ['rod', 'bell'],
@@ -332,7 +361,7 @@ export const CLASSES = {
     base: { hp: 30, str: 6, agi: 6, int: 11, spi: 12, sta: 10 }, perLevel: { hp: 0, str: 0.4, agi: 0.4, int: 1.3, spi: 1.3, sta: 1.0 },
     hpPerSta: 10, apPerStr: 2, spPerInt: 1, critBase: 0.05,
     abilities: [{ id: 'mender_kindle', level: 1 }, { id: 'mender_mend', level: 1 }, { id: 'mender_brand', level: 3 },
-      { id: 'mender_warding_word', level: 6 }, { id: 'mender_steady_name', level: 10 }, { id: 'mender_chorus', level: 14 }],
+      { id: 'mender_chorus', level: 6 }, { id: 'mender_warding_word', level: 10 }, { id: 'mender_steady_name', level: 14 }],
     startBar: ['mender_kindle', 'mender_mend'], talentTree: 'mender',
     startGear: { main: 'willow_rod', off: 'tin_hand_bell', chest: 'plain_robe' } },
   scribe: { id: 'scribe', name: 'Scribe', role: 'caster', armor: 'cloth', weapons: ['quill', 'book'],
@@ -356,7 +385,7 @@ export const CLASSES = {
     base: { hp: 30, str: 8, agi: 13, int: 4, spi: 6, sta: 10 }, perLevel: { hp: 0, str: 0.6, agi: 1.6, int: 0.2, spi: 0.4, sta: 1.1 },
     hpPerSta: 10, apPerAgi: 2, critBase: 0.05, offHandMult: 0.5,
     abilities: [{ id: 'inkblade_nick', level: 1 }, { id: 'inkblade_spill', level: 1 }, { id: 'inkblade_fade', level: 3 },
-      { id: 'inkblade_ink_in_the_eyes', level: 6 }, { id: 'inkblade_bleed_line', level: 10 }, { id: 'inkblade_inkstep', level: 14 }],
+      { id: 'inkblade_inkstep', level: 6 }, { id: 'inkblade_bleed_line', level: 10 }, { id: 'inkblade_ink_in_the_eyes', level: 14 }],
     startBar: ['inkblade_nick', 'inkblade_spill'], talentTree: 'inkblade',
     startGear: { main: 'paring_dagger', off: 'paring_dagger', chest: 'scuffed_leathers' } },
 };

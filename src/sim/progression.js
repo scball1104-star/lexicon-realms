@@ -28,6 +28,8 @@ export function createProgression(C) {
     let base = t.xp != null ? t.xp : P.killXp.base + P.killXp.perLevel * m.level;
     let kind = t.elite ? P.killKind.elite : (P.killKind[t.kind || 'normal'] ?? 1);
     if (t.xp != null) kind = 1;
+    const pk = m.spawn && m.spawn.pack && P.packs ? P.packs[m.spawn.pack] : null;
+    if (pk && pk.xp != null) kind *= pk.xp;           // a pack member is a lighter foe (combat role pass)
     return Math.round(base * gm * kind);
   }
 

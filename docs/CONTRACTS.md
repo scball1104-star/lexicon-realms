@@ -877,3 +877,9 @@ GitHub Pages on push to `main` (Pages must be set to "GitHub Actions" in the rep
 
 **Playthrough checks** (need `python tools/dev/serve.py`): `python qa/integrate/playthrough.py` (desktop, real keys and
 mouse, prints `INTEGRATE_DONE:`), `python qa/integrate/phone.py` (844x390 phone, real touch, prints `PHONE_DONE:`).
+## Combat role pass additions (2026-11-19, LIVE)
+
+- Spawns may carry `pack` (from `src/data/packs.js`, added by `allSpawns()` in `src/data/maps/index.js`); the snapshot shows it as `o.pack`.
+- Pack members take the `PROGRESSION.packs` multipliers on health, damage and XP (pair 0.85 / 0.75 / 0.85, three 0.66 / 0.5 / 0.65). Pulling one member pulls its camp within 6 tiles.
+- `enemies_near_holder` target lists honour `maxTargets`.
+- Ability tooltips carry `lines` (plain-language number lines: damage or healing per hit, damage per second, area and foe limit, control effects).

@@ -153,7 +153,7 @@ group healer: Name Twice, Hearthfire); **Bell 8 / Hearth 3** (the warder: Alarm 
 | 1 | `scribe_margin_blotting_paper` | Blotting Paper | 2 | damage taken -3% / -6% while you are not casting |
 | 2 | `scribe_margin_long_pause` | Long Pause | 3 | Full Stop root +1 / +2 / +3 s |
 | 2 | `scribe_margin_tight_bracket` | Tight Bracket | 2 | Bracket lasts +3 / +6 s |
-| 3 | `scribe_margin_blank_margin` | Blank Margin | 1 | **[play]** Full Stop also shields you for 15% max HP for 8 s, and its cooldown is 15 s |
+| 3 | `scribe_margin_blank_margin` | Blank Margin | 1 | **[play]** Full Stop also shields you for 15% max HP for 8 s, and its cooldown is 10 s (combat role pass: Full Stop's own cooldown is now 15) |
 | 3 | `scribe_margin_comma` | Comma | 1 | **[play]** Scrawl's slow becomes a 1.0 s stop (the foe cannot move) followed by a 50% slow for 3 s |
 | 4 | `scribe_margin_indent` | Indent | 3 | Inkbolt on a rooted target deals +5% / +10% / +15% |
 | 4 | `scribe_margin_reread` | Reread | 2 | a Bracketed target no longer heals, and Bracket costs 25% / 50% less |
@@ -259,7 +259,7 @@ explorer).
 | 2 | `inkblade_shade_hold_breath` | Hold Breath | 2 | Fade cooldown 4 / 2 s (from 6) |
 | 3 | `inkblade_shade_unwritten` | Unwritten | 1 | **[play]** Fade can be used in combat once every 45 s: you drop out of sight, every enemy loses you and your threat on them is wiped |
 | 3 | `inkblade_shade_blinding_spill` | Blinding Spill | 1 | **[play]** Ink in the Eyes is not broken by your own damage over time, and its cooldown is 20 s |
-| 4 | `inkblade_shade_slip` | Slip | 3 | Inkstep cooldown -2 / -4 / -6 s |
+| 4 | `inkblade_shade_slip` | Slip | 3 | Inkstep cooldown -1 / -2 / -3 s (combat role pass: Inkstep is now an 8 s area strike) |
 | 4 | `inkblade_shade_shadow_hands` | Shadow Hands | 2 | Ink in the Eyes range +2 / +4 tiles |
 | 4 | `inkblade_shade_ambush` | Ambush | 3 | your first Nick from Fade or after Inkstep has a 33% / 66% / 100% crit chance |
 | 5 | `inkblade_shade_between_the_lines` | Between the Lines | 1 | **[play]** after you kill a target, if no enemy has hit you in the last 3 s, you are in Fade again at once. Chain kills from the dark |

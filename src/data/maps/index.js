@@ -16,6 +16,7 @@ import { CLASSES } from '../classes.js';
 import { ABILITIES, MOB_ABILITIES } from '../abilities.js';
 import { TALENTS } from '../talents.js';
 import { PROGRESSION } from '../progression.js';
+import { packOf } from '../packs.js';
 
 export const ZONES = { willowmere, valley, downs, moor };
 
@@ -26,7 +27,10 @@ export const ZONE_NAMES = Object.fromEntries(Object.values(ZONES).map((z) => [z.
 export function allSpawns() {
   const day = [], night = [];
   for (const z of Object.values(ZONES)) {
-    for (const s of z.spawns || []) (s.night ? night : day).push({ zone: z.id, sprite: mobSprite(s.mob, s.level), ...s });
+    for (const s of z.spawns || []) {
+      const pack = packOf(z.id, s.group);                  // src/data/packs.js: camps that pull as one fight
+      (s.night ? night : day).push({ zone: z.id, sprite: mobSprite(s.mob, s.level), ...s, ...(pack ? { pack } : {}) });
+    }
     for (const n of z.npcs || []) day.push({ zone: z.id, ...n });
   }
   return { day, night };

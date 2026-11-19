@@ -36,6 +36,13 @@ export const PROGRESSION = {
     armored: { hp: 1.1, damage: 1, physReduce: 0.3, speedMult: 0.7, slowFloor: 0.3 },
     elite: { hp: 2.5, damage: 1.3 },
   },
+  // Packs (combat role pass, 2026-11-19): a camp tagged as a pack in src/data/packs.js pulls as one fight, and each member
+  // is lighter so the whole pack is about 1.6 to 2 normal foes ("elite-lite"). Keyed by pack size. hp and damage multiply
+  // the member's curve values; xp multiplies its kill XP.
+  packs: {
+    2: { hp: 0.85, damage: 0.75, xp: 0.85 },
+    3: { hp: 0.66, damage: 0.5, xp: 0.65 },
+  },
   // Mob AI (3.2). Distances in px.
   mobAi: {
     speed: 72, armoredSpeed: 50, fleeSpeed: 80,

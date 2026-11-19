@@ -371,6 +371,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
         if (hpFrac() < 0.75 && !hasAura(p, 'mender_spoken_for') && castIf('mender_warding_word', true, p)) return;
         if (hpFrac() < 0.8 && !hasAura(p, 'mender_steady_name', p.id) && castIf('mender_steady_name', true, p)) return;
         if (hpFrac() < 0.45 && castIf('mender_mend', true, p)) return;
+        // combat role pass: Chorus (6) heals her and burns every foe near her when two or more are on her
+        const around = ents().filter((m) => isHostileMob(m) && m.zone === p.zone && dpx(m, p) < 96 && (m.threat || {})[p.id] > 0).length;
+        if (around >= 2 && castIf('mender_chorus', true)) return;
         if (!hasAura(t, 'mender_brand', p.id) && castIf('mender_brand', true, t)) return;
         castIf('mender_kindle', true, t);
         return;
@@ -386,6 +389,8 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       case 'wayfinder': {
         if (dpx(t, p) < 70 && castIf('wayfinder_briar_trap', true)) return;
         if (hpFrac() < 0.4) castIf('wayfinder_light_foot', true);
+        // combat role pass: the briar holds whatever ran into it; leap out of its reach and shoot
+        else if (dpx(t, p) < 36 && hasAura(t, 'wayfinder_briar_root')) castIf('wayfinder_light_foot', true);
         if (castIf('wayfinder_pinning_shot', !hasAura(t, 'wayfinder_pinning_shot'), t)) return;
         if (castIf('wayfinder_aimed_shot', true, t)) return;
         castIf('wayfinder_quick_shot', resCur() >= 50 || t.hp < t.hpMax * 0.25, t);
@@ -394,6 +399,8 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       case 'inkblade': {
         const combo = p.combo && p.combo.target === t.id ? p.combo.n : 0;
         if (hpFrac() < 0.45 && castIf('inkblade_ink_in_the_eyes', true, t)) return;
+        // combat role pass: Inkstep (6) cuts every foe round the target, marks it and makes them hit softer: use it on cooldown
+        if ((t.cast || combo < 3) && castIf('inkblade_inkstep', true, t)) return;      // it also interrupts a caster
         if (combo >= 3 && knows('inkblade_bleed_line') && !hasAura(t, 'inkblade_bleed_line', p.id) && castIf('inkblade_bleed_line', true, t)) return;
         if (combo >= 3 || (combo >= 1 && t.hp < t.hpMax * 0.2)) { if (castIf('inkblade_spill', true, t)) return; }
         castIf('inkblade_nick', combo < 3, t);

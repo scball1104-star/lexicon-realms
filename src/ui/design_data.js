@@ -20,9 +20,9 @@ export const DESIGN_DATA = {
    "abilities": [
     "warden_strike",
     "warden_shield_bash",
-    "warden_taunt",
-    "warden_second_wind",
     "warden_sweeping_blow",
+    "warden_second_wind",
+    "warden_taunt",
     "warden_oath_of_iron"
    ],
    "resource": "resolve",
@@ -53,9 +53,9 @@ export const DESIGN_DATA = {
     "mender_kindle",
     "mender_mend",
     "mender_brand",
+    "mender_chorus",
     "mender_warding_word",
-    "mender_steady_name",
-    "mender_chorus"
+    "mender_steady_name"
    ],
    "resource": "mana",
    "gear": "Armor: cloth. Weapons: rod + hand_bell.",
@@ -149,9 +149,9 @@ export const DESIGN_DATA = {
     "inkblade_nick",
     "inkblade_spill",
     "inkblade_fade",
-    "inkblade_ink_in_the_eyes",
+    "inkblade_inkstep",
     "inkblade_bleed_line",
-    "inkblade_inkstep"
+    "inkblade_ink_in_the_eyes"
    ],
    "resource": "focus",
    "gear": "Armor: leather. Weapons: two daggers.",
@@ -199,18 +199,18 @@ export const DESIGN_DATA = {
    "text": "3+1.5*L+0.25*AP physical, interrupt, stun 1.0 s",
    "icon": "icon_shield"
   },
-  "warden_taunt": {
-   "id": "warden_taunt",
+  "warden_sweeping_blow": {
+   "id": "warden_sweeping_blow",
    "cls": "warden",
-   "name": "Taunt",
+   "name": "Sweeping Blow",
    "learnLevel": 3,
-   "cost": "none, gives +10 resolve",
+   "cost": "25 resolve",
    "cast": "instant",
-   "cooldown": "8",
-   "gcd": "off",
-   "range": "8",
-   "text": "target must attack you for 3 s and walks to melee (a caster stops casting and comes to you); your threat becomes highest +10%",
-   "icon": "icon_taunt"
+   "cooldown": "6",
+   "gcd": "on",
+   "range": "2, frontal 120 deg",
+   "text": "up to 4 targets: 0.7*W+2+L each, and each one bleeds 1+0.5*L every 2 s for 6 s (3 ticks, armor ignored)",
+   "icon": "icon_combo"
   },
   "warden_second_wind": {
    "id": "warden_second_wind",
@@ -225,18 +225,18 @@ export const DESIGN_DATA = {
    "text": "heal 25% max HP over 6 s (3 ticks, 2 s apart)",
    "icon": "icon_regen"
   },
-  "warden_sweeping_blow": {
-   "id": "warden_sweeping_blow",
+  "warden_taunt": {
+   "id": "warden_taunt",
    "cls": "warden",
-   "name": "Sweeping Blow",
+   "name": "Taunt",
    "learnLevel": 10,
-   "cost": "25 resolve",
+   "cost": "none, gives +10 resolve",
    "cast": "instant",
-   "cooldown": "6",
-   "gcd": "on",
-   "range": "2, frontal 120 deg",
-   "text": "up to 4 targets: 0.7*W+2+L each",
-   "icon": "icon_combo"
+   "cooldown": "8",
+   "gcd": "off",
+   "range": "8",
+   "text": "target must attack you for 3 s and walks to melee (a caster stops casting and comes to you); your threat becomes highest +10%",
+   "icon": "icon_taunt"
   },
   "warden_oath_of_iron": {
    "id": "warden_oath_of_iron",
@@ -290,11 +290,24 @@ export const DESIGN_DATA = {
    "text": "light DoT 12 s, 6 ticks (2 s), total 14+5*L+0.6*SP; while your Brand is on a target, your Kindle hits on it heal you for 25% of the damage dealt",
    "icon": "icon_burn"
   },
+  "mender_chorus": {
+   "id": "mender_chorus",
+   "cls": "mender",
+   "name": "Chorus",
+   "learnLevel": 6,
+   "cost": "25+4*L",
+   "cast": "2.5",
+   "cooldown": "20",
+   "gcd": "on",
+   "range": "self, radius 6",
+   "text": "heal every ally in range 12+5*L+0.5*SP, and deal 8+3*L+0.35*SP light damage to up to 6 enemies in range",
+   "icon": "icon_star"
+  },
   "mender_warding_word": {
    "id": "mender_warding_word",
    "cls": "mender",
    "name": "Warding Word",
-   "learnLevel": 6,
+   "learnLevel": 10,
    "cost": "12+2.5*L",
    "cast": "instant",
    "cooldown": "none",
@@ -307,7 +320,7 @@ export const DESIGN_DATA = {
    "id": "mender_steady_name",
    "cls": "mender",
    "name": "Steady Name",
-   "learnLevel": 10,
+   "learnLevel": 14,
    "cost": "10+2*L",
    "cast": "instant",
    "cooldown": "none",
@@ -315,19 +328,6 @@ export const DESIGN_DATA = {
    "range": "8, friendly",
    "text": "HoT 12 s, 4 ticks (3 s), total 20+9*L+1.0*SP",
    "icon": "icon_kept"
-  },
-  "mender_chorus": {
-   "id": "mender_chorus",
-   "cls": "mender",
-   "name": "Chorus",
-   "learnLevel": 14,
-   "cost": "25+4*L",
-   "cast": "2.5",
-   "cooldown": "20",
-   "gcd": "on",
-   "range": "self, radius 6",
-   "text": "heal every ally in range 12+5*L+0.5*SP, and deal 8+3*L+0.35*SP light damage to up to 6 enemies in range",
-   "icon": "icon_star"
   },
   "scribe_inkbolt": {
    "id": "scribe_inkbolt",
@@ -362,10 +362,10 @@ export const DESIGN_DATA = {
    "learnLevel": 3,
    "cost": "10+2*L",
    "cast": "instant",
-   "cooldown": "20",
+   "cooldown": "15",
    "gcd": "on",
    "range": "self, radius 3",
-   "text": "every enemy in range: 3+L+0.15*SP damage and root 4 s",
+   "text": "every enemy in range: 6+2.4*L+0.4*SP damage and root 4 s",
    "icon": "icon_stun"
   },
   "scribe_underline": {
@@ -430,7 +430,7 @@ export const DESIGN_DATA = {
    "cooldown": "8",
    "gcd": "on",
    "range": "9",
-   "text": "0.5*W+2+L physical, slow 50% for 6 s",
+   "text": "0.5*W+2+L physical, slow 50% for 6 s; the arrow stays in and bleeds 3+1.5*L every 2 s (3 ticks, armor ignored)",
    "icon": "icon_bow"
   },
   "wayfinder_briar_trap": {
@@ -443,7 +443,7 @@ export const DESIGN_DATA = {
    "cooldown": "15",
    "gcd": "on",
    "range": "placed at your feet",
-   "text": "arms after 1.0 s, lasts 30 s, max 1 placed; the first enemy to step in takes 4+2*L and is rooted 6 s",
+   "text": "arms after 1.0 s, lasts 30 s, max 1 placed; when an enemy steps in it bursts: that enemy and every enemy within 2 tiles of it (max 4) take 8+3*L and are rooted 6 s. The briar root does not break on damage",
    "icon": "icon_leaf"
   },
   "wayfinder_light_foot": {
@@ -469,7 +469,7 @@ export const DESIGN_DATA = {
    "cooldown": "8",
    "gcd": "on",
    "range": "10",
-   "text": "1.4*W+6+3*L physical",
+   "text": "1.4*W+8+3.6*L physical",
    "icon": "icon_focus"
   },
   "wayfinder_volley": {
@@ -508,7 +508,7 @@ export const DESIGN_DATA = {
    "cooldown": "none",
    "gcd": "on",
    "range": "1.5",
-   "text": "needs 1+ mark: (4+1.8*L+0.1*AP) per mark, consumes all marks",
+   "text": "needs 1+ mark: (4+1.8*L+0.1*AP) per mark, consumes all marks; heals you 7% of your max health per mark spilled",
    "icon": "icon_poison"
   },
   "inkblade_fade": {
@@ -524,18 +524,18 @@ export const DESIGN_DATA = {
    "text": "stealth, out of combat only: move speed -20%, enemies notice you only within 1.5 tiles (+0.5 per level they are above you). Your first attack from Fade deals +50% and adds +1 extra Ink Mark. Any attack or damage ends it",
    "icon": "icon_nameless"
   },
-  "inkblade_ink_in_the_eyes": {
-   "id": "inkblade_ink_in_the_eyes",
+  "inkblade_inkstep": {
+   "id": "inkblade_inkstep",
    "cls": "inkblade",
-   "name": "Ink in the Eyes",
+   "name": "Inkstep",
    "learnLevel": 6,
-   "cost": "20",
+   "cost": "25",
    "cast": "instant",
-   "cooldown": "30",
+   "cooldown": "8",
    "gcd": "on",
-   "range": "3",
-   "text": "incapacitate 6 s (elite 2 s), breaks on damage. Usable from Fade without ending it",
-   "icon": "icon_blind"
+   "range": "8",
+   "text": "step through the shadows to the tile behind the target, interrupt its cast (locked 3 s) and cut every enemy within 2 tiles of it (max 4) for 0.6*W+2+L; they are Smudged (deal 20% less damage) for 10 s; +1 Ink Mark on your target, and your next Nick within 3 s adds +1 extra mark",
+   "icon": "icon_flee"
   },
   "inkblade_bleed_line": {
    "id": "inkblade_bleed_line",
@@ -550,18 +550,18 @@ export const DESIGN_DATA = {
    "text": "needs 1+ mark: DoT 12 s, 6 ticks, total (5+2.2*L+0.12*AP) per mark, consumes all marks",
    "icon": "icon_burn"
   },
-  "inkblade_inkstep": {
-   "id": "inkblade_inkstep",
+  "inkblade_ink_in_the_eyes": {
+   "id": "inkblade_ink_in_the_eyes",
    "cls": "inkblade",
-   "name": "Inkstep",
+   "name": "Ink in the Eyes",
    "learnLevel": 14,
-   "cost": "15",
+   "cost": "20",
    "cast": "instant",
-   "cooldown": "20",
-   "gcd": "off",
-   "range": "8",
-   "text": "step through the shadows to the tile behind the target; used from Fade you stay in Fade; your next Nick within 3 s adds +1 extra mark",
-   "icon": "icon_flee"
+   "cooldown": "30",
+   "gcd": "on",
+   "range": "3",
+   "text": "incapacitate 6 s (elite 2 s), breaks on damage. Usable from Fade without ending it",
+   "icon": "icon_blind"
   }
  },
  "talents": {
@@ -1504,7 +1504,7 @@ export const DESIGN_DATA = {
      "name": "Blank Margin",
      "icon": "icon_gear",
      "play": true,
-     "text": "Full Stop also shields you for 15% max HP for 8 s, and its cooldown is 15 s"
+     "text": "Full Stop also shields you for 15% max HP for 8 s, and its cooldown is 10 s (combat role pass: Full Stop's own cooldown is now 15)"
     },
     "scribe_margin_comma": {
      "id": "scribe_margin_comma",
@@ -2283,7 +2283,7 @@ export const DESIGN_DATA = {
      "name": "Slip",
      "icon": "icon_gear",
      "play": false,
-     "text": "Inkstep cooldown -2 / -4 / -6 s"
+     "text": "Inkstep cooldown -1 / -2 / -3 s (combat role pass: Inkstep is now an 8 s area strike)"
     },
     "inkblade_shade_shadow_hands": {
      "id": "inkblade_shade_shadow_hands",

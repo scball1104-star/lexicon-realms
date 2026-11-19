@@ -12,8 +12,9 @@ export const CLASSES = {
     perLevel: { hp: 0, str: 1.5, agi: 0.5, int: 0.2, spi: 0.4, sta: 1.5 },
     hpPerSta: 10, apPerStr: 2, critBase: 0.05, blockBase: 0.10, threatMult: 1.5, mainStat: 'str',
     auto: { weapon: 'sword', range: 40 },
-    abilities: [{ id: 'warden_strike', level: 1 }, { id: 'warden_shield_bash', level: 1 }, { id: 'warden_taunt', level: 3 },
-      { id: 'warden_second_wind', level: 6 }, { id: 'warden_sweeping_blow', level: 10 }, { id: 'warden_oath_of_iron', level: 14 }],
+    // combat role pass (2026-11-19): Sweeping Blow at 3 (was 10) so packs have an answer early; Taunt at 10 (was 3)
+    abilities: [{ id: 'warden_strike', level: 1 }, { id: 'warden_shield_bash', level: 1 }, { id: 'warden_sweeping_blow', level: 3 },
+      { id: 'warden_second_wind', level: 6 }, { id: 'warden_taunt', level: 10 }, { id: 'warden_oath_of_iron', level: 14 }],
     startBar: ['warden_shield_bash', 'warden_strike'], talentTree: 'warden', trainer: 'holt',   // Bash first: "Bash, then Strike" (CLASSES 2)
     startGear: { main: 'gate_sword', off: 'plank_shield', chest: 'padded_jerkin' },
     looks: [{ id: 0, sprite: 'warden_a' }, { id: 1, sprite: 'warden_b' }, { id: 2, sprite: 'warden_c' }],
@@ -25,8 +26,9 @@ export const CLASSES = {
     perLevel: { hp: 0, str: 0.4, agi: 0.4, int: 1.3, spi: 1.3, sta: 1.0 },
     hpPerSta: 10, apPerStr: 2, spPerInt: 1, critBase: 0.05, mainStat: 'int',
     auto: { weapon: 'rod', range: 40 },
+    // combat role pass: Chorus (the area heal and burn) at 6 (was 14), Warding Word at 10 (was 6), Steady Name at 14 (was 10)
     abilities: [{ id: 'mender_kindle', level: 1 }, { id: 'mender_mend', level: 1 }, { id: 'mender_brand', level: 3 },
-      { id: 'mender_warding_word', level: 6 }, { id: 'mender_steady_name', level: 10 }, { id: 'mender_chorus', level: 14 }],
+      { id: 'mender_chorus', level: 6 }, { id: 'mender_warding_word', level: 10 }, { id: 'mender_steady_name', level: 14 }],
     startBar: ['mender_kindle', 'mender_mend'], talentTree: 'mender', trainer: 'hazel',
     startGear: { main: 'willow_rod', off: 'tin_hand_bell', chest: 'plain_robe' },
     looks: [{ id: 0, sprite: 'mender_a' }, { id: 1, sprite: 'mender_b' }, { id: 2, sprite: 'mender_c' }],
@@ -64,8 +66,9 @@ export const CLASSES = {
     perLevel: { hp: 0, str: 0.6, agi: 1.6, int: 0.2, spi: 0.4, sta: 1.1 },
     hpPerSta: 10, apPerAgi: 2, critBase: 0.05, offHandMult: 0.5, mainStat: 'agi',
     auto: { weapon: 'dagger', range: 40, offHand: true },
+    // combat role pass: Inkstep (now the area strike) at 6 (was 14), Ink in the Eyes at 14 (was 6)
     abilities: [{ id: 'inkblade_nick', level: 1 }, { id: 'inkblade_spill', level: 1 }, { id: 'inkblade_fade', level: 3 },
-      { id: 'inkblade_ink_in_the_eyes', level: 6 }, { id: 'inkblade_bleed_line', level: 10 }, { id: 'inkblade_inkstep', level: 14 }],
+      { id: 'inkblade_inkstep', level: 6 }, { id: 'inkblade_bleed_line', level: 10 }, { id: 'inkblade_ink_in_the_eyes', level: 14 }],
     startBar: ['inkblade_nick', 'inkblade_spill'], talentTree: 'inkblade', trainer: 'sloe',
     startGear: { main: 'paring_dagger', off: 'paring_dagger', chest: 'scuffed_leathers' },
     looks: [{ id: 0, sprite: 'inkblade_a' }, { id: 1, sprite: 'inkblade_b' }, { id: 2, sprite: 'inkblade_c' }],

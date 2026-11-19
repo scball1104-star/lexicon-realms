@@ -35,7 +35,7 @@ export const ABILITIES = {
     text: 'Bash for {dmg} damage, interrupt and stun 1 s. Gives 15 Resolve.',
   },
   warden_taunt: {
-    id: 'warden_taunt', name: 'Taunt', icon: 'taunt', cls: 'warden', learnLevel: 3, school: 'physical',
+    id: 'warden_taunt', name: 'Taunt', icon: 'taunt', cls: 'warden', learnLevel: 10, school: 'physical',
     cost: null, castTime: 0, cooldown: 8, gcd: false, range: R8, target: 'enemy', threatMult: 1,
     effects: [
       { type: 'threat', taunt: true, duration: 3 },
@@ -50,12 +50,15 @@ export const ABILITIES = {
       duration: 6, period: 2, tick: [{ type: 'heal', to: 'holder', pctMaxHp: 0.25 / 3, canCrit: false }] } }],
     text: 'Heal 25% of your max health over 6 s.',
   },
+  // combat role pass (2026-11-19): learned at 3 (was 10) so the first packs have an answer; each foe hit also bleeds a little
   warden_sweeping_blow: {
-    id: 'warden_sweeping_blow', name: 'Sweeping Blow', icon: 'sweep', cls: 'warden', learnLevel: 10, school: 'physical',
+    id: 'warden_sweeping_blow', name: 'Sweeping Blow', icon: 'sweep', cls: 'warden', learnLevel: 3, school: 'physical',
     cost: { kind: 'resolve', amount: 25 }, castTime: 0, cooldown: 6, gcd: true, range: null, target: 'none', threatMult: 2,
     area: { shape: 'cone', radius: 32, angle: 120, at: 'self', maxTargets: 4 },
-    effects: [{ type: 'damage', key: 'hit', to: 'enemies', weapon: 0.7, amount: lv(2, 1), school: 'physical', canCrit: true }],
-    text: 'Hit up to 4 foes in front of you for {dmg} each.',
+    effects: [{ type: 'damage', key: 'hit', to: 'enemies', weapon: 0.7, amount: lv(2, 1), school: 'physical', canCrit: true },
+      { type: 'aura', key: 'cut', to: 'enemies', aura: { id: 'warden_sweep_cut', name: 'Cut', icon: 'sweep', kind: 'debuff', dispel: 'bleed',
+        duration: 6, period: 2, unique: 'per_caster', tick: [{ type: 'damage', amount: lv(1, 0.5), school: 'physical', canCrit: false, noArmor: true }] } }],
+    text: 'Hit up to 4 foes in front of you for {dmg} each. Each one bleeds for {dot} over 6 s.',
   },
   warden_oath_of_iron: {
     id: 'warden_oath_of_iron', name: 'Oath of Iron', icon: 'oath_of_iron', cls: 'warden', learnLevel: 14, school: 'physical',
@@ -89,7 +92,7 @@ export const ABILITIES = {
     text: 'Burn the foe for {dot} over 12 s. Your Kindle on it heals you for 25% of the damage.',
   },
   mender_warding_word: {
-    id: 'mender_warding_word', name: 'Warding Word', icon: 'warding_word', cls: 'mender', learnLevel: 6, school: 'light',
+    id: 'mender_warding_word', name: 'Warding Word', icon: 'warding_word', cls: 'mender', learnLevel: 10, school: 'light',
     cost: { kind: 'mana', amount: lv(12, 2.5) }, castTime: 0, cooldown: 0, gcd: true, range: R8, target: 'ally', threatMult: 1,
     requires: { targetNoAura: 'mender_spoken_for' },
     effects: [
@@ -100,7 +103,7 @@ export const ABILITIES = {
     text: 'Shield a friend from {absorb} damage for 15 s. Casting is not pushed back while it holds.',
   },
   mender_steady_name: {
-    id: 'mender_steady_name', name: 'Steady Name', icon: 'steady_name', cls: 'mender', learnLevel: 10, school: 'light',
+    id: 'mender_steady_name', name: 'Steady Name', icon: 'steady_name', cls: 'mender', learnLevel: 14, school: 'light',
     cost: { kind: 'mana', amount: lv(10, 2) }, castTime: 0, cooldown: 0, gcd: true, range: R8, target: 'ally', threatMult: 1,
     effects: [{ type: 'aura', key: 'hot', aura: { id: 'mender_steady_name', name: 'Steady Name', icon: 'steady_name', kind: 'buff', dispel: 'magic',
       duration: 12, period: 3, unique: 'per_caster',
@@ -108,7 +111,7 @@ export const ABILITIES = {
     text: 'Heal a friend for {hot} over 12 s.',
   },
   mender_chorus: {
-    id: 'mender_chorus', name: 'Chorus', icon: 'chorus', cls: 'mender', learnLevel: 14, school: 'light',
+    id: 'mender_chorus', name: 'Chorus', icon: 'chorus', cls: 'mender', learnLevel: 6, school: 'light',
     cost: { kind: 'mana', amount: lv(25, 4) }, castTime: 2.5, cooldown: 20, gcd: true, range: null, target: 'none', threatMult: 1,
     area: { shape: 'circle', radius: 96, at: 'self', maxTargets: 6 },
     effects: [
@@ -138,10 +141,11 @@ export const ABILITIES = {
   },
   scribe_full_stop: {
     id: 'scribe_full_stop', name: 'Full Stop', icon: 'full_stop', cls: 'scribe', learnLevel: 3, school: 'ink',
-    cost: { kind: 'mana', amount: lv(10, 2) }, castTime: 0, cooldown: 20, gcd: true, range: null, target: 'none', threatMult: 1,
+    cost: { kind: 'mana', amount: lv(10, 2) }, castTime: 0, cooldown: 15, gcd: true, range: null, target: 'none', threatMult: 1,
     area: { shape: 'circle', radius: 48, at: 'self', maxTargets: 0 },
     effects: [
-      { type: 'damage', key: 'hit', to: 'enemies', amount: lv(3, 1), coef: { stat: 'sp', k: 0.15 }, school: 'ink', canCrit: true },
+      // combat role pass: the Scribe's first area hit, so it hurts (was 3 + L + 0.15 SP)
+      { type: 'damage', key: 'hit', to: 'enemies', amount: lv(6, 2.4), coef: { stat: 'sp', k: 0.4 }, school: 'ink', canCrit: true },
       { type: 'aura', key: 'root', to: 'enemies', aura: { id: 'scribe_full_stop', name: 'Full Stop', icon: 'full_stop', kind: 'debuff', duration: 4, flags: ['root'] } },
     ],
     text: 'Every foe within 3 tiles takes {dmg} and is rooted for 4 s.',
@@ -189,20 +193,23 @@ export const ABILITIES = {
     requires: { weapon: 'bow' }, projectile: { speed: 480 },
     effects: [
       { type: 'damage', key: 'hit', weapon: 0.5, amount: lv(2, 1), school: 'physical', canCrit: true },
-      { type: 'aura', key: 'slow', aura: { id: 'wayfinder_pinning_shot', name: 'Pinned', icon: 'pinning_shot', kind: 'debuff', duration: 6, flags: ['slow'], mods: [{ stat: 'slow', add: 0.5 }] } },
+      // combat role pass: the arrow stays in and bleeds, the Wayfinder's damage over time (3 ticks, 2 s apart)
+      { type: 'aura', key: 'slow', aura: { id: 'wayfinder_pinning_shot', name: 'Pinned', icon: 'pinning_shot', kind: 'debuff', duration: 6, flags: ['slow'], mods: [{ stat: 'slow', add: 0.5 }],
+        dispel: 'bleed', period: 2, tick: [{ type: 'damage', amount: lv(3, 1.5), school: 'physical', canCrit: false, noArmor: true }] } },
     ],
-    text: 'An arrow for {dmg} that slows the foe 50% for 6 s.',
+    text: 'An arrow for {dmg} that slows the foe 50% for 6 s. The arrow stays in and bleeds for {dot}.',
   },
   wayfinder_briar_trap: {
     id: 'wayfinder_briar_trap', name: 'Briar Trap', icon: 'briar_trap', cls: 'wayfinder', learnLevel: 3, school: 'nature',
     cost: { kind: 'focus', amount: 20 }, castTime: 0, cooldown: 15, gcd: true, range: null, target: 'none', threatMult: 1,
     effects: [{ type: 'summon', key: 'trap', object: { id: 'wayfinder_briar_trap', sprite: 'trap_briar', at: 'self', armTime: 1.0, duration: 30, max: 1,
       trigger: { radius: 24, who: 'hostile', once: true },
+      // combat role pass: the briar bursts, so every foe within 2 tiles of it (the whole pack at your heels) is caught
       effects: [
-        { type: 'damage', key: 'hit', amount: lv(4, 2), school: 'physical', canCrit: true },
-        { type: 'aura', key: 'root', aura: { id: 'wayfinder_briar_root', name: 'Briar', icon: 'briar_trap', kind: 'debuff', duration: 6, flags: ['root'] }, proc: 'trapRoot' },
+        { type: 'damage', key: 'hit', to: 'enemies_near_holder', radius: 32, maxTargets: 4, amount: lv(8, 3), school: 'physical', canCrit: true },
+        { type: 'aura', key: 'root', to: 'enemies_near_holder', radius: 32, maxTargets: 4, aura: { id: 'wayfinder_briar_root', name: 'Briar', icon: 'briar_trap', kind: 'debuff', duration: 6, flags: ['root'], noRootBreak: true }, proc: 'trapRoot' },
       ] } }],
-    text: 'Lay a briar at your feet. It arms in 1 s; the first foe to step in takes {dmg} and is rooted 6 s.',
+    text: 'Lay a briar at your feet. It arms in 1 s. When a foe steps in it bursts: every foe within 2 tiles takes {dmg} and is rooted 6 s.',
   },
   wayfinder_light_foot: {
     id: 'wayfinder_light_foot', name: 'Light Foot', icon: 'light_foot', cls: 'wayfinder', learnLevel: 6, school: 'physical',
@@ -217,7 +224,7 @@ export const ABILITIES = {
     id: 'wayfinder_aimed_shot', name: 'Aimed Shot', icon: 'aimed_shot', cls: 'wayfinder', learnLevel: 10, school: 'physical',
     cost: { kind: 'focus', amount: 30 }, castTime: 2.0, cooldown: 8, gcd: true, range: { min: 0, max: 160 }, target: 'enemy', threatMult: 1,
     requires: { weapon: 'bow', notMoving: true }, projectile: { speed: 480 },
-    effects: [{ type: 'damage', key: 'hit', weapon: 1.4, amount: lv(6, 3), school: 'physical', canCrit: true }],
+    effects: [{ type: 'damage', key: 'hit', weapon: 1.4, amount: lv(8, 3.6), school: 'physical', canCrit: true }],
     text: 'Stand still and loose a heavy arrow for {dmg}.',
   },
   wayfinder_volley: {
@@ -246,11 +253,12 @@ export const ABILITIES = {
     requires: { weapon: 'dagger', combo: 1 },
     effects: [
       { type: 'damage', key: 'hit', amount: lv(4, 1.8), coef: { stat: 'ap', k: 0.1 }, scaleCombo: true, school: 'physical', canCrit: true },
-      // fix pass 1 (PLAYTEST_BOT bug 15): the Inkblade's cheap self-heal: each mark spilled gives back 5% of your health
-      { type: 'heal', key: 'drink', to: 'self', pctMaxHp: 0.05, scaleCombo: true, canCrit: false, noThreat: true, ability: 'inkblade_spill' },
+      // fix pass 1 (PLAYTEST_BOT bug 15): the Inkblade's cheap self-heal: each mark spilled gives back 7% of your health
+      // (5% in fix pass 1; 7% since the combat role pass, the Inkblade still died most in the questbot)
+      { type: 'heal', key: 'drink', to: 'self', pctMaxHp: 0.07, scaleCombo: true, canCrit: false, noThreat: true, ability: 'inkblade_spill' },
       { type: 'combo', key: 'consume', consume: true },
     ],
-    text: 'Pop every Ink Mark for {dmg} per mark. Each mark spilled heals you for 5% of your health.',
+    text: 'Pop every Ink Mark for {dmg} per mark. Each mark spilled heals you for 7% of your health.',
   },
   inkblade_fade: {
     id: 'inkblade_fade', name: 'Fade', icon: 'fade', cls: 'inkblade', learnLevel: 3, school: 'shadow',
@@ -262,7 +270,7 @@ export const ABILITIES = {
     text: 'Fade from sight out of combat. Your first attack from Fade deals 50% more and adds an extra Ink Mark.',
   },
   inkblade_ink_in_the_eyes: {
-    id: 'inkblade_ink_in_the_eyes', name: 'Ink in the Eyes', icon: 'ink_in_the_eyes', cls: 'inkblade', learnLevel: 6, school: 'shadow',
+    id: 'inkblade_ink_in_the_eyes', name: 'Ink in the Eyes', icon: 'ink_in_the_eyes', cls: 'inkblade', learnLevel: 14, school: 'shadow',
     cost: { kind: 'focus', amount: 20 }, castTime: 0, cooldown: 30, gcd: true, range: { min: 0, max: 48 }, target: 'enemy', threatMult: 0,
     keepsStealth: true,
     effects: [{ type: 'aura', key: 'incap', aura: { id: 'inkblade_ink_in_the_eyes', name: 'Ink in the Eyes', icon: 'ink_in_the_eyes', kind: 'debuff',
@@ -281,16 +289,24 @@ export const ABILITIES = {
     ],
     text: 'Open a line that bleeds {dot} per mark over 12 s. Consumes every mark.',
   },
+  // combat role pass (2026-11-19): the Inkblade's area strike, learned at 6 (was a level 14 gap closer). It still steps
+  // behind the foe; on landing it cuts every foe within 2 tiles of it, marks your target, and the ink makes them hit softer
   inkblade_inkstep: {
-    id: 'inkblade_inkstep', name: 'Inkstep', icon: 'inkstep', cls: 'inkblade', learnLevel: 14, school: 'shadow',
-    cost: { kind: 'focus', amount: 15 }, castTime: 0, cooldown: 20, gcd: false, range: R8, target: 'enemy', threatMult: 0,
-    keepsStealth: true,
+    id: 'inkblade_inkstep', name: 'Inkstep', icon: 'inkstep', cls: 'inkblade', learnLevel: 6, school: 'shadow',
+    cost: { kind: 'focus', amount: 25 }, castTime: 0, cooldown: 8, gcd: true, range: R8, target: 'enemy', threatMult: 1,
+    requires: { weapon: 'dagger' },
+    area: { shape: 'circle', radius: 32, at: 'target', maxTargets: 4 },
     effects: [
       { type: 'move', key: 'step', kind: 'blink_behind' },
+      { type: 'damage', key: 'hit', to: 'enemies', weapon: 0.6, amount: lv(2, 1), school: 'physical', canCrit: true },
+      { type: 'interrupt', key: 'cut', to: 'target', lockout: 3 },
+      { type: 'aura', key: 'smudge', to: 'enemies', aura: { id: 'inkblade_smudged', name: 'Smudged', icon: 'inkstep', kind: 'debuff', duration: 10,
+        mods: [{ stat: 'damageDone', mul: 0.8 }] } },
+      { type: 'combo', key: 'mark', to: 'target', add: 1 },
       { type: 'aura', key: 'ready', to: 'self', aura: { id: 'inkblade_inkstep_ready', name: 'Inkstep', icon: 'inkstep', kind: 'buff', duration: 3,
         comboBonus: 1, consumeOn: { cast: 'inkblade_nick' } } },
     ],
-    text: 'Step through the shadows behind the foe. Your next Nick within 3 s adds an extra mark.',
+    text: 'Step behind the foe, interrupt its cast and cut every foe within 2 tiles for {dmg}. They deal 20% less damage for 10 s. Marks your target; your next Nick within 3 s adds an extra mark.',
   },
 };
 

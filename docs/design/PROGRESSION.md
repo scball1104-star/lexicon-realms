@@ -115,6 +115,25 @@ Formulas: `hp = round(100 + 40 * L + 0.6 * L^2)`; damage mean `2 + 2.2 * L`; gol
 | respawn | normal 90 s, weak 60 s, quest `nodes` 30 s, elite 6 min; a camp never respawns within 12 tiles of a player in combat |
 | behaviors used in zones | `aggressive` (aggros on sight), `passive` (only when hit), `flees`, `caster`, `elite` |
 
+### 3.3 Packs (combat role pass, 2026-11-19)
+
+Some camps pull as one fight of 2 or 3 foes, each lighter, so the pack is an "elite-lite" budget of about 1.6 to 2 normal
+foes. Data: `PROGRESSION.packs` (the multipliers) and `src/data/packs.js` (which camps). The sim reads a spawn's `pack`
+(its size): health and damage multiply the member's curve values (after the kind multipliers above), kill XP multiplies
+by the `xp` share, and pulling one member pulls every living member of the same camp within 6 tiles, whatever the social
+radius.
+
+| pack | health each | damage each | kill XP each | the whole pack |
+|---|---|---|---|---|
+| pair | x0.85 | x0.75 | x0.85 | 1.7 foes of health, 1.5 of damage |
+| three | x0.66 | x0.5 | x0.65 | 2.0 foes of health, 1.5 of damage |
+
+Tagged camps: the Pilgrim Road briar wolf pairs (levels 3 to 4) and the Whisperwood thornback pairs (5 to 6) in the
+valley, the Dark Fold thornback threes (7 to 8) in the Downs, the Cold Stones mist wolf pairs and the north cairn mist
+wolf threes (10 to 11) on the moor. Every one already stood in a tight pair or three and pulled together at full
+strength. The first quests' camps (south meadow slimes, Cobb's scarabs, the east bank, the north landing) stay single
+pulls. Measured in BALANCE.md, "Combat role pass".
+
 ---
 
 ## 4. Gear

@@ -173,7 +173,7 @@ function wrap(state, content, rng, systems) {
       name, level, faction: t.faction || 'hostile', sprite: sp.sprite || t.sprite, template: sp.mob,
       hp: t.hp, hpMax: t.hp, res: null, dir: 'left',
       spawn: { zone: sp.zone, x: e.x, y: e.y, respawn: sp.temporary ? 5 : sp.respawn ?? null, level: sp.level ?? null,
-        night: !!sp.night, temporary: !!sp.temporary, group: sp.group || null },
+        night: !!sp.night, temporary: !!sp.temporary, group: sp.group || null, pack: sp.pack || null },
       ai: { mode: 'idle', until: 0, dx: 0, dy: 0, leash: (sp.wander ?? t.wander ?? 3) * TILE },
     });
     if (combatOn) { e.threat = {}; e.hp = 0; C.stats.recalc(e); e.hp = e.hpMax; }
@@ -844,7 +844,7 @@ function wrap(state, content, rng, systems) {
       }
     }
     if (e.kind === 'mob' && combatOn) {
-      o.elite = !!(e.mob && e.mob.elite); o.mobKind = e.mob ? e.mob.kind : 'normal';
+      o.elite = !!(e.mob && e.mob.elite); o.mobKind = e.mob ? e.mob.kind : 'normal'; o.pack = (e.spawn && e.spawn.pack) || null;
       const mt = (content.mobs || {})[e.template] || {};
       o.rank = mt.boss ? 'boss' : o.elite ? 'elite' : (e.mob && e.mob.kind === 'weak') ? 'weak' : 'normal';
       o.aggro = e.ai && e.ai.mode === 'combat' ? e.ai.target : null; o.aiMode = e.ai ? e.ai.mode : null;

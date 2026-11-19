@@ -164,6 +164,9 @@ export function createStats(C) {
     let hpM = 1, dmgM = 1, physReduce = 0;
     for (const k of kinds) { const km = P.mobKinds[k] || P.mobKinds.normal; hpM *= km.hp; dmgM *= km.damage; physReduce = Math.max(physReduce, km.physReduce || 0); }
     if (elite && !kinds.includes('elite')) { hpM *= P.mobKinds.elite.hp; dmgM *= P.mobKinds.elite.damage; }
+    // a camp that pulls as a pack (PROGRESSION packs, combat role pass): each member is lighter, the pack is about 1.6 to 2 foes
+    const pk = e.spawn && e.spawn.pack && P.packs ? P.packs[e.spawn.pack] : null;
+    if (pk) { hpM *= pk.hp; dmgM *= pk.damage; }
     const kind = kinds.find((k) => k !== 'elite') || 'normal';
     const c = P.mobCurve;
     // a template with a single fixed level may give its own numbers; a family with a level range uses the curve

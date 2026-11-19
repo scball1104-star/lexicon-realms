@@ -415,7 +415,11 @@ export function createCombat(C) {
       case 'enemies_near_holder': {
         const h = ctx.holder || ctx.target;
         if (!h) return [];
-        return unitsNear(h.x, h.y, h.zone, fx.radius || 48, (u) => isHostile(src, u)).sort((a, b) => a.id - b.id);
+        const list = unitsNear(h.x, h.y, h.zone, fx.radius || 48, (u) => isHostile(src, u)).sort((a, b) => a.id - b.id);
+        if (!fx.maxTargets) return list;
+        // capped (Briar Trap's burst): the holder first, then the nearest
+        list.sort((a, b) => (a === h ? -1 : b === h ? 1 : distPxXY(a.x, a.y, h.x, h.y) - distPxXY(b.x, b.y, h.x, h.y) || a.id - b.id));
+        return list.slice(0, fx.maxTargets);
       }
       case 'other_near_target': {
         const h = ctx.target;

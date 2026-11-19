@@ -4,7 +4,7 @@
 // Reads only the HUD model (uivm.js). Returns hit regions so ui.js can do hover tooltips and clicks.
 import { W, H, trackerRows, inRect } from './layout.js';
 import { drawMarkers } from './minimap.js';
-import { abilityInfo, abilityTooltip, classInfo, resourceWord, liveStats } from './gamedata.js';
+import { abilityInfo, abilityTooltip, autoTooltip, classInfo, resourceWord, liveStats } from './gamedata.js';
 
 const MENU_ICON = { character: 'icon_helm', bags: 'icon_bag', quests: 'icon_quest', talents: 'icon_star', map: 'icon_scroll', help: 'emote_question_0', menu: 'icon_gear' };
 /** Quest marks drawn in code (CRITIQUE_1 item 1): a gold ! (quest to take) or ? (ready to turn in), grey when trivial or
@@ -54,10 +54,13 @@ export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360 } = {
   w = Math.max(w, Math.min(300, g.textW(tip.title || '', true) + (tip.right ? g.textW(tip.right) + 10 : 0) + 18));
   const bodyLines = tip.body ? g.wrap(tip.body, w - 14) : [];
   const subLines = tip.sub ? g.wrap(tip.sub, w - 14) : [];
+  // numbers (combat role pass): damage or healing per hit, per second, area and targets, one plain line each
+  const numLines = [];
+  for (const ln of tip.lines || []) numLines.push(...g.wrap(ln, w - 14));
   const footLines = tip.foot ? g.wrap(tip.foot, w - 14) : [];
   const deltaLines = [];
   for (const d of tip.delta || []) for (const ln of g.wrap(d.text, w - 14)) deltaLines.push({ text: ln, color: d.color });
-  const h = 8 + 16 + subLines.length * 11 + (bodyLines.length ? 2 + bodyLines.length * 11 : 0) + (footLines.length ? 4 + footLines.length * 11 : 0) + (deltaLines.length ? 3 + deltaLines.length * 11 : 0) + 6;
+  const h = 8 + 16 + subLines.length * 11 + (numLines.length ? 2 + numLines.length * 11 : 0) + (bodyLines.length ? 2 + bodyLines.length * 11 : 0) + (footLines.length ? 4 + footLines.length * 11 : 0) + (deltaLines.length ? 3 + deltaLines.length * 11 : 0) + 6;
   let tx = Math.round(x), ty = Math.round(y);
   if (tx + w > W - 2) tx = x - 16 - w;
   if (tx + w > W - 2) tx = W - 2 - w;
@@ -69,6 +72,8 @@ export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360 } = {
   if (tip.right) g.text(ctx, tip.right, tx + w - 7, ty + 8, 'cream', { align: 'right' });
   let yy = ty + 22;
   for (const ln of subLines) { g.text(ctx, ln, tx + 7, yy, 'gray'); yy += 11; }
+  if (numLines.length) yy += 2;
+  for (const ln of numLines) { g.text(ctx, ln, tx + 7, yy, 'cream'); yy += 11; }
   if (bodyLines.length) yy += 2;
   for (const ln of bodyLines) { g.text(ctx, ln, tx + 7, yy, 'white'); yy += 11; }
   if (footLines.length) yy += 4;
@@ -110,10 +115,11 @@ export function createHud(env) {
     if (u.res) rows.push([u.resLabel === 'MP' ? 'lbl_mp' : null, u.res.cur, u.res.max, u.resGauge, u.resLabel]);
     rows.forEach(([lbl, v, mx, kind, txt], i) => {
       const y = y0 + i * 12;
-      if (lbl) g.icon(ctx, lbl, nx, y + 1); else g.text(ctx, txt, nx, y - 2, 'gold');
-      g.gauge(ctx, nx + 12, y, gw, mx ? v / mx : 0, kind);
-      // the resource bar names itself ("RE" read as nothing): 'Resolve 12/100'
+      // the resource bar names itself ("RE" read as nothing): the word sits before the numbers, the bar shortens to fit
       const word = i === 1 && u.resWord ? u.resWord + ' ' : '';
+      if (lbl) g.icon(ctx, lbl, nx, y + 1); else if (!word) g.text(ctx, txt, nx, y - 2, 'gold');
+      const gx = lbl || !word ? nx + 12 : nx, gww = Math.max(20, gw - (word ? g.textW(word) - (lbl ? 0 : 12) : 0));
+      g.gauge(ctx, gx, y, gww, mx ? v / mx : 0, kind);
       g.text(ctx, `${word}${fmtInt(v)}/${fmtInt(mx)}`, right, y - 2, 'white', { align: 'right' });
     });
   }
@@ -332,7 +338,7 @@ export function createHud(env) {
         } else if (b.id === 'attack') g.iconIn(ctx, 'icon_sword', r.x, r.y, r.w, r.h);   // the word does not fit a small button
         else g.text(ctx, CLUSTER_WORD[b.id], r.x + Math.floor(r.w / 2) + 1, r.y + Math.floor(r.h / 2) - 6, 'cream', { align: 'center' });
       }
-      regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, tip: b.id === 'attack' ? { title: 'Attack', sub: 'Auto-attack your target (the nearest foe if none)' } : undefined, ability: b.slot && bySlot.get(b.slot) ? bySlot.get(b.slot).ability : null });
+      regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, tip: undefined, ability: b.slot && bySlot.get(b.slot) ? bySlot.get(b.slot).ability : null });
     }
     const j = st.joystick;
     if (j) {
@@ -389,6 +395,7 @@ export function createHud(env) {
         if (tip.foot) tip.footColor = 'red';
         return tip;
       }
+      if (region.kind === 'attack') return autoTooltip(liveStats(m), m.player.cls);
       if (region.kind === 'xp' && m.player.xpToLevel) {
         const left = m.player.xpToLevel - m.player.xp;
         return { title: `Level ${m.player.level}`, sub: `${fmtInt(m.player.xp)} of ${fmtInt(m.player.xpToLevel)} XP`, body: `${fmtInt(left)} XP to level ${m.player.level + 1}.` };

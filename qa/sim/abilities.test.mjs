@@ -56,7 +56,7 @@ export const tests = [
     eq(p.cd.warden_shield_bash - world.tick, 120, 'cooldown 6 s');
   } },
   { name: 'warden_taunt: off the GCD, 8 tiles, top threat +10%, the foe must attack you for 3 s and walks in; +10 Resolve; cd 8', fn() {
-    const d = setup('warden', 5, 'caster_5', 16, 15);
+    const d = setup('warden', 10, 'caster_5', 16, 15);          // Taunt is learned at 10 (combat role pass)
     const { world, pid, p, m } = d;
     const other = world.addPlayer({ name: 'Friend', cls: 'mender', zone: 'arena', x: 22, y: 15, gearMode: 'design' });
     m.threat[other] = 100; m.ai.mode = 'combat'; m.ai.target = other; m.ai.reachTick = world.tick;
@@ -148,10 +148,10 @@ export const tests = [
     eq(h.amount + h.overheal, Math.max(1, Math.round(0.25 * k.amount)), '25% of the damage');
   } },
   { name: 'mender_warding_word: absorb 20 + 8 L + 0.8 SP for 15 s; Spoken For blocks a second Word; no pushback while it holds', fn() {
-    const { world, pid, p, m, C } = setup('mender', 6, 'dummy_6', 16, 15);
+    const { world, pid, p, m, C } = setup('mender', 10, 'dummy_10', 16, 15);   // learned at 10 (combat role pass)
     castNow(world, pid, 'mender_warding_word');
     const a = p.auras.find((x) => x.id === 'mender_warding_word');
-    eq(a.absorb, Math.round(20 + 8 * 6 + 0.8 * p.derived.sp), 'absorb');
+    eq(a.absorb, Math.round(20 + 8 * 10 + 0.8 * p.derived.sp), 'absorb');
     eq(a.until - world.tick, 300, '15 s');
     assert(p.auras.find((x) => x.id === 'mender_spoken_for'), 'Spoken For');
     free(world, p);
@@ -164,13 +164,13 @@ export const tests = [
     eq(r.absorbed, 10, 'absorbed');
   } },
   { name: 'mender_steady_name: HoT 12 s in 4 ticks of 3 s, total 20 + 9 L + SP', fn() {
-    const { world, pid, p } = setup('mender', 10, null);
+    const { world, pid, p } = setup('mender', 14, null);                     // learned at 14 (combat role pass)
     p.hp = 10;
     const ev = [...castNow(world, pid, 'mender_steady_name'), ...stepN(world, 245)];
     const h = healOf(ev, 'mender_steady_name');
     eq(h.length, 4, 'four ticks');
     eq(h[1].tick - h[0].tick, 60, '3 s apart');
-    for (const x of h) eq(x.amount + x.overheal, crit(x, (20 + 9 * 10 + p.derived.sp) / 4), 'tick size');
+    for (const x of h) eq(x.amount + x.overheal, crit(x, (20 + 9 * 14 + p.derived.sp) / 4), 'tick size');
   } },
   { name: 'mender_chorus: 2.5 s cast, cd 20; heals every ally within 6 tiles and burns up to 6 foes', fn() {
     const { world, pid, p, m } = setup('mender', 14, 'dummy_14');
@@ -214,13 +214,14 @@ export const tests = [
     near(v, 72 * 0.7, 4, 'slowed to 70%');
     eq(p.cd.scribe_scrawl - ev[0].tick, 120, 'cd 6');
   } },
-  { name: 'scribe_full_stop: every foe within 3 tiles takes 3 + L + 0.15 SP and is rooted 4 s; the root breaks at 20% max HP of damage', fn() {
+  { name: 'scribe_full_stop: every foe within 3 tiles takes 6 + 2.4 L + 0.4 SP and is rooted 4 s; the root breaks at 20% max HP of damage; cd 15', fn() {
     const { world, pid, p, m, C } = setup('scribe', 3, 'brute_3');
     const out = addMob(world, 'dummy_3', 14, 15);
     const ev = castNow(world, pid, 'scribe_full_stop');
     const hits = dmgOf(ev, 'scribe_full_stop');
     eq(hits.length, 1, 'only the one in range');
-    eq(hits[0].amount, crit(hits[0], 3 + 3 + 0.15 * p.derived.sp), 'damage');
+    eq(hits[0].amount, crit(hits[0], 6 + 2.4 * 3 + 0.4 * p.derived.sp), 'damage');
+    eq(p.cd.scribe_full_stop - world.tick, 300, 'cd 15');
     const r = m.auras.find((x) => x.id === 'scribe_full_stop');
     eq(r.until - world.tick, 80, '4 s root');
     C.combat.dealDamage(p, m, Math.ceil(0.2 * m.hpMax) + 2, { ability: 'test', school: 'ink', canCrit: false });
@@ -287,21 +288,30 @@ export const tests = [
     near(speedOver(world, m, 10), 36, 4, '50% slow');
     assert(p.cd.wayfinder_pinning_shot - world.tick > 140, 'cd 8');
   } },
-  { name: 'wayfinder_briar_trap: placed at your feet, arms after 1 s, lasts 30 s, max 1; the first foe in takes 4 + 2 L and is rooted 6 s', fn() {
-    const { world, pid, p, m } = setup('wayfinder', 3, 'dummy_3', 14, 15);
+  { name: 'wayfinder_briar_trap: at your feet, arms after 1 s, lasts 30 s, max 1; bursts on every foe within 2 tiles (max 4): 8 + 3 L and a 6 s root that holds', fn() {
+    const { world, pid, p, m, C } = setup('wayfinder', 3, 'dummy_3', 14, 15);
+    const m2 = addMob(world, 'dummy_3', 14, 16), far = addMob(world, 'dummy_3', 14, 20);
     castNow(world, pid, 'wayfinder_briar_trap');
     const traps = () => world.state.ents.filter((e) => e.kind === 'object' && e.template === 'wayfinder_briar_trap');
     eq(traps().length, 1, 'placed');
     const t = traps()[0];
     eq(t.obj.armAt - world.tick, 20, 'arms in 1 s'); eq(t.obj.until - world.tick, 600, '30 s');
     m.x = t.x + 8 * 16; m.y = t.y;                            // stand in it before it arms
+    m2.x = t.x + 8 * 16; m2.y = t.y + 24 * 16;                // 1.5 tiles from the first foe: caught in the burst
+    far.x = t.x; far.y = t.y + 80 * 16;                       // 5 tiles off: not
     stepN(world, 5);
     assert(!m.auras.length, 'not armed yet');
     const ev = stepN(world, 20);
-    const d = dmgOf(ev, 'wayfinder_briar_trap')[0];
-    assert(d, 'sprung'); eq(d.amount, crit(d, 4 + 2 * 3), 'trap damage');
+    const hits = dmgOf(ev, 'wayfinder_briar_trap');
+    const d = hits.find((e) => e.dst === m.id);
+    assert(d, 'sprung'); eq(d.amount, crit(d, 8 + 3 * 3), 'trap damage');
+    assert(hits.some((e) => e.dst === m2.id), 'the burst catches the second foe');
+    assert(!hits.some((e) => e.dst === far.id), 'not the far one');
     const r = m.auras.find((x) => x.id === 'wayfinder_briar_root');
     eq(r.until - r.startTick, 120, 'root 6 s');
+    assert(m2.auras.find((x) => x.id === 'wayfinder_briar_root'), 'second foe rooted too');
+    C.combat.dealDamage(p, m, Math.ceil(0.3 * m.hpMax), { ability: 'test', canCrit: false });
+    assert(m.auras.find((x) => x.id === 'wayfinder_briar_root'), 'the briar root holds through heavy damage');
     eq(traps().length, 0, 'used up');
   } },
   { name: 'wayfinder_light_foot: off the GCD, leaps 5 tiles back over 0.3 s, removes slows and roots', fn() {
@@ -316,7 +326,7 @@ export const tests = [
     near((x0 - p.x) / 16, 80, 2, 'five tiles back (away from the target)');
     eq(p.cd.wayfinder_light_foot - world.tick + 6, 360, 'cd 18');
   } },
-  { name: 'wayfinder_aimed_shot: 2.0 s cast standing still (moving fails it or breaks it), 1.4 W + 6 + 3 L, range 10', fn() {
+  { name: 'wayfinder_aimed_shot: 2.0 s cast standing still (moving fails it or breaks it), 1.4 W + 8 + 3.6 L, range 10', fn() {
     const { world, pid, p, m, C } = setup('wayfinder', 10, 'dummy_10', 19, 15);
     world.enqueue(pid, { t: 'move', dx: 0, dy: 1 }); world.step();
     eq(ofType(castNow(world, pid, 'wayfinder_aimed_shot', m.id), 'cast_fail')[0].reason, 'moving', 'cannot start moving');
@@ -329,7 +339,7 @@ export const tests = [
     castNow(world, pid, 'wayfinder_aimed_shot', m.id);
     const ev2 = stepN(world, 50);
     const d = dmgOf(ev2, 'wayfinder_aimed_shot')[0];
-    assert(inRange(d.amount, W(p, 1.4), 6 + 30, d.crit), `aimed ${d.amount}`);
+    assert(inRange(d.amount, W(p, 1.4), 8 + 36, d.crit), `aimed ${d.amount}`);
     eq(C_range(C, p, 'wayfinder_aimed_shot'), 160, 'range 10 tiles');
   } },
   { name: 'wayfinder_volley: 3 s channel standing still, 3 waves of 0.35 W + 2 + L to up to 8 foes in 2.5 tiles; cd 12', fn() {
@@ -389,7 +399,7 @@ export const tests = [
     eq(ofType(castNow(world, pid, 'inkblade_fade'), 'cast_fail')[0].reason, 'combat', 'not in combat');
   } },
   { name: 'inkblade_ink_in_the_eyes: incapacitate 6 s (elite 2 s), breaks on damage, does not end Fade, range 3', fn() {
-    const { world, pid, p, m, C } = setup('inkblade', 6, 'dummy_6', 12, 15);
+    const { world, pid, p, m, C } = setup('inkblade', 14, 'dummy_14', 12, 15);   // learned at 14 (combat role pass)
     castNow(world, pid, 'inkblade_fade'); free(world, p);
     castNow(world, pid, 'inkblade_ink_in_the_eyes', m.id);
     const a = m.auras.find((x) => x.id === 'inkblade_ink_in_the_eyes');
@@ -411,17 +421,50 @@ export const tests = [
     eq(t.length, 6, 'six ticks');
     for (const x of t) eq(x.amount, crit(x, (2 * (5 + 2.2 * 10 + 0.12 * p.derived.ap)) / 6), 'tick per 2 marks');
   } },
-  { name: 'inkblade_inkstep: off the GCD, 8 tiles, steps behind the target, keeps Fade, next Nick within 3 s adds an extra mark', fn() {
-    const { world, pid, p, m } = setup('inkblade', 14, 'dummy_14', 16, 15);
-    castNow(world, pid, 'inkblade_fade');
-    p.gcdUntil = world.tick + 20;
+  { name: 'inkblade_inkstep: 25 Focus, cd 8, 8 tiles; steps behind the target, interrupts it, cuts up to 4 foes within 2 tiles of it (0.6 W + 2 + L), Smudged -20% damage 10 s, a mark, next Nick +1 mark', fn() {
+    const { world, pid, p, m } = setup('inkblade', 6, 'dummy_6', 16, 15);
+    const m2 = addMob(world, 'dummy_6', 17, 15), far = addMob(world, 'dummy_6', 21, 15);
     const before = p.x;
-    castNow(world, pid, 'inkblade_inkstep', m.id);
+    const ev = castNow(world, pid, 'inkblade_inkstep', m.id);
     assert(before < m.x && p.x > m.x, 'now on the far side of the target');
-    assert(p.auras.find((x) => x.id === 'inkblade_fade'), 'still in Fade');
+    const hits = dmgOf(ev, 'inkblade_inkstep');
+    eq(hits.length, 2, 'the target and the foe beside it, not the far one');
+    for (const h of hits) assert(inRange(h.amount, W(p, 0.6), 2 + 6, h.crit), `inkstep ${h.amount}`);
+    for (const u of [m, m2]) {
+      const a = u.auras.find((x) => x.id === 'inkblade_smudged');
+      assert(a && a.until - a.startTick === 200, 'Smudged 10 s');
+    }
+    assert(!far.auras.find((x) => x.id === 'inkblade_smudged'), 'far foe untouched');
+    eq(p.combo.n, 1, 'marks the target');
+    eq(p.cd.inkblade_inkstep - world.tick, 160, 'cd 8');
     free(world, p);
     castNow(world, pid, 'inkblade_nick', m.id);
-    eq(p.combo.n, 3, 'Nick + Fade opener + Inkstep = 3 marks');
+    eq(p.combo.n, 3, 'Inkstep mark + Nick + the ready bonus = 3 marks');
+  } },
+  { name: 'inkblade_inkstep: a Smudged foe deals 20% less damage', fn() {
+    const { world, pid, p, m, C } = setup('inkblade', 6, 'brute_6', 16, 15);
+    const raw = 100;
+    const a = C.combat.dealDamage(m, p, raw, { ability: 'test', school: 'shadow', canCrit: false });
+    p.hp = p.hpMax;
+    castNow(world, pid, 'inkblade_inkstep', m.id);
+    const b = C.combat.dealDamage(m, p, raw, { ability: 'test', school: 'shadow', canCrit: false });
+    near(b.amount / a.amount, 0.8, 0.02, 'Smudged: 20% less');
+  } },
+  { name: 'warden_sweeping_blow: each foe hit bleeds 1 + 0.5 L every 2 s for 6 s (armor ignored)', fn() {
+    const { world, pid, p, m } = setup('warden', 6, 'dummy_6');
+    p.res.cur = 50;
+    p.dir = 'right';
+    const ev = [...castNow(world, pid, 'warden_sweeping_blow'), ...stepN(world, 125)];
+    const t = dmgOf(ev, 'warden_sweeping_blow', m.id).filter((e) => e.periodic);
+    eq(t.length, 3, 'three ticks');
+    for (const x of t) eq(x.amount, 1 + 0.5 * 6, 'tick size');
+  } },
+  { name: 'wayfinder_pinning_shot: the arrow bleeds 3 + 1.5 L every 2 s for 6 s', fn() {
+    const { world, pid, p, m } = setup('wayfinder', 6, 'dummy_6', 16, 15);
+    const ev = [...castNow(world, pid, 'wayfinder_pinning_shot', m.id), ...stepN(world, 140)];
+    const t = dmgOf(ev, 'wayfinder_pinning_shot', m.id).filter((e) => e.periodic);
+    eq(t.length, 3, 'three ticks');
+    for (const x of t) eq(x.amount, Math.round(3 + 1.5 * 6), 'tick size');
   } },
 ];
 

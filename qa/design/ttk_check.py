@@ -1,4 +1,6 @@
 # Expected-value time-to-kill sim for Lexicon Realms design numbers. No RNG: crit folded in as a mean.
+# Combat role pass (2026-11-19): numbers follow the new kits (Sweep from 3 with a bleed, Pinning Shot bleeds, the trap
+# burst 8 + 3 L, Aimed Shot 8 + 3.6 L). One foe only; packs are measured on the real sim by qa/sim/pack.mjs.
 import math, sys
 
 CRIT = 1 + 0.05 * 0.5   # 5% crit at x1.5
@@ -77,8 +79,8 @@ def sim(c, L, verbose=False):
     if c == 'warden':
       if ready('bash'):
         act = 'bash'; dealt += (3 + 1.5 * L + 0.25 * ap) * CRIT; res = min(100, res + 15); cds['bash'] = t + 6
-      elif L >= 10 and res >= 60 and ready('sweep'):
-        act = 'sweep'; dealt += (whit(0.7) + 2 + L) * CRIT; res -= 25; cds['sweep'] = t + 6
+      elif L >= 3 and res >= 60 and ready('sweep'):
+        act = 'sweep'; dealt += (whit(0.7) + 2 + L) * CRIT; res -= 25; cds['sweep'] = t + 6; dots.append((t + 6, (1 + 0.5 * L) / 2))
       elif res >= 20:
         act = 'strike'; dealt += (whit(1.0) + 3 + 2.6 * L) * CRIT; res -= 20
     elif c == 'mender':
@@ -99,13 +101,13 @@ def sim(c, L, verbose=False):
         cost = 8 + 1.8 * L; act = 'inkbolt'; mana -= cost; mana_used += cost; cast = [2.0, 12 + 5.4 * L + 0.8 * sp]
     elif c == 'wayfinder':
       if L >= 10 and ready('aimed') and res >= 30:
-        act = 'aimed'; res -= 30; cds['aimed'] = t + 8; cast = [2.0, whit(1.4) + 6 + 3 * L]
+        act = 'aimed'; res -= 30; cds['aimed'] = t + 8; cast = [2.0, whit(1.4) + 8 + 3.6 * L]
       elif ready('pin') and res >= 15:
-        act = 'pin'; res -= 15; dealt += (whit(0.5) + 2 + L) * CRIT; cds['pin'] = t + 8
+        act = 'pin'; res -= 15; dealt += (whit(0.5) + 2 + L) * CRIT; cds['pin'] = t + 8; dots.append((t + 6, (3 + 1.5 * L) / 2))
       elif res >= 25:
         act = 'quick'; res -= 25; dealt += (whit(0.7) + 3 + 1.5 * L) * CRIT
       if L >= 3 and ready('trap') and t < 0.1:
-        dealt += (4 + 2 * L) ; cds['trap'] = t + 15   # trap fires on the pull
+        dealt += (8 + 3 * L) ; cds['trap'] = t + 15   # trap fires on the pull
     elif c == 'inkblade':
       if L >= 10 and marks >= 3 and ready('bleed') and res >= 25:
         act = 'bleed'; res -= 25; dots.append((t + 12, (marks * (5 + 2.2 * L + 0.12 * ap)) / 12 * 1.0)); marks = 0; cds['bleed'] = t + 12

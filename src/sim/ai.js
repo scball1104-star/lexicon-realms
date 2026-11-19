@@ -133,6 +133,14 @@ export function createAi(C) {
         engage(o, p, false);
       }
     }
+    // a pack (spawn.pack, combat role pass) always pulls together: every living mate of the same camp within 6 tiles
+    if (social && m.spawn && m.spawn.pack && m.spawn.group) {
+      for (const o of state.ents) {
+        if (o === m || o.kind !== 'mob' || o.dead || o.zone !== m.zone || !o.ai || o.ai.mode === 'combat' || o.ai.mode === 'reset') continue;
+        if (!o.spawn || o.spawn.group !== m.spawn.group || !o.spawn.pack || distPx(o, m) > 96) continue;
+        engage(o, p, false);
+      }
+    }
   }
 
   function reset(m) {

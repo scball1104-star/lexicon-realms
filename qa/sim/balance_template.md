@@ -59,3 +59,117 @@ the real content with the real foes (often one level over): see docs/PLAYTEST_BO
 - The Warden runs a little fast (shield bash crits and blocks); still inside the band.
 - Not covered here: the elite (Sentinel of the Long Watch, PROGRESSION 9.3). The chime and adds are in the sim; a bot
   that kites is the next harness step (OPEN_QUESTIONS Q5).
+
+## Combat role pass (2026-11-19): packs, area, damage over time
+
+Scott asked (2026-11-19): "Spells and skills and attacks should consider DPS, AOE, etc", and chose the full role pass.
+What changed is in CLASSES.md 6.1 (kits) and PROGRESSION.md 3.3 (packs). This section measures it.
+
+### Method
+
+- `node qa/sim/pack.mjs` (60 seeded runs per cell, the real sim, design gear, no talents): each class at levels 3, 6, 10
+  and 15 against one same-level normal foe and against a 3-pack of same-level foes (PROGRESSION packs: each member 0.66
+  health and 0.5 damage, so the pack is 2 foes of health and 1.5 of damage). The packs and the one-foe fights start the
+  same way as duel.mjs (melee in reach, ranged at 8 tiles).
+- A "played well" bot per class uses the whole kit: area on the pack, damage over time on every foe it can, cooldowns,
+  its defense (Second Wind and Oath under 50%, Warding Word, Chorus, Bracket on one of three, Ink in the Eyes under 50%),
+  and simple kiting for the Scribe and Wayfinder (step back while everything near is held; the Wayfinder leaps out of a
+  sprung briar with Light Foot). The Mender never kites.
+- Bands: one foe 8 to 14 s (5 to 12 s at levels 1 to 4, the lighter foes); a 3-pack 18 to 35 s (12 to 30 s at levels 1
+  to 4, the same 22% lighter foes; an inference of this pass, not a number Scott gave). No deaths.
+- "Worst point" is the lowest health reached in the fight, as a share of max; "hp lost" is what is gone at the end.
+
+### Result
+
+<!-- PACK:START (written by node qa/sim/pack.mjs; do not hand-edit) -->
+| class | level | your hp | one foe: TTK (s) | one foe: hp lost | 3-pack: clear (s) | 3-pack: p10 to p90 | 3-pack: hp lost (worst point) | deaths (one / pack) | in band (one / pack) |
+|---|---|---|---|---|---|---|---|---|---|
+| warden | 3 | 230 | 6.8 | 9% | 13.3 | 12.1 to 14.4 | 17% (17%) | 0 / 0 | yes / yes |
+| warden | 6 | 290 | 8.4 | 15% | 16.0 | 14.4 to 16.9 | 27% (27%) | 0 / 0 | yes / NO |
+| warden | 10 | 380 | 9.6 | 20% | 18.9 | 18.1 to 19.3 | 38% (38%) | 0 / 0 | yes / yes |
+| warden | 15 | 490 | 10.8 | 25% | 19.4 | 19.2 to 20.2 | 43% (43%) | 0 / 0 | yes / yes |
+| mender | 3 | 170 | 8.0 | 0% | 22.5 | 20.4 to 22.8 | 22% (30%) | 0 / 0 | yes / yes |
+| mender | 6 | 220 | 9.8 | 3% | 25.0 | 24.6 to 26.1 | 30% (37%) | 0 / 0 | yes / yes |
+| mender | 10 | 290 | 11.4 | 0% | 27.8 | 27.8 to 28.0 | 0% (22%) | 0 / 0 | yes / yes |
+| mender | 15 | 370 | 13.3 | 1% | 28.0 | 28.0 to 28.0 | 0% (25%) | 0 / 0 | yes / yes |
+| scribe | 3 | 150 | 10.2 | 25% | 20.1 | 20.1 to 20.1 | 53% (53%) | 0 / 0 | yes / yes |
+| scribe | 6 | 200 | 9.7 | 26% | 20.4 | 19.6 to 20.6 | 56% (56%) | 0 / 0 | yes / yes |
+| scribe | 10 | 270 | 10.8 | 32% | 20.5 | 18.4 to 21.8 | 74% (74%) | 0 / 0 | yes / yes |
+| scribe | 15 | 340 | 11.3 | 37% | 26.0 | 25.7 to 26.2 | 68% (68%) | 0 / 0 | yes / yes |
+| wayfinder | 3 | 170 | 6.6 | 4% | 19.2 | 18.0 to 20.6 | 17% (17%) | 0 / 0 | yes / yes |
+| wayfinder | 6 | 220 | 9.6 | 8% | 24.8 | 23.8 to 25.8 | 29% (29%) | 0 / 0 | yes / yes |
+| wayfinder | 10 | 290 | 13.2 | 22% | 28.9 | 29.0 to 29.0 | 53% (53%) | 0 / 0 | yes / yes |
+| wayfinder | 15 | 380 | 13.6 | 26% | 30.4 | 29.0 to 32.0 | 75% (75%) | 0 / 0 | yes / yes |
+| inkblade | 3 | 170 | 6.3 | 4% | 18.1 | 17.6 to 19.3 | 8% (17%) | 0 / 0 | yes / yes |
+| inkblade | 6 | 220 | 9.3 | 0% | 22.3 | 20.8 to 23.0 | 21% (32%) | 0 / 0 | yes / yes |
+| inkblade | 10 | 290 | 10.4 | 7% | 24.6 | 24.0 to 25.5 | 7% (32%) | 0 / 0 | yes / yes |
+| inkblade | 15 | 380 | 11.7 | 15% | 28.7 | 25.5 to 30.0 | 41% (54%) | 0 / 0 | yes / yes |
+
+| class | one foe: mean hp lost | 3-pack: mean worst point | vs Warden (one / pack) |
+|---|---|---|---|
+| warden | 17% | 31% | 1.00x / 1.00x |
+| mender | 1% | 29% | 0.07x / 0.92x |
+| scribe | 30% | 63% | 1.75x / 2.02x |
+| wayfinder | 15% | 44% | 0.88x / 1.40x |
+| inkblade | 7% | 34% | 0.39x / 1.08x |
+
+60 seeded runs per cell. One foe in band: 20 of 20. 3-pack in band (18 to 35 s; 12 to 30 s at levels 1 to 4; no deaths): 19 of 20.
+<!-- PACK:END -->
+
+### Before and after (same harness, same bots, same pack stats; the old kit restored for the "before" run)
+
+| class | one foe hp lost vs Warden, before -> after | 3-pack worst point vs Warden, before -> after | 3-pack clear at 6 / 10 / 15 s, before -> after |
+|---|---|---|---|
+| warden | 1.00x -> 1.00x | 1.00x -> 1.00x | 17.8 / 20.1 / 21.8 -> 16.0 / 18.9 / 19.4 |
+| mender | 0.02x -> 0.07x | 0.71x -> 0.92x | 25.3 / 27.4 / 28.0 -> 25.0 / 27.8 / 28.0 |
+| scribe | 1.83x -> 1.75x | 2.25x -> 2.02x | 20.5 / 24.3 / 29.4 -> 20.4 / 20.5 / 26.0 |
+| wayfinder | 1.79x -> 0.88x | 2.25x -> 1.40x | 34.3 / 35.8 (22 of 60 died) / 24.4 (60 of 60 died) -> 24.8 / 28.9 / 30.4 |
+| inkblade | 1.27x -> 0.39x | 1.63x -> 1.08x | 24.0 / 30.1 / 32.3 -> 22.3 / 24.6 / 28.7 |
+
+In the field (`node qa/bot/questbot.mjs`, seeds 1 to 3, level 1 to 10, the real content; "before" is the old kit with
+no pack tags, "after" is this pass):
+
+| class | deaths per run, before -> after | deaths per sim hour, before -> after | min to 10, before -> after |
+|---|---|---|---|
+| warden | 7.0 -> 5.3 | 10.3 -> 8.1 | 40.8 -> 39.4 |
+| mender | 1.0 -> 0.3 | 1.5 -> 0.5 | 40.3 -> 37.6 |
+| scribe | 10.3 -> 6.0 | 13.7 -> 7.9 | 45.4 -> 45.3 |
+| wayfinder | 19.3 -> 6.0 | 21.3 -> 7.8 | 54.4 -> 46.3 |
+| inkblade | 18.0 -> 6.7 | 23.0 -> 9.7 | 46.9 -> 41.4 |
+
+The Wayfinder and Inkblade died about 2.1x and 2.2x as often as the Warden per sim hour; now about 1.0x and 1.2x.
+
+### Data changes in this pass
+
+| where | was | now | why |
+|---|---|---|---|
+| `warden_sweeping_blow` | learned at 10, damage only | learned at 3; each foe hit bleeds `1 + 0.5 L` every 2 s for 6 s | the Warden's area answer arrives with the first wolf pairs; its over time source |
+| `warden_taunt` | learned at 3 | learned at 10 | a slot for Sweep; before 10, Sweep's double threat holds a pack |
+| `mender_chorus` / `mender_warding_word` / `mender_steady_name` | 14 / 6 / 10 | 6 / 10 / 14 | the Mender's only area spell came at 14 |
+| `scribe_full_stop` | `3 + L + 0.15 SP`, cooldown 20 | `6 + 2.4 L + 0.4 SP`, cooldown 15 | the Scribe's first area hit should hurt; more holds for the glass cannon |
+| `wayfinder_pinning_shot` | damage and a slow | the arrow also bleeds `3 + 1.5 L` every 2 s for 6 s | the Wayfinder's over time source |
+| `wayfinder_briar_trap` | the first foe: `4 + 2 L`, root 6 s (breaks at 20%) | bursts on that foe and every foe within 2 tiles (max 4): `8 + 3 L`, root 6 s that holds | the Wayfinder's area option at 3, and a sure window to leap out and shoot |
+| `wayfinder_aimed_shot` | `1.4 W + 6 + 3 L` | `1.4 W + 8 + 3.6 L` | kiting costs Auto Shots; keeps one-foe kills inside 14 s at 15 |
+| `inkblade_inkstep` (the one swapped ability) | 14, 15 Focus, cooldown 20, off the GCD: step behind, +1 mark on the next Nick | 6, 25 Focus, cooldown 8, on the GCD: step behind, interrupt, cut up to 4 foes within 2 tiles for `0.6 W + 2 + L`, Smudged (20% less damage) 10 s, +1 mark | the Inkblade had no area option at all; the Smudge and the interrupt are its answer to casters and packs |
+| `inkblade_ink_in_the_eyes` | learned at 6 | learned at 14 | a slot for Inkstep |
+| `inkblade_spill` | heals 5% of max health per mark | 7% per mark | the Inkblade still died most in the questbot |
+| PROGRESSION `packs` (new) | none | pair: 0.85 health, 0.75 damage, 0.85 XP each; trio: 0.66 / 0.5 / 0.65 | packs are 1.7 to 2 foes of health; members pull together (src/sim/ai.js) |
+| src/data/packs.js (new) | none | 22 camps tagged (Pilgrim Road and Whisperwood pairs, the Dark Fold threes, the moor wolf pairs and threes) | these camps already stood in tight pairs and threes and pulled together at full strength |
+
+Talents changed to match: Blank Margin (Full Stop cooldown 10 s, was 15), Slip (Inkstep -1 / -2 / -3 s, was -2 / -4 / -6),
+Semicolon (keeps the new Full Stop damage). TALENTS.md notes both.
+
+### Notes
+
+- The Warden clears a 3-pack at level 6 in 16 s, under the 18 s floor. That follows from its one-foe time (8.4 s): a
+  2-foe-health pack cannot take 18 s even with no area at all (it took 17.8 s before Sweep moved to 3). Left as is.
+- The Wayfinder at 15 still ends a pack fight at a quarter health (worst point 75%): it lives on the trap and Light Foot
+  windows. The Scribe is the glass cannon by design (2x the Warden's pack damage taken), but no longer dies at 10 or 15.
+- The questbot does not kite, Fade or rest-pull; the pack harness does a simple version of each. Field deaths are the
+  upper bound for a careful player.
+- Levels 10 to 15 in the field (one run per class, seed 1, `--stop 15 --cap 400`, the first run past 10 for any bot):
+  Mender 15 at 76 min with no deaths, Warden 15 at 103 min (27 deaths past 10), Wayfinder 15 at 209 min (93), Inkblade 15
+  at 172 min (157), Scribe stopped at 12 (400 min cap, stuck grinding beside the Watch Tower). Most deaths past 10 are
+  the elite Sentinel of the Long Watch (the bot has no strategy for it, OPEN_QUESTIONS Q5) and bots grinding next to its
+  tower; the rest are page wraiths at 11 to 13. Not tuned in this pass: the elite fight and the bot's play past 10 are
+  the next step.

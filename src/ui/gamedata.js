@@ -175,7 +175,9 @@ export function liveAbilityText(id, s) {
   const a = CONTENT_AB[id];
   if (!a || !a.text || !/[{}]/.test(a.text)) return null;
   const fxs = a.effects || [];
-  const find = (type) => fxs.find((f) => f.type === type && !f.aura);
+  const nested = [];
+  for (const f of fxs) if (f.object) nested.push(...(f.object.effects || []), ...(f.object.pulse || []));   // a trap's burst, a zone's pulse
+  const find = (type) => fxs.find((f) => f.type === type && !f.aura) || nested.find((f) => f.type === type && !f.aura);
   const auraTick = (type) => {
     for (const f of fxs) {
       const au = f.aura;
@@ -196,25 +198,145 @@ export function liveAbilityText(id, s) {
   return ok || !/some/.test(text) ? text : text;
 }
 
+// ---------------------------------------------------------------- ability numbers (combat role pass, 2026-11-19)
+// Plain-word lines a tooltip shows under the cost line: damage or healing per hit at your level and stats, damage per
+// second for channels, damage over time and placed zones, area size in tiles, how many foes, the per-mark scaling.
+// Every number mirrors src/sim/combat.js rawAmount (expected value: no crit, no armor, no level gap).
+
+const fmtN = (n) => (Math.abs(n) >= 10 ? String(Math.round(n)) : String(Math.round(n * 10) / 10));
+const fmtR = (r) => (r[0] === r[1] ? fmtN(r[0]) : `${fmtN(r[0])} to ${fmtN(r[1])}`);
+const mid = (r) => (r[0] + r[1]) / 2;
+const tiles = (px) => { const t = px / 16; return `${Number.isInteger(t) ? t : Math.round(t * 10) / 10} tile${t === 1 ? '' : 's'}`; };
+const foes = (n) => (n ? `up to ${n} foe${n === 1 ? '' : 's'}` : 'every foe');
+
+/** The content ability (src/data/abilities.js) for a display record or an id. */
+function contentAbility(a) {
+  if (!a) return null;
+  if (typeof a === 'string') return CONTENT_AB[a] || null;
+  if (a.effects) return a;
+  const id = a.id || Object.keys(CONTENT_AB).find((k) => CONTENT_AB[k].name === a.name);
+  return (id && CONTENT_AB[id]) || null;
+}
+
+/** One effect list's numbers. where: how the hits land ('each foe in the area' etc). */
+function effectLines(fxs, s, out, where = '') {
+  for (const fx of fxs || []) {
+    if (!fx) continue;
+    const perMark = fx.scaleCombo ? ' per Ink Mark' : '';
+    const to = fx.to === 'enemies' || fx.to === 'enemies_near_holder' ? where || ' to each foe' : '';
+    if (fx.type === 'damage') {
+      const r = effectRange(fx, s);
+      if (r) out.push(`Damage: ${fmtR(r)}${perMark}${to}`);
+    } else if (fx.type === 'move' && fx.kind === 'leap' && fx.distance) {
+      out.push(`Leap: ${tiles(fx.distance)}${fx.dir === 'back' ? ' back' : ''}`);
+    } else if (fx.type === 'interrupt') {
+      out.push(`Interrupts a cast: that spell is locked for ${fx.lockout || 3} sec`);
+    } else if (fx.type === 'heal' && !fx.pctOfDamage) {
+      const r = effectRange(fx, s);
+      if (r) out.push(`Healing: ${fmtR(r)}${perMark}${fx.pctMaxHp ? ` (${Math.round(fx.pctMaxHp * 100)}% of max health)` : ''}`);
+    } else if (fx.type === 'aura' && fx.aura) {
+      const au = fx.aura;
+      if (au.absorb) { const r = effectRange(au.absorb, s); if (r) out.push(`Absorbs: ${fmtR(r)} damage for ${au.duration} sec`); }
+      if (au.tick && au.period) {
+        const n = Math.max(1, Math.round((au.duration || 0) / au.period));
+        for (const t of au.tick) {
+          if (t.type === 'heal' && au.kind === 'debuff' && t.pctMaxHp) { out.push(`The held foe heals ${Math.round(t.pctMaxHp * 100)}% of its health every ${au.period === 1 ? 'second' : `${au.period} sec`}`); continue; }
+          const r = effectRange(t, s);
+          if (!r) continue;
+          const total = [r[0] * n, r[1] * n], kind = t.type === 'heal' ? 'Healing' : 'Damage';
+          const markNote = au.scaleCombo ? ' per Ink Mark' : '';
+          out.push(`${kind} over time: ${fmtR(total)}${markNote} over ${au.duration} sec (${fmtN(mid(total) / au.duration)} per sec)${fx.to === 'enemies' ? ' on each foe' : ''}`);
+        }
+      }
+      for (const m of au.mods || []) {
+        if (m.stat === 'damageDone' && m.mul < 1) out.push(`Weakens: ${Math.round((1 - m.mul) * 100)}% less damage dealt for ${au.duration} sec`);
+        if (m.stat === 'damageTaken' && m.mul < 1) out.push(`Defense: ${Math.round((1 - m.mul) * 100)}% less damage taken for ${au.duration} sec`);
+        if (m.stat === 'slow') out.push(`Slow: ${Math.round(m.add * 100)}% for ${au.duration} sec`);
+      }
+      const fl = au.flags || [];
+      if (fl.includes('root')) out.push(`Root: ${au.duration} sec${au.noRootBreak ? ', does not break' : ', breaks after heavy damage'}`);
+      if (fl.includes('stun')) out.push(`Stun: ${au.duration} sec`);
+      if (fl.includes('incap')) out.push(`Holds: ${au.duration} sec${au.breakOn && au.breakOn.includes('damage') ? ', breaks on damage' : ''}`);
+    } else if (fx.type === 'summon' && fx.object) {
+      const o = fx.object;
+      if (o.trigger) {
+        const burst = (o.effects || []).find((e) => e.to === 'enemies_near_holder');
+        out.push(`Trap: springs when a foe comes within ${tiles(o.trigger.radius)}; arms in ${o.armTime || 0} sec, lasts ${o.duration} sec`);
+        if (burst) out.push(`Area: ${tiles(burst.radius || 48)} around the foe that springs it, ${foes(burst.maxTargets || 0)}`);
+        effectLines(o.effects, s, out, burst ? ' to each foe' : '');
+      }
+      if (o.pulse && o.period) {
+        const n = Math.max(1, Math.round(o.duration / o.period));
+        out.push(`Area: ${tiles(o.radius)} around the spot, ${foes(o.maxTargets || 0)}, for ${o.duration} sec`);
+        for (const p of o.pulse) {
+          const r = effectRange(p, s);
+          if (r && p.type === 'damage') out.push(`Damage: ${fmtR(r)} every ${o.period} sec, ${n} times (${fmtN(mid(r) / o.period)} per sec on each foe)`);
+        }
+      }
+    }
+  }
+}
+
+/** Plain lines with an ability's numbers at stats s (liveStats, or { level } when none). */
+export function abilityNumbers(a, s) {
+  const ab = contentAbility(a);
+  if (!ab) return [];
+  const out = [];
+  if (ab.area) {
+    const ar = ab.area;
+    const shape = ar.shape === 'cone' ? `in front of you (${tiles(ar.radius)})` : ar.at === 'self' ? `${tiles(ar.radius)} around you`
+      : ar.at === 'target' ? `${tiles(ar.radius)} around the target` : `${tiles(ar.radius)} around the spot`;
+    out.push(`Area: ${shape}, ${foes(ar.maxTargets || 0)}`);
+  }
+  if (ab.channel) {
+    const fx = (ab.effects || []).find((e) => e.type === 'damage');
+    const r = fx && effectRange(fx, s);
+    if (r) {
+      const n = ab.channel.ticks;
+      out.push(`Damage: ${fmtR(r)} per wave to each foe, ${n} waves over ${ab.channel.duration} sec (${fmtN((mid(r) * n) / ab.channel.duration)} per sec on each foe)`);
+    }
+    effectLines((ab.effects || []).filter((e) => e.type !== 'damage'), s, out);
+  } else {
+    effectLines(ab.effects, s, out, ab.area ? ' to each foe' : '');
+  }
+  return out;
+}
+
+/** The auto-attack's tooltip: weapon damage per swing and per second (Wayfinder: only while standing still). */
+export function autoTooltip(live, cls) {
+  const w = live && live.weapon;
+  if (!w) return { title: 'Attack', sub: 'Auto-attack your target (the nearest foe if none)' };
+  const ap = (w.speed * (live.ap || 0)) / 14;
+  const r = [Math.max(0, Math.floor(w.min + ap)), Math.max(1, Math.ceil(w.max + ap))];
+  const lines = [`Damage: ${fmtR(r)} every ${w.speed} sec (${fmtN(mid(r) / w.speed)} per sec)`];
+  if (cls === 'inkblade') lines.push('Your off hand swings too, for half.');
+  return { title: 'Attack', sub: cls === 'wayfinder' ? 'Auto Shot: fires only while you stand still' : 'Auto-attack your target (the nearest foe if none)', lines };
+}
+
 /** Tooltip lines for an ability at level L. live: liveStats(model) for plain numbers instead of formulas (item 15). */
 export function abilityTooltip(a, L, resourceKind, live = null) {
   if (!a) return null;
-  const cost = abilityCost(a, L, resourceKind);
-  const cast = String(a.cast ?? a.castTime ?? 'instant');
-  const cd = seconds(a.cooldown);
-  const rng = String(a.range || '');
   const s = live || { level: L, ap: 0, sp: 0, hpMax: 0, weapon: null };
   const abId = a.id || Object.keys(CONTENT_AB).find((k) => CONTENT_AB[k].name === a.name);
-  const cc = abId && CONTENT_AB[abId] && CONTENT_AB[abId].cost;
+  const ca = abId ? CONTENT_AB[abId] : null;
+  const cost = abilityCost(ca && 'cost' in ca ? ca : a, L, resourceKind);
+  if (ca && !ca.cost) { const g = (ca.effects || []).find((e) => e.type === 'resource' && (e.to === 'self' || !e.to)); if (g) cost.gives = g.amount; }
+  // the content ability wins over the design text for cast, cooldown and range (the design table can lag the data)
+  const cast = ca ? (ca.channel ? `channel ${ca.channel.duration}` : ca.castTime ? String(ca.castTime) : 'instant') : String(a.cast ?? a.castTime ?? 'instant');
+  const cd = ca ? ca.cooldown || 0 : seconds(a.cooldown);
+  const rng = String(a.range || '');
+  const cc = ca && ca.cost;
   const costKind = (cc && (Array.isArray(cc) ? cc[0].kind : cc.kind)) || cost.kind;
-  const plain = liveAbilityText(abId, { ...s, level: Math.max(s.level || 1, L) });
+  const sL = { ...s, level: Math.max(s.level || 1, L) };
+  const plain = liveAbilityText(abId, sL);
   const text = plain || String(a.text || '').replace(/([\w.]+(?:[+*][\w.]+)+)/g, (f) => foldFormula(f, L)).replace(/\s*x\s*(weapon|AP|SP)/g, '');
   return {
     title: a.name,
     right: a.learnLevel > L ? `Learn at ${a.learnLevel}` : '',
     sub: [cost.amount ? `${cost.amount} ${resourceWord(costKind)}` : (cost.gives ? `Gives ${cost.gives} ${resourceWord(costKind)}` : 'No cost'),
       /^\d/.test(cast) ? `${seconds(cast)} sec cast` : cast.startsWith('channel') ? `Channel ${seconds(cast)} sec` : 'Instant',
-      cd ? `${cd} sec cooldown` : null, rangeLabel(a, rng)].filter(Boolean).join('  '),
+      cd ? `${cd} sec cooldown` : null, rangeLabel(ca || a, rng)].filter(Boolean).join('  '),
+    lines: ca ? abilityNumbers(ca, sL) : [],
     body: text.charAt(0).toUpperCase() + text.slice(1),
   };
 }

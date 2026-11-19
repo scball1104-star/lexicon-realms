@@ -72,14 +72,14 @@ export const tests = [
     const ev = w.step();
     const it = ofType(ev, 'interact')[0];
     assert(it && it.trainer && it.trainer.cls === 'warden', 'trainer window');
-    eq(it.trainer.offer.find((o) => o.ability === 'warden_taunt').cost, 5, 'taunt costs 5');
-    w.enqueue(pid, { t: 'train', npc: npc.id, ability: 'warden_taunt' });
+    eq(it.trainer.offer.find((o) => o.ability === 'warden_sweeping_blow').cost, 5, 'Sweeping Blow (level 3 since the combat role pass) costs 5');
+    w.enqueue(pid, { t: 'train', npc: npc.id, ability: 'warden_sweeping_blow' });
     eq(ofType(w.step(), 'train_fail')[0].reason, 'level', 'level 3 needed');
     w.grantXp(pid, 780);
     eq(p.level, 3);
-    w.enqueue(pid, { t: 'train', npc: npc.id, ability: 'warden_taunt' });
+    w.enqueue(pid, { t: 'train', npc: npc.id, ability: 'warden_sweeping_blow' });
     assert(ofType(w.step(), 'train').length, 'learned');
-    eq(p.gold, 15, 'paid 5'); assert(p.known.includes('warden_taunt') && p.bar.includes('warden_taunt'), 'known and on the bar');
+    eq(p.gold, 15, 'paid 5'); assert(p.known.includes('warden_sweeping_blow') && p.bar.includes('warden_sweeping_blow'), 'known and on the bar');
     at(p, 30, 15);
     w.setLevel(pid, 6);
     w.enqueue(pid, { t: 'train', npc: npc.id, ability: 'warden_second_wind' });

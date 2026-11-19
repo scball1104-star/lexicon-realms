@@ -257,11 +257,11 @@ play('scribe_quill_footnote', 'a dead Inkbolt target passes a Footnote (50% Inkb
   C.combat.kill(m, p);
   assert(o.hp < before, 'the footnote jumped');
 });
-play('scribe_margin_blank_margin', 'Full Stop shields 15% max health for 8 s; 15 s cooldown', () => {
+play('scribe_margin_blank_margin', 'Full Stop shields 15% max health for 8 s; 10 s cooldown (15 untalented)', () => {
   const { w, pid, p } = S('scribe', { scribe_margin_blank_margin: 1 });
   cast(w, pid, 'scribe_full_stop');
   const a = p.auras.find((x) => x.id === 'scribe_blank_margin');
-  eq(a.absorb, Math.round(0.15 * p.hpMax)); eq(p.cd.scribe_full_stop - w.tick, 300, '15 s');
+  eq(a.absorb, Math.round(0.15 * p.hpMax)); eq(p.cd.scribe_full_stop - w.tick, 200, '10 s');
 });
 play('scribe_margin_comma', 'Scrawl stops the foe 1 s, then slows 50% for 3 s', () => {
   const { w, pid, p, m } = S('scribe', { scribe_margin_comma: 1 }, { mx: 15 });
