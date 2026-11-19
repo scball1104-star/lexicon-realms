@@ -1,19 +1,30 @@
-// 2D renderer. Draws a sim snapshot; owns the camera, zoom, interpolation and (later) lighting and particles.
-// The interface below is the whole contract (docs/CONTRACTS.md section 9) so a 3D renderer can replace this file.
+// 2D renderer. Draws a sim snapshot; owns the camera, zoom, interpolation, lighting, day/night, weather, particles and
+// spell effects. The interface below is the whole contract (docs/CONTRACTS.md section 9) so a 3D renderer can replace
+// this file.
 //
 //   const r = createRenderer(canvas, assets, { zones })
-//   r.draw(prevSnap, snap, alpha, view)    view: { zone, followId, zoom (1|1.5|2), targetId, time (s) }
+//   r.draw(prevSnap, snap, alpha, view)    view: { zone, followId, zoom (1|1.5|2), targetId, time (s),
+//                                                  fx?: 'low'|'high' (default 'high'), tod?: 0..1 (clock override),
+//                                                  weather?: 'clear'|'rain'|'leaves'|'pollen' | { rain, leaves, pollen } }
+//   r.feed(events)                         this tick's sim events (spell effects, combat numbers, level-up)
 //   r.drawHud(fn)                          fn(ctx, layout): draw the HUD on a 640x360 layer, composited at the base scale
 //   r.pick(devX, devY)                     entity id under a device-pixel point (last drawn frame), or null
 //   r.layout                               { base, ws, ox, oy, viewW, viewH, ... } of the last frame
 //   r.worldToHud(wx, wy)                   world px -> 640x360 HUD px (nameplates, floating text)
+//   r.dev                                  { clock: null | seconds (freeze the effect clock), stats } for drivers
 //
-// Pixel integrity: every world draw lands on whole world pixels; the world buffer is blitted at an integer scale.
+// Frame order (world buffer, whole world pixels): ground -> drop shadows (leaning with the sun) -> y-sorted props and
+// actors -> overhead -> cloud shadows -> light pass (desaturate, light map multiply, additive halos) -> lit windows,
+// emissive pixels, spell effects, weather -> haze, vignette -> zone fade. Then the buffer is blitted at an integer
+// scale and floating numbers go on a 640x360 overlay at the base scale (crisp at every zoom).
 import { bakeZone } from './tilemap.js';
 import { cameraFor, layoutFor } from './camera.js';
 import { createSpriteBook, pixelEllipse } from './sprites.js';
-
-const SHADOW = 'rgba(20,16,30,0.45)';
+import { dayFraction, skyAt } from './daycycle.js';
+import { createLighting, LIGHT_RGB } from './lighting.js';
+import { createAtmos } from './atmos.js';
+import { createFx } from './fx.js';
+import { BitmapFont } from '../core/font.js';
 
 function canvas2d(w, h) {
   const c = document.createElement('canvas');
@@ -23,27 +34,88 @@ function canvas2d(w, h) {
   return [c, g];
 }
 
+/** Lazy loader for sheets not (yet) in the core asset manifest: returns null until loaded. */
+function createLazy(base = 'assets/') {
+  const imgs = new Map(), jsons = new Map(), pending = new Set();
+  const failed = new Set();
+  return {
+    img(p) {
+      if (imgs.has(p)) return imgs.get(p);
+      if (!pending.has(p) && !failed.has(p)) {
+        pending.add(p);
+        const im = new Image();
+        im.onload = () => { imgs.set(p, im); pending.delete(p); };
+        im.onerror = () => { failed.add(p); pending.delete(p); };
+        im.src = base + p;
+      }
+      return null;
+    },
+    json(p) {
+      if (jsons.has(p)) return jsons.get(p);
+      if (!pending.has(p) && !failed.has(p)) {
+        pending.add(p);
+        fetch(base + p).then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status)))).then((j) => { jsons.set(p, j); pending.delete(p); })
+          .catch(() => { failed.add(p); pending.delete(p); });
+      }
+      return null;
+    },
+    get pending() { return pending.size; },
+  };
+}
+
+export function normalizeWeather(w, zone) {
+  if (w == null) w = zone && zone.weather;
+  if (!w || w === 'clear') return { rain: 0, leaves: false, pollen: false };
+  if (typeof w === 'string') return { rain: w === 'rain' ? 1 : 0, leaves: w === 'leaves', pollen: w === 'pollen' };
+  return { rain: +w.rain || 0, leaves: !!w.leaves, pollen: !!w.pollen };
+}
+
 export function createRenderer(canvas, assets, { zones }) {
   const ctx = canvas.getContext('2d');
   const tiles = assets.json('tiles');
   const propsDb = (assets.json('props').objects) || {};
   const img = (n) => assets.img(n);
-  const book = createSpriteBook(assets);
+  const lazy = createLazy();
+  const book = createSpriteBook(assets, lazy);
   const baked = new Map();
   const bake = (id) => { if (!baked.has(id)) baked.set(id, bakeZone(zones[id], { tiles, propsDb, img })); return baked.get(id); };
+  const sheetOf = (name) => img(String(name).replace(/\.[^.]+$/, ''));
 
+  // shadows: pixel ellipses cached per (width, strength step)
   const shadows = new Map();
-  const shadowFor = (w) => { const k = Math.max(8, Math.min(22, w)); if (!shadows.has(k)) shadows.set(k, pixelEllipse(k, Math.max(4, Math.round(k / 3)), SHADOW)); return shadows.get(k); };
+  const shadowFor = (w, a) => {
+    const k = Math.max(8, Math.min(26, w)), s = Math.round(a * 20);
+    const key = `${k}|${s}`;
+    if (!shadows.has(key)) shadows.set(key, pixelEllipse(k, Math.max(4, Math.round(k / 3)), `rgba(20,16,30,${(s / 20).toFixed(2)})`));
+    return shadows.get(key);
+  };
   const rings = {
     hostile: pixelEllipse(20, 8, '#e0503a', true), friendly: pixelEllipse(20, 8, '#f9d77a', true), player: pixelEllipse(20, 8, '#8fe07a', true),
   };
 
+  const lighting = createLighting();
+  const atmos = createAtmos();
+  let numFont = null, bigFont = null;
+  const fontFrom = (j, im) => (j && im ? new BitmapFont(j, im, { id: 'num' }) : null);
+  const fx = createFx({
+    sheet: () => { const j = lazy.json('fx/fx.json'), im = lazy.img('fx/fx.png'); return j && im ? { json: j, img: im } : null; },
+    numFont: () => numFont || (numFont = fontFrom(assets.has('font_num') ? assets.json('font_num') : lazy.json('ui/font_num.json'), assets.has('font_num') ? assets.img('font_num') : lazy.img('ui/font_num.png'))),
+    bigFont: () => bigFont || (bigFont = fontFrom(lazy.json('ui/font_num_big.json'), assets.has('font_num') ? assets.img('font_num') : lazy.img('ui/font_num.png'))),
+  });
+  // warm the lazy sheets now so the first effect does not miss them
+  lazy.json('fx/fx.json'); lazy.img('fx/fx.png'); lazy.json('ui/font_num.json'); lazy.img('ui/font_num.png'); lazy.json('ui/font_num_big.json');
+  for (const c of ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade']) { lazy.json(`sprites/chars/${c}.json`); lazy.img(`sprites/chars/${c}.png`); lazy.img(`sprites/chars/${c}_emissive.png`); }
+
   let world = null, wctx = null;             // world buffer (viewW x viewH)
   const [hud, hctx] = canvas2d(640, 360);
+  const [over, octx] = canvas2d(640, 360);   // floating numbers
   let layout = layoutFor(canvas.width, canvas.height, 1);
   let cam = { x: 0, y: 0 };
   let picks = [];                            // [{ id, x, y, w, h }] world px, draw order
   let fade = { zone: null, t0: -1 };
+  let lastNow = null;
+  let anchors = new Map();                   // id -> { x, y, h, hand } of the last frame
+  const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null };
 
   function ensureWorldBuffer() {
     if (!world || world.width !== layout.viewW || world.height !== layout.viewH) [world, wctx] = canvas2d(layout.viewW, layout.viewH);
@@ -56,50 +128,89 @@ export function createRenderer(canvas, assets, { zones }) {
   }
 
   function draw(prevSnap, snap, alpha, view) {
+    const tStart = performance.now();
     layout = layoutFor(canvas.width, canvas.height, view.zoom || 1);
     ensureWorldBuffer();
     const zoneId = view.zone;
+    const zone = zones[zoneId];
     const map = bake(zoneId);
+    const W = layout.viewW, H = layout.viewH;
+    const t = view.time || 0;
+    const now = dev.clock != null ? dev.clock : t;
+    const dt = lastNow == null ? 0 : now - lastNow;
+    lastNow = now;
+    const fxLevel = view.fx === 'low' ? 'low' : 'high';
+    const weather = normalizeWeather(view.weather, zone);
+    if (view.followId != null) fx.setPlayer(view.followId);
+
+    // the clock and the sky (rain darkens and drains it a little, and hides the cloud shadows: it is overcast)
+    const sky = skyAt(dayFraction(snap, view));
+    const rainK = Math.max(weather.rain, atmos.rain);
+    if (rainK > 0) {
+      sky.amb = sky.amb.map((v, i) => v * (1 - 0.2 * rainK) * (i === 2 ? 1.04 : 1));
+      sky.desat = Math.min(0.6, sky.desat + 0.18 * rainK);
+      sky.lum = 0.299 * sky.amb[0] + 0.587 * sky.amb[1] + 0.114 * sky.amb[2];
+      sky.lamps = Math.max(sky.lamps, Math.min(1, (0.93 - sky.lum) / 0.45));
+      sky.clouds *= 1 - rainK;
+    }
+    if (zone && zone.lighting && zone.lighting.dark) {            // interiors and dungeons (map data)
+      const d = zone.lighting.dark;
+      sky.amb = sky.amb.map((v) => v * (1 - d)); sky.lum *= 1 - d; sky.lamps = Math.max(sky.lamps, d); sky.clouds = 0;
+    }
+    dev.sky = sky;
+
     const prevById = new Map((prevSnap ? prevSnap.entities : []).map((e) => [e.id, e]));
-    const ents = snap.entities.filter((e) => e.zone === zoneId && !e.dead);
+    const ents = snap.entities.filter((e) => e.zone === zoneId && (!e.dead || e.kind === 'player'));
     const pos = new Map(ents.map((e) => [e.id, lerpEntity(prevById, e, alpha)]));
 
     const focus = pos.get(view.followId);
-    if (focus) cam = cameraFor(Math.round(focus[0]), Math.round(focus[1]) - 12, map.pixelW, map.pixelH, layout.viewW, layout.viewH);
+    if (focus) cam = cameraFor(Math.round(focus[0]), Math.round(focus[1]) - 12, map.pixelW, map.pixelH, W, H);
 
-    const g = wctx, t = view.time || 0;
+    const g = wctx;
+    g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
     g.fillStyle = '#0b0a12';
-    g.fillRect(0, 0, layout.viewW, layout.viewH);
+    g.fillRect(0, 0, W, H);
     // ground
     const L = map.ground[map.phaseAt(t)];
     const sx = Math.max(0, cam.x), sy = Math.max(0, cam.y);
-    const sw = Math.min(L.width - sx, layout.viewW), sh = Math.min(L.height - sy, layout.viewH);
+    const sw = Math.min(L.width - sx, W), sh = Math.min(L.height - sy, H);
     if (sw > 0 && sh > 0) g.drawImage(L, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
 
     // y-sorted: props and entities
     const list = [];
+    const lights = [];
     for (const p of map.props) {
-      if (p.dx + p.w < cam.x - 8 || p.dx > cam.x + layout.viewW + 8 || p.dy + p.h < cam.y - 8 || p.dy > cam.y + layout.viewH + 8) continue;
+      if (p.light) lights.push({ x: p.light.x, y: p.light.y, r: p.light.r, rgb: LIGHT_RGB.lamp, k: 1, lamp: true, flicker: true, glow: 0.24 });
+      if (p.t === 'well') lights.push({ x: p.dx + 16, y: p.dy + 30, r: 40, rgb: LIGHT_RGB.well, k: 0.75, lamp: true, glow: 0.12, well: true });
+      if (p.dx + p.w < cam.x - 8 || p.dx > cam.x + W + 8 || p.dy + p.h < cam.y - 8 || p.dy > cam.y + H + 8) continue;
       list.push({ sortY: p.sortY, prop: p });
     }
+    const newAnchors = new Map();
     for (const e of ents) {
       const [x, y] = pos.get(e.id);
-      list.push({ sortY: Math.round(y), ent: e, x: Math.round(x), y: Math.round(y) });
+      const it = { sortY: Math.round(y), ent: e, x: Math.round(x), y: Math.round(y) };
+      it.f = book.frameFor(e, t, fx.state(e.id, now));
+      newAnchors.set(e.id, { x: it.x, y: it.y, h: it.f ? Math.min(40, it.f.oy) : 20, hand: it.f && it.f.hand ? [it.f.hand[0] - it.f.ox, it.f.oy - it.f.hand[1]] : null });
+      list.push(it);
     }
+    anchors = newAnchors;
     list.sort((a, b) => a.sortY - b.sortY || (a.ent ? a.ent.id : -1) - (b.ent ? b.ent.id : -1));
 
-    // shadows and the target ring go under every sprite
+    // shadows (lean with the sun, fainter at night) and the target ring go under every sprite
+    const lean = sky.sun.lean;
     for (const it of list) {
       if (!it.ent) continue;
-      const f = book.frameFor(it.ent, t);
-      const sh = shadowFor(f ? Math.round(f.w * 0.6) : 12);
-      g.drawImage(sh, it.x - Math.floor(sh.width / 2) - cam.x, it.y - Math.floor(sh.height / 2) + 1 - cam.y);
+      const f = it.f;
+      const sh = shadowFor((f ? Math.round(Math.min(f.w, 24) * 0.6) : 12) + Math.abs(lean), sky.sun.alpha);
+      g.drawImage(sh, it.x - Math.floor(sh.width / 2) + lean - cam.x, it.y - Math.floor(sh.height / 2) + 1 - cam.y);
       if (it.ent.id === view.targetId) {
         const ring = it.ent.faction === 'hostile' ? rings.hostile : it.ent.faction === 'player' ? rings.player : rings.friendly;
         g.drawImage(ring, it.x - 10 - cam.x, it.y - 4 - cam.y);
       }
     }
     picks = [];
+    const emissive = [];
+    const auraDraws = [];
     for (const it of list) {
       if (it.prop) {
         const p = it.prop;
@@ -110,24 +221,63 @@ export function createRenderer(canvas, assets, { zones }) {
         g.globalCompositeOperation = 'source-over';
         continue;
       }
-      const f = book.frameFor(it.ent, t);
+      const f = it.f;
       if (!f) continue;
+      const looks = fx.auraLooks(it.ent);
+      const stealth = looks.some((l) => l.look === 'stealth');
       const dx = it.x - f.ox - cam.x, dy = it.y - f.oy - cam.y;
-      if (f.flip) {
-        g.save(); g.scale(-1, 1);
-        g.drawImage(f.img, f.sx, f.sy, f.w, f.h, -(dx + f.w), dy, f.w, f.h);
-        g.restore();
-      } else g.drawImage(f.img, f.sx, f.sy, f.w, f.h, dx, dy, f.w, f.h);
+      if (stealth) g.globalAlpha = 0.45;
+      blit(g, f, f.img, dx, dy);
+      g.globalAlpha = 1;
+      const hurt = fx.hurtAt(it.ent.id);
+      if (hurt != null && now - hurt < 0.12) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = 0.55; blit(g, f, f.img, dx, dy); g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; }
+      if (f.emissive) emissive.push([f, dx, dy]);
+      for (const l of looks) auraDraws.push([l, it.x, it.y]);
       picks.push({ id: it.ent.id, x: it.x - f.ox, y: it.y - f.oy, w: f.w, h: f.h });
     }
     // overhead (roofs)
     if (sw > 0 && sh > 0) g.drawImage(map.overhead, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
 
+    // cloud shadows sliding over the ground (day only)
+    if (fxLevel === 'high') atmos.drawClouds(g, cam, W, H, now, sky.clouds * (zone && zone.kind === 'interior' ? 0 : 1));
+
+    // lights: map lamps and the well, lit windows, the player's own faint light, spell glows, fireflies
+    const wins = lighting.windows(map, sheetOf);
+    for (const l of lighting.windowLights(wins)) lights.push(l);
+    const me = anchors.get(view.followId);
+    if (me) lights.push({ x: me.x, y: me.y - 10, r: 44, rgb: LIGHT_RGB.player, k: 0.5, lamp: true, glow: 0 });
+    fx.update(now, (id) => anchors.get(id) || null);
+    for (const l of fx.lights(now)) lights.push(l);
+    if (fxLevel === 'high') for (const l of atmos.lights()) lights.push(l);
+    lighting.apply(g, W, H, cam, sky, lights, now, fxLevel);
+
+    // after the light pass: things that glow
+    lighting.drawWindows(g, cam, W, H, wins, sky.lamps);
+    if (sky.lamps > 0.3) {
+      // the well's hanging lantern: a 3 x 4 warm pixel lamp on the post
+      for (const l of lights) if (l.well) { const x = Math.round(l.x - cam.x) + 9, y = Math.round(l.y - cam.y) - 28; g.fillStyle = '#3a2a1e'; g.fillRect(x + 1, y - 2, 1, 2); g.fillStyle = '#ffd67a'; g.fillRect(x, y, 3, 3); g.fillStyle = '#fff7d6'; g.fillRect(x + 1, y + 1, 1, 1); }
+    }
+    if (emissive.length) {
+      g.globalCompositeOperation = 'lighter';
+      g.globalAlpha = 0.35 + 0.65 * sky.lamps;
+      for (const [f, dx, dy] of emissive) blit(g, f, f.emissive, dx, dy);
+      g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    }
+    for (const [l, x, y] of auraDraws) fx.drawAuraLook(g, l, x, y, cam, now);
+    fx.drawWorld(g, cam, W, H, now);
+    atmos.update(dt, cam, W, H, fxLevel === 'low' ? { rain: weather.rain, leaves: false, pollen: false } : weather, sky, zone);
+    atmos.drawParticles(g, cam, W, H, sky);
+
+    if (fxLevel === 'high') {
+      atmos.drawHaze(g, cam, W, H, map, sky);
+      atmos.drawVignette(g, W, H, 0.55 + 0.35 * sky.lamps);
+    }
+
     // zone change: a short fade from black (DESIGN: "else a short fade at zone edges")
     if (fade.zone !== zoneId) { fade = { zone: zoneId, t0: fade.zone == null ? -1 : t }; }
     if (fade.t0 >= 0) {
       const k = 1 - (t - fade.t0) / 0.35;
-      if (k > 0) { g.fillStyle = `rgba(0,0,0,${k.toFixed(3)})`; g.fillRect(0, 0, layout.viewW, layout.viewH); } else fade.t0 = -1;
+      if (k > 0) { g.fillStyle = `rgba(0,0,0,${k.toFixed(3)})`; g.fillRect(0, 0, W, H); } else fade.t0 = -1;
     }
 
     // present: letterbox, then the world at its integer scale, cropped to the 640x360 display rect
@@ -138,6 +288,23 @@ export function createRenderer(canvas, assets, { zones }) {
     const padX = layout.dispW - cw * layout.ws, padY = layout.dispH - ch * layout.ws;
     ctx.drawImage(world, 0, 0, cw, ch, layout.ox + (padX >> 1), layout.oy + (padY >> 1), cw * layout.ws, ch * layout.ws);
     layout.worldOx = layout.ox + (padX >> 1); layout.worldOy = layout.oy + (padY >> 1);
+
+    // floating combat numbers at the base scale (crisp at every zoom)
+    octx.clearRect(0, 0, 640, 360);
+    fx.drawNumbers(octx, worldToHud, now);
+    ctx.drawImage(over, 0, 0, 640, 360, layout.ox, layout.oy, 640 * layout.base, 360 * layout.base);
+
+    const ms = performance.now() - tStart;
+    const s = dev.stats;
+    s.ms = ms; s.n++; s.avg += (ms - s.avg) / Math.min(s.n, 120);
+  }
+
+  function blit(g, f, im, dx, dy) {
+    if (f.flip) {
+      g.save(); g.scale(-1, 1);
+      g.drawImage(im, f.sx, f.sy, f.w, f.h, -(dx + f.w), dy, f.w, f.h);
+      g.restore();
+    } else g.drawImage(im, f.sx, f.sy, f.w, f.h, dx, dy, f.w, f.h);
   }
 
   function drawHud(fn) {
@@ -150,9 +317,15 @@ export function createRenderer(canvas, assets, { zones }) {
   function devToWorld(dx, dy) {
     return [(dx - layout.worldOx) / layout.ws + cam.x, (dy - layout.worldOy) / layout.ws + cam.y];
   }
+  function worldToHud(wx, wy) {
+    const dx = (wx - cam.x) * layout.ws + layout.worldOx, dy = (wy - cam.y) * layout.ws + layout.worldOy;
+    return [Math.round((dx - layout.ox) / layout.base), Math.round((dy - layout.oy) / layout.base)];
+  }
 
   return {
     draw, drawHud,
+    feed(events) { fx.feed(events, dev.clock != null ? dev.clock : lastNow || 0); },
+    setPlayer(id) { fx.setPlayer(id); },
     get layout() { return layout; },
     get camera() { return { ...cam }; },
     pick(devX, devY) {
@@ -164,10 +337,11 @@ export function createRenderer(canvas, assets, { zones }) {
       return null;
     },
     devToWorld,
-    worldToHud(wx, wy) {
-      const dx = (wx - cam.x) * layout.ws + layout.worldOx, dy = (wy - cam.y) * layout.ws + layout.worldOy;
-      return [Math.round((dx - layout.ox) / layout.base), Math.round((dy - layout.oy) / layout.base)];
-    },
+    worldToHud,
+    dev,
+    /** Sheets still loading (drivers wait for 0 before a screenshot). */
+    get loading() { return lazy.pending; },
+    get fxCounts() { return fx.counts; },
     /** Drop the baked layers of a zone (map edits, hot reload). */
     invalidate(zoneId) { baked.delete(zoneId); },
   };

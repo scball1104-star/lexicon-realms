@@ -5,7 +5,8 @@
 //   const baked = bakeZone(zone, { tiles, propsDb, img })
 //   baked.ground[i]   canvas per water animation phase      baked.phaseAt(tSeconds) -> index
 //   baked.overhead    canvas drawn above actors (building tops)
-//   baked.props       y-sorted drawables: { sortY, img, sx, sy, w, h, dx, dy, anim }
+//   baked.props       y-sorted drawables: { sortY, img, sx, sy, w, h, dx, dy, anim, light }
+//   baked.statics     building and big-prop placements { t, x, y, meta } (lighting finds window panes in them)
 import { a2Quarters, faceQuarters, line16Index, pickVariant, terrainLayers, neighbours, allConnected, QUARTERS, QUARTER_OFFSET } from './autotile.js';
 
 const TILE = 16;
@@ -182,7 +183,7 @@ export function bakeZone(zone, { tiles: db, propsDb, img }) {
   const seq = anim ? anim.frames : [0];
   const ms = anim ? anim.ms || 220 : 220;
   return {
-    id: zone.id, w: W, h: H, pixelW: W * TILE, pixelH: H * TILE, ground, overhead, props,
+    id: zone.id, w: W, h: H, pixelW: W * TILE, pixelH: H * TILE, ground, overhead, props, statics,
     phaseAt(t) {
       if (ground.length === 1) return 0;
       const v = seq[Math.floor((t * 1000) / ms) % seq.length];
