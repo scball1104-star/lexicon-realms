@@ -1,0 +1,1796 @@
+{
+ "image": "warden.png",
+ "emissive": "warden_emissive.png",
+ "class": "warden",
+ "cell": [
+  32,
+  40
+ ],
+ "origin": [
+  16,
+  39
+ ],
+ "anchor_note": "origin = feet point (between the feet, on the ground row) in every frame; draw at (x - 16, y - 39) at integer positions, nearest neighbour",
+ "layout": "one row per (look, dir) in order look1 down/left/right/up, look2 ..., look3 ...; columns idle 0-1, walk 0-3 (stepA, stand, stepB, stand), attack 0-2 (windup, strike, follow-through), cast 0-2, hurt 0. Last row: dead (down only) for look1..3. Right frames are the mirrored left.",
+ "looks": {
+  "look1": "masc, light skin, brown hair and beard, blue tabard",
+  "look2": "fem, medium skin, auburn ponytail, crimson tabard",
+  "look3": "helmed, dark skin, forest-green tabard"
+ },
+ "hitFrame": {
+  "attack": 1
+ },
+ "frames": {
+  "look1_idle_down_0": [
+   0,
+   0,
+   32,
+   40
+  ],
+  "look1_idle_down_1": [
+   32,
+   0,
+   32,
+   40
+  ],
+  "look1_walk_down_0": [
+   64,
+   0,
+   32,
+   40
+  ],
+  "look1_walk_down_1": [
+   96,
+   0,
+   32,
+   40
+  ],
+  "look1_walk_down_2": [
+   128,
+   0,
+   32,
+   40
+  ],
+  "look1_walk_down_3": [
+   160,
+   0,
+   32,
+   40
+  ],
+  "look1_attack_down_0": [
+   192,
+   0,
+   32,
+   40
+  ],
+  "look1_attack_down_1": [
+   224,
+   0,
+   32,
+   40
+  ],
+  "look1_attack_down_2": [
+   256,
+   0,
+   32,
+   40
+  ],
+  "look1_cast_down_0": [
+   288,
+   0,
+   32,
+   40
+  ],
+  "look1_cast_down_1": [
+   320,
+   0,
+   32,
+   40
+  ],
+  "look1_hurt_down_0": [
+   352,
+   0,
+   32,
+   40
+  ],
+  "look1_idle_left_0": [
+   0,
+   40,
+   32,
+   40
+  ],
+  "look1_idle_left_1": [
+   32,
+   40,
+   32,
+   40
+  ],
+  "look1_walk_left_0": [
+   64,
+   40,
+   32,
+   40
+  ],
+  "look1_walk_left_1": [
+   96,
+   40,
+   32,
+   40
+  ],
+  "look1_walk_left_2": [
+   128,
+   40,
+   32,
+   40
+  ],
+  "look1_walk_left_3": [
+   160,
+   40,
+   32,
+   40
+  ],
+  "look1_attack_left_0": [
+   192,
+   40,
+   32,
+   40
+  ],
+  "look1_attack_left_1": [
+   224,
+   40,
+   32,
+   40
+  ],
+  "look1_attack_left_2": [
+   256,
+   40,
+   32,
+   40
+  ],
+  "look1_cast_left_0": [
+   288,
+   40,
+   32,
+   40
+  ],
+  "look1_cast_left_1": [
+   320,
+   40,
+   32,
+   40
+  ],
+  "look1_hurt_left_0": [
+   352,
+   40,
+   32,
+   40
+  ],
+  "look1_idle_right_0": [
+   0,
+   80,
+   32,
+   40
+  ],
+  "look1_idle_right_1": [
+   32,
+   80,
+   32,
+   40
+  ],
+  "look1_walk_right_0": [
+   64,
+   80,
+   32,
+   40
+  ],
+  "look1_walk_right_1": [
+   96,
+   80,
+   32,
+   40
+  ],
+  "look1_walk_right_2": [
+   128,
+   80,
+   32,
+   40
+  ],
+  "look1_walk_right_3": [
+   160,
+   80,
+   32,
+   40
+  ],
+  "look1_attack_right_0": [
+   192,
+   80,
+   32,
+   40
+  ],
+  "look1_attack_right_1": [
+   224,
+   80,
+   32,
+   40
+  ],
+  "look1_attack_right_2": [
+   256,
+   80,
+   32,
+   40
+  ],
+  "look1_cast_right_0": [
+   288,
+   80,
+   32,
+   40
+  ],
+  "look1_cast_right_1": [
+   320,
+   80,
+   32,
+   40
+  ],
+  "look1_hurt_right_0": [
+   352,
+   80,
+   32,
+   40
+  ],
+  "look1_idle_up_0": [
+   0,
+   120,
+   32,
+   40
+  ],
+  "look1_idle_up_1": [
+   32,
+   120,
+   32,
+   40
+  ],
+  "look1_walk_up_0": [
+   64,
+   120,
+   32,
+   40
+  ],
+  "look1_walk_up_1": [
+   96,
+   120,
+   32,
+   40
+  ],
+  "look1_walk_up_2": [
+   128,
+   120,
+   32,
+   40
+  ],
+  "look1_walk_up_3": [
+   160,
+   120,
+   32,
+   40
+  ],
+  "look1_attack_up_0": [
+   192,
+   120,
+   32,
+   40
+  ],
+  "look1_attack_up_1": [
+   224,
+   120,
+   32,
+   40
+  ],
+  "look1_attack_up_2": [
+   256,
+   120,
+   32,
+   40
+  ],
+  "look1_cast_up_0": [
+   288,
+   120,
+   32,
+   40
+  ],
+  "look1_cast_up_1": [
+   320,
+   120,
+   32,
+   40
+  ],
+  "look1_hurt_up_0": [
+   352,
+   120,
+   32,
+   40
+  ],
+  "look2_idle_down_0": [
+   0,
+   160,
+   32,
+   40
+  ],
+  "look2_idle_down_1": [
+   32,
+   160,
+   32,
+   40
+  ],
+  "look2_walk_down_0": [
+   64,
+   160,
+   32,
+   40
+  ],
+  "look2_walk_down_1": [
+   96,
+   160,
+   32,
+   40
+  ],
+  "look2_walk_down_2": [
+   128,
+   160,
+   32,
+   40
+  ],
+  "look2_walk_down_3": [
+   160,
+   160,
+   32,
+   40
+  ],
+  "look2_attack_down_0": [
+   192,
+   160,
+   32,
+   40
+  ],
+  "look2_attack_down_1": [
+   224,
+   160,
+   32,
+   40
+  ],
+  "look2_attack_down_2": [
+   256,
+   160,
+   32,
+   40
+  ],
+  "look2_cast_down_0": [
+   288,
+   160,
+   32,
+   40
+  ],
+  "look2_cast_down_1": [
+   320,
+   160,
+   32,
+   40
+  ],
+  "look2_hurt_down_0": [
+   352,
+   160,
+   32,
+   40
+  ],
+  "look2_idle_left_0": [
+   0,
+   200,
+   32,
+   40
+  ],
+  "look2_idle_left_1": [
+   32,
+   200,
+   32,
+   40
+  ],
+  "look2_walk_left_0": [
+   64,
+   200,
+   32,
+   40
+  ],
+  "look2_walk_left_1": [
+   96,
+   200,
+   32,
+   40
+  ],
+  "look2_walk_left_2": [
+   128,
+   200,
+   32,
+   40
+  ],
+  "look2_walk_left_3": [
+   160,
+   200,
+   32,
+   40
+  ],
+  "look2_attack_left_0": [
+   192,
+   200,
+   32,
+   40
+  ],
+  "look2_attack_left_1": [
+   224,
+   200,
+   32,
+   40
+  ],
+  "look2_attack_left_2": [
+   256,
+   200,
+   32,
+   40
+  ],
+  "look2_cast_left_0": [
+   288,
+   200,
+   32,
+   40
+  ],
+  "look2_cast_left_1": [
+   320,
+   200,
+   32,
+   40
+  ],
+  "look2_hurt_left_0": [
+   352,
+   200,
+   32,
+   40
+  ],
+  "look2_idle_right_0": [
+   0,
+   240,
+   32,
+   40
+  ],
+  "look2_idle_right_1": [
+   32,
+   240,
+   32,
+   40
+  ],
+  "look2_walk_right_0": [
+   64,
+   240,
+   32,
+   40
+  ],
+  "look2_walk_right_1": [
+   96,
+   240,
+   32,
+   40
+  ],
+  "look2_walk_right_2": [
+   128,
+   240,
+   32,
+   40
+  ],
+  "look2_walk_right_3": [
+   160,
+   240,
+   32,
+   40
+  ],
+  "look2_attack_right_0": [
+   192,
+   240,
+   32,
+   40
+  ],
+  "look2_attack_right_1": [
+   224,
+   240,
+   32,
+   40
+  ],
+  "look2_attack_right_2": [
+   256,
+   240,
+   32,
+   40
+  ],
+  "look2_cast_right_0": [
+   288,
+   240,
+   32,
+   40
+  ],
+  "look2_cast_right_1": [
+   320,
+   240,
+   32,
+   40
+  ],
+  "look2_hurt_right_0": [
+   352,
+   240,
+   32,
+   40
+  ],
+  "look2_idle_up_0": [
+   0,
+   280,
+   32,
+   40
+  ],
+  "look2_idle_up_1": [
+   32,
+   280,
+   32,
+   40
+  ],
+  "look2_walk_up_0": [
+   64,
+   280,
+   32,
+   40
+  ],
+  "look2_walk_up_1": [
+   96,
+   280,
+   32,
+   40
+  ],
+  "look2_walk_up_2": [
+   128,
+   280,
+   32,
+   40
+  ],
+  "look2_walk_up_3": [
+   160,
+   280,
+   32,
+   40
+  ],
+  "look2_attack_up_0": [
+   192,
+   280,
+   32,
+   40
+  ],
+  "look2_attack_up_1": [
+   224,
+   280,
+   32,
+   40
+  ],
+  "look2_attack_up_2": [
+   256,
+   280,
+   32,
+   40
+  ],
+  "look2_cast_up_0": [
+   288,
+   280,
+   32,
+   40
+  ],
+  "look2_cast_up_1": [
+   320,
+   280,
+   32,
+   40
+  ],
+  "look2_hurt_up_0": [
+   352,
+   280,
+   32,
+   40
+  ],
+  "look3_idle_down_0": [
+   0,
+   320,
+   32,
+   40
+  ],
+  "look3_idle_down_1": [
+   32,
+   320,
+   32,
+   40
+  ],
+  "look3_walk_down_0": [
+   64,
+   320,
+   32,
+   40
+  ],
+  "look3_walk_down_1": [
+   96,
+   320,
+   32,
+   40
+  ],
+  "look3_walk_down_2": [
+   128,
+   320,
+   32,
+   40
+  ],
+  "look3_walk_down_3": [
+   160,
+   320,
+   32,
+   40
+  ],
+  "look3_attack_down_0": [
+   192,
+   320,
+   32,
+   40
+  ],
+  "look3_attack_down_1": [
+   224,
+   320,
+   32,
+   40
+  ],
+  "look3_attack_down_2": [
+   256,
+   320,
+   32,
+   40
+  ],
+  "look3_cast_down_0": [
+   288,
+   320,
+   32,
+   40
+  ],
+  "look3_cast_down_1": [
+   320,
+   320,
+   32,
+   40
+  ],
+  "look3_hurt_down_0": [
+   352,
+   320,
+   32,
+   40
+  ],
+  "look3_idle_left_0": [
+   0,
+   360,
+   32,
+   40
+  ],
+  "look3_idle_left_1": [
+   32,
+   360,
+   32,
+   40
+  ],
+  "look3_walk_left_0": [
+   64,
+   360,
+   32,
+   40
+  ],
+  "look3_walk_left_1": [
+   96,
+   360,
+   32,
+   40
+  ],
+  "look3_walk_left_2": [
+   128,
+   360,
+   32,
+   40
+  ],
+  "look3_walk_left_3": [
+   160,
+   360,
+   32,
+   40
+  ],
+  "look3_attack_left_0": [
+   192,
+   360,
+   32,
+   40
+  ],
+  "look3_attack_left_1": [
+   224,
+   360,
+   32,
+   40
+  ],
+  "look3_attack_left_2": [
+   256,
+   360,
+   32,
+   40
+  ],
+  "look3_cast_left_0": [
+   288,
+   360,
+   32,
+   40
+  ],
+  "look3_cast_left_1": [
+   320,
+   360,
+   32,
+   40
+  ],
+  "look3_hurt_left_0": [
+   352,
+   360,
+   32,
+   40
+  ],
+  "look3_idle_right_0": [
+   0,
+   400,
+   32,
+   40
+  ],
+  "look3_idle_right_1": [
+   32,
+   400,
+   32,
+   40
+  ],
+  "look3_walk_right_0": [
+   64,
+   400,
+   32,
+   40
+  ],
+  "look3_walk_right_1": [
+   96,
+   400,
+   32,
+   40
+  ],
+  "look3_walk_right_2": [
+   128,
+   400,
+   32,
+   40
+  ],
+  "look3_walk_right_3": [
+   160,
+   400,
+   32,
+   40
+  ],
+  "look3_attack_right_0": [
+   192,
+   400,
+   32,
+   40
+  ],
+  "look3_attack_right_1": [
+   224,
+   400,
+   32,
+   40
+  ],
+  "look3_attack_right_2": [
+   256,
+   400,
+   32,
+   40
+  ],
+  "look3_cast_right_0": [
+   288,
+   400,
+   32,
+   40
+  ],
+  "look3_cast_right_1": [
+   320,
+   400,
+   32,
+   40
+  ],
+  "look3_hurt_right_0": [
+   352,
+   400,
+   32,
+   40
+  ],
+  "look3_idle_up_0": [
+   0,
+   440,
+   32,
+   40
+  ],
+  "look3_idle_up_1": [
+   32,
+   440,
+   32,
+   40
+  ],
+  "look3_walk_up_0": [
+   64,
+   440,
+   32,
+   40
+  ],
+  "look3_walk_up_1": [
+   96,
+   440,
+   32,
+   40
+  ],
+  "look3_walk_up_2": [
+   128,
+   440,
+   32,
+   40
+  ],
+  "look3_walk_up_3": [
+   160,
+   440,
+   32,
+   40
+  ],
+  "look3_attack_up_0": [
+   192,
+   440,
+   32,
+   40
+  ],
+  "look3_attack_up_1": [
+   224,
+   440,
+   32,
+   40
+  ],
+  "look3_attack_up_2": [
+   256,
+   440,
+   32,
+   40
+  ],
+  "look3_cast_up_0": [
+   288,
+   440,
+   32,
+   40
+  ],
+  "look3_cast_up_1": [
+   320,
+   440,
+   32,
+   40
+  ],
+  "look3_hurt_up_0": [
+   352,
+   440,
+   32,
+   40
+  ],
+  "look1_dead_down_0": [
+   0,
+   480,
+   32,
+   40
+  ],
+  "look2_dead_down_0": [
+   32,
+   480,
+   32,
+   40
+  ],
+  "look3_dead_down_0": [
+   64,
+   480,
+   32,
+   40
+  ]
+ },
+ "points": {
+  "look1_attack_down_0": {
+   "hand": [
+    7,
+    19
+   ]
+  },
+  "look1_attack_down_1": {
+   "hand": [
+    12,
+    29
+   ]
+  },
+  "look1_attack_down_2": {
+   "hand": [
+    16,
+    31
+   ]
+  },
+  "look1_cast_down_0": {
+   "hand": [
+    7,
+    23
+   ]
+  },
+  "look1_cast_down_1": {
+   "hand": [
+    7,
+    23
+   ]
+  },
+  "look1_attack_left_0": {
+   "hand": [
+    16,
+    19
+   ]
+  },
+  "look1_attack_left_1": {
+   "hand": [
+    8,
+    25
+   ]
+  },
+  "look1_attack_left_2": {
+   "hand": [
+    10,
+    30
+   ]
+  },
+  "look1_cast_left_0": {
+   "hand": [
+    10,
+    23
+   ]
+  },
+  "look1_cast_left_1": {
+   "hand": [
+    10,
+    23
+   ]
+  },
+  "look1_attack_right_0": {
+   "hand": [
+    15,
+    19
+   ]
+  },
+  "look1_attack_right_1": {
+   "hand": [
+    23,
+    25
+   ]
+  },
+  "look1_attack_right_2": {
+   "hand": [
+    21,
+    30
+   ]
+  },
+  "look1_cast_right_0": {
+   "hand": [
+    21,
+    23
+   ]
+  },
+  "look1_cast_right_1": {
+   "hand": [
+    21,
+    23
+   ]
+  },
+  "look1_attack_up_0": {
+   "hand": [
+    24,
+    19
+   ]
+  },
+  "look1_attack_up_1": {
+   "hand": [
+    18,
+    20
+   ]
+  },
+  "look1_attack_up_2": {
+   "hand": [
+    12,
+    23
+   ]
+  },
+  "look1_cast_up_0": {
+   "hand": [
+    24,
+    23
+   ]
+  },
+  "look1_cast_up_1": {
+   "hand": [
+    24,
+    23
+   ]
+  },
+  "look2_attack_down_0": {
+   "hand": [
+    7,
+    19
+   ]
+  },
+  "look2_attack_down_1": {
+   "hand": [
+    12,
+    29
+   ]
+  },
+  "look2_attack_down_2": {
+   "hand": [
+    16,
+    31
+   ]
+  },
+  "look2_cast_down_0": {
+   "hand": [
+    7,
+    23
+   ]
+  },
+  "look2_cast_down_1": {
+   "hand": [
+    7,
+    23
+   ]
+  },
+  "look2_attack_left_0": {
+   "hand": [
+    16,
+    19
+   ]
+  },
+  "look2_attack_left_1": {
+   "hand": [
+    8,
+    25
+   ]
+  },
+  "look2_attack_left_2": {
+   "hand": [
+    10,
+    30
+   ]
+  },
+  "look2_cast_left_0": {
+   "hand": [
+    10,
+    23
+   ]
+  },
+  "look2_cast_left_1": {
+   "hand": [
+    10,
+    23
+   ]
+  },
+  "look2_attack_right_0": {
+   "hand": [
+    15,
+    19
+   ]
+  },
+  "look2_attack_right_1": {
+   "hand": [
+    23,
+    25
+   ]
+  },
+  "look2_attack_right_2": {
+   "hand": [
+    21,
+    30
+   ]
+  },
+  "look2_cast_right_0": {
+   "hand": [
+    21,
+    23
+   ]
+  },
+  "look2_cast_right_1": {
+   "hand": [
+    21,
+    23
+   ]
+  },
+  "look2_attack_up_0": {
+   "hand": [
+    24,
+    19
+   ]
+  },
+  "look2_attack_up_1": {
+   "hand": [
+    18,
+    20
+   ]
+  },
+  "look2_attack_up_2": {
+   "hand": [
+    12,
+    23
+   ]
+  },
+  "look2_cast_up_0": {
+   "hand": [
+    24,
+    23
+   ]
+  },
+  "look2_cast_up_1": {
+   "hand": [
+    24,
+    23
+   ]
+  },
+  "look3_attack_down_0": {
+   "hand": [
+    7,
+    19
+   ]
+  },
+  "look3_attack_down_1": {
+   "hand": [
+    12,
+    29
+   ]
+  },
+  "look3_attack_down_2": {
+   "hand": [
+    16,
+    31
+   ]
+  },
+  "look3_cast_down_0": {
+   "hand": [
+    7,
+    23
+   ]
+  },
+  "look3_cast_down_1": {
+   "hand": [
+    7,
+    23
+   ]
+  },
+  "look3_attack_left_0": {
+   "hand": [
+    16,
+    19
+   ]
+  },
+  "look3_attack_left_1": {
+   "hand": [
+    8,
+    25
+   ]
+  },
+  "look3_attack_left_2": {
+   "hand": [
+    10,
+    30
+   ]
+  },
+  "look3_cast_left_0": {
+   "hand": [
+    10,
+    23
+   ]
+  },
+  "look3_cast_left_1": {
+   "hand": [
+    10,
+    23
+   ]
+  },
+  "look3_attack_right_0": {
+   "hand": [
+    15,
+    19
+   ]
+  },
+  "look3_attack_right_1": {
+   "hand": [
+    23,
+    25
+   ]
+  },
+  "look3_attack_right_2": {
+   "hand": [
+    21,
+    30
+   ]
+  },
+  "look3_cast_right_0": {
+   "hand": [
+    21,
+    23
+   ]
+  },
+  "look3_cast_right_1": {
+   "hand": [
+    21,
+    23
+   ]
+  },
+  "look3_attack_up_0": {
+   "hand": [
+    24,
+    19
+   ]
+  },
+  "look3_attack_up_1": {
+   "hand": [
+    18,
+    20
+   ]
+  },
+  "look3_attack_up_2": {
+   "hand": [
+    12,
+    23
+   ]
+  },
+  "look3_cast_up_0": {
+   "hand": [
+    24,
+    23
+   ]
+  },
+  "look3_cast_up_1": {
+   "hand": [
+    24,
+    23
+   ]
+  }
+ },
+ "anims": {
+  "look1_idle_down": {
+   "frames": [
+    "look1_idle_down_0",
+    "look1_idle_down_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look1_walk_down": {
+   "frames": [
+    "look1_walk_down_0",
+    "look1_walk_down_1",
+    "look1_walk_down_2",
+    "look1_walk_down_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look1_attack_down": {
+   "frames": [
+    "look1_attack_down_0",
+    "look1_attack_down_1",
+    "look1_attack_down_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look1_cast_down": {
+   "frames": [
+    "look1_cast_down_0",
+    "look1_cast_down_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look1_hurt_down": {
+   "frames": [
+    "look1_hurt_down_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look1_idle_left": {
+   "frames": [
+    "look1_idle_left_0",
+    "look1_idle_left_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look1_walk_left": {
+   "frames": [
+    "look1_walk_left_0",
+    "look1_walk_left_1",
+    "look1_walk_left_2",
+    "look1_walk_left_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look1_attack_left": {
+   "frames": [
+    "look1_attack_left_0",
+    "look1_attack_left_1",
+    "look1_attack_left_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look1_cast_left": {
+   "frames": [
+    "look1_cast_left_0",
+    "look1_cast_left_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look1_hurt_left": {
+   "frames": [
+    "look1_hurt_left_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look1_idle_right": {
+   "frames": [
+    "look1_idle_right_0",
+    "look1_idle_right_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look1_walk_right": {
+   "frames": [
+    "look1_walk_right_0",
+    "look1_walk_right_1",
+    "look1_walk_right_2",
+    "look1_walk_right_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look1_attack_right": {
+   "frames": [
+    "look1_attack_right_0",
+    "look1_attack_right_1",
+    "look1_attack_right_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look1_cast_right": {
+   "frames": [
+    "look1_cast_right_0",
+    "look1_cast_right_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look1_hurt_right": {
+   "frames": [
+    "look1_hurt_right_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look1_idle_up": {
+   "frames": [
+    "look1_idle_up_0",
+    "look1_idle_up_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look1_walk_up": {
+   "frames": [
+    "look1_walk_up_0",
+    "look1_walk_up_1",
+    "look1_walk_up_2",
+    "look1_walk_up_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look1_attack_up": {
+   "frames": [
+    "look1_attack_up_0",
+    "look1_attack_up_1",
+    "look1_attack_up_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look1_cast_up": {
+   "frames": [
+    "look1_cast_up_0",
+    "look1_cast_up_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look1_hurt_up": {
+   "frames": [
+    "look1_hurt_up_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look1_dead_down": {
+   "frames": [
+    "look1_dead_down_0"
+   ],
+   "fps": 1,
+   "loop": false
+  },
+  "look2_idle_down": {
+   "frames": [
+    "look2_idle_down_0",
+    "look2_idle_down_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look2_walk_down": {
+   "frames": [
+    "look2_walk_down_0",
+    "look2_walk_down_1",
+    "look2_walk_down_2",
+    "look2_walk_down_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look2_attack_down": {
+   "frames": [
+    "look2_attack_down_0",
+    "look2_attack_down_1",
+    "look2_attack_down_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look2_cast_down": {
+   "frames": [
+    "look2_cast_down_0",
+    "look2_cast_down_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look2_hurt_down": {
+   "frames": [
+    "look2_hurt_down_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look2_idle_left": {
+   "frames": [
+    "look2_idle_left_0",
+    "look2_idle_left_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look2_walk_left": {
+   "frames": [
+    "look2_walk_left_0",
+    "look2_walk_left_1",
+    "look2_walk_left_2",
+    "look2_walk_left_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look2_attack_left": {
+   "frames": [
+    "look2_attack_left_0",
+    "look2_attack_left_1",
+    "look2_attack_left_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look2_cast_left": {
+   "frames": [
+    "look2_cast_left_0",
+    "look2_cast_left_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look2_hurt_left": {
+   "frames": [
+    "look2_hurt_left_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look2_idle_right": {
+   "frames": [
+    "look2_idle_right_0",
+    "look2_idle_right_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look2_walk_right": {
+   "frames": [
+    "look2_walk_right_0",
+    "look2_walk_right_1",
+    "look2_walk_right_2",
+    "look2_walk_right_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look2_attack_right": {
+   "frames": [
+    "look2_attack_right_0",
+    "look2_attack_right_1",
+    "look2_attack_right_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look2_cast_right": {
+   "frames": [
+    "look2_cast_right_0",
+    "look2_cast_right_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look2_hurt_right": {
+   "frames": [
+    "look2_hurt_right_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look2_idle_up": {
+   "frames": [
+    "look2_idle_up_0",
+    "look2_idle_up_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look2_walk_up": {
+   "frames": [
+    "look2_walk_up_0",
+    "look2_walk_up_1",
+    "look2_walk_up_2",
+    "look2_walk_up_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look2_attack_up": {
+   "frames": [
+    "look2_attack_up_0",
+    "look2_attack_up_1",
+    "look2_attack_up_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look2_cast_up": {
+   "frames": [
+    "look2_cast_up_0",
+    "look2_cast_up_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look2_hurt_up": {
+   "frames": [
+    "look2_hurt_up_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look2_dead_down": {
+   "frames": [
+    "look2_dead_down_0"
+   ],
+   "fps": 1,
+   "loop": false
+  },
+  "look3_idle_down": {
+   "frames": [
+    "look3_idle_down_0",
+    "look3_idle_down_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look3_walk_down": {
+   "frames": [
+    "look3_walk_down_0",
+    "look3_walk_down_1",
+    "look3_walk_down_2",
+    "look3_walk_down_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look3_attack_down": {
+   "frames": [
+    "look3_attack_down_0",
+    "look3_attack_down_1",
+    "look3_attack_down_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look3_cast_down": {
+   "frames": [
+    "look3_cast_down_0",
+    "look3_cast_down_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look3_hurt_down": {
+   "frames": [
+    "look3_hurt_down_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look3_idle_left": {
+   "frames": [
+    "look3_idle_left_0",
+    "look3_idle_left_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look3_walk_left": {
+   "frames": [
+    "look3_walk_left_0",
+    "look3_walk_left_1",
+    "look3_walk_left_2",
+    "look3_walk_left_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look3_attack_left": {
+   "frames": [
+    "look3_attack_left_0",
+    "look3_attack_left_1",
+    "look3_attack_left_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look3_cast_left": {
+   "frames": [
+    "look3_cast_left_0",
+    "look3_cast_left_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look3_hurt_left": {
+   "frames": [
+    "look3_hurt_left_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look3_idle_right": {
+   "frames": [
+    "look3_idle_right_0",
+    "look3_idle_right_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look3_walk_right": {
+   "frames": [
+    "look3_walk_right_0",
+    "look3_walk_right_1",
+    "look3_walk_right_2",
+    "look3_walk_right_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look3_attack_right": {
+   "frames": [
+    "look3_attack_right_0",
+    "look3_attack_right_1",
+    "look3_attack_right_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look3_cast_right": {
+   "frames": [
+    "look3_cast_right_0",
+    "look3_cast_right_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look3_hurt_right": {
+   "frames": [
+    "look3_hurt_right_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look3_idle_up": {
+   "frames": [
+    "look3_idle_up_0",
+    "look3_idle_up_1"
+   ],
+   "fps": 2,
+   "loop": true
+  },
+  "look3_walk_up": {
+   "frames": [
+    "look3_walk_up_0",
+    "look3_walk_up_1",
+    "look3_walk_up_2",
+    "look3_walk_up_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "look3_attack_up": {
+   "frames": [
+    "look3_attack_up_0",
+    "look3_attack_up_1",
+    "look3_attack_up_2"
+   ],
+   "fps": 12,
+   "loop": false
+  },
+  "look3_cast_up": {
+   "frames": [
+    "look3_cast_up_0",
+    "look3_cast_up_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "look3_hurt_up": {
+   "frames": [
+    "look3_hurt_up_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "look3_dead_down": {
+   "frames": [
+    "look3_dead_down_0"
+   ],
+   "fps": 1,
+   "loop": false
+  }
+ }
+}
