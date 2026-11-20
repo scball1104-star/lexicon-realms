@@ -247,6 +247,18 @@ async function boot() {
   if (fell2d) { const t = setInterval(() => { if (ui.mode === 'game') { clearInterval(t); ui.notify('3D could not start on this device. Showing 2D.', 8); } }, 500); }
   window.addEventListener('beforeunload', () => ui.saveProgress());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') ui.saveProgress(); });
+  // updates reach a Home Screen copy (Scott 2026-11-19: the Home Screen app stayed on an old build with no Graphics switch).
+  // iPhone keeps a Home Screen web app suspended, so opening it again resumes the old page. The deploy writes version.json
+  // (the commit); when the game comes back to the front and the site has moved on, save and reload.
+  const siteVersion = () => fetch('version.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => (j && j.v) || null).catch(() => null);
+  const bootVersion = await siteVersion();
+  if (bootVersion) {
+    document.addEventListener('visibilitychange', async () => {
+      if (document.visibilityState !== 'visible') return;
+      const v = await siteVersion();
+      if (v && v !== bootVersion) { ui.saveProgress(); window.location.reload(); }
+    });
+  }
 
   const loop = createLoop({ hz: TICK_HZ, tick, render });
   if (q.get('paused') !== '1') loop.start();
