@@ -383,7 +383,7 @@ Ability ids are `<class>_<name>` (the id column above). Contract notes:
 // src/data/classes.js. base = level 1 naked; perLevel = growth (floor applied to the running total, not per step)
 export const CLASSES = {
   warden: { id: 'warden', name: 'Warden', role: 'tank', armor: 'plate', weapons: ['sword', 'shield'],
-    resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 5, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5 },
+    resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 3, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5 },
     base: { hp: 60, str: 12, agi: 7, int: 4, spi: 6, sta: 12 }, perLevel: { hp: 0, str: 1.5, agi: 0.5, int: 0.2, spi: 0.4, sta: 1.5 },
     hpPerSta: 10, apPerStr: 2, critBase: 0.05, blockBase: 0.10, threatMult: 1.5,
     abilities: [{ id: 'warden_strike', level: 1 }, { id: 'warden_shield_bash', level: 1 }, { id: 'warden_sweeping_blow', level: 3 },

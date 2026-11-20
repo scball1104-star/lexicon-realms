@@ -61,7 +61,7 @@ export const tests = [
     assert(!p.cast, 'stopped');
     eq(p.cd.scribe_inkbolt - world.tick, 60, 'locked 3 s');
   } },
-  { name: 'rules: Resolve starts at 0 and decays 5/s after 3 s out of combat; Focus regenerates 5/s (Wayfinder) and 10/s (Inkblade)', fn() {
+  { name: 'rules: Resolve starts at 0 and decays 3/s after 3 s out of combat; Focus regenerates 5/s (Wayfinder) and 10/s (Inkblade)', fn() {
     const w = setup('warden', 5, null);
     eq(w.p.res.cur, 0, 'resolve starts at 0');
     w.p.res.cur = 50; w.p.combatEnd = w.world.tick; w.p.inCombat = false;
@@ -69,7 +69,7 @@ export const tests = [
     near(w.p.res.cur, 50, 0.01, 'no decay for 3 s');
     stepN(w.world, 1);
     stepN(w.world, 20);
-    near(w.p.res.cur, 45, 0.3, '-5 in the next second');
+    near(w.p.res.cur, 47, 0.3, '-3 in the next second');
     const y = setup('wayfinder', 5, null); y.p.res.cur = 0; stepN(y.world, 20); near(y.p.res.cur, 5, 0.01, 'wayfinder +5/s');
     const k = setup('inkblade', 5, null); k.p.res.cur = 0; stepN(k.world, 20); near(k.p.res.cur, 10, 0.01, 'inkblade +10/s');
   } },

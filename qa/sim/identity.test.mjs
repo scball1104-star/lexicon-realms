@@ -142,22 +142,15 @@ export const tests = [
     const wp = addMob(w.world, 'brute_10', 30, 15);
     near(hit(w.C, w.m, w.p, 200) / hit(w.C, wp, w.p, 200), 1, 0.01, 'no Shaken Hand on a Mender');
   } },
-  { name: 'Resolve (Warden): once Second Wind is known, out of a fight it settles at 30 (drains down, fills up), so Second Wind is always ready', fn() {
-    const { world, p, pid } = duelWorld({ cls: 'warden', level: 6, learnAll: true });
-    p.res.cur = 30;
-    p.hp = Math.round(p.hpMax / 2);
-    const ev = castNow(world, pid, 'warden_second_wind');
-    assert(!ofType(ev, 'cast_fail').length, `Second Wind out of combat: ${JSON.stringify(ofType(ev, 'cast_fail'))}`);
-    eq(Math.round(p.res.cur), 0, 'it cost 30');
-    stepN(world, 20 * 12);
-    eq(Math.round(p.res.cur), 30, 'filled back to 30 out of a fight');
-    p.res.cur = 90;
-    stepN(world, 20 * 20);
-    eq(Math.round(p.res.cur), 30, 'drained down to 30, no lower');
-    const fresh = duelWorld({ cls: 'warden', level: 1, learnAll: false });
-    fresh.p.res.cur = 50;
-    stepN(fresh.world, 20 * 20);
-    eq(Math.round(fresh.p.res.cur), 0, 'without Second Wind it drains to 0 as before');
+  { name: 'Resolve (Warden): after a fight it waits 3 s, then drains 3 a second to 0 (Scott 2026-11-19: "a little slower")', fn() {
+    const { world, p } = duelWorld({ cls: 'warden', level: 6 });
+    p.res.cur = 60;
+    stepN(world, 20 * 3);
+    near(p.res.cur, 60, 1, 'nothing in the first 3 s');
+    stepN(world, 20 * 10);
+    near(p.res.cur, 30, 2, '3 a second after that');
+    stepN(world, 20 * 15);
+    eq(p.res.cur, 0, 'down to 0');
   } },
   { name: 'Cut the Word: an Inkblade hit on a casting foe breaks the spell, once per 4 s', fn() {
     const { world, C, p, m } = arena('inkblade', 10, 'caster_10');

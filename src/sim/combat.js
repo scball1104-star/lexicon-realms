@@ -1407,13 +1407,7 @@ export function createCombat(C) {
       } else if (r.kind === 'focus') {
         gainRes(e, 'focus', (r.regen + stats.mod(e, 'focusRegen').add) * sec);
       } else if (r.kind === 'resolve') {
-        // out of a fight Resolve settles at oocFloor (Scott 2026-11-19, option 2: "drain stops at 30"): above it, it drains;
-        // below it (a Second Wind between fights), it fills back up at the same rate. Only once oocFloorFor (Second Wind) is known
-        if (ooc && now() - (e.combatEnd || 0) >= T(r.decayDelay)) {
-          const floor = r.oocFloor && (!r.oocFloorFor || (e.known || []).includes(r.oocFloorFor)) ? r.oocFloor : 0, step = r.decayOoc * sec;
-          if (res.cur > floor) gainRes(e, 'resolve', -Math.min(step, res.cur - floor));
-          else if (res.cur < floor) gainRes(e, 'resolve', Math.min(step, floor - res.cur));
-        }
+        if (ooc && now() - (e.combatEnd || 0) >= T(r.decayDelay)) gainRes(e, 'resolve', -r.decayOoc * sec);
         else if (!ooc) { const dr = stats.mod(e, 'resDrain').add; if (dr) gainRes(e, 'resolve', -dr * sec); }   // Builds 2 Furnace Heart
       }
     }

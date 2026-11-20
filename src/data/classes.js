@@ -9,7 +9,7 @@ export const CLASSES = {
     identity: { strong: 'Packs. Every hit taken feeds Resolve.', weak: 'Heavy hitters. They drain your Resolve.' },
     // combatStart: Resolve gained the moment a fight starts (fix pass 1, critique 6): Bash (+15) then Strike (20) works on
     // the second press of the first fight instead of failing until two auto-attacks land
-    resource: { kind: 'resolve', max: 100, start: 0, oocFloor: 30, oocFloorFor: 'warden_second_wind', regen: 0, decayOoc: 5, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5, combatStart: 10 },
+    resource: { kind: 'resolve', max: 100, start: 0, regen: 0, decayOoc: 3, decayDelay: 3, onHitDealt: 10, onHitTaken: 3, onBlock: 5, combatStart: 10 },
     base: { hp: 60, str: 12, agi: 7, int: 4, spi: 6, sta: 12 },
     perLevel: { hp: 0, str: 1.5, agi: 0.5, int: 0.2, spi: 0.4, sta: 1.5 },
     hpPerSta: 10, apPerStr: 2, critBase: 0.05, blockBase: 0.10, threatMult: 1.5, mainStat: 'str',
