@@ -40,11 +40,15 @@ export const CLASSES = {
   },
   scribe: {
     id: 'scribe', name: 'Scribe', role: 'caster', armor: 'cloth', weapons: ['quill', 'book'],
-    identity: { strong: 'Armored foes. Ink ignores plating.', weak: 'Fast foes. Your roots last half as long.' },
+    identity: { strong: 'Armored foes. Ink ignores plating.', weak: 'Fast foes. They hit hard, shrug roots.' },
     resource: { kind: 'mana', maxBase: 50, maxPerInt: 15, start: 'max', regenPerSpi: 0.4, regenOocMult: 2, sitPct: 0.06 },
     base: { hp: 30, str: 5, agi: 6, int: 13, spi: 10, sta: 9 },
     perLevel: { hp: 0, str: 0.3, agi: 0.4, int: 1.6, spi: 1.0, sta: 0.9 },
     hpPerSta: 10, apPerStr: 2, spPerInt: 1, critBase: 0.05, mainStat: 'int',
+    // class identity pass (Scott 2026-11-19: "make the Scribe weakness bite harder"): Shaken Hand. A fast foe's blows land 25%
+    // harder and your ink lands 15% lighter on it (a moving target smudges the line). The same goes for your summons.
+    passives: { mods: [{ stat: 'damageTaken', mul: 1.25, when: { attackerTrait: 'fast' } }, { stat: 'damageDone', mul: 0.85, when: { targetTrait: 'fast' } },
+      { stat: 'summonDamageTaken', mul: 1.25, when: { attackerTrait: 'fast' } }, { stat: 'summonDamageDone', mul: 0.85, when: { targetTrait: 'fast' } }] },
     auto: { weapon: 'quill', range: 40 },
     abilities: [{ id: 'scribe_inkbolt', level: 1 }, { id: 'scribe_scrawl', level: 1 }, { id: 'scribe_full_stop', level: 3 },
       { id: 'scribe_underline', level: 6 }, { id: 'scribe_scatter_letters', level: 10 }, { id: 'scribe_bracket', level: 14 }],

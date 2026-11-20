@@ -691,6 +691,11 @@ export function createCombat(C) {
     // Builds 2 Redacted: a Redacted tough foe loses its damage bonus
     if (src.mob && (src.mob.traits || []).includes('tough') && stats.findAura(src, 'b2_redacted')) amount /= ((P.mobTraits || {}).tough || {}).damage || 1;
     amount *= stats.mod(dst, 'damageTaken', { attacker: src, ability, school }).mul;
+    // Scribe Shaken Hand (class identity pass): the summoner's mods reach its summons, so a fast foe also slips past the hounds
+    const sumOwner = (e) => (e.owner && e.kind !== 'player' ? get(e.owner) : null);
+    const oDst = sumOwner(dst), oSrc = sumOwner(src);
+    if (oDst && oDst.kind === 'player') amount *= stats.mod(oDst, 'summonDamageTaken', { attacker: src, ability, school }).mul;
+    if (oSrc && oSrc.kind === 'player') amount *= stats.mod(oSrc, 'summonDamageDone', { target: dst, ability, school }).mul;
     let blockedAmt = 0;
     if (blocked) { blockedAmt = amount * PC.block.reduce; amount -= blockedAmt; }
     amount = Math.max(1, Math.round(amount));

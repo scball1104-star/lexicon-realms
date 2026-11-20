@@ -112,7 +112,8 @@ const SCRIBE_NODES = [
 
   // ---- Margin (S2: control)
   N('margin', 1, 'long_pause', 'Long Pause', 5, 'scribe_margin_long_pause', 'Your roots and slows last {r*6}% longer.', ranks(5, (r) => ({ mods: [mod('snareDuration', { mul: pct(1 + 0.06 * r) })] }))),
-  N('margin', 2, 'fine_print', 'Fine Print', 5, 'scribe_margin_wide_margin', 'Fast foes keep {r*20}% more of the snare time they would shed.', ranks(5, (r) => ({ mods: [mod('snareFast', { add: pct(0.2 * r) })] }))),
+  N('margin', 2, 'fine_print', 'Fine Print', 5, 'scribe_margin_wide_margin', 'Fast foes keep {r*20}% more of the snare time they would shed, hit you {r*10}% softer and take {r*9}% more from you.',
+    ranks(5, (r) => ({ mods: [mod('snareFast', { add: pct(0.2 * r) }), mod('damageTaken', { mul: pct(1 - 0.1 * r) }, { when: { attackerTrait: 'fast' } }), mod('damageDone', { mul: pct(1 + 0.09 * r) }, { when: { targetTrait: 'fast' } })] }))),
   N('margin', 3, 'full_sentence', 'Full Sentence', 1, 'scribe_margin_indent', 'Foes that are rooted, stunned or held take 20% more from you.',
     [{ mods: [dmgUp(0.2, { when: { targetHeld: true } })] }], { fork: 'a' }),
   N('margin', 3, 'long_hold', 'Long Hold', 1, 'scribe_margin_tight_bracket', 'Bracket and Full Stop last 40% longer, and Bracket holds an elite for 3 s.',
@@ -186,7 +187,7 @@ export const SCRIBE_BUILDS = [
     picks: { 1: 'scribe_underline', 3: 'scribe_bracket', 6: 'scribe_inkwell_pause', 14: 'scribe_exclamation' },
     path: [...rep(P('margin', 'long_pause'), 2), ...rep(P('margin', 'fine_print'), 2), ...rep(P('quill', 'heavy_nib'), 3), ...rep(P('quill', 'sharp_hand'), 2), P('quill', 'capital_letter'),
       ...rep(P('shorthand', 'quick_hand'), 2), ...rep(P('quill', 'heavy_nib'), 2), P('quill', 'final_draft')] },
-  { id: 'author_of_beasts', name: 'Author of Beasts', line: 'Two hounds hold the foes while she Brackets a third. The safest Scribe.', tracks: ['bindings', 'inkwell', 'margin'],
+  { id: 'author_of_beasts', name: 'Author of Beasts', line: 'Two hounds hold the foes while the Scribe Brackets a third. The safest Scribe.', tracks: ['bindings', 'inkwell', 'margin'],
     forks: ['leather_binding', 'steady_well', 'long_hold'], keystone: 'living_manuscript', signature: 'scribe_living_words', signatures: ['scribe_living_words', 'scribe_ellipsis', 'scribe_rewrite'],
     picks: { 1: 'scribe_underline', 3: 'scribe_bracket', 6: 'scribe_inkwell_pause', 14: 'scribe_paragraph' },
     path: [...rep(P('bindings', 'bound_vellum'), 3), ...rep(P('bindings', 'vellum_ward'), 2), P('bindings', 'leather_binding'), ...rep(P('bindings', 'footnote'), 2), ...rep(P('inkwell', 'deep_ink'), 2),

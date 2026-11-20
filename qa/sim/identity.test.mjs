@@ -12,9 +12,9 @@ const SUB = 16;
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) / SUB;
 /** one direct hit from p on m through the real damage path, no crit, no variance: returns the amount */
 function hit(C, src, dst, raw, info = {}) {
-  const save = src.derived.crit; src.derived.crit = 0;
+  const d = src.derived || {}; const save = d.crit; d.crit = 0;
   const r = C.combat.dealDamage(src, dst, raw, { ability: 'test_hit', school: 'physical', canCrit: false, ...info });
-  src.derived.crit = save;
+  d.crit = save;
   return r.amount;
 }
 function arena(cls, level, mob, opts = {}) {
@@ -132,7 +132,15 @@ export const tests = [
       near(hit(C, p, m, 200) / hit(C, p, plain, 200), k, 0.01, `${cls} vs ${foe}`);
     }
     const s = arena('scribe', 10, 'fast_10');
-    eq(hit(s.C, s.p, s.m, 200), 200, 'a Scribe gets no Quarry');
+    eq(hit(s.C, s.p, s.m, 200), 170, 'a Scribe gets no Quarry: Shaken Hand, 15% lighter on a fast foe');
+  } },
+  { name: 'Shaken Hand (Scribe): a fast foe hits the Scribe 25% harder; nobody else', fn() {
+    const s = arena('scribe', 10, 'fast_10');
+    const plain = addMob(s.world, 'brute_10', 30, 15);
+    near(hit(s.C, s.m, s.p, 200) / hit(s.C, plain, s.p, 200), 1.25, 0.01, 'fast foe on the Scribe');
+    const w = arena('mender', 10, 'fast_10');
+    const wp = addMob(w.world, 'brute_10', 30, 15);
+    near(hit(w.C, w.m, w.p, 200) / hit(w.C, wp, w.p, 200), 1, 0.01, 'no Shaken Hand on a Mender');
   } },
   { name: 'Cut the Word: an Inkblade hit on a casting foe breaks the spell, once per 4 s', fn() {
     const { world, C, p, m } = arena('inkblade', 10, 'caster_10');
