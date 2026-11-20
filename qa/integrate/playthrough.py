@@ -180,6 +180,34 @@ def quest_state(g, qid):
     return None
 
 
+def bar_item_desktop(g):
+    """Items on the bar (Scott 2026-11-19): drag a potion from the open bags onto slot 5 with the real mouse, press 5 while
+    hurt (one drunk, the cooldown on the slot), then right-click the slot to take it off."""
+    hud = 'window.__realms.hud()'
+    assert g.ev('window.__realms.dev.item("potion", 2)') > 0, 'gave 2 potions'
+    time.sleep(0.3)
+    src = g.ev("(() => { const r = window.__realms.ui.regions.filter((o) => o.kind === 'bag' && o.barItem === 'potion').pop(); return r ? __drv.hudToCss(r.rect.x + r.rect.w / 2, r.rect.y + r.rect.h / 2) : null; })()")
+    dst = g.ev("(() => { const r = window.__realms.ui.layout().bar[4]; return r ? __drv.hudToCss(r.x + r.w / 2, r.y + r.h / 2) : null; })()")   # empty: no region until a drag starts
+    assert src and dst, f'a potion in the bags and slot 5: {src} {dst}'
+    g.p.mouse.move(src[0], src[1]); g.p.mouse.down()
+    for k in range(1, 9):
+        g.p.mouse.move(src[0] + (dst[0] - src[0]) * k / 8, src[1] + (dst[1] - src[1]) * k / 8); time.sleep(0.03)
+    g.p.mouse.up(); time.sleep(0.4)
+    s = g.ev(f'{hud}.bar[4]')
+    assert s and s.get('item') == 'potion', f'dragged onto slot 5: {s}'
+    n0 = s['count']
+    g.ev('window.__realms.dev.hp(20)'); time.sleep(0.2)
+    hp0 = g.me()['hp']
+    g.key('Digit5', 0.5)
+    s = g.ev(f'{hud}.bar[4]')
+    log('  pc bar potion: hp', hp0, '->', g.me()['hp'], 'count', n0, '->', s['count'])
+    assert g.me()['hp'] > hp0 and s['count'] == n0 - 1 and s['cdLeft'] > 50, f'key 5 drank one: {s}'
+    g.shot('08b_bar_item', 'PC: a potion dragged to slot 5, drunk with the 5 key')
+    g.click_css(dst, 'right', 0.4)
+    s = g.ev(f'{hud}.bar[4]')
+    assert not (s and s.get('item')), f'right-click took it off: {s}'
+
+
 def quest_nav_desktop(g):
     """Where to go (Scott, 2026-11-19). The slimes are in the valley, the hero is in Willowmere: a click on the tracker
     row selects the quest and opens the map on the VALLEY, its circle bright and saying what to do, with the way there;
@@ -289,6 +317,7 @@ def run():
         log('  kills', kills, 'gold', me['gold'], 'bag', me['bagN'])
         g.key('KeyB', 0.3)
         g.shot('08_loot_bags', f'loot in the bags (gold {me["gold"]}, {me["bagN"]} stacks)')
+        bar_item_desktop(g)
         g.key('KeyB', 0.2)
 
         # ---- turn in, level up

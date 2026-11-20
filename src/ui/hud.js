@@ -232,26 +232,38 @@ export function createHud(env) {
     ctx.globalAlpha = 1;
   }
 
-  function slot(ctx, r, s, keyLabel, regions, { touch = false } = {}) {
-    const empty = !s || !s.ability;
+  function slot(ctx, r, s, keyLabel, regions, { touch = false, drop = false } = {}) {
+    const empty = !s || (!s.ability && !s.item);
     g.window(ctx, r.x, r.y, r.w, r.h, 'thin', empty ? 'slate' : 'blue', empty ? 0.6 : 0.95);
-    if (empty) { if (!touch) slotKey(ctx, r, keyLabel); return; }
+    if (empty) {
+      if (!touch) slotKey(ctx, r, keyLabel);
+      // an empty slot is a drop target only while an item is being placed (otherwise a click there reaches the world)
+      if (drop) regions.push({ rect: r, kind: 'slot', slot: r.slot || (s && s.slot), ability: null, item: null });
+      return;
+    }
     g.iconIn(ctx, s.icon, r.x, r.y + 1, r.w, r.h - 1);
     const ix = r.x + 2, iy = r.y + 2, iw = r.w - 4, ih = r.h - 4;
     // out of range: red tint. Not enough resource (or not ready): dimmed (CRITIQUE_1 item 6)
     if (!s.inRange) g.rect(ctx, ix, iy, iw, ih, 'rgba(224,80,58,0.45)');
     if (!s.usable) g.rect(ctx, ix, iy, iw, ih, 'rgba(12,10,22,0.62)');
+    // an item on the bar: none left greys it out (it stays, with a 0)
+    if (s.item && !s.count) g.rect(ctx, ix, iy, iw, ih, 'rgba(120,120,130,0.55)');
     const onCd = s.cdLeft > 0.05 && s.cdLeft >= (s.gcdLeft || 0);
     if (onCd) {
       g.scrim(ctx, ix, iy, iw, ih, 110);
       g.sweep(ctx, ix, iy, iw, ih, s.cdTotal ? s.cdLeft / s.cdTotal : 1);
       const secs = s.cdLeft >= 10 ? String(Math.ceil(s.cdLeft)) : s.cdLeft >= 1 ? String(Math.ceil(s.cdLeft)) : s.cdLeft.toFixed(1);
-      g.text(ctx, secs, r.x + Math.floor(r.w / 2) + 1, r.y + Math.floor((r.h - 16) / 2) + 1, 'cream', { large: true, align: 'center' });
+      // an item slot keeps its count in the corner, so its seconds sit higher and smaller
+      if (s.item) g.text(ctx, secs, r.x + Math.floor(r.w / 2), r.y + 3, 'cream', { align: 'center' });
+      else g.text(ctx, secs, r.x + Math.floor(r.w / 2) + 1, r.y + Math.floor((r.h - 16) / 2) + 1, 'cream', { large: true, align: 'center' });
     } else if (s.gcdLeft > 0.02) {
       g.sweep(ctx, ix, iy, iw, ih, s.gcdLeft / (s.gcdTotal || 1), 150);
     }
+    // the count sits top right, clear of the cooldown seconds in the middle and the key label top left
+    // the count sits in the bottom-right corner on a dark tab, clear of the cooldown seconds in the middle
+    if (s.item) { const t = String(s.count || 0), tw = 6 * t.length + 3; g.rect(ctx, r.x + r.w - 2 - tw, r.y + r.h - 12, tw, 10, 'rgba(12,10,22,0.85)'); g.num(ctx, t, r.x + r.w - 3, r.y + r.h - 12, s.count ? 'white' : 'red', false, 'right'); }
     if (!touch) slotKey(ctx, r, keyLabel);
-    regions.push({ rect: r, kind: 'slot', slot: s.slot, ability: s.ability });
+    regions.push({ rect: r, kind: 'slot', slot: s.slot, ability: s.ability, item: s.item || null });
   }
   function slotKey(ctx, r, label) {
     const w = Math.max(7, g.textW(label) + 3);
@@ -329,6 +341,7 @@ export function createHud(env) {
       if (b.slot) {
         slot(ctx, r, bySlot.get(b.slot), String(b.slot), [], { touch: true });
         if (pressed) g.outline(ctx, r.x - 1, r.y - 1, r.x + r.w, r.y + r.h, '#fff7d6');
+        if (st.barPick) { g.outline(ctx, r.x - 2, r.y - 2, r.x + r.w + 1, r.y + r.h + 1, '#ffd34d'); g.outline(ctx, r.x - 1, r.y - 1, r.x + r.w, r.y + r.h, '#ffd34d'); }
       } else {
         g.window(ctx, r.x, r.y, r.w, r.h, 'thin', pressed ? 'ember' : 'violet', 0.9);
         // a small button (the phone's big HUD layer) shows the word alone, so the label never sits on the icon
@@ -340,7 +353,10 @@ export function createHud(env) {
         } else if (b.id === 'attack') g.iconIn(ctx, 'icon_sword', r.x, r.y, r.w, r.h);   // the word does not fit a small button
         else g.text(ctx, CLUSTER_WORD[b.id], r.x + Math.floor(r.w / 2) + 1, r.y + Math.floor(r.h / 2) - 6, 'cream', { align: 'center' });
       }
-      regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, tip: undefined, ability: b.slot && bySlot.get(b.slot) ? bySlot.get(b.slot).ability : null });
+      const bs = b.slot ? bySlot.get(b.slot) : null;
+      // an item slot is pressed on release (tapOnly), so a long press can open its card without using one
+      regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, tip: undefined, ability: bs ? bs.ability : null, item: (bs && bs.item) || null,
+        ...(bs && bs.item ? { tapOnly: true } : {}) });
     }
     const j = st.joystick;
     if (j) {
@@ -373,7 +389,8 @@ export function createHud(env) {
       minimap(ctx, L, m.minimap, m.zone && m.zone.name, regions);
       tracker(ctx, L, m, st, regions, opts.fade);
       if (!L.touch) {
-        L.bar.forEach((r, i) => slot(ctx, r, m.bar[i], opts.keyLabels ? opts.keyLabels[i] : String(i + 1), regions));
+        L.bar.forEach((r, i) => slot(ctx, r, m.bar[i], opts.keyLabels ? opts.keyLabels[i] : String(i + 1), regions, { drop: !!(st.barPick || st.itemDrag) }));
+        if (st.barPick || st.itemDrag) for (const r of L.bar) g.outline(ctx, r.x - 1, r.y - 1, r.x + r.w, r.y + r.h, '#ffd34d');
         chat(ctx, L, opts.log || [], st, regions, opts.fade);
       }
       if (m.castBar) castBar(ctx, L, m.castBar);

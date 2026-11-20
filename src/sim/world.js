@@ -274,7 +274,7 @@ function wrap(state, content, rng, systems) {
         if (spec.equip) e.equip = JSON.parse(JSON.stringify(spec.equip));
         if (spec.talents) e.talents = { ...spec.talents };
         if (spec.known) for (const kid of spec.known) if (C.data.abilities[kid] && !e.known.includes(kid)) e.known.push(kid);
-        if (spec.bar) e.bar = spec.bar.filter((kid) => kid && e.known.includes(kid));   // a save carries 8 slots, empty ones null
+        if (spec.bar) C.prog.restoreBar(e, spec.bar);   // a save carries 8 slots, empty ones null; `item:<id>` slots keep their place
         if (spec.lantern && content.zones[spec.lantern.zone]) e.lantern = { ...spec.lantern };
         C.b2.attach(e, spec);                      // Builds 2: the build from the save (save v2), or a new one
         C.prog.fillBar(e);                         // 8 slots: a known skill left off a 6-slot bar takes a free slot
@@ -456,7 +456,12 @@ function wrap(state, content, rng, systems) {
         return;
       }
       case 'cast': {
-        if (combatOn) { C.combat.cast(e, cmd); return; }
+        if (combatOn) {
+          // a bar slot holding an item (`item:<id>`) uses one from the bags (the same rules as use_item)
+          const be = cmd.slot != null && !cmd.ability && Array.isArray(e.bar) ? e.bar[(cmd.slot | 0) - 1] : null;
+          if (C.prog.isItemEntry(be)) { useItem(e, { t: 'use_item', item: C.prog.itemOfEntry(be) }); return; }
+          C.combat.cast(e, cmd); return;
+        }
         // STUB (no combat content): validates the GCD and the target, emits cast_start then cast_stop.
         const ability = cmd.ability || (cmd.slot != null ? `slot${cmd.slot | 0}` : null);
         if (!ability) return reject(id, cmd, 'no_ability');
@@ -499,6 +504,7 @@ function wrap(state, content, rng, systems) {
       case 'equip': if (combatOn) equipItem(e, cmd); return;
       case 'unequip': if (combatOn) unequipItem(e, cmd); return;
       case 'use_item': if (combatOn) useItem(e, cmd); return;
+      case 'bar_set': if (combatOn) C.prog.barSet(e, cmd); return;
       case 'buy': if (combatOn) vendorBuy(e, cmd); return;
       case 'sell': if (combatOn) vendorSell(e, cmd); return;
       case 'buyback': if (combatOn) vendorBuyback(e, cmd); return;

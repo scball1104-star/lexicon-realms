@@ -50,7 +50,7 @@ export function createTouch({ canvas, input, ui, now = () => performance.now() }
       if (ui.owns(p.x, p.y)) {
         rec.kind = 'ui';
         rec.region = ui.topRegion(p.x, p.y);
-        if (rec.region && INSTANT.has(rec.region.kind)) { ui.press(p.x, p.y, 0); rec.fired = true; }
+        if (rec.region && INSTANT.has(rec.region.kind) && !rec.region.tapOnly) { ui.press(p.x, p.y, 0); rec.fired = true; }
         if (rec.region && rec.region.drag) { rec.region.drag(p.x); rec.fired = true; }
         rec.timer = setTimeout(() => { rec.long = true; ui.setLongTip({ x: rec.x, y: rec.y }); }, LONG_PRESS_MS);
       } else if (p.x < ((ui.layout && ui.layout().W) || 640) / 2 && ![...touches.values()].some((o) => o.kind === 'joy')) {

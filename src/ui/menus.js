@@ -131,20 +131,25 @@ export function drawCharacter(ctx, env, m, st, regions, act) {
 // On a phone a tap on a bag or worn item opens this card: the full tooltip, pinned where the finger is not, with the
 // action as a button. A second tap on the same item does the action at once. (Scott 2026-11-19: "On mobile, how can I
 // tell what the items in my bag and what stats they have? It's difficult right now.")
-function itemCard(ctx, env, st, regions, tip, x, y, label, onAct) {
+// opts.more: extra full-width buttons [[label, tone, on]] on their own rows under the first row (Put on bar);
+// opts.onClose: what Close does (default: unpin the bag or worn item).
+export function itemCard(ctx, env, st, regions, tip, x, y, label, onAct, opts = {}) {
   const { g, L } = env;
+  const more = (opts.more || []).filter((b) => b && b[0]);
   const bh = Math.max(20, L.minHit || 0), gap = 4;
-  const box = drawTooltip(g, ctx, tip, x, y, { W: L.W, H: L.H - bh - gap });
-  const by = box.y + box.h + gap;
-  regions.push({ rect: { x: box.x, y: box.y, w: box.w, h: box.h + gap + bh }, kind: 'window', id: 'item_card' });
-  const bw = Math.floor((box.w - gap) / 2);
-  const btns = [[label, 'forest', onAct], ['Close', 'slate', () => { st.itemPick = null; }]].filter((b) => b[0]);
-  btns.forEach(([text, tone, on], k) => {
-    const w = btns.length === 1 ? box.w : bw, bx = box.x + k * (bw + gap);
+  const rowsH = (1 + more.length) * (bh + gap);
+  const box = drawTooltip(g, ctx, tip, x, y, { W: L.W, H: L.H - rowsH });
+  let by = box.y + box.h + gap;
+  regions.push({ rect: { x: box.x, y: box.y, w: box.w, h: box.h + rowsH }, kind: 'window', id: 'item_card' });
+  const button = (text, tone, on, bx, w) => {
     g.window(ctx, bx, by, w, bh, 'thin', tone, 0.97);
     g.text(ctx, text, bx + w / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
     regions.push({ rect: { x: bx, y: by, w, h: bh }, kind: 'button', label: `card:${text.toLowerCase()}`, on: () => { on(); } });
-  });
+  };
+  const bw = Math.floor((box.w - gap) / 2);
+  const btns = [[label, 'forest', onAct], ['Close', 'slate', opts.onClose || (() => { st.itemPick = null; })]].filter((b) => b[0]);
+  btns.forEach(([text, tone, on], k) => button(text, tone, on, box.x + k * (bw + gap), btns.length === 1 ? box.w : bw));
+  for (const [text, tone, on] of more) { by += bh + gap; button(text, tone, on, box.x, box.w); }
 }
 const samePick = (pk, kind, key, it) => pk && pk.kind === kind && pk.key === key && pk.id === (it && (it.uid != null ? it.uid : it.item));
 
@@ -168,7 +173,7 @@ export function drawBags(ctx, env, m, st, regions, act) {
     const it = bag.items[c.i] || null;
     itemSlot(ctx, env, c, it, null);
     const touchHint = env.L.touch ? 'Tap to' : 'Right-click to';
-    if (it) regions.push({ rect: c, kind: 'bag', i: c.i, tip: itemTooltip(it, itemInfo(it).slot ? `${touchHint} equip` : itemInfo(it).use ? `${touchHint} use` : null, itemInfo(it).slot ? (m.equip[itemInfo(it).slot] || null) : undefined),
+    if (it) regions.push({ rect: c, kind: 'bag', i: c.i, barItem: itemInfo(it).use && it.kind !== 'quest' ? it.item : null, tip: itemTooltip(it, itemInfo(it).slot ? `${touchHint} equip` : itemInfo(it).use ? (env.L.touch ? `${touchHint} use` : 'Right-click to use. Drag it to the bar') : null, itemInfo(it).slot ? (m.equip[itemInfo(it).slot] || null) : undefined),
       on: (btn) => {
         if (!env.L.touch) { if (btn === 2) act.useItem(c.i); return; }
         if (samePick(st.itemPick, 'bag', c.i, it)) { st.itemPick = null; act.useItem(c.i); return; }
@@ -185,7 +190,9 @@ export function drawBags(ctx, env, m, st, regions, act) {
       const vendor = st.dialog && st.dialog.page === 'vendor';
       const label = vendor ? (info.value && info.kind !== 'quest' ? `Sell (${info.value}g)` : null) : info.slot || it.kind === 'bag' ? 'Equip' : info.use ? 'Use' : null;
       const tip = itemTooltip(it, null, info.slot ? (m.equip[info.slot] || null) : undefined);
-      if (tip) itemCard(ctx, env, st, regions, tip, Math.max(4, r.x - 220), r.y, label, () => { st.itemPick = null; act.useItem(i); });
+      // a usable item (potion, ether, food, antidote) can go on the skill bar: the card asks which slot next
+      const more = !vendor && info.use && it.kind !== 'quest' && act.barPickStart ? [['Put on bar', 'violet', () => act.barPickStart(it.item)]] : [];
+      if (tip) itemCard(ctx, env, st, regions, tip, Math.max(4, r.x - 220), r.y, label, () => { st.itemPick = null; act.useItem(i); }, { more });
     }
   }
   g.icon(ctx, 'icon_gold', r.x + 10, r.y + r.h - 18);

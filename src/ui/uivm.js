@@ -179,6 +179,9 @@ function fromSimHud(vm, snap, ctx) {
   const resKind = (h.res && h.res.kind) || (p.res && p.res.kind) || (ci && ci.resource) || 'mana';
   const bar = SLOT_KEYS.map((key, i) => {
     const s = h.bar[i];
+    // an item on the bar (`item:<id>` in player.bar): its stack count across the bags and its group cooldown
+    if (s && s.item) return { slot: i + 1, ability: null, item: s.item, name: s.name, icon: s.icon, key, count: s.count || 0, cdLeft: s.cdLeft || 0,
+      cdTotal: s.cdTotal || 0, usable: s.usable !== false, inRange: true, gcdLeft: 0, gcdTotal: 1, cost: 0 };
     if (!s || !s.ability || s.known === false) return { slot: i + 1, ability: null, key };
     const a = abilityInfo(s.ability) || {};
     return { slot: i + 1, ability: s.ability, name: s.name || a.name, icon: a.icon || s.icon, key, cdLeft: s.cdLeft || 0, cdTotal: s.cdTotal || 0,

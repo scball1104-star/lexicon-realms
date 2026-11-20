@@ -24,6 +24,8 @@ export function helpSections(binds) {
       ['Skills', `${k(b, 'slot1')} to ${k(b, 'slot8')}`, 'Skill buttons'],
       ['Skill info', 'Point at its icon', 'Hold its icon'],
       ['Cooldown', 'Shadow sweeps over the icon', 'Same'],
+      ['Potions', `Drag one from Bags to a slot, then ${k(b, 'slot1')} to ${k(b, 'slot8')}`, 'Tap it in Bags, Put on bar, tap a slot'],
+      ['Take it off', 'Right-click its slot', 'Hold its slot, then Take off bar'],
     ] },
     { title: 'People and quests', rows: [
       ['Talk', `${k(b, 'interact')}, or right-click them`, 'Tap them, or Talk'],

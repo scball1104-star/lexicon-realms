@@ -1036,3 +1036,25 @@ fixture flag off).
   any extra field, and setup states can be auras on foes like `inkblade_marks`.
 - **Skill bar:** done, 8 slots from level 1 (above). BUILDS_2 3.2's "7 at 10, 8 at 20" unlock is not used: Scott approved
   the 8-slot bar as one change.
+
+## Items on the skill bar (2026-11-19, LIVE)
+
+Scott: "Let me equip potions and other items on buttons on the phone or number keys on the pc."
+
+- **Bar entries:** a slot holds an ability id, `item:<itemId>` (any item with `use` in `src/data/items.js`) or `null`.
+  A bar with no item entries stays the dense list it always was (old saves load unchanged); once an item is on it every
+  slot keeps its place (`null` holes, trailing nulls trimmed). `prog.restoreBar` (addPlayer), `prog.fillBar` (skips a bar
+  with items), `prog.dropFromBar` (Builds 2 un-grant), `prog.learn` fills the first hole first.
+- **Command `bar_set { slot (1..8), entry }`** (`prog.barSet`): entry a known ability, `item:<id>`, or null. The entry
+  already on the bar swaps with the slot; an ability it pushes out moves to the first empty slot (off the bar when there
+  is none); null clears an item slot and a known skill that is off the bar takes the slot back. A skill slot cannot be
+  cleared. Events `bar { id, slot, entry, bar }` / `bar_fail { id, slot, entry, reason: slot | empty | ability | unknown | not_usable }`.
+- **Using it:** `cast { slot }` on an item slot runs `use_item { item }` (stock, level, `cd['item:<group>']`, the potion
+  group shared); the client (`input.js`) sends `use_item { item }` itself, off the GCD. No stock: `inventory_fail`
+  reason `no_item`, the UI toasts "No Potion left.".
+- **HUD:** `hud.bar[i]` for an item slot is `{ slot, ability: null, item, name, icon, count (all stacks), cdLeft, cdTotal,
+  usable, inRange: true, offGcd: true }`; empty slots are `{ slot, ability: null, known: false }`. The slot draws the
+  icon, the count (0 in red, the icon greyed) and the cooldown sweep.
+- **Placing it:** PC: drag a usable item from Bags onto a bar slot; right-click the slot to take it off. Phone: the bag
+  item card has Put on bar, then tap a gold-outlined bar slot (or Cancel); a long press on the slot pins the item card
+  with Take off bar (item slots fire on release so the long press does not use one). Save v2: `padBar` keeps the strings.

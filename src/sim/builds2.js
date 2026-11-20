@@ -86,7 +86,7 @@ export function createBuilds2(C) {
       b.granted = b.granted.filter((x) => x !== id);
       if (keep.has(id)) continue;
       e.known = e.known.filter((x) => x !== id);
-      e.bar = e.bar.filter((x) => x !== id);
+      C.prog.dropFromBar(e, id);
       emit({ type: 'b2_grant', id: e.id, ability: id, on: false });
     }
   }

@@ -4,7 +4,9 @@ through CDP Input.dispatchTouchEvent, taps through page.touchscreen).
     python qa/integrate/phone.py
 
 create a Scribe -> walk with the joystick -> tap Hob to talk, accept -> walk to the valley -> tap a slime to target it
--> tap the tracker row: the map on the quest (Show on map from the log too) -> cast Inkbolt from the cluster -> open bags and talents -> a new Mender on Builds 2: a tap pins a talent card, Learn
+-> tap the tracker row: the map on the quest (Show on map from the log too) -> cast Inkbolt from the cluster -> open bags
+-> a potion on the bar from the bag card (Put on bar, tap slot 8), drunk from the bar while hurt, then taken off with a
+long press -> talents -> a new Mender on Builds 2: a tap pins a talent card, Learn
 spends the point, Hearth to its fork with taps, the other side stays closed. Screenshots in qa/out/integrate/phone_*.png.
 Prints PHONE_DONE: ok=<bool> errors=<n>.
 """
@@ -203,6 +205,7 @@ def run():
         ph.shot('phone_08b_item_card', 'item card after one tap on a bag item')
         ph.tap_region(label='card:close', wait=0.3)
         assert 'card:close' not in ph.ev('__drv.labels()'), 'Close shuts the card'
+        bar_item_phone(ph)
         ph.tap_region(kind='menu_button', id='talents', wait=0.4)
         assert 'b2:close' in ph.ev('__drv.labels()'), 'a Scribe has the Builds 2 window (phase 2: every class)'
         ph.shot('phone_09_talents', 'talents window on the phone (Scribe: Builds 2)')
@@ -213,6 +216,62 @@ def run():
         # ---- Builds 2: a new Mender spends a point and takes a fork with taps (the pinned card: Learn, Close)
         mender_builds2(ph)
         b.close()
+
+
+def bar_item_phone(ph):
+    """Items on the bar (Scott 2026-11-19: "Let me equip potions and other items on buttons on the phone"): the bag card's
+    Put on bar, then tap a lit bar slot; a tap on that slot while hurt drinks one (count down, cooldown on); a long press
+    on it pins the card with Take off bar."""
+    hud = 'window.__realms.hud()'
+    mh = ph.ev('window.__realms.ui.layout().minHit')
+    assert ph.ev('window.__realms.dev.item("potion", 3)') > 0, 'gave 3 potions'
+    if not ph.ev('window.__realms.ui.isOpen("bags")'):
+        ph.tap_region(kind='menu_button', id='bags', wait=0.4)
+    ph.ev('window.__realms.redraw()')
+    time.sleep(0.3)
+    lab = ph.ev("(() => { const r = window.__realms.ui.regions.filter((o) => o.kind === 'bag' && o.barItem === 'potion').pop(); return r ? r.label : null; })()")
+    assert lab, 'a potion in the bags'
+    ph.tap_region(label=lab, wait=0.4)
+    labels = ph.ev('__drv.labels()')
+    assert 'card:put on bar' in labels, f'the potion card has Put on bar; labels {labels}'
+    hs = ph.ev("window.__realms.ui.regions.filter((o) => String(o.label || '').startsWith('card:')).map((o) => Math.min(o.rect.w, o.rect.h))")
+    assert hs and min(hs) >= mh, f'card buttons are at least minHit: {hs} vs {mh}'
+    ph.tap_region(label='card:put on bar', wait=0.4)
+    assert ph.ev('window.__realms.ui.state.barPick'), 'now asking which slot'
+    assert not ph.ev('window.__realms.ui.isOpen("bags")'), 'the bags close so the bar shows'
+    cancel = ph.ev("window.__realms.ui.regions.filter((o) => o.label === 'bar_pick:cancel').map((o) => Math.min(o.rect.w, o.rect.h))")
+    mh = ph.ev('window.__realms.ui.layout().minHit')          # the play layer's own minHit (the bags were on the window layer)
+    assert cancel and cancel[0] >= mh, f'a Cancel button of minHit: {cancel} vs {mh}'
+    slot8 = ph.ev("(() => { const r = window.__realms.ui.regions.filter((o) => o.kind === 'slot' && o.slot === 8).pop(); return r ? __drv.hudToCss(r.rect.x + r.rect.w / 2, r.rect.y + r.rect.h / 2) : null; })()")
+    assert slot8, 'slot 8 on the cluster'
+    ph.shot('phone_bar_item_pick', 'Put on bar: the bar slots lit in gold, Cancel')
+    ph.tap(slot8, 0.5)
+    s = ph.ev(f'{hud}.bar[7]')
+    assert s and s.get('item') == 'potion', f'the potion is on slot 8: {s}'
+    n0 = s['count']
+    # hurt, then drink from the bar
+    ph.ev('window.__realms.dev.hp(20)')
+    time.sleep(0.2)
+    hp0 = ph.ev('__drv.me()')['hp']
+    ph.tap(slot8, 0.6)
+    me = ph.ev('__drv.me()')
+    s = ph.ev(f'{hud}.bar[7]')
+    log('  bar potion: hp', hp0, '->', me['hp'], 'count', n0, '->', s['count'], 'cd', s['cdLeft'])
+    assert me['hp'] > hp0, 'the potion healed'
+    assert s['count'] == n0 - 1, 'one fewer potion'
+    assert s['cdLeft'] > 50, 'the potion cooldown runs on the slot'
+    ph.shot('phone_bar_item', f'drank a potion from bar slot 8: health {hp0} -> {me["hp"]}, {s["count"]} left, cooldown sweep')
+    ph.tap(slot8, 0.4)
+    t = ph.ev('(window.__realms.ui.state.toast || {}).text')
+    assert t == 'Not ready yet.', f'a second press says the cooldown: {t}'
+    # a long press pins the card: Take off bar
+    ph.touch('touchStart', slot8[0], slot8[1]); time.sleep(0.7); ph.touch('touchEnd', slot8[0], slot8[1]); time.sleep(0.4)
+    labels = ph.ev('__drv.labels()')
+    assert 'card:take off bar' in labels, f'long press: the card with Take off bar; labels {labels}'
+    assert ph.ev(f'{hud}.bar[7].count') == n0 - 1, 'the long press used nothing'
+    ph.tap_region(label='card:take off bar', wait=0.5)
+    s = ph.ev(f'{hud}.bar[7]')
+    assert not (s and s.get('item')), f'slot 8 is empty again: {s}'
 
 
 def quest_nav_phone(ph):

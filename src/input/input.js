@@ -194,6 +194,9 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
           else walkTo(e.x, e.y, TALK_REACH_PX, { t: 'interact', id: e.id });
         } else if (it.k === 'cast') {
           const abId = it.ability || (me.bar ? me.bar[it.slot - 1] : null);
+          // an item on the bar (`item:<id>`): use one from the bags. Items are off the global cooldown; the sim checks
+          // the stock and the item's own cooldown group (the potion group shares one)
+          if (typeof abId === 'string' && abId.startsWith('item:')) { out.push({ t: 'use_item', item: abId.slice(5) }); continue; }
           const ab = abId ? abilities[abId] : null;
           // the global cooldown: a press in its last GCD_QUEUE_S waits for it; an earlier one is dropped without a word
           const offGcd = ab && ab.gcd === false;

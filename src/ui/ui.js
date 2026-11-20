@@ -16,7 +16,7 @@ import { createHud, drawTooltip, drawQuestMark, drawGoalArrow } from './hud.js';
 import { arrowMode } from './questnav.js';
 import { hudLayout, hitPx, inRect, menuRect, W, H, BAR } from './layout.js';
 import { buildHudModel } from './uivm.js';
-import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions } from './menus.js';
+import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions, itemCard, itemTooltip } from './menus.js';
 import { drawHelp } from './help.js';
 import { drawTalents } from './talents.js';
 import { drawTalents2, isBuilds2, b2Class, b2FailText } from './talents2.js';
@@ -136,6 +136,15 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         .forEach(([it, i]) => send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item, ...(it.uid != null ? { uid: it.uid } : {}) }));
     },
     dismissHint() { st.hint = null; },
+    /** Items on the skill bar: `bar_set { slot, entry }` (entry `item:<id>`, an ability id, or null to clear an item). */
+    barSet(slot, entry) { send({ t: 'bar_set', slot, entry: entry ?? null }); },
+    /** Phone (the bag card): "Put on bar" asks which slot next; the bar slots light up until one is tapped. */
+    barPickStart(itemId) {
+      st.barPick = { entry: `item:${itemId}`, name: (itemInfo(itemId) || { name: itemId }).name };
+      st.itemPick = null; st.slotCard = null;
+      if (st.metrics.touch) st.open.clear();          // the phone's bar is under the windows: show it
+    },
+    barPickCancel() { st.barPick = null; },
     toggle(id) {
       if (st.open.has(id)) { act.close(id); st.itemPick = null; return; }
       if (CENTER.includes(id)) for (const c of CENTER) st.open.delete(c);
@@ -317,20 +326,24 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         // Builds 2 (talents2.js): the whole layer on a phone (six columns), the 640x360 window on desktop
         if (st.open.has('talents') && isBuilds2(m)) drawTalents2(ctx, env, m, st, regions, act);
         hud.menuBar(ctx, L, st, regions);
+        if (st.barPick) drawBarPick(ctx, L, regions);
+        if (st.slotCard) drawSlotCard(ctx, env, m, L, regions);
         if (isBuilds2(m)) builds2Prompts(ctx, L, m);
         if (st.hint) drawHint(ctx, L, regions);
       }
     }
     st.regions = regions;
     // tooltip (hover on desktop, long-press on touch)
-    const tipAt = st.metrics.touch ? st.longTip : st.hover;
+    const tipAt = st.metrics.touch ? (st.slotCard ? null : st.longTip) : (st.itemDrag && st.itemDrag.active ? null : st.hover);
     if (tipAt) {
       const r = topRegion(tipAt.x, tipAt.y);
       let tip = r && r.tip ? r.tip : null;
+      if (!tip && r && r.kind === 'slot' && r.item && lastModel && st.mode === 'game') tip = barItemTip(r.slot, r.item);
       if (!tip && r && r.tipAbility) tip = abilityTooltip(abilityInfo(r.tipAbility), 1, (classInfo(st.cls) || {}).resource);
       if (!tip && r && lastModel && st.mode === 'game') tip = hud.tooltipFor(r, lastModel);
       if (tip && !(r.kind === 'talent')) drawTooltip(g, ctx, tip, tipAt.x + 12, tipAt.y - 8, { W: L.W, H: L.H });
     }
+    if (st.itemDrag && st.itemDrag.active) g.iconIn(ctx, st.itemDrag.icon, Math.round(st.itemDrag.x) - 11, Math.round(st.itemDrag.y) - 11, 22, 22);
     if (st.hint && t - st.hint.t0 > 30) st.hint = null;
     if (st.levelUp && t - st.levelUp.t0 > 6) st.levelUp = null;
     if (st.banner && st.banner.until > t && st.mode === 'game') {
@@ -349,6 +362,44 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       g.window(ctx, tx, ty, w, 18, 'thin', 'slate', 0.95);
       g.text(ctx, st.toast.text, tx + Math.floor(w / 2), ty + 3, 'cream', { align: 'center' });
     }
+  }
+
+  /** The item tooltip for an item on the bar: how many are in the bags, its cooldown, and how to take it off. */
+  function barItemTip(slotN, itemId) {
+    const tip = itemTooltip(itemId, null);
+    if (!tip) return null;
+    const s = (lastModel.bar || [])[slotN - 1] || {};
+    const n = s.count || 0;
+    const lines = [n ? `${n} in your bags` : 'None left in your bags'];
+    if (s.cdLeft > 0.05) lines.push(`Ready in ${Math.ceil(s.cdLeft)} sec`);
+    if (!st.metrics.touch) lines.push('Right-click to take it off the bar');
+    tip.foot = lines.join('. ') + '.';
+    tip.footColor = n ? 'gray' : 'red';
+    return tip;
+  }
+  /** "Put on bar" (phone bag card): a prompt over the play area with Cancel; the bar slots are outlined in gold. */
+  function drawBarPick(ctx, L, regions) {
+    const text = `Tap a bar slot for ${st.barPick.name}`;
+    const bh = Math.max(20, L.minHit || 0), bw = Math.max(60, L.minHit || 0);
+    const w = Math.min(L.W - 8, g.textW(text) + bw + 30), h = bh + 10;
+    const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.floor(L.H * 0.3) : 260;
+    g.window(ctx, x, y, w, h, 'thin', 'ember', 0.97);
+    regions.push({ rect: { x, y, w, h }, kind: 'window', id: 'bar_pick' });
+    g.text(ctx, g.clip(text, w - bw - 22), x + 8, y + Math.floor(h / 2) - 6, 'cream');
+    const bx = x + w - bw - 5, by = y + 5;
+    g.window(ctx, bx, by, bw, bh, 'thin', 'slate', 0.97);
+    g.text(ctx, 'Cancel', bx + bw / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+    regions.push({ rect: { x: bx, y: by, w: bw, h: bh }, kind: 'button', label: 'bar_pick:cancel', on: () => act.barPickCancel() });
+  }
+  /** Phone: a long press on an item on the bar pins its card, with Take off bar. */
+  function drawSlotCard(ctx, env, m, L, regions) {
+    const sc = st.slotCard, s = (m.bar || [])[sc.slot - 1];
+    if (!s || s.item !== sc.item) { st.slotCard = null; return; }
+    const tip = barItemTip(sc.slot, sc.item);
+    if (!tip) { st.slotCard = null; return; }
+    const left = L.cluster && L.cluster.length ? Math.min(...L.cluster.map((b) => b.x)) : L.W;
+    itemCard(ctx, env, st, regions, tip, Math.max(4, left - 210), Math.max((L.minHit || 0) + 6, Math.floor(L.H / 2) - 90), 'Take off bar',
+      () => { st.slotCard = null; act.barSet(sc.slot, null); }, { onClose: () => { st.slotCard = null; } });
   }
 
   /** The npc window's rect on this layer (dialog.js draws it; the toast and the quest marks keep clear of it). */
@@ -516,6 +567,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     }
     if (st.rebinding) { st.rebinding = null; }
     const r = topRegion(x, y);
+    // "Put on bar": the next slot pressed takes the item; Cancel (or a press on anything else) leaves the bar as it was
+    if (st.barPick && r && r.kind === 'slot' && r.slot) { act.barSet(r.slot, st.barPick.entry); toast(`${st.barPick.name} is on slot ${r.slot}.`); st.barPick = null; return true; }
+    if (st.barPick && r && !(r.on && r.label === 'bar_pick:cancel')) { st.barPick = null; return true; }
     if (!r) {
       // a click outside the open windows closes the touch window; on desktop windows stay
       return false;
@@ -523,7 +577,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (r.drag) { st.drag = r; r.drag(x); return true; }
     if (r.on) { r.on(button); return true; }
     switch (r.kind) {
-      case 'slot': if (r.ability || r.slot) hooks.input && hooks.input.inject({ k: 'cast', slot: r.slot }); st.pressed = `slot${r.slot}`; return true;
+      case 'slot':
+        if (button === 2 && r.item) { act.barSet(r.slot, null); return true; }      // right-click takes an item off the bar
+        if (r.ability || r.slot) hooks.input && hooks.input.inject({ k: 'cast', slot: r.slot }); st.pressed = `slot${r.slot}`; return true;
       case 'interact': hooks.input && hooks.input.inject({ k: 'interact' }); st.pressed = 'interact'; return true;
       case 'mark': hooks.input && hooks.input.inject({ k: 'talk', id: r.id }); return true;
       case 'next_target': hooks.input && hooks.input.inject({ k: 'tab', back: false }); st.pressed = 'next_target'; return true;
@@ -546,14 +602,29 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const p = toHud(ev.clientX, ev.clientY);
     st.hover = p.x >= 0 && p.y >= 0 && p.x < W && p.y < H ? p : null;
     if (st.drag && st.drag.drag && (ev.buttons & 1)) st.drag.drag(p.x);
+    const d = st.itemDrag;
+    if (d) { d.x = p.x; d.y = p.y; if (!d.active && Math.hypot(p.x - d.x0, p.y - d.y0) > 3) d.active = true; }
   };
   const onMouseDown = (ev) => {
     if (ev.pointerType === 'touch' || ev.sourceCapabilities && ev.sourceCapabilities.firesTouchEvents) return;
     const p = toHud(ev.clientX, ev.clientY);
     st.hover = p;
+    // PC: an item in the bags (potion, ether, food, antidote) can be dragged onto a bar slot
+    const r0 = st.mode === 'game' && ev.button === 0 ? topRegion(p.x, p.y) : null;
+    st.itemDrag = r0 && r0.kind === 'bag' && r0.barItem
+      ? { entry: `item:${r0.barItem}`, icon: (itemInfo(r0.barItem) || {}).icon || r0.barItem, x0: p.x, y0: p.y, x: p.x, y: p.y, active: false } : null;
     if (press(p.x, p.y, ev.button)) { ev.stopPropagation(); ev.preventDefault(); }
   };
-  const onMouseUp = () => { st.drag = null; st.pressed = null; };
+  const onMouseUp = (ev) => {
+    st.drag = null; st.pressed = null;
+    const d = st.itemDrag;
+    st.itemDrag = null;
+    if (!d || !d.active || !ev) return;
+    const p = toHud(ev.clientX, ev.clientY);
+    // the slot under the pointer, even where a window edge overlaps the bar
+    const r = [...st.regions].reverse().find((o) => o.kind === 'slot' && o.slot && inRect(o.rect, p.x, p.y));
+    if (r) act.barSet(r.slot, d.entry);
+  };
   const onWheel = (ev) => {
     const p = toHud(ev.clientX, ev.clientY);
     const r = topRegion(p.x, p.y);
@@ -614,7 +685,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     ev.preventDefault();
     if (route.action === 'menu') {
       const open = [...st.open];
-      if (st.hint) act.dismissHint();
+      if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
+      else if (st.hint) act.dismissHint();
       else if (st.dialog) act.closeDialog();
       else if (open.length) act.close(open[open.length - 1]);
       else if (lastModel && lastModel.target) hooks.input && hooks.input.inject({ k: 'clear' });
@@ -663,6 +735,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         return;
       case 'train_fail': case 'inventory_fail': case 'talent_fail':
         if (ev.id !== me) return;
+        if (ev.type === 'inventory_fail' && ev.cmd === 'use_item' && ev.reason === 'no_item') { const t = `No ${(itemInfo(ev.item) || { name: ev.item }).name} left.`; toast(t); say('error', t); return; }
         if (FAIL_TEXT[ev.reason]) { toast(FAIL_TEXT[ev.reason]); say('error', FAIL_TEXT[ev.reason]); }
         return;
       case 'inventory':
@@ -749,6 +822,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       case 'area':
         if (ev.id === me && ev.name) toast(ev.name, 2);
         return;
+      case 'bar_fail':
+        if (ev.id === me) toast(ev.reason === 'ability' ? 'Skills stay on the bar. Put an item on that slot instead.' : ev.reason === 'not_usable' ? 'Only items you can use go on the bar.' : 'That cannot go there.');
+        return;
       case 'quest':
         if (ev.id === me && ev.kind === 'complete') toast(`${(questInfoName(ev.quest))}: complete`, 2.5);
         // turned in: a banner drawn above every window, the npc's included (it used to land behind the dialog)
@@ -803,7 +879,12 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     press, topRegion,
     hudPoint: toHud,
     setJoystick(j) { st.joystick = j; },
-    setLongTip(p) { st.longTip = p; },
+    setLongTip(p) {
+      st.longTip = p;
+      // a long press on an item on the bar pins its card (Take off bar); it stays after the finger lifts
+      const r = p && st.mode === 'game' ? topRegion(p.x, p.y) : null;
+      if (r && r.kind === 'slot' && r.item) st.slotCard = { slot: r.slot, item: r.item };
+    },
     setPressed(id) { st.pressed = id; },
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */
     owns(x, y) { return st.mode !== 'game' || !!topRegion(x, y); },

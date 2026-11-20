@@ -41,6 +41,8 @@ export function createHud(C) {
   function barView(e) {
     const t = e.target != null ? C.get(e.target) : null;
     return (e.bar || []).map((id, i) => {
+      if (id == null) return { slot: i + 1, ability: null, known: false };
+      if (G().isItemEntry(id)) return itemSlotView(e, id, i + 1);
       const ab = data.ability(e, id);
       if (!ab) return { slot: i + 1, ability: id, known: false };
       let cdLeft = 0, cdTotal = ab.cooldown || 0, charges = null;
@@ -60,6 +62,18 @@ export function createHud(C) {
         charges, cost: cost ? cost.amount : 0, costKind: cost ? cost.kind : null, usable: enough && cdLeft <= 0, inRange,
         castTime: r2(ct), offGcd: ab.gcd === false };
     });
+  }
+
+  /** A bar slot holding an item (`item:<id>`): the stack count across the bags, its group cooldown, usable now. */
+  function itemSlotView(e, entry, slot) {
+    const itemId = G().itemOfEntry(entry);
+    const def = (C.content.items || {})[itemId] || null;
+    const u = (def && def.use) || {};
+    const count = (e.bag || []).reduce((n, s) => n + (s.item === itemId ? s.qty || 1 : 0), 0);
+    const cdLeft = r2(sec((e.cd[`item:${u.group || itemId}`] || 0) - state.tick));
+    const level = !def || (def.reqLevel || 1) <= e.level;
+    return { slot, ability: null, item: itemId, name: def ? def.name : itemId, icon: def ? def.icon || itemId : itemId, count,
+      cdLeft, cdTotal: u.cooldown || 0, usable: count > 0 && cdLeft <= 0 && level, inRange: true, offGcd: true, known: true };
   }
 
   function unitView(u, viewer) {

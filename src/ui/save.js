@@ -29,7 +29,8 @@ export const CLASS_IDS = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade']
 export const LOOKS = 3;
 export const BAR_SLOTS = 8;                      // the skill bar (was 6): a save carries 8 slots, an empty slot is null
 
-/** A bar as saved: exactly BAR_SLOTS entries (ability id or null). An old 6-slot bar pads with empty slots. */
+/** A bar as saved: exactly BAR_SLOTS entries (ability id, `item:<itemId>` for an item on the bar, or null). An old 6-slot
+ *  bar pads with empty slots. */
 export function padBar(bar) {
   const ids = Array.isArray(bar) ? bar.slice(0, BAR_SLOTS).map((id) => (typeof id === 'string' && id ? id : null)) : [];
   while (ids.length < BAR_SLOTS) ids.push(null);
