@@ -209,6 +209,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     const listBottom = bottom - 26;
     const vis = Math.floor((listBottom - y) / rowH);
     d.scroll = Math.max(0, Math.min(Math.max(0, stock.length - vis), d.scroll || 0));
+    let vcard = null;
     for (const s of stock.slice(d.scroll, d.scroll + vis)) {
       const can = m.gold >= s.price && (s.reqLevel || 1) <= m.player.level + 2;
       const col = RARITY_COLOR[s.rarity] || '#e8e8e8';
@@ -219,9 +220,17 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       g.text(ctx, `${s.price} gold`, x0 + w0 - 2, y + Math.floor((rowH - 11) / 2), m.gold >= s.price ? 'gold' : 'red', { align: 'right' });
       void col;
       const info = itemInfo(s.item);
-      regions.push({ rect: { x: x0, y, w: w0, h: rowH - 1 }, kind: 'button',
-        tip: info ? { ...itemTooltip(info, touch ? 'Tap to buy' : 'Click to buy (right-click: 5)', info.slot ? (m.equip[info.slot] || null) : undefined), foot: `${touch ? 'Tap to buy' : 'Click to buy, right-click for 5'}.  ${s.price} gold each.`, footColor: can ? 'gold' : 'red' } : null,
-        on: (btn) => act.send({ t: 'buy', npc: d.ent, index: s.index, qty: btn === 2 && (s.stack || 1) > 1 ? 5 : 1 }), label: `buy:${s.item}` });
+      const tip = info ? { ...itemTooltip(info, touch ? null : 'Click to buy (right-click: 5)', info.slot ? (m.equip[info.slot] || null) : undefined), foot: `${touch ? '' : 'Click to buy, right-click for 5.  '}${s.price} gold each.${(s.reqLevel || 1) > m.player.level ? `  Needs level ${s.reqLevel} to wear.` : ''}`, footColor: can ? 'gold' : 'red' } : null;
+      // on a phone a tap shows the item's card first (Scott 2026-11-19: "The armor doesn't let me inspect it before buying
+      // it"); Buy on the card, or a second tap on the same row, buys it
+      const picked = touch && d.vpick === s.index;
+      if (picked) { g.outline(ctx, x0, y, x0 + w0 - 1, y + rowH - 2, '#ffd34d'); vcard = { tip, s, rowY: y }; }
+      regions.push({ rect: { x: x0, y, w: w0, h: rowH - 1 }, kind: 'button', tip: touch ? null : tip,
+        on: (btn) => {
+          if (touch && !picked) { d.vpick = s.index; return; }
+          d.vpick = null;
+          act.send({ t: 'buy', npc: d.ent, index: s.index, qty: btn === 2 && (s.stack || 1) > 1 ? 5 : 1 });
+        }, label: `buy:${s.item}` });
       y += rowH;
     }
     if (stock.length > vis) regions.push({ rect: { x: x0, y: r.y + 36, w: w0, h: vis * rowH }, kind: 'scroll', scroll: (k) => { d.scroll += k; } });
@@ -242,5 +251,19 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     const junkN = (m.bag.items || []).filter((it) => it && it.kind === 'junk').length;
     if (junkN) button(r.x + r.w - 10 - 70 - 6 - 74, bottom, 74, 'Sell junk', 'cream', () => act.sellJunk());
     back();
+    // the picked item's card (phone), drawn last so it sits over the list: stats, compare with what is worn, Buy and Close
+    if (vcard && vcard.tip) {
+      const bh = Math.max(20, env.L.minHit || 0), gap = 4;
+      const cw = Math.min(214, w0 - 8);
+      const box = drawTooltip(g, ctx, vcard.tip, x0 + w0 - cw, vcard.rowY + rowH, { w: cw, W: x0 + w0 + 2, H: bottom - bh - gap });
+      const by2 = box.y + box.h + gap, bw = Math.floor((box.w - gap) / 2);
+      regions.push({ rect: { x: box.x, y: box.y, w: box.w, h: box.h + gap + bh }, kind: 'window', id: 'vendor_card' });
+      [['Buy', 'forest', () => { const s = vcard.s; d.vpick = null; act.send({ t: 'buy', npc: d.ent, index: s.index, qty: 1 }); }], ['Close', 'slate', () => { d.vpick = null; }]].forEach(([text, tone, on], k) => {
+        const bx2 = box.x + k * (bw + gap);
+        g.window(ctx, bx2, by2, bw, bh, 'thin', tone, 0.97);
+        g.text(ctx, text, bx2 + bw / 2, by2 + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+        regions.push({ rect: { x: bx2, y: by2, w: bw, h: bh }, kind: 'button', label: `vcard:${text.toLowerCase()}`, on });
+      });
+    }
   }
 }
