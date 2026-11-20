@@ -273,6 +273,18 @@ export function nearestWalk(zone, x, y, r = 6) {
   return null;
 }
 
+/**
+ * Cap 20 (BUILDS_2 5.5, PROGRESSION.md 1.1): the generators author levels on the old 1 to 15 scale; this maps every
+ * spawn level, area `levels` and the zone's `levels` to the shipped scale (PROGRESSION.zoneRespread). In place.
+ */
+export function respreadZone(z, table) {
+  const m = (L) => (Number.isInteger(L) && table[L] != null ? table[L] : L);
+  for (const s of z.spawns || []) s.level = m(s.level);
+  for (const a of z.areas || []) if (a.levels) a.levels = a.levels.map(m);
+  if (z.levels) z.levels = z.levels.map(m);
+  return z;
+}
+
 export function writeModule(file, header, obj) {
   fs.writeFileSync(file, `${header}\nexport default ${JSON.stringify(obj)};\n`);
 }

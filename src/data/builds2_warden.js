@@ -211,6 +211,15 @@ export const WARDEN_BUILDS = [
       P('sigilward', 'spellbreaker'), P('stride', 'long_stride'), ...rep(P('stride', 'gate_charge'), 2), P('stride', 'iron_chain'), P('oathblade', 'keen_edge')] },
 ];
 
+// Cap 20 (phase 5, BUILDS_2 5.4): five more points per build for levels 16 to 20, on the build's own tracks (ranks the
+// first 15 points left unfilled; no new forks, keystones or skills). qa/sim/builds2.mjs gates every level to 20.
+const PAST_15 = {
+  shieldwheel: [...rep(P('bulwark', 'iron_skin'), 2), P('bulwark', 'steady_shield'), ...rep(P('oathkeeper', 'commanding_voice'), 2)],
+  forge_reaver: [...rep(P('bulwark', 'iron_skin'), 2), ...rep(P('oathblade', 'keen_edge'), 2), P('oathblade', 'momentum')],   // armor first: damage first ran 1.25x the Spellbreaker at 17
+  spellbreaker: [...rep(P('oathblade', 'keen_edge'), 2), ...rep(P('sigilward', 'bash_breaker'), 2), P('sigilward', 'steady_will')],
+};
+for (const b of WARDEN_BUILDS) b.path.push(...PAST_15[b.id]);
+
 export const WARDEN = {
   tracks: WARDEN_TRACKS,
   nodes: Object.fromEntries(WARDEN_NODES.map((n) => [n.id, n])),

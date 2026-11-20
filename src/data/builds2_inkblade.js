@@ -181,6 +181,15 @@ export const INKBLADE_BUILDS = [
       P('blot', 'corrode'), ...rep(P('inkbody', 'ink_leech'), 2), P('inkbody', 'thirst'), P('spellcutter', 'quick_cut')] },
 ];
 
+// Cap 20 (phase 5, BUILDS_2 5.4): five more points per build for levels 16 to 20, on the build's own tracks (ranks the
+// first 15 points left unfilled; no new forks, keystones or skills). qa/sim/builds2.mjs gates every level to 20.
+const PAST_15 = {
+  night_letter: [...rep(P('edge', 'sharpened'), 2), ...rep(P('edge', 'opening_line'), 2), P('shade', 'soft_step')],
+  fan_dancer: [...rep(P('splatter', 'wide_cut'), 2), ...rep(P('splatter', 'flicker'), 2), P('splatter', 'spreading_ink')],
+  venom_knife: [...rep(P('blot', 'find_the_seam'), 2), ...rep(P('blot', 'sunder'), 2), P('blot', 'deep_wounds')],
+};
+for (const b of INKBLADE_BUILDS) b.path.push(...PAST_15[b.id]);
+
 export const INKBLADE = {
   tracks: INKBLADE_TRACKS,
   nodes: Object.fromEntries(INKBLADE_NODES.map((n) => [n.id, n])),

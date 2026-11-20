@@ -229,7 +229,11 @@ export function createStats(C) {
     const fixed = !Array.isArray(t.level);
     // low-level foes are lighter (PROGRESSION mobCurve.lowLevelHp, fix pass 1): [upToLevel, mult], first match wins
     const low = (c.lowLevelHp || []).find(([upTo]) => L <= upTo);
-    const hpMax = t.hpOverride || (fixed && t.hp != null ? t.hp : Math.round((c.hp[0] + c.hp[1] * L + c.hp[2] * L * L) * hpM * (low ? low[1] : 1)));
+    // past mobCurve.linearFrom [level, slope] health is linear (BUILDS_2 5.3, cap 20): hp(from) + slope x (L - from)
+    const lin = c.linearFrom;
+    const curveHp = (x) => c.hp[0] + c.hp[1] * x + c.hp[2] * x * x;
+    const baseHp = lin && L > lin[0] ? curveHp(lin[0]) + lin[1] * (L - lin[0]) : curveHp(L);
+    const hpMax = t.hpOverride || (fixed && t.hp != null ? t.hp : Math.round(baseHp * hpM * (low ? low[1] : 1)));
     let dmg = fixed && t.damage ? t.damage : null;
     if (!dmg) {
       const mean = (c.hit[0] + c.hit[1] * L) * dmgM;

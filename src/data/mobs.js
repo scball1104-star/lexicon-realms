@@ -12,7 +12,7 @@
 // Swapping one family's art is one line here.
 export const MOB_SPRITES = {
   ink_slime: { sprite: 'ink_slime', lq: 'ink_slime', byLevel: { 3: 'ink_slime_deep' } },
-  moss_scarab: { sprite: 'moss_scarab', lq: 'moss_scarab', byLevel: { 10: 'moss_scarab_moor' } },
+  moss_scarab: { sprite: 'moss_scarab', lq: 'moss_scarab', byLevel: { 13: 'moss_scarab_moor' } },   // 13: the moor (10 before the cap 20 re-spread)
   briar_wolf: { sprite: 'briar_wolf', lq: 'briar_wolf' },
   thornback_wolf: { sprite: 'thornback_wolf', lq: 'thornback_wolf' },
   ink_blot: { sprite: 'ink_blot', lq: 'ink_blot' },
@@ -26,6 +26,13 @@ export const MOB_SPRITES = {
   tower_sentinel: { sprite: 'tower_sentinel', lq: 'glass_sentinel' },
   watch_lamp: { sprite: 'watch_lamp', lq: 'glint_wisp' },
   sentinel_long_watch: { sprite: 'sentinel_long_watch', lq: 'echo_warden' },
+  // the bounty boards' named foes (src/data/bounties.js, BUILDS_2 5.6) wear their family's art
+  bramblejaw: { sprite: 'briar_wolf', lq: 'briar_alpha' },
+  inkpot: { sprite: 'ink_blot', lq: 'ink_blot' },
+  black_tup: { sprite: 'fold_ram', lq: 'glassback' },
+  cold_count: { sprite: 'barrow_shade', lq: 'borrowed_shadow' },
+  grimmet: { sprite: 'mist_wolf', lq: 'mist_wolf' },
+  drowned_clerk: { sprite: 'page_wraith', lq: 'page_wraith' },
 };
 /** The sprite key for a family at a level (the atlas id; spawns carry it as `sprite`). */
 export function mobSprite(id, level = 1) {
@@ -38,7 +45,8 @@ export function mobSprite(id, level = 1) {
 
 // PROGRESSION 3: hp = round(100 + 40 L + 0.6 L^2), swing mean 2 + 2.2 L (+-15%), gold [floor(L / 3), L]; kind multipliers 3.1.
 // lowLevelHp mirrors PROGRESSION mobCurve.lowLevelHp (fix pass 1): levels 1-4 x0.78, 5 x0.85, 6 x0.92
-export const MOB_CURVE = { hp: [100, 40, 0.6], hit: [2, 2.2], spread: 0.15, attackSpeed: 2.0, lowLevelHp: [[4, 0.78], [5, 0.85], [6, 0.92]] };
+// linearFrom mirrors PROGRESSION mobCurve.linearFrom (cap 20, BUILDS_2 5.3): past 15, hp(15) + 58 x (L - 15)
+export const MOB_CURVE = { hp: [100, 40, 0.6], hit: [2, 2.2], spread: 0.15, attackSpeed: 2.0, lowLevelHp: [[4, 0.78], [5, 0.85], [6, 0.92]], linearFrom: [15, 58] };
 export const MOB_KINDS = {
   normal: { hp: 1, damage: 1, xp: 1 },
   weak: { hp: 0.6, damage: 0.7, xp: 0.6 },
@@ -55,7 +63,9 @@ export function mobStats(id, level) {
   for (const k of kinds) { const m = MOB_KINDS[k]; hpM *= m.hp; dmgM *= m.damage; xpM *= m.xp; goldM *= m.gold || 1; }
   const L = level;
   const low = MOB_CURVE.lowLevelHp.find(([upTo]) => L <= upTo);
-  const hp = Math.round((MOB_CURVE.hp[0] + MOB_CURVE.hp[1] * L + MOB_CURVE.hp[2] * L * L) * hpM * (low ? low[1] : 1));
+  const curve = (x) => MOB_CURVE.hp[0] + MOB_CURVE.hp[1] * x + MOB_CURVE.hp[2] * x * x;
+  const [linL, slope] = MOB_CURVE.linearFrom;
+  const hp = Math.round((L > linL ? curve(linL) + slope * (L - linL) : curve(L)) * hpM * (low ? low[1] : 1));
   const mean = (MOB_CURVE.hit[0] + MOB_CURVE.hit[1] * L) * dmgM;
   return {
     level: L, hp: t.hpOverride || hp,
@@ -102,7 +112,7 @@ export const MOB_ABILITIES = {
   mob_kindle_watch: { id: 'mob_kindle_watch', name: 'Kindle the Watch', school: 'light', castTime: 3.0, interruptible: true, cooldown: 0, gcd: true, target: 'ally',
     range: { min: 0, max: 128 }, targetRule: { family: 'construct', hurtMost: true }, effects: [{ type: 'heal', pctMaxHp: 0.08 }] },
   mob_order_given: { id: 'mob_order_given', name: 'Order Given', target: 'self', trigger: { hpBelow: 0.5, once: true }, yell: 'WATCH THE ROADS',
-    effects: [{ type: 'summon', mob: 'tower_sentinel', level: 13, count: 2, walkIn: 6, from: 'adds_from' }] },
+    effects: [{ type: 'summon', mob: 'tower_sentinel', level: 17, count: 2, walkIn: 6, from: 'adds_from' }] },
   mob_bolt: { id: 'mob_bolt', name: 'Bolt', school: 'ink', castTime: 2.0, cooldown: 0, gcd: true, target: 'enemy', range: { min: 0, max: 112 }, projectile: { speed: 200 },
     effects: [{ type: 'damage', mobHit: 1.6, canCrit: false, school: 'ink' }] },
 };
@@ -115,38 +125,56 @@ const T = (o) => o;
 export const MOBS = {
   ink_slime: T({ name: 'Ink Slime', level: [1, 4], family: 'ooze', kind: 'normal', behavior: 'passive', aggroRadius: 0, speed: 40, wander: 2, flee: null,
     abilities: [], loot: { junk: 'slime_ink', table: [{ item: 'quills_copy', chance: 0.5, quest: 'wm_copied_twice', minLevel: 3 }] } }),
-  moss_scarab: T({ name: 'Moss Scarab', level: [2, 11], family: 'insect', kind: 'normal', traits: ['armored'], behavior: 'passive', aggroRadius: 0, speed: 48, wander: 2, flee: null,
-    names: { 11: 'Moor Scarab' }, abilities: [{ id: 'mob_shell_up' }], loot: { junk: 'scarab_shell', table: [] } }),
+  moss_scarab: T({ name: 'Moss Scarab', level: [2, 14], family: 'insect', kind: 'normal', traits: ['armored'], behavior: 'passive', aggroRadius: 0, speed: 48, wander: 2, flee: null,
+    names: { 14: 'Moor Scarab' }, abilities: [{ id: 'mob_shell_up' }], loot: { junk: 'scarab_shell', table: [] } }),
   briar_wolf: T({ name: 'Briar Wolf', level: [3, 5], family: 'beast', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: 0.2, social: true,
     abilities: [{ id: 'mob_wolf_lunge', chance: 1, cooldown: 8 }], loot: { junk: 'wolf_pelt', table: [] } }),
-  thornback_wolf: T({ name: 'Thornback Wolf', level: [5, 8], family: 'beast', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: 0.2, social: true,
-    abilities: [{ id: 'mob_thorn_hide' }], loot: { junk: 'thorny_pelt', table: [{ item: 'thornback_hide', chance: 0.6, quest: 'wm_rhythm_of_the_forge' }] } }),
-  ink_blot: T({ name: 'Ink Blot', level: [5, 7], family: 'ooze', kind: 'caster', behavior: 'aggressive', aggroRadius: 80, speed: 60, wander: 1, flee: null,
-    abilities: [{ id: 'mob_ink_spit' }], loot: { junk: 'blot_residue', table: [] } }),
-  fold_ram: T({ name: 'Fold Ram', level: [6, 7], family: 'beast', kind: 'normal', traits: ['heavy'], behavior: 'passive', aggroRadius: 0, speed: 72, wander: 3, flee: null,
+  thornback_wolf: T({ name: 'Thornback Wolf', level: [5, 10], family: 'beast', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: 0.2, social: true,
+    abilities: [{ id: 'mob_thorn_hide' }], loot: { junk: 'thorny_pelt', table: [{ item: 'thornback_hide', chance: 0.6, quest: 'wm_rhythm_of_the_forge' },
+      { item: 'thornback_fang', chance: 0.5, quest: 'bounty_wm_fangs', maxLevel: 6 }] } }),
+  ink_blot: T({ name: 'Ink Blot', level: [5, 8], family: 'ooze', kind: 'caster', behavior: 'aggressive', aggroRadius: 80, speed: 60, wander: 1, flee: null,
+    abilities: [{ id: 'mob_ink_spit' }], loot: { junk: 'blot_residue', table: [{ item: 'blot_ink_pot', chance: 0.6, quest: 'bounty_wm_blot_ink', maxLevel: 6 }] } }),
+  fold_ram: T({ name: 'Fold Ram', level: [6, 8], family: 'beast', kind: 'normal', traits: ['heavy'], behavior: 'passive', aggroRadius: 0, speed: 72, wander: 3, flee: null,
     abilities: [{ id: 'mob_ram_charge' }], loot: { junk: 'tangled_wool', table: [{ item: 'fold_fleece', chance: 1.0, quest: 'dn_name_in_the_hem' }] } }),
-  gorse_crow: T({ name: 'Gorse Crow', level: [8, 8], family: 'beast', kind: 'weak', behavior: 'flees', aggroRadius: 48, speed: 80, wander: 2, flee: 0.5, flying: true,
-    fleeRule: { at: 0.5, distance: 160, returnTo: 'spawn' }, abilities: [], loot: { junk: 'crow_feather', table: [{ item: 'pocket_button', chance: 1.0, quest: 'dn_eleven_pockets' }] } }),
-  barrow_shade: T({ name: 'Barrow Shade', level: [8, 9], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 60, wander: 3, flee: null,
-    abilities: [{ id: 'mob_chilling_touch' }], loot: { junk: 'grave_dust', table: [] } }),
-  mist_wolf: T({ name: 'Mist Wolf', level: [10, 12], family: 'beast', kind: 'normal', traits: ['fast'], behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: 0.2, social: true,
-    abilities: [{ id: 'mob_mist_veil' }], loot: { junk: 'mist_pelt', table: [] } }),
-  gorse_boar: T({ name: 'Gorse Boar', level: [11, 12], family: 'beast', kind: 'normal', traits: ['heavy', 'tough'], behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: null,
-    abilities: [{ id: 'mob_boar_charge', cooldown: 12 }], loot: { junk: 'boar_hide', table: [{ item: 'boar_tusk', chance: 0.7, quest: 'mo_peat_and_tusk' }] } }),
-  page_wraith: T({ name: 'Page Wraith', level: [12, 13], family: 'spirit', kind: 'caster', traits: ['fast'], behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 3, flee: null, flying: true,
+  gorse_crow: T({ name: 'Gorse Crow', level: [10, 10], family: 'beast', kind: 'weak', behavior: 'flees', aggroRadius: 48, speed: 80, wander: 2, flee: 0.5, flying: true,
+    fleeRule: { at: 0.5, distance: 160, returnTo: 'spawn' }, abilities: [], loot: { junk: 'crow_feather', table: [{ item: 'pocket_button', chance: 1.0, quest: 'dn_eleven_pockets' },
+      { item: 'black_crow_quill', chance: 0.6, quest: 'bounty_dn_crow_quills' }] } }),
+  barrow_shade: T({ name: 'Barrow Shade', level: [10, 11], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 60, wander: 3, flee: null,
+    abilities: [{ id: 'mob_chilling_touch' }], loot: { junk: 'grave_dust', table: [{ item: 'barrow_candle', chance: 0.5, quest: 'bounty_dn_candles' }] } }),
+  mist_wolf: T({ name: 'Mist Wolf', level: [13, 16], family: 'beast', kind: 'normal', traits: ['fast'], behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: 0.2, social: true,
+    abilities: [{ id: 'mob_mist_veil' }], loot: { junk: 'mist_pelt', table: [{ item: 'mist_wolf_tooth', chance: 0.5, quest: 'bounty_mo_teeth' }] } }),
+  gorse_boar: T({ name: 'Gorse Boar', level: [14, 16], family: 'beast', kind: 'normal', traits: ['heavy', 'tough'], behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 3, flee: null,
+    abilities: [{ id: 'mob_boar_charge', cooldown: 12 }], loot: { junk: 'boar_hide', table: [{ item: 'boar_tusk', chance: 0.7, quest: 'mo_peat_and_tusk' },
+      { item: 'boar_bristle', chance: 0.6, quest: 'bounty_mo_bristles' }] } }),
+  page_wraith: T({ name: 'Page Wraith', level: [16, 17], family: 'spirit', kind: 'caster', traits: ['fast'], behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 3, flee: null, flying: true,
     abilities: [{ id: 'mob_paper_cut' }, { id: 'mob_scatter', cooldown: 10 }], loot: { junk: 'torn_page', table: [] } }),
-  ink_wraith: T({ name: 'Ink Wraith', level: [13, 13], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 3, flee: null, flying: true,
+  ink_wraith: T({ name: 'Ink Wraith', level: [17, 17], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 3, flee: null, flying: true,
     abilities: [{ id: 'mob_ink_tide' }], loot: { junk: 'ink_wisp', table: [] } }),
-  tower_sentinel: T({ name: 'Tower Sentinel', level: [13, 14], family: 'construct', kind: 'armored', behavior: 'aggressive', aggroRadius: 80, speed: 50, wander: 4, flee: null, patrol: true,
+  tower_sentinel: T({ name: 'Tower Sentinel', level: [17, 19], family: 'construct', kind: 'armored', behavior: 'aggressive', aggroRadius: 80, speed: 50, wander: 4, flee: null, patrol: true,
     abilities: [{ id: 'mob_lamp_sweep' }], loot: { junk: 'lamp_glass', table: [{ item: 'chime_piece', chance: 0.4, quest: 'mo_ninth_chime' }] } }),
-  watch_lamp: T({ name: 'Watch Lamp', level: [13, 13], family: 'construct', kind: 'caster', behavior: 'aggressive', aggroRadius: 112, speed: 0, wander: 0, flee: null, stationary: true,
+  watch_lamp: T({ name: 'Watch Lamp', level: [17, 17], family: 'construct', kind: 'caster', behavior: 'aggressive', aggroRadius: 112, speed: 0, wander: 0, flee: null, stationary: true,
     respawnInFight: false, abilities: [{ id: 'mob_kindle_watch' }], loot: { junk: 'lamp_glass', table: [] } }),
-  sentinel_long_watch: T({ name: 'Sentinel of the Long Watch', level: [14, 14], family: 'construct', kind: ['elite', 'armored'], elite: true, behavior: 'elite', aggroRadius: 96,
-    speed: 50, wander: 0, leash: 256, flee: null, attackSpeed: 2.4, hpOverride: 1945,
+  sentinel_long_watch: T({ name: 'Sentinel of the Long Watch', level: [19, 19], family: 'construct', kind: ['elite', 'armored'], elite: true, behavior: 'elite', aggroRadius: 96,
+    speed: 50, wander: 0, leash: 256, flee: null, attackSpeed: 2.4, hpOverride: 2670,   // cap 20 re-spread: level 14 to 19 at the same 0.91 x its curve health (was 1945)
     card: 'SENTINEL OF THE LONG WATCH. Its lamps were never put out.', deathLine: '...the roads... are watched...',
     script: 'long_watch', abilities: [{ id: 'mob_lamp_sweep', cooldown: 10 }, { id: 'mob_order_given' }],
-    fight: { odoChime: { every: 20, stun: 2, delaysSweep: true }, lamps: 2, adds: { at: 0.5, mob: 'tower_sentinel', level: 13, count: 2, walkIn: 6 } },
+    fight: { odoChime: { every: 20, stun: 2, delaysSweep: true }, lamps: 2, adds: { at: 0.5, mob: 'tower_sentinel', level: 17, count: 2, walkIn: 6 } },
     loot: { junk: 'lamp_glass', table: [], gear: 'elite' } }),
+
+  // ---- the bounty boards' named foes (src/data/bounties.js, BUILDS_2 5.6): one each, a fixed spot, the `tough` trait
+  // (a lone hard foe: x1.6 health, x1.15 damage, x1.5 XP). They never call friends.
+  bramblejaw: T({ name: 'Old Bramblejaw', level: [5, 5], family: 'beast', kind: 'normal', traits: ['tough'], behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 2, flee: null,
+    abilities: [{ id: 'mob_wolf_lunge', chance: 1, cooldown: 8 }], loot: { junk: 'wolf_pelt', table: [] } }),
+  inkpot: T({ name: 'The Inkpot', level: [6, 6], family: 'ooze', kind: 'caster', traits: ['tough'], behavior: 'aggressive', aggroRadius: 80, speed: 60, wander: 1, flee: null,
+    abilities: [{ id: 'mob_ink_spit' }], loot: { junk: 'blot_residue', table: [] } }),
+  black_tup: T({ name: 'The Black Tup', level: [10, 10], family: 'beast', kind: 'normal', traits: ['heavy', 'tough'], behavior: 'passive', aggroRadius: 0, speed: 72, wander: 2, flee: null,
+    abilities: [{ id: 'mob_ram_charge' }], loot: { junk: 'tangled_wool', table: [] } }),
+  cold_count: T({ name: 'The Cold Count', level: [12, 12], family: 'spirit', kind: 'caster', traits: ['tough'], behavior: 'aggressive', aggroRadius: 96, speed: 60, wander: 2, flee: null,
+    abilities: [{ id: 'mob_chilling_touch' }], loot: { junk: 'grave_dust', table: [] } }),
+  grimmet: T({ name: 'Grimmet', level: [15, 15], family: 'beast', kind: 'normal', traits: ['fast', 'tough'], behavior: 'aggressive', aggroRadius: 80, speed: 72, wander: 2, flee: null,
+    abilities: [{ id: 'mob_wolf_lunge', chance: 1, cooldown: 8 }], loot: { junk: 'mist_pelt', table: [] } }),
+  drowned_clerk: T({ name: 'The Drowned Clerk', level: [17, 17], family: 'spirit', kind: 'caster', traits: ['tough'], behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 2, flee: null, flying: true,
+    abilities: [{ id: 'mob_paper_cut' }], loot: { junk: 'torn_page', table: [] } }),
 };
 for (const [id, m] of Object.entries(MOBS)) {
   m.id = id;

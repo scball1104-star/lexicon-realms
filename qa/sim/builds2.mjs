@@ -1,5 +1,5 @@
 // Builds 2 bot check and GATE (docs/design/BUILDS_2.md section 7): every class's three named builds at every level from 1
-// to the level 15 cap. Each run makes a Builds 2 hero at that level, spends the build's points through the real rules
+// to the level 20 cap (15 before phase 5, cap 20). Each run makes a Builds 2 hero at that level, spends the build's points through the real rules
 // (src/sim/builds2.js: tiers, forks, keystones), takes its skill picks (1, 3, 6, 14) and its first signature (10), and
 // fights one same-level foe with a played-well bot (design gear, the real sim). The Mender's bot and fight are phase 1's,
 // unchanged; the other four classes have their own bots below (BOTS2), built on qa/sim/pack.mjs's.
@@ -21,7 +21,7 @@ const MAX_TICKS = 20 * 120;
 export const B2_CLASSES = ['mender', 'warden', 'scribe', 'wayfinder', 'inkblade'];
 export const NAMED_ALL = Object.fromEntries(B2_CLASSES.map((c) => [c, BUILDS2[c].builds.map((b) => ({ ...b, cls: c }))]));
 export const NAMED = NAMED_ALL.mender;
-export const B2_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+export const B2_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];   // to the cap 20 (phase 5)
 // The solo band (every named build solos): it wins every fight, never dies, and one foe takes 5 to 14 s at levels 1 to 4
 // (the lighter low-level foes, today's band) and 6 to 15 s from 5 (BUILDS_2 5.3: "never under 6 s for the strongest").
 // The TARGET band, the gate since the 2026-11-19 tuning: one plain foe in 9 to 14 s from level 5 for the suggested builds
@@ -364,7 +364,7 @@ const Hf = (x) => Math.max(10, x);
 export const struggleCost = (r, plain) => (r.ttk / plain.ttk + Hf(r.low) / Hf(plain.low)) / 2;
 export const struggleOk = (r, plain, answers = false) => r.deaths === 0 && r.wins === r.runs && r.ttk <= 2.5 * plain.ttk
   && (answers ? struggleCost(r, plain) <= 1.25 : struggleCost(r, plain) >= 1.1);
-export const S_LEVELS = [6, 10, 15];
+export const S_LEVELS = [6, 10, 15, 20];
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {

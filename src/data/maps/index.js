@@ -18,6 +18,7 @@ import { TALENTS } from '../talents.js';
 import { PROGRESSION } from '../progression.js';
 import { packOf } from '../packs.js';
 import { BUILDS2, RULES as BUILDS2_RULES, SKILL_PICKS, B2_ABILITIES } from '../builds2.js';
+import { BOARDS, BOUNTIES, NAMED_SPAWNS } from '../bounties.js';
 
 export const ZONES = { willowmere, valley, downs, moor };
 
@@ -34,6 +35,8 @@ export function allSpawns() {
     }
     for (const n of z.npcs || []) day.push({ zone: z.id, ...n });
   }
+  // the bounty boards' named foes (src/data/bounties.js): one fixed spot each
+  for (const s of NAMED_SPAWNS) if (ZONES[s.zone]) day.push({ sprite: mobSprite(s.mob, s.level), ...s });
   return { day, night };
 }
 
@@ -50,7 +53,8 @@ export function buildContent() {
     mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES },
     mobs: MOBS, mobSprites: MOB_SPRITES, npcs: NPCS,
     items: ITEMS, rarity: RARITY, affixes: AFFIXES, dropRules: DROP_RULES, weaponTypes: WEAPON_TYPES, armorTypes: ARMOR_TYPES, classGear: CLASS_GEAR,
-    quests: QUESTS, questOrder: QUEST_ORDER, comingLater: COMING_LATER,
+    // the chain (questOrder) plus the bounty boards' quests (BUILDS_2 5.6); boards: which npc posts which pools
+    quests: { ...QUESTS, ...BOUNTIES }, questOrder: QUEST_ORDER, comingLater: COMING_LATER, bounties: { boards: BOARDS },
     spawns: day, nightSpawns: night,
     start: { zone: 'willowmere', x: willowmere.arrival[0], y: willowmere.arrival[1], lantern: { zone: 'willowmere', id: sq.id, x: sq.x, y: sq.y } },
   };

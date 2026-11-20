@@ -60,9 +60,10 @@ function baseEntity(id, kind, zone, tx, ty) {
   };
 }
 
-export function createWorld({ seed = 1, content, systems = [] }) {
+export function createWorld({ seed = 1, content, systems = [], day = 0 }) {
   if (!content || !content.zones) throw new Error('createWorld needs content.zones');
-  const state = { v: STATE_VERSION, seed, tick: 0, rng: 0, nextId: 1, ents: [], proj: [] };
+  // day: the bounty boards' day index (src/sim/quests.js), a whole number from the client; never read from a clock here
+  const state = { v: STATE_VERSION, seed, tick: 0, rng: 0, nextId: 1, ents: [], proj: [], day: day | 0 };
   const w = wrap(state, content, createRng(seed), systems);
   w.spawnContent();
   return w;
@@ -267,7 +268,7 @@ function wrap(state, content, rng, systems) {
         if (spec.level && spec.level > 1) C.prog.setLevel(e, spec.level);
         C.prog.bindStart(e);
         // restore a saved character (CONTRACTS 3): any of these may come from the save
-        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));
+        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot', 'bounties']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));
         migrateQuestItems(e, content);
         ensureUids(e);
         if (spec.equip) e.equip = JSON.parse(JSON.stringify(spec.equip));
@@ -298,7 +299,7 @@ function wrap(state, content, rng, systems) {
       const e = index.get(id);
       if (!e || e.kind !== 'player') return null;
       const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
-      const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []) };
+      const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []), ...(e.bounties ? { bounties: clone(e.bounties) } : {}) };
       if (!combatOn) return out;
       out.hp = e.dead ? e.hpMax : e.hp;
       out.res = e.res ? { kind: e.res.kind, cur: Math.round(e.res.cur * 100) / 100 } : null;
@@ -412,6 +413,9 @@ function wrap(state, content, rng, systems) {
       return snap;
     },
     serialize() { state.rng = rng.state; return JSON.stringify(state); },
+    /** The bounty boards' day (BUILDS_2 5.6): the client passes its local calendar day; boards repost when it changes. */
+    setDay(day) { state.day = day | 0; },
+    get day() { return state.day | 0; },
     hash() { state.rng = rng.state; return hashString(JSON.stringify(state)); },
     /** Commands waiting for the next step (read only; tests and the net layer). */
     pending() { return queue.map((q) => ({ id: q.id, cmd: { ...q.cmd } })); },

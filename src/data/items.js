@@ -237,6 +237,13 @@ qi('pocket_button', 'Pocket Button', 'A button with a family mark scratched on i
 qi('stone_rubbing', 'Stone Rubbing', 'Charcoal on cloth: the faint shape of a name.');
 qi('boar_tusk', 'Boar Tusk', 'Curved, yellow, and still a little angry.');
 qi('chime_piece', 'Chime Piece', 'A length of tuned brass, warm from a lamp.');
+// the bounty boards' gather bounties (src/data/bounties.js)
+qi('thornback_fang', 'Thornback Fang', 'Long, hooked, and good for a rivet, Garrick says.');
+qi('blot_ink_pot', 'Pot of Blot Ink', 'Black, thick, and it moves when you are not looking.');
+qi('black_crow_quill', 'Black Crow Quill', 'A long quill from a gorse crow, glossy as wet ink.');
+qi('barrow_candle', 'Barrow Candle Stub', 'A stub of candle that never quite goes out.');
+qi('mist_wolf_tooth', 'Mist Wolf Tooth', 'Cold to the touch. It fogs a little in the hand.');
+qi('boar_bristle', 'Boar Bristle', 'Stiff as wire. The best brush there is for peat.');
 qi('odos_chime_word', "Odo's Chime Word", 'A note in Odo\'s hand, folded twice, for Elder Mael.');
 
 // ---------------------------------------------------------------- junk (sell to any vendor; value 1 + the dropper's level)

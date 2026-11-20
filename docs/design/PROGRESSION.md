@@ -6,10 +6,15 @@ section 9.4 so the engine agent can port it to a node test.
 
 ---
 
-## 1. The XP curve (levels 1 to 15)
+## 1. The XP curve (levels 1 to 20)
+
+**Cap 20 (phase 5 of BUILDS_2 section 9, 2026-11-19).** Scott approved "cap 50, shipped at 20 first, re-spread World 2
+to levels 1 to 20". World 2 is not built, so today's four zones were re-spread instead (1.1). Levels 1 to 14 keep their
+numbers exactly, so no live hero moves; 15 to 19 extend the same rule (BUILDS_2 5.2).
 
 Target: a first character reaches 15 in **about 3 to 3.5 hours** of play (about 185 minutes of pure levelling time
-plus first-time wandering), with **quests giving 70%** of the XP and kills 30%.
+plus first-time wandering), with **quests giving 70%** of the XP and kills 30%; and 20 in **about 5 hours** (300 minutes
+of pure levelling: the chain plus one day of the bounty boards, 2.4).
 
 | level | XP to next | cumulative at start of level | target minutes in this level |
 |---|---|---|---|
@@ -27,10 +32,43 @@ plus first-time wandering), with **quests giving 70%** of the XP and kills 30%.
 | 12 | 4,900 | 24,550 | 18 |
 | 13 | 5,470 | 29,450 | 19 |
 | 14 | 6,080 | 34,920 | 20 |
-| 15 | cap | **41,000** | |
+| 15 | 6,720 | 41,000 | 21 |
+| 16 | 7,390 | 47,720 | 22 |
+| 17 | 8,100 | 55,110 | 23 |
+| 18 | 8,830 | 63,210 | 24 |
+| 19 | 9,600 | 72,040 | 25 |
+| 20 | cap | **81,640** | |
 
 How it was built: `xp_to_next(L) = 4 * kill_xp(L) * minutes(L)`, rounded to tens, which is "30% of the level from
-about 1.2 kills a minute". At level 15 further XP converts to gold at 1 gold per 50 XP (shown as "+n gold" instead).
+about 1.2 kills a minute". Past 14 the target minutes are `20 + (L - 14)` (BUILDS_2 5.2). At the cap (now 20) further
+XP converts to gold at 1 gold per 50 XP (shown as "+n gold" instead), until Renown exists. A hero saved at 15 under
+the old cap keeps its level, its XP and any gold the cap already banked, and levels on from there.
+
+### 1.1 The zone re-spread (BUILDS_2 5.5 option 1, mapped onto today's zones)
+
+BUILDS_2 5.5 re-spreads World 2 as realms 1 to 6, the capital 6 to 10, the Downs 10 to 14, the High Moor 14 to 18 and
+the Watchtower 18 to 20. Today's world has three fighting zones, so the bands map as: the valley is the starting realm
+and stays **1 to 6** exactly; Shepherd's Downs takes the capital band and the start of the Downs band, **5 to 11**; the
+High Moor takes the rest of the Downs band, the Moor band and the Watchtower, **13 to 19**, with the Sentinel of the
+Long Watch at 19 and the last turn-in at 19. Order inside every zone is kept: each authored level maps through one
+table (`PROGRESSION.zoneRespread`, applied by `tools/maps/build_world.mjs` to every spawn and area level):
+
+| old level | 1 to 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| shipped level | same | 8 | 10 | 11 | 13 | 14 | 16 | 17 | 19 | 20 |
+
+| zone | foes before | foes now | quests before | quests now |
+|---|---|---|---|---|
+| Willowmere Valley | 1 to 6 | 1 to 6 | 1 to 6 | 1 to 6 |
+| Shepherd's Downs | 6 to 9 | 6 to 11 | 6 to 9 | 7 to 11 |
+| The High Moor | 10 to 14 (elite 14) | 13 to 19 (elite 19) | 10 to 14 | 13 to 19 |
+
+Quest levels follow the table, except where a camp spans two old levels that now sit two apart: the quest takes the
+camp's top level minus one, so no quest sends you to a foe more than one level over it (fix pass 1 bug 7). That moves
+A Name in the Hem to 7, Wolves at the Ford to 9, Peat and Tusk to 15 and The Ninth Post Is Quiet to 18. Every chain
+quest keeps `minLevel = level - 2` from 7 up, and its XP is the 2.2 formula at its new level and the same size.
+Reward gear, trainer levels and costs, and skill pick levels are unchanged. The Sentinel's fixed health moved with
+its level at the same 0.91 x its curve health: 1,945 at 14, 2,670 at 19.
 
 ## 2. XP sources
 
@@ -64,9 +102,34 @@ normal 1.0, long or escort 1.2, elite 1.8. Every quest's exact number is in ZONE
 | 5 or more | 0.25 |
 
 ### 2.3 Budget check
-24 quests pay **28,820 XP (70.3%)**; the rest, **12,180 XP**, comes from about 220 kills over the run. Walking the
-quest list in order with kills at 3/7 of each quest's XP, the player is at the quest's level or one below when each
-quest is picked up and reaches 15 on the last turn-in (sim log in section 9.3).
+Before the cap 20 re-spread: 24 quests paid **28,820 XP (70.3%)** of the 41,000 to 15; the rest came from about 220
+kills, and walking the quest list in order with kills at 3/7 of each quest's XP reached 15 on the last turn-in.
+
+Now: the 24 re-levelled quests pay **39,910 XP**, and one day of the three bounty boards (2.4) pays
+**17,450 or 17,720 XP** more (the two day draws). Walking the chain in order with kills at 3/7 of each quest's XP,
+the Willowmere board after Respect the Rhythm, the Thornfold board after Hold Still, Stone and the Tarn Overlook
+board after Peat and Tusk, the player is never more than 2 over a quest at pickup, never below its `minLevel`, and
+reaches **20 by the last turn-in** (qa/world/quests.test.mjs walks both day draws). Quests plus bounties are about 70%
+of the 81,640, as before.
+
+### 2.4 Bounty boards (BUILDS_2 5.6)
+
+Each hub posts **3 bounties a day**: kill a named foe, clear a camp, gather. Data: `src/data/bounties.js`; rules:
+`src/sim/quests.js`. Each board keeps two of each kind and posts `pool[(day + board + kind) mod 2]`, where `day` is the
+whole number the world is given (the client's local calendar day, so the boards repost at midnight; `?day=n` pins it);
+the sim never reads a clock. A bounty is a quest given and taken back by the board's keeper through the normal quest
+dialog, named "Bounty: ...". It never goes to the finished list: a turn-in is kept for the day, so the same bounty can
+be done again on another day. Each pays about a quest: XP = 2.2 at size 1.0, gold `4 L + 5`.
+
+| board (keeper) | opens after | named foe | clear a camp | gather |
+|---|---|---|---|---|
+| Willowmere, Lantern Square (Pip) | A Name Written Twice | Old Bramblejaw 5, The Inkpot 6 | 8 thornbacks 6, 6 ink blots 6 | 6 thornback fangs 6, 5 pots of blot ink 6 |
+| Thornfold hearth (Tamsin) | Wool Is Late | The Black Tup 10, The Cold Count 12 | 9 ford thornbacks 10, 6 barrow shades 11 | 6 black crow quills 10, 5 barrow candles 11 |
+| Tarn Overlook (Sorrel) | Odo Has Not Come Down | Grimmet 15, The Drowned Clerk 17 | 7 gorse boars 16, 6 ink wraiths 17 | 6 mist wolf teeth 15, 6 boar bristles 16 |
+
+The named foes are lone `tough` foes (x1.6 health, x1.15 damage, x1.5 XP) on fixed spots, each at least 6 tiles from
+any camp or npc, and the valley two well off Lark's walk home. One day of the three boards is 9 bounties at about 10
+minutes each: the extra **1.5 hours** BUILDS_2 5.5 asks for (Inference from the quest pace).
 
 ---
 
@@ -91,8 +154,15 @@ Normal mob of level L (CONTRACTS 7.3 field names). `damage` is the per-swing ran
 | 13 | 721 | [26, 35] | 2.0 | 0 | 72 | [5, 13] |
 | 14 | 778 | [28, 38] | 2.0 | 0 | 76 | [5, 14] |
 | 15 | 835 | [30, 40] | 2.0 | 0 | 80 | [5, 15] |
+| 16 | 893 | [32, 43] | 2.0 | 0 | 84 | [5, 16] |
+| 17 | 951 | [33, 45] | 2.0 | 0 | 88 | [5, 17] |
+| 18 | 1009 | [35, 48] | 2.0 | 0 | 92 | [6, 18] |
+| 19 | 1067 | [37, 50] | 2.0 | 0 | 96 | [6, 19] |
+| 20 | 1125 | [39, 53] | 2.0 | 0 | 100 | [6, 20] |
 
-Formulas: `hp = round(100 + 40 * L + 0.6 * L^2)`; damage mean `2 + 2.2 * L`; gold `[floor(L / 3), L]`.
+Formulas: `hp = round(100 + 40 * L + 0.6 * L^2)` to 15, then **linear** past 15 at the curve's own slope there,
+`hp = 835 + 58 * (L - 15)` (BUILDS_2 5.3, `mobCurve.linearFrom`), so foes never outrun the heroes' linear growth;
+damage mean `2 + 2.2 * L`; gold `[floor(L / 3), L]`.
 
 ### 3.1 Mob kinds (multipliers on the row above)
 | kind | hp | damage | other |
@@ -317,6 +387,9 @@ with more health than the Scribe and spends 40% of her mana; two fights, then a 
 All 15 cells sit between 9.7 and 13.5 s. Casters spend 30 to 45% of their mana per fight: 2 to 3 fights per sit.
 
 ### 9.3 Elite check: Sentinel of the Long Watch (ZONES_QUESTS q23), level 14 elite plus two Watch Lamps
+
+(Written for the cap 15 world. Since the cap 20 re-spread the Sentinel is level 19 with 2,670 health and its lamps
+and adds are 17; the table below is the original check, kept for its method.)
 Elite hp 1,945 (x2.5), hits 43 per 2.4 s (x1.3, armored, slow). Lamps: 306 hp casters that heal the Sentinel.
 Odo rings his chime every 20 s: the Sentinel is stunned 2 s (scripted help, so it reads "group-ish").
 

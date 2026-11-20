@@ -44,7 +44,7 @@ export function questHarness(seed = 7) {
     addEntity: (e) => { ents.push(e); byId.set(e.id, e); return e; },
     grantXp(p, amount) {
       p.xp += amount;
-      while (p.level < 15 && p.xp >= P.xpToNext[p.level]) { p.xp -= P.xpToNext[p.level]; p.level++; }
+      while (p.level < P.maxLevel && p.xp >= P.xpToNext[p.level]) { p.xp -= P.xpToNext[p.level]; p.level++; }
       return amount;
     },
   };

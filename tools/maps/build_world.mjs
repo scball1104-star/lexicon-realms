@@ -12,7 +12,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LQ, loadLqDb, bakeCollision, usedIds, reach, nearestWalk, writeModule, canStep } from './kit.mjs';
+import { LQ, loadLqDb, bakeCollision, usedIds, reach, nearestWalk, writeModule, canStep, respreadZone } from './kit.mjs';
+import { PROGRESSION } from '../../src/data/progression.js';
 import { importLqMap } from '../dev/import_lq_maps.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -63,7 +64,8 @@ function generated(mod) {
   const collision = bakeCollision(map, db);
   const z = { ...map, source: `tools/maps/zone_${map.id}.mjs`, collision, ...realm };
   delete z.solids; delete z.open;
-  return z;
+  // cap 20: the zone files author levels 1 to 15; ship them re-spread over 1 to 20 (PROGRESSION.zoneRespread)
+  return respreadZone(z, PROGRESSION.zoneRespread);
 }
 
 function finish(z) {

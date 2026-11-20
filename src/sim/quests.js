@@ -23,6 +23,13 @@
 //              QS.needsItem(p, item)              an active quest still needs this item (loot.js asks before a quest drop)
 //              QS.tracker(p)                      rows for the HUD quest tracker
 //              QS.offersAt(p, npcId)              { offers, turnins, progress } quest ids at that NPC
+//              QS.bountiesToday(day?)             the bounty ids posted today (content.bounties.boards; BUILDS_2 5.6)
+//
+// Bounty boards (BUILDS_2 5.6, cap 20): content.bounties.boards = [{ id, npc, pools: [named[], camp[], gather[]] }]. Each
+// board posts one bounty from each pool a day: pool[(day + board index + pool index) mod pool length]. `day` is
+// Q.state.day, a whole number the world is given (createWorld({ day }) / world.setDay(day): the client passes its local
+// calendar day), never a clock read here. A bounty is a quest with `bounty: { board, kind }`: it never goes to
+// questsDone; a turn-in goes to p.bounties = { day, done: [ids] }, so the same bounty is open again on another day.
 import { bagCount, bagAdd, bagRemove, bagFree } from './loot.js';
 import { moveAxis } from './collision.js';
 import { SUB, TILE } from './constants.js';
@@ -44,7 +51,17 @@ export function questGapMult(playerLevel, questLevel) {
 export function createQuests(Q) {
   const C = Q.content;
   const QUESTS = C.quests || {};
-  const ORDER = C.questOrder || Object.keys(QUESTS);
+  const CHAIN = C.questOrder || Object.keys(QUESTS);
+  const BOARDS = (C.bounties && C.bounties.boards) || [];
+  const BOUNTY_IDS = [...new Set(BOARDS.flatMap((b) => b.pools.flat()))].filter((id) => QUESTS[id] && !CHAIN.includes(id));
+  const ORDER = [...CHAIN, ...BOUNTY_IDS];                 // the chain first, then every bounty (posted or not)
+  const today = () => (Q.state.day | 0);
+  function bountiesToday(day = today()) {
+    const out = [];
+    BOARDS.forEach((b, i) => b.pools.forEach((pool, k) => { if (pool.length) out.push(pool[(((day + i + k) % pool.length) + pool.length) % pool.length]); }));
+    return out;
+  }
+  const bountyDoneToday = (p, id) => !!(p.bounties && p.bounties.day === today() && (p.bounties.done || []).includes(id));
   const tick = () => Q.state.tick;
   const emit = (ev) => Q.emit(ev);
   const ensure = (p) => { if (!p.quests) p.quests = {}; if (!p.questsDone) p.questsDone = []; if (!p.nodesUsed) p.nodesUsed = []; return p; };
@@ -56,9 +73,10 @@ export function createQuests(Q) {
     ensure(p);
     const q = QUESTS[id];
     if (!q) return 'locked';
-    if (done(p, id)) return 'done';
+    if (q.bounty ? bountyDoneToday(p, id) : done(p, id)) return 'done';
     const s = p.quests[id];
     if (s) return s.state === 'ready' ? 'ready' : 'active';
+    if (q.bounty && !bountiesToday().includes(id)) return 'locked';   // not on the board today
     const req = q.requires || {};
     if ((req.quests || []).some((r) => !done(p, r))) return 'locked';
     if (req.cls && req.cls !== p.cls) return 'locked';
@@ -167,7 +185,10 @@ export function createQuests(Q) {
       return false;
     }
     delete p.quests[id];
-    p.questsDone.push(id);
+    if (q.bounty) {
+      if (!p.bounties || p.bounties.day !== today()) p.bounties = { day: today(), done: [] };
+      p.bounties.done.push(id);
+    } else p.questsDone.push(id);
     const xp = Math.round((r.xp || 0) * questGapMult(p.level, q.level));
     if (xp > 0) {
       if (Q.grantXp) Q.grantXp(p, xp, 'quest', { quest: id });
@@ -556,5 +577,5 @@ export function createQuests(Q) {
   }
 
   return { accept, abandon, turnIn, interact, onKill, onBag: recountCollect, onMove, onDamaged, tick: step, spawnObjects,
-    marker, status, needsItem, tracker, offersAt, canAccept, inArea, areaAt, ensureEscorts, rewardsFor, whereOf, ambushSpots };
+    marker, status, needsItem, tracker, offersAt, canAccept, inArea, areaAt, ensureEscorts, rewardsFor, whereOf, ambushSpots, bountiesToday };
 }

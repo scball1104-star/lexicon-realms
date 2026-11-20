@@ -293,10 +293,12 @@ export const tests = [
     assert(ev.some((e) => e.type === 'lantern' && e.id === id2 && e.auto), 'lantern event marked auto');
   } },
   // ------------------------------------------------------------------------------------------- bug 13, critique 17
-  { name: 'bug 13 / critique 17: a lane from the moor arrival to Odo\'s hut has no aggressive foe above level 10 within 8 tiles; no sentinel within 12 tiles of the hut or 8 of the elite', fn() {
+  { name: 'bug 13 / critique 17: a lane from the moor arrival to Odo\'s hut has no aggressive foe above the moor entry level (13 since the cap 20 re-spread, 10 before) within 8 tiles; no sentinel within 12 tiles of the hut or 8 of the elite', fn() {
     const z = ZONES.moor;
     const odo = z.npcs.find((n) => n.npc === 'odo');
-    const foes = z.spawns.filter((s) => s.level > 10 && (C.mobs[s.mob].behavior === 'aggressive' || C.mobs[s.mob].behavior === 'elite'));
+    eq(z.levels[0], 13, 'the moor opens at 13 (PROGRESSION.zoneRespread)');
+    const named = C.spawns.filter((s) => s.zone === 'moor' && s.group && s.group.startsWith('bounty_'));   // the bounty boards' named foes
+    const foes = [...z.spawns, ...named].filter((s) => s.level > z.levels[0] && (C.mobs[s.mob].behavior === 'aggressive' || C.mobs[s.mob].behavior === 'elite'));
     const unsafe = (x, y) => foes.some((s) => Math.hypot(s.x - x, s.y - y) <= 8);
     const ok = reachable('moor');
     const seen = new Set([`${z.arrival[0]},${z.arrival[1]}`]), q = [z.arrival];

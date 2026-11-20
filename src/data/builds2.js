@@ -266,7 +266,7 @@ const MENDER_SIGNATURES = [
 
 // ------------------------------------------------------------------------------------------------ named builds
 // The three leanings (BUILDS_2 4.2 "Named builds"). `path` is the suggested spend order (a node id per point, repeats
-// for ranks), 15 points to the phase 1 cap; `picks` is the suggested skill per pick level. The gold star on the talents
+// for ranks), 15 points to the phase 1 cap and 5 more to the cap 20 (MENDER_PAST_15 below); `picks` is the suggested skill per pick level. The gold star on the talents
 // screen is the first path step not yet taken. Tuned 2026-11-19 to the BUILDS_2 targets (one plain foe in 9 to 14 s from
 // level 5, the slowest build within 25% of the fastest): each path spends its first points on the build's defensive or
 // healing track, and its damage later. The gate is qa/sim/builds2.mjs (it fails when a build misses its band).
@@ -287,6 +287,15 @@ const MENDER_BUILDS = [
       ...rep(P('dawnbrand', 'bright_drain'), 2), P('wardlight', 'tideplate'), P('dawnbrand', 'bell_and_rod'),
       ...rep(P('hearth', 'gentle_hands'), 2), ...rep(P('hearth', 'quick_words'), 2), P('hearth', 'self_kept')] },
 ];
+
+// Cap 20 (phase 5, BUILDS_2 5.4): five more points per build for levels 16 to 20, on the build's own tracks (ranks the
+// first 15 points left unfilled; no new forks, keystones or skills). qa/sim/builds2.mjs gates every level to 20.
+const MENDER_PAST_15 = {
+  tidehammer: [...rep(P('sunfire', 'kindling'), 2), ...rep(P('sunfire', 'flare'), 2), P('sunfire', 'sunburst')],
+  lamplighter: [...rep(P('tide', 'deep_well'), 2), ...rep(P('tide', 'long_vigil'), 2), P('wardlight', 'blessed_cloth')],
+  battle_mender: [...rep(P('dawnbrand', 'searing_name'), 2), ...rep(P('dawnbrand', 'bright_drain'), 2), P('dawnbrand', 'lingering_brand')],
+};
+for (const b of MENDER_BUILDS) b.path.push(...MENDER_PAST_15[b.id]);
 
 export const BUILDS2 = {
   warden: WARDEN,

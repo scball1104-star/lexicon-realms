@@ -193,7 +193,7 @@ export const NPCS = {
   },
 
   pip: {
-    id: 'pip', name: 'Pip', sprite: 'npc_bellkeeper', title: null, faction: 'friendly', roles: ['ambient'],
+    id: 'pip', name: 'Pip', sprite: 'npc_bellkeeper', title: 'Bounty Board', faction: 'friendly', roles: ['ambient', 'bounty'],
     vendor: null, trainer: null, innkeeper: false, lq: 'pip',
     talk: [
       'Twelve bells, every hour on the hour. I count them. I ALWAYS count.',

@@ -199,6 +199,15 @@ export const SCRIBE_BUILDS = [
       P('quill', 'final_draft'), P('erasure', 'pure_ink'), P('inkwell', 'deep_ink')] },
 ];
 
+// Cap 20 (phase 5, BUILDS_2 5.4): five more points per build for levels 16 to 20, on the build's own tracks (ranks the
+// first 15 points left unfilled; no new forks, keystones or skills). qa/sim/builds2.mjs gates every level to 20.
+const PAST_15 = {
+  ellipsis_duelist: [...rep(P('quill', 'sharp_hand'), 3), ...rep(P('quill', 'underscore'), 2)],
+  author_of_beasts: [...rep(P('bindings', 'footnote'), 2), ...rep(P('bindings', 'bound_vellum'), 2), P('bindings', 'vellum_ward')],
+  wordstorm: [...rep(P('quill', 'sharp_hand'), 2), ...rep(P('quill', 'underscore'), 2), P('quill', 'heavy_nib')],
+};
+for (const b of SCRIBE_BUILDS) b.path.push(...PAST_15[b.id]);
+
 export const SCRIBE = {
   tracks: SCRIBE_TRACKS,
   nodes: Object.fromEntries(SCRIBE_NODES.map((n) => [n.id, n])),

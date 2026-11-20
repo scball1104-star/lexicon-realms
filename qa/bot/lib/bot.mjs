@@ -712,7 +712,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     if (!Number.isInteger(p.gold)) viol('fractional_gold', { key: 'g', gold: p.gold });
     if (p.hp > p.hpMax) viol('hp_over_max', { key: 'me:' + (now() / 200 | 0), hp: p.hp, hpMax: p.hpMax });
     if (p.hp < 0 || !Number.isFinite(p.hp)) viol('bad_hp', { key: 'me', hp: p.hp });
-    if (p.xp < 0 || (p.level < 15 && p.xp >= C.progression.xpToNext[p.level])) viol('xp_out_of_range', { key: 'x' + p.level, xp: p.xp, level: p.level });
+    if (p.xp < 0 || (p.level < C.progression.maxLevel && p.xp >= C.progression.xpToNext[p.level])) viol('xp_out_of_range', { key: 'x' + p.level, xp: p.xp, level: p.level });
     if ((p.bag || []).length > bagCap()) viol('bag_over_capacity', { key: 'b', n: p.bag.length, cap: bagCap() });
     for (const s of p.bag || []) { const d = C.items[s.item]; if (!d) viol('unknown_item', { key: s.item, item: s.item }); else if (s.qty > (s.inst ? 1 : d.stack || 1) || s.qty < 1) viol('bad_stack', { key: s.item, item: s.item, qty: s.qty }); }
     if (p.res && (p.res.cur > p.res.max + 1e-6 || p.res.cur < -1e-6)) viol('resource_out_of_range', { key: p.res.kind, cur: p.res.cur, max: p.res.max });

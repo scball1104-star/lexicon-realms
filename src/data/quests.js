@@ -209,14 +209,14 @@ export const QUESTS = {
   // Downs chain (Shepherd's Downs, levels 5 to 10)
   // ---------------------------------------------------------------------------------------------
   dn_name_in_the_hem: {
-    id: 'dn_name_in_the_hem', num: 11, name: 'A Name in the Hem', level: 6, minLevel: 4, zone: 'downs',
+    id: 'dn_name_in_the_hem', num: 11, name: 'A Name in the Hem', level: 7, minLevel: 5, zone: 'downs',
     giver: 'tamsin', turnIn: 'tamsin',
-    requires: { quests: ['wm_west_gate'], cls: null, level: 4 },
+    requires: { quests: ['wm_west_gate'], cls: null, level: 5 },
     chain: { id: 'downs', step: 1 },
     objectives: [
       { kind: 'collect', item: 'fold_fleece', count: 8, where: [at('downs', 111.5, 9.5, 8), at('downs', 125.5, 9, 8.5), at('downs', 136, 10.5, 9.5), at('downs', 48, 46, 7)], label: 'Fold fleece gathered' },
     ],
-    rewards: { xp: 890, gold: 29, items: [], choice: ['hemmed_mantle_cloak'] },
+    rewards: { xp: 1060, gold: 29, items: [], choice: ['hemmed_mantle_cloak'] },
     rewardRarity: 'magic',
     text: {
       offer: "Hold still. Ah. There. That stitch is older than my mother. I sew a name into every cloth I sell, so it finds its way home. I'm short of fleece for the hems. The rams in the pasture will spare a tuft, if you ask them kindly from close up. From far off, they ask you.",
@@ -227,14 +227,14 @@ export const QUESTS = {
   },
 
   dn_wolves_at_the_ford: {
-    id: 'dn_wolves_at_the_ford', num: 12, name: 'Wolves at the Ford', level: 7, minLevel: 5, zone: 'downs',
+    id: 'dn_wolves_at_the_ford', num: 12, name: 'Wolves at the Ford', level: 9, minLevel: 7, zone: 'downs',
     giver: 'brindle', turnIn: 'brindle',
-    requires: { quests: ['wm_west_gate'], cls: null, level: 5 },
+    requires: { quests: ['wm_west_gate'], cls: null, level: 7 },
     chain: { id: 'downs', step: 2 },
     objectives: [
       { kind: 'kill', mob: 'thornback_wolf', count: 8, where: [at('downs', 92, 56.5, 5), at('downs', 114, 58.5, 5), at('downs', 118, 72.5, 5), at('downs', 92, 78.5, 5), at('downs', 130, 66.5, 5)], label: 'Thornback Wolves slain' },
     ],
-    rewards: { xp: 1070, gold: 33, items: [], choice: ['drovers_leggings', 'fold_gate_greaves', 'shepherds_wrap'] },
+    rewards: { xp: 1450, gold: 33, items: [], choice: ['drovers_leggings', 'fold_gate_greaves', 'shepherds_wrap'] },
     rewardRarity: 'magic',
     text: {
       offer: "Twelve in the fold. Twelve is right. Twelve is always right. But the thornbacks have come down to the ford in threes, and the drovers will not cross. A sheep knows its whistle. A wolf knows its chance. Take its chance away.",
@@ -245,15 +245,15 @@ export const QUESTS = {
   },
 
   dn_black_in_the_fold: {
-    id: 'dn_black_in_the_fold', num: 13, name: 'Something Black in the Old Fold', level: 7, minLevel: 5, zone: 'downs',
+    id: 'dn_black_in_the_fold', num: 13, name: 'Something Black in the Old Fold', level: 8, minLevel: 6, zone: 'downs',
     giver: 'brindle', turnIn: 'brindle',
-    requires: { quests: ['wm_west_gate'], cls: null, level: 5 },
+    requires: { quests: ['wm_west_gate'], cls: null, level: 6 },
     chain: { id: 'downs', step: 3 },
     objectives: [
       { kind: 'kill', mob: 'ink_blot', count: 6, where: [at('downs', 25.5, 55.5, 10.5)], label: 'Ink Blots slain' },
       { kind: 'collect', item: 'ink_soaked_hay', count: 4, where: [at('downs', 25, 54, 12)], label: 'Ink-soaked hay' },
     ],
-    rewards: { xp: 1070, gold: 33, items: [], choice: ['old_fold_helm', 'hawthorn_charm'] },
+    rewards: { xp: 1250, gold: 33, items: [], choice: ['old_fold_helm', 'hawthorn_charm'] },
     rewardRarity: 'magic',
     text: {
       offer: "There is ink coming up through the hay in the old fold, west of here. Black, and it moves. My grandfather said that fold was older than the hamlet. Clear the blots and bring me some of the hay. I want to see it in daylight.",
@@ -264,14 +264,14 @@ export const QUESTS = {
   },
 
   dn_eleven_pockets: {
-    id: 'dn_eleven_pockets', num: 14, name: 'Patch Has Eleven Pockets', level: 8, minLevel: 6, zone: 'downs',
+    id: 'dn_eleven_pockets', num: 14, name: 'Patch Has Eleven Pockets', level: 10, minLevel: 8, zone: 'downs',
     giver: 'tamsin', turnIn: 'tamsin',
-    requires: { quests: ['dn_name_in_the_hem'], cls: null, level: 6 },
+    requires: { quests: ['dn_name_in_the_hem'], cls: null, level: 8 },
     chain: { id: 'downs', step: 4 },
     objectives: [
       { kind: 'collect', item: 'pocket_button', count: 6, where: [at('downs', 78, 8, 11.5)], label: 'Pocket buttons recovered' },
     ],
-    rewards: { xp: 1250, gold: 37, items: [], choice: ['scarecrow_gloves', 'crow_feather_charm'] },
+    rewards: { xp: 1660, gold: 37, items: [], choice: ['scarecrow_gloves', 'crow_feather_charm'] },
     rewardRarity: 'magic',
     text: {
       offer: "Patch is the scarecrow on the ridge. Eleven pockets, and in every pocket a button with a family's mark, so the crows know whose field they're stealing from. The crows have emptied six. They fly off when they're caught, the cheats. Six buttons, please.",
@@ -282,14 +282,14 @@ export const QUESTS = {
   },
 
   dn_cold_at_the_stones: {
-    id: 'dn_cold_at_the_stones', num: 15, name: 'Something Counts Down There', level: 8, minLevel: 6, zone: 'downs',
+    id: 'dn_cold_at_the_stones', num: 15, name: 'Something Counts Down There', level: 10, minLevel: 8, zone: 'downs',
     giver: 'brindle', turnIn: 'brindle',
-    requires: { quests: ['dn_wolves_at_the_ford'], cls: null, level: 6 },
+    requires: { quests: ['dn_wolves_at_the_ford'], cls: null, level: 8 },
     chain: { id: 'downs', step: 5 },
     objectives: [
       { kind: 'kill', mob: 'barrow_shade', count: 6, where: [at('downs', 28, 20.5, 18)], label: 'Barrow Shades slain' },
     ],
-    rewards: { xp: 1250, gold: 37, items: [], choice: ['ring_stone_boots', 'shade_ward_bell', 'chilled_buckler'] },
+    rewards: { xp: 1660, gold: 37, items: [], choice: ['ring_stone_boots', 'shade_ward_bell', 'chilled_buckler'] },
     rewardRarity: 'magic',
     text: {
       offer: "Cold at the Stones these nights. Shades walk the ring, and in the barrow under it something counts, and always comes up one short. I've not slept. The stones want their names said, not read. Do something about the shades, and I'll do something about my nerves.",
@@ -300,14 +300,14 @@ export const QUESTS = {
   },
 
   dn_rubbings: {
-    id: 'dn_rubbings', num: 16, name: 'Hold Still, Stone', level: 9, minLevel: 7, zone: 'downs',
+    id: 'dn_rubbings', num: 16, name: 'Hold Still, Stone', level: 11, minLevel: 9, zone: 'downs',
     giver: 'tamsin', turnIn: 'tamsin',
-    requires: { quests: ['dn_cold_at_the_stones'], cls: null, level: 7 },
+    requires: { quests: ['dn_cold_at_the_stones'], cls: null, level: 9 },
     chain: { id: 'downs', step: 6 },
     objectives: [
       { kind: 'collect', item: 'stone_rubbing', count: 4, where: [at('downs', 28, 21, 10)], label: 'Stone rubbings taken' },
     ],
-    rewards: { xp: 1440, gold: 41, items: [], choice: ['rubbing_cloth_robe', 'stonewright_hauberk', 'fold_leather_vest', 'kept_plate'] },
+    rewards: { xp: 1870, gold: 41, items: [], choice: ['rubbing_cloth_robe', 'stonewright_hauberk', 'fold_leather_vest', 'kept_plate'] },
     rewardRarity: 'magic',
     text: {
       offer: "Brindle says the stones are paling. Then I want their names in cloth before they go any paler. Take four rubbings, any four, and I'll stitch them into the sampler on my wall. A stitch remembers. The shades won't like you standing still. Neither do I, much.",
@@ -318,14 +318,14 @@ export const QUESTS = {
   },
 
   dn_ridge_path: {
-    id: 'dn_ridge_path', num: 17, name: 'Odo Has Not Come Down', level: 9, minLevel: 7, zone: 'moor',
+    id: 'dn_ridge_path', num: 17, name: 'Odo Has Not Come Down', level: 11, minLevel: 9, zone: 'moor',
     giver: 'brindle', turnIn: 'odo',
-    requires: { quests: ['dn_wolves_at_the_ford'], cls: null, level: 7 },
+    requires: { quests: ['dn_wolves_at_the_ford'], cls: null, level: 9 },
     chain: { id: 'downs', step: 7 },
     objectives: [
       { kind: 'talk', npc: 'odo', where: [at('moor', 106, 21, 1.5)], label: 'Find Odo on the High Moor' },
     ],
-    rewards: { xp: 720, gold: 41, items: [], choice: [] },
+    rewards: { xp: 940, gold: 41, items: [], choice: [] },
     rewardRarity: 'magic',
     text: {
       offer: "Odo keeps the chimes on the High Moor. Comes down for his wool the first of every month. Not this month. Through the gap on the Ridge, follow the chime posts to the tower. He'll be in a turf hut beneath it, talking to himself. He calls it company.",
@@ -339,9 +339,9 @@ export const QUESTS = {
   // Moor chain (the High Moor, levels 10 to 15)
   // ---------------------------------------------------------------------------------------------
   mo_fifty_paces: {
-    id: 'mo_fifty_paces', num: 18, name: 'Fifty Paces', level: 10, minLevel: 8, zone: 'moor',
+    id: 'mo_fifty_paces', num: 18, name: 'Fifty Paces', level: 13, minLevel: 11, zone: 'moor',
     giver: 'odo', turnIn: 'odo',
-    requires: { quests: ['dn_ridge_path'], cls: null, level: 8 },
+    requires: { quests: ['dn_ridge_path'], cls: null, level: 11 },
     chain: { id: 'moor', step: 1 },
     objectives: [
       { kind: 'explore', zone: 'moor', area: 'chime_post_2', where: [at('moor', 42, 73.5, 2.5)], label: 'Chime post 2 rung' },
@@ -349,7 +349,7 @@ export const QUESTS = {
       { kind: 'explore', zone: 'moor', area: 'chime_post_4', where: [at('moor', 12, 33.5, 2.5)], label: 'Chime post 4 rung' },
       { kind: 'explore', zone: 'moor', area: 'chime_post_5', where: [at('moor', 21, 16.5, 2.5)], label: 'Chime post 5 rung' },
     ],
-    rewards: { xp: 1650, gold: 45, items: [], choice: ['chime_walkers_boots', 'heather_charm'] },
+    rewards: { xp: 2360, gold: 45, items: [], choice: ['chime_walkers_boots', 'heather_charm'] },
     rewardRarity: 'magic',
     text: {
       offer: "Every dawn I walk the nine posts and say each word aloud. Fifty paces apart. Follow them or do not. My legs have stopped agreeing with the second to the fifth. Touch them for me. Let them ring. Mind the mist; the wolves wear it.",
@@ -360,14 +360,14 @@ export const QUESTS = {
   },
 
   mo_mist_pack: {
-    id: 'mo_mist_pack', num: 19, name: 'The Mist Pack', level: 11, minLevel: 9, zone: 'moor',
+    id: 'mo_mist_pack', num: 19, name: 'The Mist Pack', level: 14, minLevel: 12, zone: 'moor',
     giver: 'odo', turnIn: 'odo',
-    requires: { quests: ['mo_fifty_paces'], cls: null, level: 9 },
+    requires: { quests: ['mo_fifty_paces'], cls: null, level: 12 },
     chain: { id: 'moor', step: 2 },
     objectives: [
       { kind: 'kill', mob: 'mist_wolf', count: 10, where: [at('moor', 50.5, 70.5, 4.5), at('moor', 30.5, 66.5, 4.5), at('moor', 22.5, 50.5, 4.5), at('moor', 60.5, 83.5, 4.5), at('moor', 17.5, 38.5, 5.5), at('moor', 26, 22.5, 5), at('moor', 52, 13.5, 5)], label: 'Mist Wolves slain' },
     ],
-    rewards: { xp: 1880, gold: 49, items: [], choice: ['mistcutter', 'mist_fang', 'moor_longbow', 'chime_rod', 'tarn_quill'] },
+    rewards: { xp: 2630, gold: 49, items: [], choice: ['mistcutter', 'mist_fang', 'moor_longbow', 'chime_rod', 'tarn_quill'] },
     rewardRarity: 'magic',
     text: {
       offer: "The mist wolves have come round the tarn and taken the north road. They come out of the fog and go back into it when they are hurt. Do not chase them into it. Let them come to you. Ten, and they will go back to the far side where they belong.",
@@ -378,14 +378,14 @@ export const QUESTS = {
   },
 
   mo_peat_and_tusk: {
-    id: 'mo_peat_and_tusk', num: 20, name: 'Peat and Tusk', level: 11, minLevel: 9, zone: 'moor',
+    id: 'mo_peat_and_tusk', num: 20, name: 'Peat and Tusk', level: 15, minLevel: 13, zone: 'moor',
     giver: 'sorrel', turnIn: 'sorrel',
-    requires: { quests: ['mo_fifty_paces'], cls: null, level: 9 },
+    requires: { quests: ['mo_fifty_paces'], cls: null, level: 13 },
     chain: { id: 'moor', step: 3 },
     objectives: [
       { kind: 'collect', item: 'boar_tusk', count: 6, where: [at('moor', 127, 65, 22)], label: 'Boar tusks' },
     ],
-    rewards: { xp: 1880, gold: 49, items: [], choice: ['peat_cutters_gauntlets', 'turf_stack_shield', 'heath_book'] },
+    rewards: { xp: 2900, gold: 49, items: [], choice: ['peat_cutters_gauntlets', 'turf_stack_shield', 'heath_book'] },
     rewardRarity: 'magic',
     text: {
       offer: "I cut peat here for the whole of Thornfold, and the boars have decided the heath is theirs. When one paws the ground, it is about to charge. Step aside. Do not be brave about it. Six tusks and I'll cut you a winter's worth of credit at the hearth.",
@@ -396,14 +396,14 @@ export const QUESTS = {
   },
 
   mo_wraiths_on_the_water: {
-    id: 'mo_wraiths_on_the_water', num: 21, name: 'Wraiths on the Water', level: 12, minLevel: 10, zone: 'moor',
+    id: 'mo_wraiths_on_the_water', num: 21, name: 'Wraiths on the Water', level: 16, minLevel: 14, zone: 'moor',
     giver: 'sorrel', turnIn: 'sorrel',
-    requires: { quests: ['mo_peat_and_tusk'], cls: null, level: 10 },
+    requires: { quests: ['mo_peat_and_tusk'], cls: null, level: 14 },
     chain: { id: 'moor', step: 4 },
     objectives: [
       { kind: 'kill', mob: 'page_wraith', count: 8, where: [at('moor', 48.5, 23.5, 25)], label: 'Page Wraiths slain' },
     ],
-    rewards: { xp: 2110, gold: 53, items: [], choice: ['reed_wraps', 'wet_page_charm'] },
+    rewards: { xp: 3180, gold: 53, items: [], choice: ['reed_wraps', 'wet_page_charm'] },
     rewardRarity: 'magic',
     text: {
       offer: "Pages on the tarn. Old, loose pages, flying low over the reeds with something in them. They cut, and they skip off when you get close. I don't know where they blew from, and I don't like guessing. Eight, please. Then I can sleep with the door open.",
@@ -414,14 +414,14 @@ export const QUESTS = {
   },
 
   mo_ninth_chime: {
-    id: 'mo_ninth_chime', num: 22, name: 'The Ninth Post Is Quiet', level: 13, minLevel: 11, zone: 'moor',
+    id: 'mo_ninth_chime', num: 22, name: 'The Ninth Post Is Quiet', level: 18, minLevel: 16, zone: 'moor',
     giver: 'odo', turnIn: 'odo',
-    requires: { quests: ['mo_mist_pack'], cls: null, level: 11 },
+    requires: { quests: ['mo_mist_pack'], cls: null, level: 16 },
     chain: { id: 'moor', step: 5 },
     objectives: [
       { kind: 'collect', item: 'chime_piece', count: 3, where: [at('moor', 100, 4.5, 14), at('moor', 133, 8.5, 9)], label: 'Chime pieces' },
     ],
-    rewards: { xp: 2830, gold: 57, items: [], choice: ['watch_iron_helm', 'tower_hood', 'kept_charm'] },
+    rewards: { xp: 4560, gold: 57, items: [], choice: ['watch_iron_helm', 'tower_hood', 'kept_charm'] },
     rewardRarity: 'magic',
     text: {
       offer: "Eight posts sing. The ninth says KEPT and nothing else. Its chime is gone: the old watchers up at the tower took it in pieces, for their lamps. They have been keeping the tower a long time. Bring me three pieces and I will hang it again.",
@@ -432,14 +432,14 @@ export const QUESTS = {
   },
 
   mo_long_watch: {
-    id: 'mo_long_watch', num: 23, name: 'The Long Watch', level: 14, minLevel: 12, zone: 'moor',
+    id: 'mo_long_watch', num: 23, name: 'The Long Watch', level: 19, minLevel: 17, zone: 'moor',
     giver: 'odo', turnIn: 'odo', elite: true,
-    requires: { quests: ['mo_ninth_chime'], cls: null, level: 12 },
+    requires: { quests: ['mo_ninth_chime'], cls: null, level: 17 },
     chain: { id: 'moor', step: 6 },
     objectives: [
       { kind: 'kill', mob: 'sentinel_long_watch', count: 1, where: [at('moor', 118, 8, 3)], label: 'Sentinel of the Long Watch defeated' },
     ],
-    rewards: { xp: 4720, gold: 183, items: [], choice: ['long_watch_blade', 'lampglass_knives', 'watchtower_bow', 'lantern_rod', 'last_order_quill'] },
+    rewards: { xp: 7430, gold: 183, items: [], choice: ['long_watch_blade', 'lampglass_knives', 'watchtower_bow', 'lantern_rod', 'last_order_quill'] },
     rewardRarity: 'rare',
     text: {
       offer: "Something stands at the foot of the tower that the watchers obey. It was there before my grandmother. Its lamps were never put out. It does not leave and it does not sleep. I will ring the eighth chime when you go in. It hates the sound. Use that.",
@@ -450,14 +450,14 @@ export const QUESTS = {
   },
 
   mo_word_for_the_elder: {
-    id: 'mo_word_for_the_elder', num: 24, name: 'Word for the Elder', level: 14, minLevel: 12, zone: 'willowmere',
+    id: 'mo_word_for_the_elder', num: 24, name: 'Word for the Elder', level: 19, minLevel: 17, zone: 'willowmere',
     giver: 'odo', turnIn: 'mael',
-    requires: { quests: ['mo_long_watch'], cls: null, level: 12 },
+    requires: { quests: ['mo_long_watch'], cls: null, level: 17 },
     chain: { id: 'moor', step: 7 },
     objectives: [
       { kind: 'deliver', item: 'odos_chime_word', to: 'mael', where: [at('willowmere', 24, 18, 1.5)], label: "Bring Odo's note to Elder Mael" },
     ],
-    rewards: { xp: 1570, gold: 61, items: ['register_ribbon'], choice: [] },
+    rewards: { xp: 2470, gold: 61, items: ['register_ribbon'], choice: [] },
     rewardRarity: 'rare',
     text: {
       offer: "From the top of the tower I saw a town east of the river. I have watched that country fifty years and I could not tell you its name. And one of my posts lost a word this spring. Take this to your Elder Mael. He keeps the Register. He will know if it means anything.",

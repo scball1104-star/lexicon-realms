@@ -69,14 +69,14 @@ T('data: each class has six tracks (3 strength, 3 weakness) of 17 points, a fork
   for (const a of Object.values(B2_ABILITIES)) assert(!/—/.test(a.text + a.name), `no em dash in ${a.id}`);
 });
 
-T('data: every named build is spelled out (picks at 1, 3, 6 and 14, a signature order, its forks and keystone) and legal level by level to 15', () => {
+T('data: every named build is spelled out (picks at 1, 3, 6 and 14, a signature order, its forks and keystone) and legal level by level to the cap 20', () => {
   for (const cls of CLS4) for (const b of BUILDS2[cls].builds) {
     for (const lv of [1, 3, 6, 14]) assert(b.picks[lv] && SKILL_PICKS[cls].find((p) => p.level === lv).options.includes(b.picks[lv]), `${b.id} pick ${lv}`);
     eq(b.signatures.length, 3, `${b.id} signature order`); eq(b.signatures[0], b.signature, `${b.id} first signature`);
     assert(b.forks.length >= 2 && b.keystone, `${b.id} forks and keystone`);
     for (const f of [...b.forks, b.keystone]) assert(BUILDS2[cls].nodes[nid(cls, Object.values(BUILDS2[cls].nodes).find((n) => n.id.endsWith(`_${f}`)).track, f)], `${b.id} names ${f}`);
-    eq(b.path.length, 15, `${b.id} 15 points`);
-    for (let L = 1; L <= 15; L++) {
+    eq(b.path.length, 20, `${b.id} 20 points (the cap 20; 15 before phase 5)`);
+    for (let L = 1; L <= 20; L++) {
       const { p, C } = duelWorld({ cls, level: L, learnAll: false, builds2: true });
       p.build.firstKill = true;
       for (const id of b.path.slice(0, L)) assert(C.b2.learn(p, { node: id }), `${b.id} L${L}: ${id} (${C.b2.whyNot(p, id)})`);

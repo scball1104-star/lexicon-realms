@@ -56,7 +56,9 @@ async function boot() {
   const assets = await loadAssets(MANIFEST);
   const content = buildContent();
   const seed = Number(q.get('seed')) || 20261119;
-  const world = createWorld({ seed, content });
+  // the bounty boards' day (BUILDS_2 5.6): this PC's local calendar day, so the boards repost at local midnight; ?day=n pins it
+  const bountyDay = () => (q.has('day') ? Number(q.get('day')) | 0 : Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000));
+  const world = createWorld({ seed, content, day: bountyDay() });
   let playerId = null;                 // created by the title screen (or at once in dev mode, below)
   const joins = [];                    // [tick, spec]: addPlayer calls, replayable with commandLog (CONTRACTS 2.3)
 
@@ -137,7 +139,8 @@ async function boot() {
       known: s.known, bar: s.bar, talents: s.talents, quests: stripEscorts(s.quests), questsDone: s.questsDone, nodesUsed: s.nodesUsed,
       respecs: s.respecs, lantern: s.lantern, build: s.build || c.build,     // build: Builds 2 (save v2, src/data/builds2.js)
       // fix pass 1: the sim-owned part (health, resource, cooldowns, lasting buffs, quest bag, loot waiting, escorts)
-      qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts };
+      qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts,
+      bounties: s.bounties };                                                  // the bounty boards: which were handed in today
   }
   // an escort in progress cannot be restored (its npc is gone): it restarts as a fresh accept would
   const stripEscorts = (qs) => { if (!qs) return qs; const o = {}; for (const [k, v] of Object.entries(qs)) { const { escort, ...rest } = v; void escort; o[k] = rest; } return o; };
@@ -245,13 +248,15 @@ async function boot() {
   setInterval(() => ui.saveProgress(), 5000);
   // 3D was asked for but could not start: say so once the hero is in the world (a toast on the title would be missed)
   if (fell2d) { const t = setInterval(() => { if (ui.mode === 'game') { clearInterval(t); ui.notify('3D could not start on this device. Showing 2D.', 8); } }, 500); }
+  setInterval(() => { if (world.day !== bountyDay()) world.setDay(bountyDay()); }, 60000);
   window.addEventListener('beforeunload', () => ui.saveProgress());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') ui.saveProgress(); });
   // updates reach a Home Screen copy (Scott 2026-11-19: the Home Screen app stayed on an old build with no Graphics switch).
   // iPhone keeps a Home Screen web app suspended, so opening it again resumes the old page. The deploy writes version.json
   // (the commit); when the game comes back to the front and the site has moved on, save and reload.
   const siteVersion = () => fetch('version.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => (j && j.v) || null).catch(() => null);
-  const bootVersion = await siteVersion();
+  // a local test server has no version.json (the deploy writes it): skip the check there, so drivers see no 404
+  const bootVersion = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) ? null : await siteVersion();
   if (bootVersion) {
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState !== 'visible') return;

@@ -18,20 +18,22 @@ function trainerWorld(cls = 'warden', level = 1) {
 }
 
 export const tests = [
-  { name: 'xp: the curve: granting 41,000 XP from level 1 lands exactly on 15, with a level event at every PROGRESSION.md threshold', fn() {
+  { name: 'xp: the curve: granting 81,640 XP from level 1 lands exactly on the cap 20 (41,000 on 15), with a level event at every PROGRESSION.md threshold', fn() {
     const { world: w, pid, p } = duelWorld({ cls: 'mender', level: 1 });
     const levels = [];
     let total = 0;
-    while (p.level < 15) {
+    while (p.level < 20) {
       const ev = []; const before = p.level;
       w.grantXp(pid, 10, 'quest');
       total += 10;
       if (p.level > before) levels.push([p.level, total]);
       void ev;
     }
-    eq(total, 41000, 'total');
+    eq(total, 81640, 'total');
+    eq(PROGRESSION.maxLevel, 20, 'cap 20 (BUILDS_2 5.1, phase 5)');
     for (const [L, t] of levels) eq(t, PROGRESSION.xpAtLevel[L], `reached ${L} at its cumulative XP`);
-    eq(levels.length, 14, 'fourteen level-ups');
+    eq(levels.find(([L]) => L === 15)[1], 41000, '41,000 XP still lands on 15 (levels 1 to 14 unchanged)');
+    eq(levels.length, 19, 'nineteen level-ups');
   } },
   { name: 'xp: level-up recomputes stats from base + growth (floor of the running total), refills health and mana', fn() {
     const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 1 });
@@ -59,11 +61,25 @@ export const tests = [
     C.combat.kill(m, p);
     eq(p.xp - x0, 40, 'kill XP to the tagger');
   } },
-  { name: 'xp: at the cap XP turns into gold, 1 per 50, remainder kept', fn() {
-    const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 15 });
+  { name: 'xp: at the cap (20) XP turns into gold, 1 per 50, remainder kept', fn() {
+    const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 20 });
     p.gold = 0;
     w.grantXp(pid, 120); eq(p.gold, 2, '120 XP = 2 gold'); w.grantXp(pid, 30); eq(p.gold, 3, 'remainder carried');
-    eq(p.level, 15, 'still 15'); eq(p.xp, 0, 'no XP bar at the cap');
+    eq(p.level, 20, 'still 20'); eq(p.xp, 0, 'no XP bar at the cap');
+  } },
+  { name: 'xp: a hero saved at the old cap 15 (banked cap gold, any leftover XP) loads at 15, keeps both, and levels on to 16', fn() {
+    const content = buildContent();
+    const w = createWorld({ seed: 4, content });
+    const at15 = w.addPlayer({ name: 'Old', cls: 'warden', level: 15, xp: 0, gold: 1234 });
+    const p = w.get(at15);
+    eq(p.level, 15, 'still 15 on load'); eq(p.gold, 1234, 'banked cap gold kept'); eq(p.xp, 0, 'xp 0');
+    w.grantXp(at15, 6720);
+    eq(p.level, 16, '6,720 XP is level 16 now'); eq(p.gold, 1234, 'no XP went to gold');
+    const left = w.addPlayer({ name: 'Left', cls: 'scribe', level: 15, xp: 500, gold: 9 });
+    const q = w.get(left);
+    eq(q.level, 15); eq(q.xp, 500, 'leftover XP kept');
+    w.grantXp(left, 6220);
+    eq(q.level, 16, 'the leftover counts toward 16'); eq(q.xp, 0);
   } },
   { name: 'trainer: interact shows the offer; train needs range, level and gold (5 / 15 / 40 / 90); learned goes on the bar', fn() {
     const { w, pid, p, npc } = trainerWorld('warden', 2);

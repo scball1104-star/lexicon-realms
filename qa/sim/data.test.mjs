@@ -159,26 +159,35 @@ export const tests = [
     },
   },
   {
-    name: 'data: XP table sums to the PROGRESSION.md cumulative column (41,000 at 15); mob curve matches section 3',
+    name: 'data: XP table sums to the PROGRESSION.md cumulative column (41,000 at 15, 81,640 at the cap 20); mob curve matches section 3',
     fn() {
       let cum = 0;
-      for (let L = 1; L <= 15; L++) {
+      const cap = PROGRESSION.maxLevel;
+      eq(cap, 20, 'cap 20');
+      for (let L = 1; L <= cap; L++) {
         eq(PROGRESSION.xpAtLevel[L], cum, `cumulative at ${L}`);
-        if (L < 15) cum += PROGRESSION.xpToNext[L];
+        if (L === 15) eq(cum, 41000, 'total to 15 (unchanged)');
+        if (L < cap) cum += PROGRESSION.xpToNext[L];
       }
-      eq(cum, 41000, 'total to 15');
+      eq(cum, 81640, 'total to 20');
+      let rowsXp = 0, rowsMob = 0;
       const txt = doc('PROGRESSION.md');
       for (const line of txt.split('\n')) {
         const c = cells(line);
-        if (c.length === 4 && /^\d+$/.test(c[0]) && /^[\d,]+$/.test(c[1]) && Number(c[0]) < 15) eq(PROGRESSION.xpToNext[Number(c[0])], Number(c[1].replace(/,/g, '')), `xp to next at ${c[0]}`);
+        if (c.length === 4 && /^\d+$/.test(c[0]) && /^[\d,]+$/.test(c[1]) && Number(c[0]) < cap) { rowsXp++; eq(PROGRESSION.xpToNext[Number(c[0])], Number(c[1].replace(/,/g, '')), `xp to next at ${c[0]}`); }
         if (c.length === 7 && /^\d+$/.test(c[0]) && c[2].startsWith('[')) {
           const L = Number(c[0]);
-          eq(Math.round(100 + 40 * L + 0.6 * L * L), Number(c[1]), `mob hp at ${L}`);
+          rowsMob++;
+          // the quadratic to 15, then linear at its slope there (mobCurve.linearFrom, BUILDS_2 5.3)
+          eq(Math.round(L > 15 ? 835 + 58 * (L - 15) : 100 + 40 * L + 0.6 * L * L), Number(c[1]), `mob hp at ${L}`);
           const mean = 2 + 2.2 * L;
           eq(`[${Math.round(mean * 0.85)}, ${Math.round(mean * 1.15)}]`, c[2], `mob damage at ${L}`);
           eq(20 + 4 * L, Number(c[5]), `mob xp at ${L}`);
         }
       }
+      assert(rowsXp >= 19, `PROGRESSION.md section 1 lists XP to next for levels 1 to 19 (found ${rowsXp} rows)`);
+      assert(rowsMob >= 20, `PROGRESSION.md section 3 lists the mob curve to 20 (found ${rowsMob} rows)`);
+      eq(PROGRESSION.mobCurve.linearFrom.join(','), '15,58', 'linear past 15 at the slope 58');
       eq(Object.keys(MOB_ABILITIES).length >= 3, true, 'mob abilities');
     },
   },

@@ -4,6 +4,10 @@ Owner: game design. Written 2026-11-19 against `docs/DESIGN.md`, `docs/CONTRACTS
 Lexicon Quest's `next/docs/story/EPISODE1.md`, `next/docs/EXPANSION1_PLAN.md`, `next/src/data/npcs.js`,
 `next/src/data/x1/npcs.js` and the `valley`, `x1_downs` and `x1_highmoor` maps. Status: first full pass.
 
+**Cap 20 (2026-11-19, phase 5 of BUILDS_2):** the levels below are the authoring levels of the cap 15 world. The
+shipped foe, area and quest levels are re-spread over 1 to 20 (the valley unchanged, the Downs 5 to 11, the High Moor 13
+to 19) and three bounty boards were added: see PROGRESSION.md 1.1 and 2.4, `src/data/quests.js`, `src/data/bounties.js`.
+
 ## 0. When this happens (the one big story decision)
 
 **Lexicon Realms is set in "the Quiet Month": the month before Lexicon Quest's Episode 1** (OPEN_QUESTIONS Q1).

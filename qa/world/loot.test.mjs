@@ -23,7 +23,9 @@ export const tests = [
         for (const a of m.abilities) assert(C.mobAbilities[a.id], `${id} ability ${a.id}`);
       }
       // the elite: PROGRESSION 9.3 hp and its always-gear rule
-      eq(mobStats('sentinel_long_watch', 14).hp, 1945, 'elite hp');
+      eq(mobStats('sentinel_long_watch', 19).hp, 2670, 'elite hp (level 19 since the cap 20 re-spread; 1945 at 14 before)');
+      eq(mobStats('briar_wolf', 15).hp, 835, 'curve L15 hp (the quadratic)');
+      eq(mobStats('briar_wolf', 20).hp, 1125, 'curve L20 hp (linear past 15: 835 + 58 x 5, BUILDS_2 5.3)');
       eq(mobStats('ink_slime', 1).hp, 110, 'curve L1 hp (141 x 0.78, lowLevelHp fix pass 1)');
       eq(mobStats('briar_wolf', 8).hp, 458, 'curve L8 hp');
       const rng = createRng(5);

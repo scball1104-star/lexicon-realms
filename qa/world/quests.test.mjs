@@ -1,15 +1,20 @@
 import { bagCount } from '../../src/sim/loot.js';
-// Quests: every reference resolves, nothing needs a mob that does not spawn, the chain reaches level 15 on the curve,
-// and a scripted player completes all 24 through the real quest system (src/sim/quests.js).
+// Quests: every reference resolves, nothing needs a mob that does not spawn, the chain plus one day of the bounty boards
+// reaches the cap 20 on the curve, and a scripted player completes all 24 (and that day's 9 bounties) through the real
+// quest system (src/sim/quests.js).
 import { assert, eq, ZONES, content, reachable, questHarness } from './_harness.mjs';
 import { canStep } from '../../tools/maps/kit.mjs';
 import { questGapMult } from '../../src/sim/quests.js';
+import { NAMED_SPAWNS } from '../../src/data/bounties.js';
 
 function spawnsOf(mob) {
   const out = [];
   for (const z of Object.values(ZONES)) for (const s of z.spawns || []) if (s.mob === mob && !s.night) out.push({ zone: z.id, ...s });
+  for (const s of NAMED_SPAWNS) if (s.mob === mob) out.push({ ...s });     // the bounty boards' named foes
   return out;
 }
+// one day of the boards, each taken right after the chain quest that leaves its hub (PROGRESSION.md 2.3)
+const BOARD_AFTER = { wm_rhythm_of_the_forge: 'willowmere', dn_rubbings: 'thornfold', mo_peat_and_tusk: 'tarn_overlook' };
 function nodesFor(item) {
   const out = [];
   for (const z of Object.values(ZONES)) for (const n of z.nodes || []) if (n.item === item) out.push({ zone: z.id, ...n });
@@ -87,30 +92,44 @@ export const tests = [
     },
   },
   {
-    name: 'quests: the chain in order, kills at 3/7 of quest XP (PROGRESSION 9.4), reaches level 15 within 1 level and every pickup is in level',
+    name: 'quests: the chain in order plus one day of the bounty boards, kills at 3/7 of quest XP (PROGRESSION 2.3), reaches the cap 20 by the last turn-in and every pickup is in level (both day draws)',
     fn() {
       const C = content();
       const P = C.progression;
-      let level = 1, xp = 0;
-      const gain = (n) => { xp += n; while (level < 15 && xp >= P.xpToNext[level]) { xp -= P.xpToNext[level]; level++; } };
-      for (const id of C.questOrder) {
-        const q = C.quests[id];
-        assert(level >= q.minLevel, `${id} picked up at level ${level}, needs ${q.minLevel}`);
-        assert(level <= q.level + 2, `${id} (level ${q.level}) picked up at ${level}: the chain runs ahead of its quests`);
-        gain(Math.round(q.rewards.xp * questGapMult(level, q.level)));
-        gain(Math.round(q.rewards.xp * 3 / 7));
+      const QS = questHarness(1).QS;
+      for (const day of [0, 1]) {
+        const posted = QS.bountiesToday(day);
+        eq(posted.length, 9, `day ${day}: 3 boards x 3 bounties`);
+        let level = 1, xp = 0, reached = null;
+        const gain = (n) => { xp += n; while (level < P.maxLevel && xp >= P.xpToNext[level]) { xp -= P.xpToNext[level]; level++; } };
+        const take = (id, tag) => {
+          const q = C.quests[id];
+          assert(level >= q.minLevel, `day ${day}: ${id} picked up at level ${level}, needs ${q.minLevel}`);
+          assert(level <= q.level + 2, `day ${day}: ${id} (level ${q.level}) picked up at ${level}: the ${tag} runs ahead of its quests`);
+          gain(Math.round(q.rewards.xp * questGapMult(level, q.level)));
+          gain(Math.round(q.rewards.xp * 3 / 7));
+        };
+        for (const id of C.questOrder) {
+          take(id, 'chain');
+          if (BOARD_AFTER[id]) for (const b of posted.filter((x) => C.quests[x].bounty.board === BOARD_AFTER[id])) take(b, 'board');
+          if (level >= P.maxLevel && reached == null) reached = id;
+        }
+        eq(level, 20, `day ${day}: the chain plus the day's bounties ends at level ${level}`);
+        assert(['mo_long_watch', 'mo_word_for_the_elder'].includes(reached), `day ${day}: 20 reached at ${reached}, not at the end of the chain`);
       }
-      assert(level >= 14, `the chain ends at level ${level}`);
     },
   },
   {
-    name: 'quests: a scripted player completes all 24 through the quest system (accept, kill, loot, nodes, explore, escort, deliver, turn in)',
+    name: 'quests: a scripted player completes all 24 and one day of the bounty boards through the quest system (accept, kill, loot, nodes, explore, escort, deliver, turn in)',
     fn() {
       const H = questHarness(11);
       const { QS, p, C } = H;
       const P = C.progression;
       p.bags = ['starter_satchel', 'loom_bag', 'drovers_pack'];   // the bags a player buys on the way (PROGRESSION 6.5)
-      for (const id of C.questOrder) {
+      const posted = QS.bountiesToday();
+      const order = [];
+      for (const id of C.questOrder) { order.push(id); if (BOARD_AFTER[id]) order.push(...posted.filter((x) => C.quests[x].bounty.board === BOARD_AFTER[id])); }
+      for (const id of order) {
         const q = C.quests[id];
         const g = npcSpot(q.giver);
         H.place(g.zone, g.x, g.y);
@@ -125,7 +144,7 @@ export const tests = [
             H.place(n.zone, n.x, n.y);
             QS.interact(p, H.npcEnt(o.kind === 'talk' ? o.npc : o.to));
           } else if (o.kind === 'kill') {
-            const sp = spawnsOf(o.mob)[0];
+            const sp = spawnsOf(o.mob).find((x) => !o.zone || x.zone === o.zone);   // a camp bounty counts in its own zone
             H.place(sp.zone, sp.x, sp.y);
             for (let k = 0; k < o.count; k++) H.kill(o.mob, sp.level);
           } else if (o.kind === 'explore') {
@@ -143,7 +162,8 @@ export const tests = [
               }
             } else {
               const m = droppersOf(C, o.item, id)[0];
-              const sp = spawnsOf(m.id).find((x) => !m.loot.table.find((e) => e.item === o.item).minLevel || x.level >= m.loot.table.find((e) => e.item === o.item).minLevel);
+              const e = m.loot.table.find((t) => t.item === o.item);
+              const sp = spawnsOf(m.id).find((x) => (!e.minLevel || x.level >= e.minLevel) && (!e.maxLevel || x.level <= e.maxLevel));
               H.place(sp.zone, sp.x, sp.y);
               for (let k = 0; k < 300 && s() < o.count; k++) H.kill(m.id, sp.level);
             }
@@ -167,11 +187,13 @@ export const tests = [
         QS.interact(p, H.npcEnt(q.turnIn));
         assert(QS.turnIn(p, id, 0), `${id} turn in`);
         eq(QS.status(p, id), 'done');
+        if (q.bounty) assert(!p.questsDone.includes(id) && p.bounties.done.includes(id), `${id}: a bounty is kept for the day, not finished for good`);
         H.Q.grantXp(p, Math.round(q.rewards.xp * 3 / 7));      // the kills along the way
         p.bag = p.bag.filter((b) => C.items[b.item].kind !== 'junk' && !C.items[b.item].base);   // sold at the next vendor
       }
       eq(p.questsDone.length, 24, 'all quests done');
-      assert(p.level >= 14, `ends at level ${p.level}`);
+      eq(p.bounties.done.length, 9, "the day's 9 bounties handed in");
+      eq(p.level, 20, `ends at the cap: level ${p.level}`);
       assert(H.events.some((e) => e.type === 'quest_hook'), 'the finale hook fired');
       const choices = p.bag.filter((b) => C.items[b.item].reward);
       assert(choices.length >= 18, `reward items in the bag: ${choices.length}`);
@@ -200,7 +222,7 @@ export const tests = [
       for (const id of C.questOrder.slice(0, 20)) fakeLog[id] = { state: 'active', counts: C.quests[id].objectives.map(() => 0) };
       p.quests = fakeLog;
       p.questsDone = C.questOrder.slice(0, 22);
-      p.level = 14;
+      p.level = 17;
       eq(QS.canAccept(p, 'mo_long_watch'), 'log_full', '20 quests is the cap');
     },
   },

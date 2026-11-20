@@ -3,12 +3,19 @@
 // sim (src/sim/progression.js, src/sim/stats.js) evaluates them. Change a number here, never in the sim.
 
 export const PROGRESSION = {
-  maxLevel: 15,
+  // Cap 20 (BUILDS_2 5.1 to 5.4, phase 5; Scott 2026-11-19 "cap 50, shipped at 20 first"). Levels 1 to 14 keep the old
+  // numbers exactly; 15 to 19 extend the same rule (BUILDS_2 5.2: 4 x kill XP x target minutes 20 + (L - 14)).
+  maxLevel: 20,
   // XP to go from level L to L + 1 (index = level). PROGRESSION 1.
-  xpToNext: [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080],
-  // Cumulative XP at the start of each level (index = level). 41,000 at 15.
-  xpAtLevel: [0, 0, 480, 1260, 2280, 3720, 5480, 7590, 10090, 13000, 16360, 20200, 24550, 29450, 34920, 41000],
-  capGoldPerXp: 50,                        // at the cap: 1 gold per 50 XP (OPEN_QUESTIONS Q17)
+  xpToNext: [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080, 6720, 7390, 8100, 8830, 9600],
+  // Cumulative XP at the start of each level (index = level). 41,000 at 15, 81,640 at 20.
+  xpAtLevel: [0, 0, 480, 1260, 2280, 3720, 5480, 7590, 10090, 13000, 16360, 20200, 24550, 29450, 34920, 41000, 47720, 55110, 63210, 72040, 81640],
+  capGoldPerXp: 50,                        // at the cap (now 20): 1 gold per 50 XP (OPEN_QUESTIONS Q17, kept until Renown)
+  // The zone re-spread (BUILDS_2 5.5 option 1 on today's zones, PROGRESSION.md 1.1): the zone generators author foe and
+  // area levels on the old 1 to 15 scale; index = authoring level, value = the shipped level. The valley (1 to 6) is
+  // unchanged; the Downs (5 to 9) stretch to 5 to 11, the High Moor (10 to 14) to 13 to 19. tools/maps/build_world.mjs
+  // applies it to every spawn, area and zone level; quests.js and mobs.js carry the shipped numbers.
+  zoneRespread: [0, 1, 2, 3, 4, 5, 6, 8, 10, 11, 13, 14, 16, 17, 19, 20],
 
   // Kill XP (2.1): (base + perLevel * mobLevel) * gap multiplier * kind multiplier.
   killXp: { base: 20, perLevel: 4 },
@@ -34,7 +41,9 @@ export const PROGRESSION = {
   // Mob stat curve (3): hp = round(100 + 40 L + 0.6 L^2); swing mean 2 + 2.2 L (+-15 %); gold [floor(L / 3), L].
   // lowLevelHp (fix pass 1, critique 7): foes of level 1 to 4 have 22% less health, tapering back to the curve by 7, so a
   // new hero's kills from the pull land near 10 to 14 s (30% landed at 9 s for three classes in the questbot). [upToLevel, mult], first match wins.
-  mobCurve: { hp: [100, 40, 0.6], hit: [2, 2.2], hitSpread: 0.15, attackSpeed: 2.0, lowLevelHp: [[4, 0.78], [5, 0.85], [6, 0.92]] },
+  // linearFrom (BUILDS_2 5.3, cap 20): past level 15 health grows in a straight line at the curve's own slope there,
+  // hp(L) = hp(15) + 58 x (L - 15) (835 at 15, 1,125 at 20), so foes never outrun the heroes' linear growth.
+  mobCurve: { hp: [100, 40, 0.6], hit: [2, 2.2], hitSpread: 0.15, attackSpeed: 2.0, lowLevelHp: [[4, 0.78], [5, 0.85], [6, 0.92]], linearFrom: [15, 58] },
   mobKinds: {
     normal: { hp: 1, damage: 1 },
     weak: { hp: 0.6, damage: 0.7 },

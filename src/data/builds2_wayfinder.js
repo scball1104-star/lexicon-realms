@@ -212,6 +212,15 @@ export const WAYFINDER_BUILDS = [
       ...rep(P('close', 'point_blank'), 2), ...rep(P('running', 'agile_fingers'), 2), P('running', 'dancing_bow'), P('close', 'kick')] },
 ];
 
+// Cap 20 (phase 5, BUILDS_2 5.4): five more points per build for levels 16 to 20, on the build's own tracks (ranks the
+// first 15 points left unfilled; no new forks, keystones or skills). qa/sim/builds2.mjs gates every level to 20.
+const PAST_15 = {
+  falconer: [...rep(P('snare', 'long_bramble'), 2), P('running', 'loose'), P('running', 'snap_shot'), P('trailcraft', 'field_dressing')],   // Quick Set 3 and 4 slowed it to 15 s at 19
+  stormcaller: [...rep(P('longshot', 'steady_draw'), 2), ...rep(P('longshot', 'far_sight'), 2), P('longshot', 'lethal_distance')],
+  grapple_skirmisher: [...rep(P('running', 'agile_fingers'), 2), ...rep(P('running', 'snap_shot'), 2), P('running', 'loose')],
+};
+for (const b of WAYFINDER_BUILDS) b.path.push(...PAST_15[b.id]);
+
 export const WAYFINDER = {
   tracks: WAYFINDER_TRACKS,
   nodes: Object.fromEntries(WAYFINDER_NODES.map((n) => [n.id, n])),
