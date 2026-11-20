@@ -1,7 +1,7 @@
 // Class identity pass (Scott 2026-11-19: "Each class should have its own unique strength(s) and weakness(es). Skills can
 // make super-strengths or compensate for weaknesses."). Foe traits (PROGRESSION mobTraits), class passives (classes.js
 // `passives`), the rewritten talent nodes, and the data the class card and talents window show.
-import { assert, eq, near, duelWorld, addMob, stepN, ofType } from './_fixtures.mjs';
+import { assert, eq, near, duelWorld, addMob, stepN, ofType, castNow } from './_fixtures.mjs';
 import { CLASSES } from '../../src/data/classes.js';
 import { TALENTS } from '../../src/data/talents.js';
 import { PROGRESSION } from '../../src/data/progression.js';
@@ -141,6 +141,19 @@ export const tests = [
     const w = arena('mender', 10, 'fast_10');
     const wp = addMob(w.world, 'brute_10', 30, 15);
     near(hit(w.C, w.m, w.p, 200) / hit(w.C, wp, w.p, 200), 1, 0.01, 'no Shaken Hand on a Mender');
+  } },
+  { name: 'Second Wind (Warden): free out of combat with no Resolve; costs 30 Resolve in a fight', fn() {
+    const { world, p, pid } = duelWorld({ cls: 'warden', level: 6 });
+    p.hp = Math.round(p.hpMax / 2); p.res.cur = 0;
+    assert(!p.inCombat, 'out of combat');
+    const ev = castNow(world, pid, 'warden_second_wind');
+    assert(!ofType(ev, 'cast_fail').length, `no fail out of combat: ${JSON.stringify(ofType(ev, 'cast_fail'))}`);
+    assert(p.auras.some((a) => a.id === 'warden_second_wind'), 'the heal is on');
+    eq(p.res.cur, 0, 'it took no Resolve');
+    const b = duelWorld({ cls: 'warden', level: 6 });
+    b.p.inCombat = true; b.p.res.cur = 10;
+    const ev2 = castNow(b.world, b.pid, 'warden_second_wind');
+    assert(ofType(ev2, 'cast_fail').length, 'in a fight it still needs 30 Resolve');
   } },
   { name: 'Cut the Word: an Inkblade hit on a casting foe breaks the spell, once per 4 s', fn() {
     const { world, C, p, m } = arena('inkblade', 10, 'caster_10');

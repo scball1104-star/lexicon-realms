@@ -101,6 +101,9 @@ export function createCombat(C) {
     const list = Array.isArray(ab.cost) ? ab.cost : [ab.cost];
     const c = list[0];
     if (!c || c.amount == null) return null;
+    // freeOutOfCombat (Scott 2026-11-19: Second Wind "should be allowed any time, whether fighting or not"): Resolve drains
+    // to 0 out of combat, so a Resolve cost would lock it there
+    if (c.freeOutOfCombat && !e.inCombat) return { kind: c.kind, amount: 0 };
     let amt = levelValue(c.amount, e.level);
     if (typeof c.amount === 'object' && c.amount.pctBase != null) amt = c.amount.pctBase * (e.res ? e.res.max : 0);
     const m = stats.mod(e, 'cost', { ability: ab.id, target });

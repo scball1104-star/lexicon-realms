@@ -74,7 +74,7 @@ export const tests = [
   } },
   { name: 'warden_second_wind: heals 25% max HP over 6 s in 3 ticks; 30 Resolve; cd 45', fn() {
     const { world, pid, p } = setup('warden', 8, null);
-    p.res.cur = 40; p.hp = 100;
+    p.res.cur = 40; p.hp = 100; p.inCombat = true;          // in a fight it costs 30 (free out of combat: identity.test.mjs)
     const ev = [...castNow(world, pid, 'warden_second_wind'), ...stepN(world, 125)];
     const h = healOf(ev, 'warden_second_wind');
     eq(h.length, 3, 'three ticks');
