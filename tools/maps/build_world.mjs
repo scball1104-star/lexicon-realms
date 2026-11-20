@@ -47,7 +47,7 @@ async function willowmere() {
     { npc: 'mael', x: 24, y: 18, dir: 'down' }, { npc: 'hob', x: 33, y: 13, dir: 'down' }, { npc: 'sloe', x: 36, y: 14, dir: 'left' },
     { npc: 'holt', x: 24, y: 29, dir: 'up' }, { npc: 'bram', x: 17, y: 29, dir: 'up' }, { npc: 'tess', x: 18, y: 27, dir: 'down' },
     { npc: 'hazel', x: 4, y: 16, dir: 'down' }, { npc: 'oren', x: 11, y: 16, dir: 'down' }, { npc: 'garrick', x: 29, y: 26, dir: 'down' },
-    { npc: 'pell', x: 13, y: 26, dir: 'down' }, { npc: 'iris', x: 38, y: 23, dir: 'down' }, { npc: 'mira', x: 40, y: 23, dir: 'left' },
+    { npc: 'pell', x: 13, y: 26, dir: 'down' }, { npc: 'iris', x: 38, y: 23, dir: 'down' }, { npc: 'mira', x: 31, y: 18, dir: 'left' },
     { npc: 'nella', x: 42, y: 5, dir: 'right' }, { npc: 'lark', x: 26, y: 19, dir: 'left' }, { npc: 'wick', x: 19, y: 18, dir: 'right' },
     { npc: 'pip', x: 18, y: 14, dir: 'down' }, { npc: 'edda', x: 32, y: 5, dir: 'up' },
   ];
