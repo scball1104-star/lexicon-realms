@@ -1048,7 +1048,7 @@ Scott: "Let me equip potions and other items on buttons on the phone or number k
 - **Command `bar_set { slot (1..8), entry }`** (`prog.barSet`): entry a known ability, `item:<id>`, or null. The entry
   already on the bar swaps with the slot; an ability it pushes out moves to the first empty slot (off the bar when there
   is none); null clears an item slot and a known skill that is off the bar takes the slot back. A skill slot cannot be
-  cleared. Events `bar { id, slot, entry, bar }` / `bar_fail { id, slot, entry, reason: slot | empty | ability | unknown | not_usable }`.
+  cleared (superseded 2026-11-20: see Moving skills on the bar). Events `bar { id, slot, entry, bar }` / `bar_fail { id, slot, entry, reason: slot | empty | ability | unknown | not_usable }`.
 - **Using it:** `cast { slot }` on an item slot runs `use_item { item }` (stock, level, `cd['item:<group>']`, the potion
   group shared); the client (`input.js`) sends `use_item { item }` itself, off the GCD. No stock: `inventory_fail`
   reason `no_item`, the UI toasts "No Potion left.".
@@ -1058,3 +1058,30 @@ Scott: "Let me equip potions and other items on buttons on the phone or number k
 - **Placing it:** PC: drag a usable item from Bags onto a bar slot; right-click the slot to take it off. Phone: the bag
   item card has Put on bar, then tap a gold-outlined bar slot (or Cancel); a long press on the slot pins the item card
   with Take off bar (item slots fire on release so the long press does not use one). Save v2: `padBar` keeps the strings.
+
+## Moving skills on the bar (2026-11-20, LIVE)
+
+Scott: "Add the ability to rearrange skills on the bar."
+
+- **Command `bar_set { slot, from }`** (move form, `prog.barSet`): whatever is on slot `from` (skill or item) goes to
+  `slot`; an occupied slot swaps, an empty one just takes it. `from` empty: `bar_fail` reason `empty`; out of 1..8: `slot`.
+- **Taking a skill off:** `bar_set { slot, entry: null }` on a skill slot empties it (no longer `bar_fail ability`). The
+  skill stays in `known` and is listed in `e.barOff`; `prog.learn` of a skill already known does not put it back (a new
+  skill always goes on), `fillBar`'s 6 to 8 slot top-up skips it, and clearing an item slot does not pull it back.
+  `bar_set { slot, entry: <ability> }` puts a known skill back (it leaves `barOff`). A spare skill dropped on a slot that
+  holds a skill swaps with it (the old one goes to the spare list); an item placed on a skill slot still pushes the skill
+  to the first empty slot, as before. The `bar` event now also carries `off: [...barOff]`.
+- **Places kept:** a bar keeps every slot in place when it holds an item OR has an empty slot before a filled one (a moved
+  or removed skill); otherwise it is the dense list of old saves (`restoreBar`, `fillBar`, `dropFromBar` all use this).
+- **Save v2:** `world.saveFields` adds `barOff: [ids]` only when it is not empty; `main.js specFor` passes it back and
+  `prog.restoreBarOff` keeps known ids that are not on the bar. An old save (dense bar, no `barOff`) loads exactly as before.
+- **HUD:** `hud.spare: [{ ability, name, icon, off }]`, the known skills not on the bar; the UI model has `m.spare`.
+- **PC:** hold a bar slot and move the pointer more than 3 HUD px: a drag. Let go on another slot: move or swap; let go
+  away from the bar row (not in a gap between slots): taken off. A plain click casts on release (a drag has to be ruled
+  out first); the number keys still cast on key down. Right-click on an item slot takes the item off; right-click on a
+  skill slot casts it as before, so a skill only comes off by a deliberate drag. Character window, Spare skills: drag one
+  onto a slot.
+- **Phone:** a long press on a bar slot pins its card: Move, Close, Take off bar. Move outlines the slots in gold with a
+  Cancel prompt; tap a slot to move or swap. Items always fire on release; a skill fires on release while out of a fight
+  (so the long press never casts it) and on touch down in a fight, as before, where a long press only shows its tooltip.
+  Character window, Spare skills: tap one for its card with Put on bar, then tap a gold slot.

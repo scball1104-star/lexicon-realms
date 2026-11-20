@@ -208,6 +208,70 @@ def bar_item_desktop(g):
     assert not (s and s.get('item')), f'right-click took it off: {s}'
 
 
+
+def drag_css(g, src, dst, steps=8):
+    g.p.mouse.move(src[0], src[1]); g.p.mouse.down()
+    for k in range(1, steps + 1):
+        g.p.mouse.move(src[0] + (dst[0] - src[0]) * k / steps, src[1] + (dst[1] - src[1]) * k / steps); time.sleep(0.03)
+    g.p.mouse.up(); time.sleep(0.4)
+
+
+def bar_slot_css(g, n):
+    return g.ev(f"(() => {{ const r = window.__realms.ui.layout().bar[{n - 1}]; return r ? __drv.hudToCss(r.x + r.w / 2, r.y + r.h / 2) : null; }})()")
+
+
+def bar_move_desktop(g):
+    """Moving skills (Scott 2026-11-20: "Add the ability to rearrange skills on the bar"): with the real mouse, drag slot 1
+    onto slot 2 (the two swap, nothing cast), drag a skill off the bar (Character, Spare skills) and back from there, then
+    fight with the 2 key only: the skill now on slot 2 is what fires."""
+    hud = 'window.__realms.hud()'
+    a1, a2 = g.ev(f'{hud}.bar[0].ability'), g.ev(f'{hud}.bar[1].ability')
+    assert a1 and a2, f'two skills on slots 1 and 2: {a1} {a2}'
+    s1, s2 = bar_slot_css(g, 1), bar_slot_css(g, 2)
+    n0 = g.ev('window.__realms.commandLog.length')
+    drag_css(g, s1, s2)
+    b1, b2 = g.ev(f'{hud}.bar[0].ability'), g.ev(f'{hud}.bar[1].ability')
+    log('  pc drag: slots 1, 2', a1, a2, '->', b1, b2)
+    assert (b1, b2) == (a2, a1), f'dragging slot 1 onto slot 2 swaps them: {b1} {b2}'
+    sent = g.ev(f"window.__realms.commandLog.slice({n0}).map((c) => c[2].t)")
+    assert 'cast' not in sent, f'a drag casts nothing: {sent}'
+    # off the bar (let go over the world), then back from the Character window's spare skills
+    drag_css(g, s2, (s2[0], s2[1] - 300))
+    assert not g.ev(f'({hud}.bar[1] || {{}}).ability'), f'dragged off: slot 2 empty ({g.ev(hud + ".bar[1] || null")})'
+    assert a1 in [x['ability'] for x in g.ev(f'{hud}.spare')], 'on the spare list'
+    assert a1 in g.me()['known'], 'still known'
+    g.key('KeyC', 0.4)
+    src = g.ev(f"(() => {{ const r = window.__realms.ui.regions.filter((o) => o.kind === 'spare' && o.ability === {json.dumps(a1)}).pop(); return r ? __drv.hudToCss(r.rect.x + r.rect.w / 2, r.rect.y + r.rect.h / 2) : null; }})()")
+    assert src, 'the skill in Character, Spare skills'
+    g.p.mouse.move(src[0], src[1]); time.sleep(0.4)
+    g.shot('08c_bar_spare', f'PC: {a1} dragged off the bar, waiting in Character, Spare skills')
+    drag_css(g, src, s2)
+    assert g.ev(f'({hud}.bar[1] || {{}}).ability') == a1, f'dragged back onto slot 2: {g.ev(hud + ".bar[1] || null")}'
+    g.key('KeyC', 0.3)
+    # a plain click on a slot still casts
+    n1 = g.ev('window.__realms.commandLog.length')
+    g.click_css(s1, 'left', 0.3)
+    sent = g.ev(f"window.__realms.commandLog.slice({n1}).map((c) => [c[2].t, c[2].slot])")
+    assert ['cast', 1] in sent, f'a click on slot 1 casts slot 1: {sent}'
+    # fight with the 2 key only: the moved skill fires from its new key
+    seen = {'cd': 0}
+
+    def watch(me):
+        s = g.ev(f'{hud}.bar[1]')
+        if s and s.get('ability') == a1 and s.get('cdLeft', 0) > seen['cd']:
+            seen['cd'] = s['cdLeft']
+    t0 = time.time()
+    while time.time() - t0 < 90 and seen['cd'] <= 0:
+        mobs = g.ev('__drv.mobs("ink_slime", 3)')
+        if not mobs:
+            time.sleep(1)
+            continue
+        g.fight(mobs[0]['id'], slots=('Digit2',), each=watch)
+    log('  pc: key 2 cast', a1, 'cooldown seen', seen['cd'])
+    assert seen['cd'] > 0, f'key 2 cast {a1} (its cooldown ran on slot 2)'
+    g.shot('08d_bar_moved', f'PC: slots 1 and 2 swapped by drag; key 2 cast {a1}')
+
+
 def quest_nav_desktop(g):
     """Where to go (Scott, 2026-11-19). The slimes are in the valley, the hero is in Willowmere: a click on the tracker
     row selects the quest and opens the map on the VALLEY, its circle bright and saying what to do, with the way there;
@@ -319,6 +383,7 @@ def run():
         g.shot('08_loot_bags', f'loot in the bags (gold {me["gold"]}, {me["bagN"]} stacks)')
         bar_item_desktop(g)
         g.key('KeyB', 0.2)
+        bar_move_desktop(g)
 
         # ---- turn in, level up
         lvl0 = g.me()['level']

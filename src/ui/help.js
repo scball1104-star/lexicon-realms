@@ -25,7 +25,9 @@ export function helpSections(binds) {
       ['Skill info', 'Point at its icon', 'Hold its icon'],
       ['Cooldown', 'Shadow sweeps over the icon', 'Same'],
       ['Potions', `Drag one from Bags to a slot, then ${k(b, 'slot1')} to ${k(b, 'slot8')}`, 'Tap it in Bags, Put on bar, tap a slot'],
-      ['Take it off', 'Right-click its slot', 'Hold its slot, then Take off bar'],
+      ['Move a skill', 'Drag its slot to another; two swap', 'Out of a fight: hold it, Move, tap a slot'],
+      ['Take it off', 'Drag it off the bar. Items: right-click', 'Hold its slot, then Take off bar'],
+      ['Spare skills', 'Character window: drag one to a slot', 'Character: tap one, Put on bar'],
     ] },
     { title: 'People and quests', rows: [
       ['Talk', `${k(b, 'interact')}, or right-click them`, 'Tap them, or Talk'],

@@ -354,9 +354,12 @@ export function createHud(env) {
         else g.text(ctx, CLUSTER_WORD[b.id], r.x + Math.floor(r.w / 2) + 1, r.y + Math.floor(r.h / 2) - 6, 'cream', { align: 'center' });
       }
       const bs = b.slot ? bySlot.get(b.slot) : null;
-      // an item slot is pressed on release (tapOnly), so a long press can open its card without using one
+      // an item slot is pressed on release (tapOnly), so a long press can open its card without using one. A skill is
+      // too while out of a fight (its long press opens the card with Move and Take off bar, and never casts it); in a
+      // fight a skill fires on touch down, as it always has, and a long press only shows its tooltip
+      const holdCard = !!(bs && (bs.item || (bs.ability && !(m.player && m.player.inCombat))));
       regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, tip: undefined, ability: bs ? bs.ability : null, item: (bs && bs.item) || null,
-        ...(bs && bs.item ? { tapOnly: true } : {}) });
+        ...(holdCard ? { tapOnly: true } : {}) });
     }
     const j = st.joystick;
     if (j) {

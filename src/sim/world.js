@@ -260,7 +260,7 @@ function wrap(state, content, rng, systems) {
           gold: spec.gold || 0, equip: { ...(cls.startGear || {}) }, bag: [], quests: {},
           gearMode: spec.gearMode || (content.items && Object.keys(content.items).length ? 'items' : 'design'),
           designGear: spec.designGear ?? null, swing: { main: 0, off: 0 }, autoOn: false, combo: null,
-          inCombat: false, lastCombat: -99999, combatEnd: 0, stillSince: 0, sitting: 0, counters: {},
+          inCombat: false, lastCombat: -99999, combatEnd: 0, stillSince: 0, sitting: 0, counters: {}, barOff: [],
         });
         e.hpMax = 1; e.hp = 1;
         C.stats.recalc(e);
@@ -277,6 +277,7 @@ function wrap(state, content, rng, systems) {
         if (spec.bar) C.prog.restoreBar(e, spec.bar);   // a save carries 8 slots, empty ones null; `item:<id>` slots keep their place
         if (spec.lantern && content.zones[spec.lantern.zone]) e.lantern = { ...spec.lantern };
         C.b2.attach(e, spec);                      // Builds 2: the build from the save (save v2), or a new one
+        C.prog.restoreBarOff(e, spec.barOff);      // skills the player took off the bar stay off (save v2 barOff)
         C.prog.fillBar(e);                         // 8 slots: a known skill left off a 6-slot bar takes a free slot
         C.stats.recalc(e);
         e.hp = e.hpMax;
@@ -310,6 +311,7 @@ function wrap(state, content, rng, systems) {
         .map((a) => ({ id: a.id, left: a.until == null ? null : a.until - state.tick, stacks: a.stacks || 1, def: clone(a.def) }));
       out.escorts = Object.entries(e.quests || {}).filter(([, q]) => q.escort != null).map(([k]) => k);
       out.build = C.b2.saveOf(e);                // Builds 2 (save v2: state.build)
+      if (e.barOff && e.barOff.length) out.barOff = [...e.barOff];   // skills taken off the bar (bar_set null on a skill)
       return out;
     },
     get(id) { return index.get(id) || null; },

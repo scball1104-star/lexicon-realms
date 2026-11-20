@@ -223,6 +223,8 @@ function fromSimHud(vm, snap, ctx) {
     minimap: meE ? { zone: meE.zone, x: meE.x, y: meE.y, markers, areas: places.areas, goal: places.goal } : null,
     talents: (meE && meE.talents) || {}, talentPoints: { total: h.talents.total, spent: h.talents.spent, free: h.talents.free },
     bag: h.bag || { size: 12, items: [] }, equip: h.equip || {}, gold: h.gold || 0,
+    // skills the hero knows that are not on the bar (CONTRACTS "Moving skills on the bar"): name and icon for the window
+    spare: (h.spare || []).map((x) => { const a = abilityInfo(x.ability) || {}; return { ability: x.ability, name: a.name || x.name, icon: a.icon || x.icon }; }),
     stats: h.stats ? { ...h.stats, derived: h.derived } : null, buyback: h.buyback || [], combo: h.combo, questBag: h.questBag || [], pendingLoot: h.pendingLoot || [],
     // Builds 2 (null for a class on today's talents): the sim's points, gold star, open picks, respec cost, and the build itself
     builds2: h.builds2 ? { ...h.builds2, build: (meE && meE.build) || null } : null,

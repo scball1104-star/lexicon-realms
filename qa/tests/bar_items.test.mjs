@@ -103,8 +103,14 @@ export const tests = [
     world.enqueue(pid, { t: 'bar_set', slot: 2, entry: 'item:potion' });
     world.step();
     deepEq(p.bar, [b, 'item:potion', a], 'the same item again: the two slots swap');
+    // a skill slot cleared takes the skill off the bar (moving skills, 2026-11-20); it stays known and goes back on
     world.enqueue(pid, { t: 'bar_set', slot: 1, entry: null });
-    eq(ofType(world.step(), 'bar_fail')[0].reason, 'ability', 'a skill slot cannot be cleared');
+    world.step();
+    deepEq(p.bar, [null, 'item:potion', a], 'the skill came off'); deepEq(p.barOff, [b], 'listed as taken off');
+    assert(p.known.includes(b), 'still known');
+    world.enqueue(pid, { t: 'bar_set', slot: 1, entry: b });
+    world.step();
+    deepEq(p.bar, [b, 'item:potion', a], 'put back'); deepEq(p.barOff, [], 'off list empty');
     world.enqueue(pid, { t: 'bar_set', slot: 4, entry: 'wolf_pelt' });
     eq(ofType(world.step(), 'bar_fail')[0].reason, 'unknown', 'not a known skill');
     world.enqueue(pid, { t: 'bar_set', slot: 4, entry: 'item:wolf_pelt' });

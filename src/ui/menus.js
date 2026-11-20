@@ -2,7 +2,7 @@
 // (Esc). The talents window is talents.js. Each draw function pushes hit regions { rect, kind, on(button), tip }.
 // `act` is the controller's action surface (commands to the sim, local state, close, toast).
 import { menuRect, bagGrid } from './layout.js';
-import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, resourceLabel } from './gamedata.js';
+import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, abilityTooltip, resourceLabel, liveStats } from './gamedata.js';
 import { drawMarkers } from './minimap.js';
 import { drawAreas, drawTooltip, drawGoalArrow } from './hud.js';
 import { whereLabel } from './questnav.js';
@@ -78,13 +78,16 @@ function itemSlot(ctx, env, r, it, emptyIcon) {
 
 export function drawCharacter(ctx, env, m, st, regions, act) {
   const { g, charArt } = env;
-  const r = menuRect('character');
   const p = m.player;
+  const pitch = Math.max(26, env.L.minHit || 0), sz = Math.min(24, pitch - 2);
+  // the spare skills (known, not on the bar) sit under the stats; the window grows to fit a row of them
+  const spare = m.stats ? (m.spare || []) : null;
+  const base = menuRect('character');
+  const r = spare ? { ...base, h: Math.max(base.h, Math.min(360 - 4 - base.y, 240 + pitch + 8)) } : base;
   frame(ctx, env, r, 'Character', regions, act, 'character');
   charArt.portrait(ctx, p.cls, p.look, r.x + 9, r.y + 24, 32, 32);
   g.text(ctx, p.name, r.x + 47, r.y + 25, 'white');
   g.text(ctx, `Level ${p.level} ${p.clsName}`, r.x + 47, r.y + 37, 'gray');
-  const pitch = Math.max(26, env.L.minHit || 0), sz = Math.min(24, pitch - 2);
   const gy = r.y + 62;
   const gear = (list, x) => list.forEach((slot, i) => {
     const sr = { x, y: gy + i * pitch, w: sz, h: sz };
@@ -118,13 +121,55 @@ export function drawCharacter(ctx, env, m, st, regions, act) {
   if (s.armor != null) row('Armor', s.armor);
   y += 4; g.text(ctx, 'Vitals', sx, y, 'gold'); y += 12;
   row('Health', `${p.hp}/${p.hpMax}`, 'hp');
-  if (p.res) row(p.res.kind[0].toUpperCase() + p.res.kind.slice(1), `${p.res.cur}/${p.res.max}`, 'mp');
+  if (p.res) row(p.res.kind[0].toUpperCase() + p.res.kind.slice(1), `${Math.floor(p.res.cur)}/${p.res.max}`, 'mp');
   const d = (m.stats && m.stats.derived) || p.derived;
   if (d) { if (d.ap != null) row('Attack power', d.ap); if (d.sp != null) row('Spell power', d.sp); if (d.crit != null) row('Crit', `${(d.crit * 100).toFixed(1)}%`); }
   y += 4;
   g.icon(ctx, 'icon_gold', sx, y + 1);
   g.text(ctx, `${Number(m.gold).toLocaleString('en-US')} gold`, sx + 15, y, 'gold');
   if (!m.stats) g.text(ctx, 'Base stats from the class table. Gear is not counted yet.', r.x + 9, r.y + r.h - 18, 'dim');
+  if (spare) spareSkills(ctx, env, m, st, regions, act, r, spare, pitch, sz);
+}
+
+// Spare skills (Scott 2026-11-20: "Add the ability to rearrange skills on the bar"): the skills the hero knows that are
+// not on the bar. PC: drag one onto a bar slot (ui.js starts the drag from the `spare` region). Phone: a tap pins its
+// card with Put on bar, then a tap on a gold bar slot (the same flow as an item from the bags).
+function spareSkills(ctx, env, m, st, regions, act, r, spare, pitch, sz) {
+  const { g, L } = env;
+  const ly = r.y + 228, ry = ly + 12;
+  const per = Math.max(1, Math.floor((r.w - 18) / pitch));
+  g.text(ctx, 'Spare skills', r.x + 9, ly, 'gold');
+  if (!spare.length) {
+    g.text(ctx, g.clip(L.touch ? 'None. Hold a skill on the bar, then Take off bar.' : 'None. Drag a skill off the bar to keep it here.', r.w - 90), r.x + 80, ly, 'dim');
+    return;
+  }
+  g.text(ctx, L.touch ? 'Tap one to put it on the bar' : 'Drag one to a bar slot', r.x + r.w - 10, ly, 'dim', { align: 'right' });
+  const res = (classInfo(m.player.cls) || {}).resource || 'mana';
+  const shown = spare.slice(0, per);
+  shown.forEach((sp, k) => {
+    const c = { x: r.x + 9 + k * pitch, y: ry, w: sz, h: sz };
+    g.window(ctx, c.x, c.y, c.w, c.h, 'thin', 'blue', 0.95);
+    g.iconIn(ctx, sp.icon, c.x, c.y + 1, c.w, c.h - 1);
+    const tip = abilityTooltip(abilityInfo(sp.ability), m.player.level, res, liveStats(m));
+    if (tip) { tip.foot = L.touch ? 'Off the bar. Tap Put on bar, then a slot.' : 'Off the bar. Drag it to a bar slot.'; tip.footColor = 'gray'; }
+    const picked = st.itemPick && st.itemPick.kind === 'spare' && st.itemPick.key === sp.ability;
+    regions.push({ rect: { x: c.x, y: c.y, w: Math.max(sz, L.minHit || 0), h: Math.max(sz, L.minHit || 0) }, kind: 'spare', ability: sp.ability, icon: sp.icon,
+      label: `spare:${sp.ability}`, tip: L.touch ? undefined : tip,
+      on: () => {
+        if (!L.touch) return;                          // PC: the drag (ui.js) does the work
+        if (picked) { st.itemPick = null; act.barPickEntry({ entry: sp.ability, name: sp.name }); return; }
+        st.itemPick = { kind: 'spare', key: sp.ability, id: sp.ability };
+      } });
+    if (picked) g.outline(ctx, c.x, c.y, c.x + c.w - 1, c.y + c.h - 1, '#ffd34d');
+  });
+  if (spare.length > shown.length) g.text(ctx, `+${spare.length - shown.length}`, r.x + 9 + shown.length * pitch + 2, ry + 6, 'gray');
+  // the pinned card (phone): the skill's tooltip with Put on bar
+  if (L.touch && st.itemPick && st.itemPick.kind === 'spare') {
+    const sp = spare.find((x) => x.ability === st.itemPick.key);
+    if (!sp) { st.itemPick = null; return; }
+    const tip = abilityTooltip(abilityInfo(sp.ability), m.player.level, res, liveStats(m));
+    if (tip) itemCard(ctx, env, st, regions, tip, r.x + r.w + 6, r.y, 'Put on bar', () => { st.itemPick = null; act.barPickEntry({ entry: sp.ability, name: sp.name }); });
+  }
 }
 
 // ---------------------------------------------------------------- item card (touch)

@@ -140,7 +140,8 @@ async function boot() {
       respecs: s.respecs, lantern: s.lantern, build: s.build || c.build,     // build: Builds 2 (save v2, src/data/builds2.js)
       // fix pass 1: the sim-owned part (health, resource, cooldowns, lasting buffs, quest bag, loot waiting, escorts)
       qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts,
-      bounties: s.bounties };                                                  // the bounty boards: which were handed in today
+      bounties: s.bounties,                                                  // the bounty boards: which were handed in today
+      barOff: s.barOff };                                                    // skills the player took off the bar (save v2)
   }
   // an escort in progress cannot be restored (its npc is gone): it restarts as a fresh accept would
   const stripEscorts = (qs) => { if (!qs) return qs; const o = {}; for (const [k, v] of Object.entries(qs)) { const { escort, ...rest } = v; void escort; o[k] = rest; } return o; };

@@ -136,8 +136,23 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         .forEach(([it, i]) => send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item, ...(it.uid != null ? { uid: it.uid } : {}) }));
     },
     dismissHint() { st.hint = null; },
-    /** Items on the skill bar: `bar_set { slot, entry }` (entry `item:<id>`, an ability id, or null to clear an item). */
+    /** The skill bar: `bar_set { slot, entry }` (entry `item:<id>`, an ability id, or null: clears an item, takes a skill
+     *  off the bar). */
     barSet(slot, entry) { send({ t: 'bar_set', slot, entry: entry ?? null }); },
+    /** Move what is on slot `from` to slot `to` (`bar_set { slot: to, from }`); an occupied slot swaps. */
+    barMove(from, to) { send({ t: 'bar_set', slot: to, from }); },
+    /** Take a skill or item off the bar; a skill goes to the Character window's spare skills. */
+    barTakeOff(slot) {
+      const s = lastModel && (lastModel.bar || [])[slot - 1];
+      act.barSet(slot, null);
+      if (s && s.ability) toast(`${s.name || 'The skill'} is off the bar. Find it in Character, Spare skills.`, 3);
+    },
+    /** Phone: Put on bar for a spare skill, or Move for a bar slot (from): the bar slots light up until one is tapped. */
+    barPickEntry({ entry, name, from = null }) {
+      st.barPick = { entry, name, from };
+      st.itemPick = null; st.slotCard = null;
+      if (st.metrics.touch) st.open.clear();
+    },
     /** Phone (the bag card): "Put on bar" asks which slot next; the bar slots light up until one is tapped. */
     barPickStart(itemId) {
       st.barPick = { entry: `item:${itemId}`, name: (itemInfo(itemId) || { name: itemId }).name };
@@ -343,7 +358,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (!tip && r && lastModel && st.mode === 'game') tip = hud.tooltipFor(r, lastModel);
       if (tip && !(r.kind === 'talent')) drawTooltip(g, ctx, tip, tipAt.x + 12, tipAt.y - 8, { W: L.W, H: L.H });
     }
-    if (st.itemDrag && st.itemDrag.active) g.iconIn(ctx, st.itemDrag.icon, Math.round(st.itemDrag.x) - 11, Math.round(st.itemDrag.y) - 11, 22, 22);
+    if (st.itemDrag && st.itemDrag.active) g.iconIn(ctx, st.itemDrag.icon || 'icon_book', Math.round(st.itemDrag.x) - 11, Math.round(st.itemDrag.y) - 11, 22, 22);
     if (st.hint && t - st.hint.t0 > 30) st.hint = null;
     if (st.levelUp && t - st.levelUp.t0 > 6) st.levelUp = null;
     if (st.banner && st.banner.until > t && st.mode === 'game') {
@@ -377,9 +392,10 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     tip.footColor = n ? 'gray' : 'red';
     return tip;
   }
-  /** "Put on bar" (phone bag card): a prompt over the play area with Cancel; the bar slots are outlined in gold. */
+  /** "Put on bar" (phone bag card) or Move (the slot card): a prompt over the play area with Cancel; the bar slots are
+   *  outlined in gold. */
   function drawBarPick(ctx, L, regions) {
-    const text = `Tap a bar slot for ${st.barPick.name}`;
+    const text = st.barPick.from ? `Tap a slot to move ${st.barPick.name}` : `Tap a bar slot for ${st.barPick.name}`;
     const bh = Math.max(20, L.minHit || 0), bw = Math.max(60, L.minHit || 0);
     const w = Math.min(L.W - 8, g.textW(text) + bw + 30), h = bh + 10;
     const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.floor(L.H * 0.3) : 260;
@@ -391,15 +407,18 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     g.text(ctx, 'Cancel', bx + bw / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
     regions.push({ rect: { x: bx, y: by, w: bw, h: bh }, kind: 'button', label: 'bar_pick:cancel', on: () => act.barPickCancel() });
   }
-  /** Phone: a long press on an item on the bar pins its card, with Take off bar. */
+  /** Phone: a long press on a bar slot (an item, or a skill out of a fight) pins its card: Move, Close, Take off bar. */
   function drawSlotCard(ctx, env, m, L, regions) {
     const sc = st.slotCard, s = (m.bar || [])[sc.slot - 1];
-    if (!s || s.item !== sc.item) { st.slotCard = null; return; }
-    const tip = barItemTip(sc.slot, sc.item);
+    if (!s || (s.item || null) !== (sc.item || null) || (s.ability || null) !== (sc.ability || null)) { st.slotCard = null; return; }
+    let tip = sc.item ? barItemTip(sc.slot, sc.item) : hud.tooltipFor({ kind: 'slot', slot: sc.slot, ability: sc.ability }, m);
     if (!tip) { st.slotCard = null; return; }
+    if (sc.ability) tip = { ...tip, foot: `Slot ${sc.slot}. Move it, or take it off: it waits in Character, Spare skills.`, footColor: 'gray' };
     const left = L.cluster && L.cluster.length ? Math.min(...L.cluster.map((b) => b.x)) : L.W;
-    itemCard(ctx, env, st, regions, tip, Math.max(4, left - 210), Math.max((L.minHit || 0) + 6, Math.floor(L.H / 2) - 90), 'Take off bar',
-      () => { st.slotCard = null; act.barSet(sc.slot, null); }, { onClose: () => { st.slotCard = null; } });
+    const name = s.name || (sc.item ? sc.item : sc.ability);
+    itemCard(ctx, env, st, regions, tip, Math.max(4, left - 210), Math.max((L.minHit || 0) + 6, Math.floor(L.H / 2) - 90), 'Move',
+      () => { st.slotCard = null; act.barPickEntry({ entry: sc.item ? `item:${sc.item}` : sc.ability, name, from: sc.slot }); },
+      { onClose: () => { st.slotCard = null; }, more: [['Take off bar', 'crimson', () => { st.slotCard = null; act.barTakeOff(sc.slot); }]] });
   }
 
   /** The npc window's rect on this layer (dialog.js draws it; the toast and the quest marks keep clear of it). */
@@ -568,7 +587,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (st.rebinding) { st.rebinding = null; }
     const r = topRegion(x, y);
     // "Put on bar": the next slot pressed takes the item; Cancel (or a press on anything else) leaves the bar as it was
-    if (st.barPick && r && r.kind === 'slot' && r.slot) { act.barSet(r.slot, st.barPick.entry); toast(`${st.barPick.name} is on slot ${r.slot}.`); st.barPick = null; return true; }
+    // Move (the slot card): the next slot pressed takes it, an occupied one swaps
+    if (st.barPick && r && r.kind === 'slot' && r.slot) {
+      if (st.barPick.from) act.barMove(st.barPick.from, r.slot); else act.barSet(r.slot, st.barPick.entry);
+      toast(`${st.barPick.name} is on slot ${r.slot}.`); st.barPick = null; return true;
+    }
     if (st.barPick && r && !(r.on && r.label === 'bar_pick:cancel')) { st.barPick = null; return true; }
     if (!r) {
       // a click outside the open windows closes the touch window; on desktop windows stay
@@ -613,17 +636,42 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const r0 = st.mode === 'game' && ev.button === 0 ? topRegion(p.x, p.y) : null;
     st.itemDrag = r0 && r0.kind === 'bag' && r0.barItem
       ? { entry: `item:${r0.barItem}`, icon: (itemInfo(r0.barItem) || {}).icon || r0.barItem, x0: p.x, y0: p.y, x: p.x, y: p.y, active: false } : null;
+    // a spare skill (Character window) drags onto a slot the same way
+    if (r0 && r0.kind === 'spare' && r0.ability) st.itemDrag = { entry: r0.ability, icon: r0.icon || (abilityInfo(r0.ability) || {}).icon, x0: p.x, y0: p.y, x: p.x, y: p.y, active: false };
+    // a bar slot (skill or item): held and moved a few pixels it drags to another slot (swap) or off the bar; a plain
+    // click still casts, on release (the drag has to be ruled out first), as an action button does in the classic MMOs
+    if (r0 && r0.kind === 'slot' && r0.slot && !st.barPick && (r0.ability || r0.item)) {
+      const s = lastModel && (lastModel.bar || [])[r0.slot - 1];
+      st.itemDrag = { from: r0.slot, entry: r0.item ? `item:${r0.item}` : r0.ability, name: (s && s.name) || '', icon: (s && s.icon) || null,
+        x0: p.x, y0: p.y, x: p.x, y: p.y, active: false };
+      st.pressed = `slot${r0.slot}`;
+      ev.stopPropagation(); ev.preventDefault();
+      return;
+    }
     if (press(p.x, p.y, ev.button)) { ev.stopPropagation(); ev.preventDefault(); }
   };
   const onMouseUp = (ev) => {
     st.drag = null; st.pressed = null;
     const d = st.itemDrag;
     st.itemDrag = null;
-    if (!d || !d.active || !ev) return;
+    if (!d || !ev) return;
+    if (!d.active) { if (d.from) press(d.x0, d.y0, 0); return; }   // a bar slot clicked, not dragged: cast it
     const p = toHud(ev.clientX, ev.clientY);
     // the slot under the pointer, even where a window edge overlaps the bar
     const r = [...st.regions].reverse().find((o) => o.kind === 'slot' && o.slot && inRect(o.rect, p.x, p.y));
+    if (d.from) {
+      if (r && r.slot !== d.from) act.barMove(d.from, r.slot);
+      else if (!r && !nearBar(p)) act.barTakeOff(d.from);            // dropped off the bar (not in a gap between slots): taken off
+      return;
+    }
     if (r) act.barSet(r.slot, d.entry);
+  };
+  /** Is a HUD point on the desktop bar's row (a slot or the gap between two)? A drag let go there is not "off the bar". */
+  const nearBar = (p) => {
+    const bar = (layoutNow().bar || []);
+    if (!bar.length) return false;
+    const x0 = bar[0].x - 4, x1 = bar[bar.length - 1].x + bar[bar.length - 1].w + 4, y0 = bar[0].y - 4, y1 = bar[0].y + bar[0].h + 4;
+    return p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1;
   };
   const onWheel = (ev) => {
     const p = toHud(ev.clientX, ev.clientY);
@@ -823,7 +871,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (ev.id === me && ev.name) toast(ev.name, 2);
         return;
       case 'bar_fail':
-        if (ev.id === me) toast(ev.reason === 'ability' ? 'Skills stay on the bar. Put an item on that slot instead.' : ev.reason === 'not_usable' ? 'Only items you can use go on the bar.' : 'That cannot go there.');
+        if (ev.id === me) toast(ev.reason === 'empty' ? 'That slot is empty.' : ev.reason === 'not_usable' ? 'Only items you can use go on the bar.' : 'That cannot go there.');
         return;
       case 'quest':
         if (ev.id === me && ev.kind === 'complete') toast(`${(questInfoName(ev.quest))}: complete`, 2.5);
@@ -884,6 +932,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       // a long press on an item on the bar pins its card (Take off bar); it stays after the finger lifts
       const r = p && st.mode === 'game' ? topRegion(p.x, p.y) : null;
       if (r && r.kind === 'slot' && r.item) st.slotCard = { slot: r.slot, item: r.item };
+      // a skill out of a fight (its slot fires on release then, so this hold cast nothing): Move, Take off bar
+      else if (r && r.kind === 'slot' && r.ability && r.tapOnly) st.slotCard = { slot: r.slot, ability: r.ability };
     },
     setPressed(id) { st.pressed = id; },
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */

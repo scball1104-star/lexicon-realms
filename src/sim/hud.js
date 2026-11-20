@@ -97,6 +97,8 @@ export function createHud(C) {
       res: e.res ? { kind: e.res.kind, cur: Math.floor(e.res.cur), max: e.res.max } : null,
       auras: e.auras.map((a) => auraView(a, e.id)),
       bar: barView(e),
+      // known skills that are not on the bar (taken off, or pushed off by an item): the spare list the player puts back from
+      spare: (e.known || []).filter((id) => data.abilities[id] && !(e.bar || []).includes(id)).map((id) => { const ab = data.ability(e, id) || {}; return { ability: id, name: ab.name || id, icon: ab.icon || null, off: (e.barOff || []).includes(id) }; }),
       combo: e.combo && e.combo.until > state.tick ? { target: e.combo.target, n: e.combo.n, max: comboMax, left: r2(sec(e.combo.until - state.tick)) } : null,
       counters: e.counters ? { ...e.counters, pyre: e.counters.pyre ? { ...e.counters.pyre } : null } : null,
       target: t && t.zone === e.zone ? unitView(t, e.id) : null,

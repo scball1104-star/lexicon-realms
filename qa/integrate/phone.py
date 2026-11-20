@@ -6,7 +6,7 @@ through CDP Input.dispatchTouchEvent, taps through page.touchscreen).
 create a Scribe -> walk with the joystick -> tap Hob to talk, accept -> walk to the valley -> tap a slime to target it
 -> tap the tracker row: the map on the quest (Show on map from the log too) -> cast Inkbolt from the cluster -> open bags
 -> a potion on the bar from the bag card (Put on bar, tap slot 8), drunk from the bar while hurt, then taken off with a
-long press -> talents -> a new Mender on Builds 2: a tap pins a talent card, Learn
+long press -> skills moved on the bar (long press, Move, tap a slot; Take off bar; back from Character, Spare skills) -> talents -> a new Mender on Builds 2: a tap pins a talent card, Learn
 spends the point, Hearth to its fork with taps, the other side stays closed. Screenshots in qa/out/integrate/phone_*.png.
 Prints PHONE_DONE: ok=<bool> errors=<n>.
 """
@@ -206,6 +206,7 @@ def run():
         ph.tap_region(label='card:close', wait=0.3)
         assert 'card:close' not in ph.ev('__drv.labels()'), 'Close shuts the card'
         bar_item_phone(ph)
+        bar_move_phone(ph)
         ph.tap_region(kind='menu_button', id='talents', wait=0.4)
         assert 'b2:close' in ph.ev('__drv.labels()'), 'a Scribe has the Builds 2 window (phase 2: every class)'
         ph.shot('phone_09_talents', 'talents window on the phone (Scribe: Builds 2)')
@@ -272,6 +273,74 @@ def bar_item_phone(ph):
     ph.tap_region(label='card:take off bar', wait=0.5)
     s = ph.ev(f'{hud}.bar[7]')
     assert not (s and s.get('item')), f'slot 8 is empty again: {s}'
+
+
+
+def slot_css(ph, n):
+    return ph.ev(f"(() => {{ const r = window.__realms.ui.regions.filter((o) => o.kind === 'slot' && o.slot === {n}).pop(); return r ? __drv.hudToCss(r.rect.x + r.rect.w / 2, r.rect.y + r.rect.h / 2) : null; }})()")
+
+
+def long_press(ph, xy):
+    ph.touch('touchStart', xy[0], xy[1]); time.sleep(0.7); ph.touch('touchEnd', xy[0], xy[1]); time.sleep(0.4)
+
+
+def bar_move_phone(ph):
+    """Moving skills (Scott 2026-11-20: "Add the ability to rearrange skills on the bar"): out of a fight a long press on
+    a skill pins its card (Move, Take off bar, Close) and casts nothing; Move lights the slots, a tap on another slot
+    swaps the two; Take off bar sends the skill to Character, Spare skills; a tap there, Put on bar, a slot: back on."""
+    hud = 'window.__realms.hud()'
+    t0 = time.time()
+    while ph.ev('__drv.me()')['inCombat'] and time.time() - t0 < 25:
+        time.sleep(0.3)
+    assert not ph.ev('__drv.me()')['inCombat'], 'out of the fight'
+    if ph.ev('window.__realms.ui.isOpen("bags")'):
+        ph.tap_region(kind='menu_button', id='bags', wait=0.4)
+    a1, a2 = ph.ev(f'{hud}.bar[0].ability'), ph.ev(f'{hud}.bar[1].ability')
+    assert a1 and a2, f'two skills on slots 1 and 2: {a1} {a2}'
+    s1 = slot_css(ph, 1)
+    n0 = ph.ev('window.__realms.commandLog.length')
+    long_press(ph, s1)
+    labels = ph.ev('__drv.labels()')
+    for want in ('card:move', 'card:take off bar', 'card:close'):
+        assert want in labels, f'long press on a skill: {want} on the card; labels {labels}'
+    sent = ph.ev(f"window.__realms.commandLog.slice({n0}).map((c) => c[2].t)")
+    assert 'cast' not in sent, f'the long press cast nothing: {sent}'
+    mh = ph.ev('window.__realms.ui.layout().minHit')
+    hs = ph.ev("window.__realms.ui.regions.filter((o) => String(o.label || '').startsWith('card:')).map((o) => Math.min(o.rect.w, o.rect.h))")
+    assert hs and min(hs) >= mh, f'card buttons are at least minHit: {hs} vs {mh}'
+    ph.shot('phone_bar_move_card', f'long press on slot 1 ({a1}): Move, Close, Take off bar; nothing cast')
+    ph.tap_region(label='card:move', wait=0.4)
+    pick = ph.ev('window.__realms.ui.state.barPick')
+    assert pick and pick.get('from') == 1, f'Move asks for a slot: {pick}'
+    ph.shot('phone_bar_move', 'Move: the other slots lit in gold, Cancel; tap slot 2 to swap')
+    ph.tap(slot_css(ph, 2), 0.5)
+    b1, b2 = ph.ev(f'{hud}.bar[0].ability'), ph.ev(f'{hud}.bar[1].ability')
+    log('  phone move: slots 1, 2', a1, a2, '->', b1, b2)
+    assert (b1, b2) == (a2, a1), f'slots 1 and 2 swapped: {b1} {b2}'
+    assert 'cast' not in ph.ev(f"window.__realms.commandLog.slice({n0}).map((c) => c[2].t)"), 'moving cast nothing'
+    ph.shot('phone_bar_moved', f'swapped: slot 1 {b1}, slot 2 {b2}')
+    # take the skill on slot 2 off the bar, then put it back from Character, Spare skills
+    long_press(ph, slot_css(ph, 2))
+    ph.tap_region(label='card:take off bar', wait=0.5)
+    s = ph.ev(f'{hud}.bar[1]')
+    assert not (s and s.get('ability')), f'slot 2 empty: {s}'
+    assert a1 in ph.ev('__drv.me()')['known'], 'still known'
+    assert a1 in [x['ability'] for x in ph.ev(f'{hud}.spare')], 'on the spare list'
+    ph.tap_region(kind='menu_button', id='character', wait=0.4)
+    ph.tap_region(label=f'spare:{a1}', wait=0.4)
+    labels = ph.ev('__drv.labels()')
+    assert 'card:put on bar' in labels, f'the spare skill card has Put on bar; labels {labels}'
+    ph.shot('phone_bar_spare', f'Character, Spare skills: {a1} pinned, Put on bar')
+    ph.tap_region(label='card:put on bar', wait=0.4)
+    assert ph.ev('window.__realms.ui.state.barPick'), 'asking which slot'
+    ph.tap(slot_css(ph, 2), 0.5)
+    assert ph.ev(f'{hud}.bar[1].ability') == a1, f'back on slot 2: {ph.ev(hud + ".bar[1]")}'
+    assert ph.ev(f'{hud}.spare') == [], 'spare list empty again'
+    # a plain tap on a skill still casts it (released quickly)
+    n1 = ph.ev('window.__realms.commandLog.length')
+    ph.tap(slot_css(ph, 1), 0.4)
+    sent = ph.ev(f"window.__realms.commandLog.slice({n1}).map((c) => c[2].t)")
+    assert 'cast' in sent, f'a tap on slot 1 still casts: {sent}'
 
 
 def quest_nav_phone(ph):

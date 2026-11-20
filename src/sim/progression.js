@@ -97,9 +97,13 @@ export function createProgression(C) {
 
   // ------------------------------------------------------------------------------------------------ abilities and trainers
   // a new skill goes to the first free bar slot (the bar is the list of ids in slot order, at most BAR_SLOTS)
+  // a skill the player took off the bar (e.barOff) stays off when it is learned again (a level-up re-grant); a skill new to
+  // the hero always goes on
   function learn(e, id) {
-    if (!e.known.includes(id)) e.known.push(id);
+    const isNew = !e.known.includes(id);
+    if (isNew) e.known.push(id);
     if (e.bar.includes(id)) return;
+    if (Array.isArray(e.barOff) && e.barOff.includes(id)) { if (!isNew) return; e.barOff = e.barOff.filter((x) => x !== id); }
     const hole = e.bar.indexOf(null);                // a slot left empty (a bar that holds items keeps its positions)
     if (hole >= 0) e.bar[hole] = id;
     else if (e.bar.length < BAR_SLOTS) e.bar.push(id);
@@ -115,9 +119,14 @@ export function createProgression(C) {
   /** Is this bar entry valid for this hero: a known ability, or a usable item (stock may be 0). */
   function barEntryOk(e, x) { return isItemEntry(x) ? barItemOk(x) : !!x && e.known.includes(x) && !!data.abilities[x]; }
   const trimBar = (e) => { while (e.bar.length && e.bar[e.bar.length - 1] == null) e.bar.pop(); };
-  /** A saved bar for addPlayer: no item entries, the old filter (dense); with items, every slot keeps its place. */
+  /** Does this bar keep every slot in place: an item on it, or an empty slot before a filled one (the player moved a
+   *  skill or took one off). Otherwise it is the dense list of old saves. */
+  const keepsPlace = (bar) => bar.some(isItemEntry) || bar.some((x, n) => x == null && bar.slice(n + 1).some((y) => y != null));
+  /** The skills the player took off the bar on purpose (`e.barOff`, saved): known ones only. */
+  const offList = (e) => (Array.isArray(e.barOff) ? e.barOff : []);
+  /** A saved bar for addPlayer: a dense bar (old saves), the old filter; a bar that keeps places, every slot stays put. */
   function restoreBar(e, saved) {
-    if (!saved.some(isItemEntry)) { e.bar = saved.filter((kid) => kid && e.known.includes(kid)); return; }
+    if (!keepsPlace(saved)) { e.bar = saved.filter((kid) => kid && e.known.includes(kid)); return; }
     const seen = new Set();
     e.bar = saved.slice(0, BAR_SLOTS).map((x) => {
       if (!x || seen.has(x) || !(isItemEntry(x) ? barItemOk(x) : e.known.includes(x))) return null;
@@ -125,51 +134,74 @@ export function createProgression(C) {
     });
     trimBar(e);
   }
-  /** Take an ability off the bar (Builds 2 un-grant): the old compacting filter, or an empty slot when items are on it. */
+  /** The saved list of skills taken off the bar (save v2 `barOff`): known skills that are not on the bar. */
+  function restoreBarOff(e, saved) {
+    e.barOff = Array.isArray(saved) ? [...new Set(saved.filter((x) => typeof x === 'string' && e.known.includes(x) && !e.bar.includes(x)))] : [];
+  }
+  /** Take an ability off the bar (Builds 2 un-grant): the old compacting filter, or an empty slot when places are kept. */
   function dropFromBar(e, id) {
-    if (!e.bar.some(isItemEntry)) { e.bar = e.bar.filter((x) => x !== id); return; }
+    if (Array.isArray(e.barOff)) e.barOff = e.barOff.filter((x) => x !== id);
+    if (!keepsPlace(e.bar)) { e.bar = e.bar.filter((x) => x !== id); return; }
     e.bar = e.bar.map((x) => (x === id ? null : x));
     trimBar(e);
   }
   /**
-   * Command `bar_set { slot (1..8), entry }`: entry an ability id the hero knows, `item:<id>` (a usable item), or null.
-   * - the entry already on the bar elsewhere: the two slots swap;
-   * - else an ability it pushes out moves to the first empty slot (off the bar when there is none);
-   * - null clears an item slot (an ability slot cannot be cleared); a known skill that is off the bar takes it back.
+   * Command `bar_set { slot (1..8), entry }` or `bar_set { slot, from (1..8) }`.
+   * entry: an ability id the hero knows, `item:<id>` (a usable item), or null. from: move whatever is on slot `from`.
+   * - the entry already on the bar elsewhere (always so for `from`): the two slots swap (an empty slot just moves it);
+   * - an item it pushes out leaves the bar; a skill pushed out by an item moves to the first empty slot (off the bar
+   *   when there is none); a skill pushed out by a skill from the spare list goes to the spare list (the two swap);
+   * - null on an item slot clears it, and a known skill that is off the bar (not one the player took off) takes it back;
+   * - null on a skill slot takes the skill off the bar: it stays known, listed in `barOff` (saved) until put back.
    */
   function barSet(e, cmd) {
-    const fail = (reason) => { emit({ type: 'bar_fail', id: e.id, slot: cmd.slot, entry: cmd.entry ?? null, reason }); return false; };
+    const fail = (reason) => { emit({ type: 'bar_fail', id: e.id, slot: cmd.slot, entry: cmd.entry ?? null, ...(cmd.from != null ? { from: cmd.from } : {}), reason }); return false; };
     const slot = cmd.slot | 0;
     if (slot < 1 || slot > BAR_SLOTS) return fail('slot');
-    const entry = cmd.entry == null || cmd.entry === '' ? null : String(cmd.entry);
+    if (!Array.isArray(e.barOff)) e.barOff = [];
     while (e.bar.length < BAR_SLOTS) e.bar.push(null);
-    const i = slot - 1, old = e.bar[i];
+    const i = slot - 1;
+    let entry = cmd.entry == null || cmd.entry === '' ? null : String(cmd.entry);
+    if (cmd.from != null) {
+      const f = cmd.from | 0;
+      if (f < 1 || f > BAR_SLOTS) { trimBar(e); return fail('slot'); }
+      entry = e.bar[f - 1] ?? null;
+      if (entry == null) { trimBar(e); return fail('empty'); }
+    }
+    const old = e.bar[i];
     if (entry == null) {
-      if (!isItemEntry(old)) { trimBar(e); return fail(old ? 'ability' : 'empty'); }
+      if (old == null) { trimBar(e); return fail('empty'); }
       e.bar[i] = null;
-      const back = e.known.find((id) => data.abilities[id] && !e.bar.includes(id));
-      if (back) e.bar[i] = back;
+      if (isItemEntry(old)) {
+        const back = e.known.find((id) => data.abilities[id] && !e.bar.includes(id) && !e.barOff.includes(id));
+        if (back) e.bar[i] = back;
+      } else if (!e.barOff.includes(old)) e.barOff.push(old);
     } else {
       if (!barEntryOk(e, entry)) { trimBar(e); return fail(isItemEntry(entry) ? 'not_usable' : 'unknown'); }
       const j = e.bar.indexOf(entry);
       if (j === i) { trimBar(e); return true; }
       if (j >= 0) e.bar[j] = old ?? null;
-      else if (old && !isItemEntry(old)) { const k = e.bar.findIndex((x, n) => x == null && n !== i); if (k >= 0) e.bar[k] = old; }
+      else if (old && !isItemEntry(old)) {
+        if (isItemEntry(entry)) { const k = e.bar.findIndex((x, n) => x == null && n !== i); if (k >= 0) e.bar[k] = old; }
+        else if (!e.barOff.includes(old)) e.barOff.push(old);
+      }
       e.bar[i] = entry;
+      e.barOff = e.barOff.filter((x) => x !== entry);
     }
     trimBar(e);
-    emit({ type: 'bar', id: e.id, slot, entry: e.bar[i] ?? null, bar: [...e.bar] });
+    emit({ type: 'bar', id: e.id, slot, entry: e.bar[i] ?? null, bar: [...e.bar], off: [...e.barOff] });
     return true;
   }
   /**
    * A restored hero: a bar that was full at the old 6 slots left a 7th known skill off it; those skills take the new
-   * free slots, in the order they were learned. A bar with room to spare was the player's own choice and stays as saved.
+   * free slots, in the order they were learned. A bar with room to spare was the player's own choice and stays as saved,
+   * and so does a skill the player took off the bar.
    */
   function fillBar(e) {
-    if (e.bar.some(isItemEntry)) { restoreBar(e, e.bar); return; }     // a bar the player set up with items stays as saved
+    if (keepsPlace(e.bar)) { restoreBar(e, e.bar); return; }     // a bar the player arranged (items, moved skills) stays as saved
     e.bar = e.bar.filter((id, i) => id && e.known.includes(id) && e.bar.indexOf(id) === i).slice(0, BAR_SLOTS);
     if (e.bar.length < 6) return;
-    for (const id of e.known) if (e.bar.length < BAR_SLOTS && !e.bar.includes(id) && data.abilities[id]) e.bar.push(id);
+    for (const id of e.known) if (e.bar.length < BAR_SLOTS && !e.bar.includes(id) && data.abilities[id] && !offList(e).includes(id)) e.bar.push(id);
   }
 
   function trainerCls(npc) {
@@ -421,6 +453,6 @@ export function createProgression(C) {
     if (from !== zone) emit({ type: 'zone', id: e.id, from, to: zone, x: tx, y: ty });
   }
 
-  return { grantXp, killXp, setLevel, xpToNext, cumulative, learn, fillBar, restoreBar, dropFromBar, barSet, isItemEntry, itemOfEntry, train, trainerOffer, trainerCls, learnTalent, unlearnTalent, respec, respecCost,
+  return { grantXp, killXp, setLevel, xpToNext, cumulative, learn, fillBar, restoreBar, restoreBarOff, dropFromBar, barSet, isItemEntry, itemOfEntry, train, trainerOffer, trainerCls, learnTalent, unlearnTalent, respec, respecCost,
     talentPoints, onDeath, tickDeadMob, tickPlayer, bindStart, respawn, levelUp, onZoneEnter };
 }
