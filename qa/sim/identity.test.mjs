@@ -142,18 +142,22 @@ export const tests = [
     const wp = addMob(w.world, 'brute_10', 30, 15);
     near(hit(w.C, w.m, w.p, 200) / hit(w.C, wp, w.p, 200), 1, 0.01, 'no Shaken Hand on a Mender');
   } },
-  { name: 'Second Wind (Warden): free out of combat with no Resolve; costs 30 Resolve in a fight', fn() {
-    const { world, p, pid } = duelWorld({ cls: 'warden', level: 6 });
-    p.hp = Math.round(p.hpMax / 2); p.res.cur = 0;
-    assert(!p.inCombat, 'out of combat');
+  { name: 'Resolve (Warden): once Second Wind is known, out of a fight it settles at 30 (drains down, fills up), so Second Wind is always ready', fn() {
+    const { world, p, pid } = duelWorld({ cls: 'warden', level: 6, learnAll: true });
+    p.res.cur = 30;
+    p.hp = Math.round(p.hpMax / 2);
     const ev = castNow(world, pid, 'warden_second_wind');
-    assert(!ofType(ev, 'cast_fail').length, `no fail out of combat: ${JSON.stringify(ofType(ev, 'cast_fail'))}`);
-    assert(p.auras.some((a) => a.id === 'warden_second_wind'), 'the heal is on');
-    eq(p.res.cur, 0, 'it took no Resolve');
-    const b = duelWorld({ cls: 'warden', level: 6 });
-    b.p.inCombat = true; b.p.res.cur = 10;
-    const ev2 = castNow(b.world, b.pid, 'warden_second_wind');
-    assert(ofType(ev2, 'cast_fail').length, 'in a fight it still needs 30 Resolve');
+    assert(!ofType(ev, 'cast_fail').length, `Second Wind out of combat: ${JSON.stringify(ofType(ev, 'cast_fail'))}`);
+    eq(Math.round(p.res.cur), 0, 'it cost 30');
+    stepN(world, 20 * 12);
+    eq(Math.round(p.res.cur), 30, 'filled back to 30 out of a fight');
+    p.res.cur = 90;
+    stepN(world, 20 * 20);
+    eq(Math.round(p.res.cur), 30, 'drained down to 30, no lower');
+    const fresh = duelWorld({ cls: 'warden', level: 1, learnAll: false });
+    fresh.p.res.cur = 50;
+    stepN(fresh.world, 20 * 20);
+    eq(Math.round(fresh.p.res.cur), 0, 'without Second Wind it drains to 0 as before');
   } },
   { name: 'Cut the Word: an Inkblade hit on a casting foe breaks the spell, once per 4 s', fn() {
     const { world, C, p, m } = arena('inkblade', 10, 'caster_10');

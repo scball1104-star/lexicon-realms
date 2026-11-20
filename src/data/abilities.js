@@ -45,10 +45,10 @@ export const ABILITIES = {
   },
   warden_second_wind: {
     id: 'warden_second_wind', name: 'Second Wind', icon: 'second_wind', cls: 'warden', learnLevel: 6, school: 'physical',
-    cost: { kind: 'resolve', amount: 30, freeOutOfCombat: true }, castTime: 0, cooldown: 45, gcd: true, range: null, target: 'self', threatMult: 1,
+    cost: { kind: 'resolve', amount: 30 }, castTime: 0, cooldown: 45, gcd: true, range: null, target: 'self', threatMult: 1,
     effects: [{ type: 'aura', key: 'hot', to: 'self', aura: { id: 'warden_second_wind', name: 'Second Wind', icon: 'second_wind', kind: 'buff',
       duration: 6, period: 2, tick: [{ type: 'heal', to: 'holder', pctMaxHp: 0.25 / 3, canCrit: false }] } }],
-    text: 'Heal 25% of your max health over 6 s. Free out of combat.',
+    text: 'Heal 25% of your max health over 6 s.',
   },
   // combat role pass (2026-11-19): learned at 3 (was 10) so the first packs have an answer; each foe hit also bleeds a little
   warden_sweeping_blow: {

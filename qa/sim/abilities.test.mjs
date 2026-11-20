@@ -74,14 +74,16 @@ export const tests = [
   } },
   { name: 'warden_second_wind: heals 25% max HP over 6 s in 3 ticks; 30 Resolve; cd 45', fn() {
     const { world, pid, p } = setup('warden', 8, null);
-    p.res.cur = 40; p.hp = 100; p.inCombat = true;          // in a fight it costs 30 (free out of combat: identity.test.mjs)
-    const ev = [...castNow(world, pid, 'warden_second_wind'), ...stepN(world, 125)];
+    p.res.cur = 40; p.hp = 100;
+    const cast = castNow(world, pid, 'warden_second_wind');
+    const paid = 40 - p.res.cur;                             // read now: out of a fight Resolve then settles at 30 (identity.test.mjs)
+    const ev = [...cast, ...stepN(world, 125)];
     const h = healOf(ev, 'warden_second_wind');
     eq(h.length, 3, 'three ticks');
     const total = h.reduce((s, x) => s + x.amount + x.overheal, 0);
     near(total, 0.25 * p.hpMax, 2, 'total 25%');
     eq(h[0].tick - ev[0].tick, 40, 'first tick at 2 s');
-    eq(Math.round(p.res.cur) <= 10, true, 'paid 30');
+    eq(Math.round(paid), 30, 'paid 30');
     eq(p.cd.warden_second_wind - h[0].tick + 40, 900, 'cd 45');
   } },
   { name: 'warden_sweeping_blow: up to 4 foes in a 120 degree cone (2 tiles), 0.7 W + 2 + L each; nothing behind', fn() {

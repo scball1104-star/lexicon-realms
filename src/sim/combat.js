@@ -101,9 +101,6 @@ export function createCombat(C) {
     const list = Array.isArray(ab.cost) ? ab.cost : [ab.cost];
     const c = list[0];
     if (!c || c.amount == null) return null;
-    // freeOutOfCombat (Scott 2026-11-19: Second Wind "should be allowed any time, whether fighting or not"): Resolve drains
-    // to 0 out of combat, so a Resolve cost would lock it there
-    if (c.freeOutOfCombat && !e.inCombat) return { kind: c.kind, amount: 0 };
     let amt = levelValue(c.amount, e.level);
     if (typeof c.amount === 'object' && c.amount.pctBase != null) amt = c.amount.pctBase * (e.res ? e.res.max : 0);
     const m = stats.mod(e, 'cost', { ability: ab.id, target });
@@ -1410,7 +1407,13 @@ export function createCombat(C) {
       } else if (r.kind === 'focus') {
         gainRes(e, 'focus', (r.regen + stats.mod(e, 'focusRegen').add) * sec);
       } else if (r.kind === 'resolve') {
-        if (ooc && now() - (e.combatEnd || 0) >= T(r.decayDelay)) gainRes(e, 'resolve', -r.decayOoc * sec);
+        // out of a fight Resolve settles at oocFloor (Scott 2026-11-19, option 2: "drain stops at 30"): above it, it drains;
+        // below it (a Second Wind between fights), it fills back up at the same rate. Only once oocFloorFor (Second Wind) is known
+        if (ooc && now() - (e.combatEnd || 0) >= T(r.decayDelay)) {
+          const floor = r.oocFloor && (!r.oocFloorFor || (e.known || []).includes(r.oocFloorFor)) ? r.oocFloor : 0, step = r.decayOoc * sec;
+          if (res.cur > floor) gainRes(e, 'resolve', -Math.min(step, res.cur - floor));
+          else if (res.cur < floor) gainRes(e, 'resolve', Math.min(step, floor - res.cur));
+        }
         else if (!ooc) { const dr = stats.mod(e, 'resDrain').add; if (dr) gainRes(e, 'resolve', -dr * sec); }   // Builds 2 Furnace Heart
       }
     }
