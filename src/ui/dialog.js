@@ -4,6 +4,7 @@
 // 'vendor' (stock, buyback; your bags open beside it and a right-click or tap on a bag item sells it).
 // Every choice is a sim command (CONTRACTS 2.2): quest_accept, quest_turnin, train, respec, buy, sell, buyback.
 import { frame, itemTooltip } from './menus.js';
+import { drawTooltip } from './hud.js';
 import { itemInfo, abilityInfo, abilityTooltip, classInfo, questInfo, npcInfo, RARITY_COLOR } from './gamedata.js';
 
 export const DIALOG_RECT = { x: 60, y: 40, w: 330, h: 262 };
@@ -118,6 +119,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       const firstOk = (rw.choice || []).findIndex((_, k) => { const c = choiceOf(k); return !c || c.usable !== false; });
       if (firstOk >= 0) d.choice = firstOk;
     }
+    const tips = [];
     for (const it of items.slice(0, 8)) {
       const sz = Math.max(18, Math.min(24, env.L.minHit || 0));
       const sr = { x: ix, y: y + 12, w: sz, h: sz };
@@ -133,8 +135,22 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       else if (info && info.rarity && info.rarity !== 'common') g.outline(ctx, sr.x + 1, sr.y + 1, sr.x + sr.w - 2, sr.y + sr.h - 2, RARITY_COLOR[info.rarity] || '#e8e8e8');
       const tip = info ? itemTooltip(info, it.fixed ? null : 'Choose one', info.slot ? (m.equip[info.slot] || null) : undefined) : null;
       if (tip && why) { tip.foot = why; tip.footColor = 'red'; }
-      regions.push({ rect: sr, kind: 'reward', tip, on: () => { if (!it.fixed) { d.choice = it.k; d.choicePicked = true; } } });
+      const idx = items.indexOf(it);
+      tips[idx] = tip;
+      if (env.L.touch && d.peek === idx) g.outline(ctx, sr.x - 2, sr.y - 2, sr.x + sr.w + 1, sr.y + sr.h + 1, '#ffd34d');
+      // on a phone a tap shows that item's card above the rewards (Scott 2026-11-19: "I can't see what the rewards options
+      // are"); a tap on the shown item hides it again
+      regions.push({ rect: sr, kind: 'reward', tip: env.L.touch ? null : tip, on: () => {
+        if (!it.fixed) { d.choice = it.k; d.choicePicked = true; }
+        if (env.L.touch) d.peek = d.peek === idx ? -1 : idx;
+      } });
       ix += sz + 3;
+    }
+    if (env.L.touch && items.length) {
+      if (d.peek == null || d.peekQuest !== q.id) { d.peekQuest = q.id; d.peek = -1; }
+      const tp = d.peek >= 0 ? tips[d.peek] : null;
+      if (tp) drawTooltip(g, ctx, tp, x0, y, { w: Math.min(214, w0), W: x0 + w0 + 2, H: y - 1 });
+      else g.text(ctx, 'Tap an item to see it', ix + 6, y + 12 + 4, 'gray');
     }
     if (offer) button(x0, bottom, 90, 'Accept', 'green', () => { act.send({ t: 'quest_accept', quest: q.id, npc: d.ent }); act.refreshDialog(); }, 'forest');
     // one reward choice is simply yours: no "pick one" (CRITIQUE_1 item 20)

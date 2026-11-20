@@ -286,13 +286,20 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
   const rparts = [rw.xp ? `${rw.xp.toLocaleString('en-US')} XP` : null, rw.gold ? `${rw.gold} gold` : null].filter(Boolean).join('   ');
   g.text(ctx, rparts || 'None', dx + 50, ry, 'white');
   let ix = dx;
-  for (const it of [...(rw.items || []), ...(rw.choice || [])].slice(0, 6)) {
+  let cardTip = null;
+  [...(rw.items || []), ...(rw.choice || [])].slice(0, 6).forEach((it, k) => {
     const i = itemInfo(it);
     const sr = { x: ix, y: ry + 12, w: 18, h: 18 };
     itemSlot(ctx, env, sr, { ...i }, null);
-    regions.push({ rect: sr, kind: 'reward', tip: itemTooltip(i, rw.choice && rw.choice.includes(it) ? 'Choose one' : null) });
+    const tip = itemTooltip(i, rw.choice && rw.choice.includes(it) ? 'Choose one' : null);
+    // on a phone a tap pins the item's card beside the log (Scott 2026-11-19: "I can't see what the rewards options are")
+    const on = env.L.touch ? () => { st.itemPick = samePick(st.itemPick, 'reward', `${q.id}:${k}`, { item: it }) ? null : { kind: 'reward', key: `${q.id}:${k}`, id: it }; } : undefined;
+    if (env.L.touch && samePick(st.itemPick, 'reward', `${q.id}:${k}`, { item: it })) { g.outline(ctx, sr.x - 1, sr.y - 1, sr.x + sr.w, sr.y + sr.h, '#ffd34d'); cardTip = tip; }
+    regions.push({ rect: sr, kind: 'reward', tip: env.L.touch ? null : tip, ...(on ? { on } : {}) });
     ix += 21;
-  }
+  });
+  if (cardTip) itemCard(ctx, env, st, regions, cardTip, r.x + r.w + 6, r.y, null, null);
+  else if (env.L.touch && ix > dx) g.text(ctx, 'Tap an item to see it', ix + 4, ry + 16, 'gray');
   // buttons
   const bh = Math.max(16, env.L.minHit || 0), by = r.y + r.h - bh - 6;
   const button = (x, w, label, color, on) => {

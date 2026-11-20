@@ -133,6 +133,17 @@ def run():
         d = ph.ev('__drv.dialog()')
         assert d, 'tapping Hob opens the talk window'
         ph.shot('phone_05_talk', f'tapped Hob: the npc window ({d["page"]})')
+        # rewards (Scott 2026-11-19: "I can't see what the rewards options are"): Oren's Not My Starter has two item choices;
+        # show it in the open window, tap a choice, its card must appear (the dialog's peek), then put Hob's page back
+        keep = ph.ev("(() => { const d = window.__realms.ui.state.dialog; const k = { page: d.page, quest: d.quest, offers: d.offers }; Object.assign(d, { page: 'quest', quest: 'wm_yard_slimes', offers: ['wm_yard_slimes'], peek: null, peekQuest: null }); return k; })()")
+        time.sleep(0.3)
+        assert ph.ev("window.__realms.ui.regions.filter((o) => o.kind === 'reward').length") >= 2, 'Not My Starter shows its reward choices'
+        ph.tap_region(kind='reward', wait=0.4)
+        pk = ph.ev('window.__realms.ui.state.dialog.peek')
+        assert isinstance(pk, int) and pk >= 0, f'a tap on a reward shows its card: peek {pk}'
+        ph.shot('phone_05r_reward_card', 'tapped a reward choice: its card above the rewards')
+        ph.ev("(k) => Object.assign(window.__realms.ui.state.dialog, k, { peek: null, peekQuest: null })", keep)
+        time.sleep(0.2)
         ph.tap_region(label='Accept', wait=0.5)
         if ph.ev('__drv.dialog()'):
             ph.tap_region(label='Goodbye.', wait=0.3)
