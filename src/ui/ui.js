@@ -235,6 +235,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       saveOptions(storage, options);
       if (key === 'zoom') { options.zoomSet = true; saveOptions(storage, options); if (hooks.setZoom) hooks.setZoom(v); }
       if (hooks.optionsChanged) hooks.optionsChanged(options);
+      if (key === 'r3d' && hooks.setGraphics) hooks.setGraphics(v);
     },
     logout() {
       saveProgress();
@@ -791,6 +792,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     get mode() { return st.mode; },
     get state() { return st; },
     get options() { return options; },
+    notify(text, secs = 4) { toast(text, secs); },
     get model() { return lastModel; },
     get regions() { return st.regions; },
     store, act, local, log,

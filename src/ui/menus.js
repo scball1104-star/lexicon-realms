@@ -533,12 +533,13 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
       const x = cx + i * (bw + 4), on = options[key] === v;
       g.window(ctx, x, y, bw, rowH, 'thin', on ? 'ember' : 'slate', 0.95);
       g.text(ctx, names[i], x + bw / 2, y + Math.floor(rowH / 2) - 6, on ? 'cream' : 'gray', { align: 'center' });
-      regions.push({ rect: { x, y, w: bw, h: rowH }, kind: 'button', on: () => act.setOption(key, v) });
+      regions.push({ rect: { x, y, w: bw, h: rowH }, kind: 'button', label: `opt:${key}:${v}`, on: () => act.setOption(key, v) });
     });
     y += rowH + 6;
   };
   choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x']);
   choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
+  choice('Graphics (reloads)', 'r3d', [false, true], ['2D', '3D preview']);
   // ---- bottom buttons
   const bh = Math.max(16, env.L.minHit || 0);
   const by = r.y + r.h - bh - 8;

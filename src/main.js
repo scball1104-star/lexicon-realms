@@ -22,7 +22,7 @@ import { createRenderer } from './render/renderer.js';
 import { createInput } from './input/input.js';
 import { createTouch, isTouchDevice } from './input/touch.js';
 import { createUI } from './ui/ui.js';
-import { padBar } from './ui/save.js';
+import { padBar, loadOptions } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
 
 const ZOOMS = [1, 1.5, 2];
@@ -60,10 +60,15 @@ async function boot() {
   let playerId = null;                 // created by the title screen (or at once in dev mode, below)
   const joins = [];                    // [tick, spec]: addPlayer calls, replayable with commandLog (CONTRACTS 2.3)
 
-  // ?r=3d: the 3D renderer (src/render3d/, same contract); it falls back to 2D with a console warning if WebGL fails
+  // the 3D renderer (src/render3d/, same contract): ?r=3d or ?r=2d in the link wins, else Settings > Graphics (options.r3d).
+  // If WebGL fails it falls back to 2D and says so on screen (Scott 2026-11-19: the silent fallback looked like "no update")
   const rOpts = { zones: content.zones, abilities: { ...content.abilities, ...content.mobAbilities }, items: content.items };
-  const renderer = (q.get('r') === '3d' && await import('./render3d/renderer3d.js').then((m) => m.createRenderer3D(canvas, assets, rOpts))
-    .catch((e) => { console.warn('Lexicon Realms: 3D renderer unavailable, using 2D.', e); return null; })) || createRenderer(canvas, assets, rOpts);
+  let savedR3d = false;
+  try { savedR3d = !!loadOptions(window.localStorage).r3d; } catch { savedR3d = false; }
+  const want3d = q.get('r') === '3d' || (!q.has('r') && savedR3d);
+  let fell2d = false;
+  const renderer = (want3d && await import('./render3d/renderer3d.js').then((m) => m.createRenderer3D(canvas, assets, rOpts))
+    .catch((e) => { console.warn('Lexicon Realms: 3D renderer unavailable, using 2D.', e); fell2d = true; return null; })) || createRenderer(canvas, assets, rOpts);
   const input = createInput(window, canvas, { abilities: content.abilities, classes: content.classes });
   const bus = createBus();
   const font = new BitmapFont(assets.json('font'), assets.img('font'), { id: 'main' });
@@ -93,6 +98,8 @@ async function boot() {
       getLayout: () => renderer.layout,
       command: (cmd) => uiCommands.push(cmd),
       setZoom: (z) => { if (ZOOMS.includes(z)) view.zoom = z; },
+      // Settings > Graphics: save, then reload into the other renderer (a ?r= in the link would override it, so drop it)
+      setGraphics: () => { ui.saveProgress(); const u = new URL(window.location.href); u.searchParams.delete('r'); window.location.replace(u.toString()); },
       optionsChanged: (o) => { view.fx = fxOverride || o.fx; audio.setVolumes({ master: 1, music: o.music, sfx: o.sfx }); },
       enterWorld: (c) => addHero(specFor(c)),
       saveState: (id) => saveState(id),
@@ -236,6 +243,8 @@ async function boot() {
   });
   // keep the hero on this PC: every 5 s, on hide (phones rarely fire beforeunload) and on unload
   setInterval(() => ui.saveProgress(), 5000);
+  // 3D was asked for but could not start: say so once the hero is in the world (a toast on the title would be missed)
+  if (fell2d) { const t = setInterval(() => { if (ui.mode === 'game') { clearInterval(t); ui.notify('3D could not start on this device. Showing 2D.', 8); } }, 500); }
   window.addEventListener('beforeunload', () => ui.saveProgress());
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') ui.saveProgress(); });
 
