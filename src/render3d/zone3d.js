@@ -5,6 +5,7 @@
 //
 //   const z = await buildZone(L, zone, { tilesDb, quality, yieldFn })   tilesDb: assets/tiles/tiles.json
 //   z.group (add to the scene), z.lamps ([{ pos: Vector3, color, k }] light spots), z.halo (lamp halos: .opacity), z.dispose()
+//   z.buildings ([{ id, x0, z0, w, d, top }]: footprint in m and roof top, id = its fade slot for setBuildingFade), z.town
 //
 // One world unit is one metre and one tile (16 px). Repeated models are instanced per 48 m chunk and one-off groups
 // are merged per material per chunk, so the town is a few dozen draw calls and off-screen chunks are culled.
@@ -56,9 +57,28 @@ export function tickWater(t) { RIPPLE.offset.set(t * 0.011, t * 0.017); }
 // faded to about 25% coverage inside a soft cone that widens toward them, so canopies, roofs and walls never hide the
 // fight. Ordered (Bayer 4x4) dithering stands in for alpha so merged and instanced meshes need no sorting. The ground
 // layer (below 0.3 m) never fades. Shadows are untouched (the depth pass is not patched).
+//
+// Building cutaway (every zone with houses): each merged building piece carries its building's slot (vertex
+// attribute lrBld, 0 for everything else). The renderer sets a fade per building (setBuildingFade, 0..1) when the
+// hero, the target or a quest NPC stands behind or beside it; the same dither then thins that building's roof and upper walls (above about 1.3 m)
+// as a whole, so its lower walls still show what blocks the way.
+const BLD_N = 32;                       // fade slots: a 32x32 texture, slot 0 unused (ids cycle 1..1023 across zones)
+const bldData = new Uint8Array(BLD_N * BLD_N * 4);
+const BLD_TEX = new THREE.DataTexture(bldData, BLD_N, BLD_N, THREE.RGBAFormat, THREE.UnsignedByteType);
+BLD_TEX.magFilter = BLD_TEX.minFilter = THREE.NearestFilter; BLD_TEX.generateMipmaps = false; BLD_TEX.needsUpdate = true;
+let bldNext = 1, bldDirty = false;
+const bldSlot = () => { const id = bldNext; bldNext = bldNext >= BLD_N * BLD_N - 1 ? 1 : bldNext + 1; bldData[id * 4] = 0; bldDirty = true; return id; };
+/** Fade one building's roof and upper walls: k 0 (solid) .. 1 (cut away). */
+export function setBuildingFade(id, k) {
+  const v = Math.max(0, Math.min(255, Math.round(k * 255)));
+  if (id > 0 && bldData[id * 4] !== v) { bldData[id * 4] = v; bldDirty = true; }
+}
+/** Upload the building fades changed this frame (once per frame, before rendering). */
+export function flushBuildingFade() { if (bldDirty) { BLD_TEX.needsUpdate = true; bldDirty = false; } }
+export const BLD_CUT = { lo: 1.3, hi: 1.8, floor: 0.12 };   // the cut starts at lo..hi m; a fully faded roof keeps 12% coverage
 export const SEE = {
   uCam: { value: new THREE.Vector3() }, uFocus: { value: new THREE.Vector3() }, uSeeR: { value: 2.8 },
-  uFocus2: { value: new THREE.Vector3() }, uSeeR2: { value: 0 },
+  uFocus2: { value: new THREE.Vector3() }, uSeeR2: { value: 0 }, uBld: { value: BLD_TEX },
 };
 const patched = new WeakSet();
 function seeThrough(mat) {
@@ -71,15 +91,21 @@ function seeThrough(mat) {
     Object.assign(sh.uniforms, SEE);
     if (sh.vertexShader.includes('vLrW')) return;   // a clone that copied an already patched hook (tinted kit pieces)
     sh.vertexShader = sh.vertexShader.replace('#include <common>', `#include <common>
-varying vec3 vLrW;`)
+varying vec3 vLrW; varying float vLrBld;
+#ifndef USE_INSTANCING
+attribute float lrBld;
+#endif`)
       .replace('#include <project_vertex>', `#include <project_vertex>
       { vec4 lrW = vec4(transformed, 1.0);
       #ifdef USE_INSTANCING
-        lrW = instanceMatrix * lrW;
+        lrW = instanceMatrix * lrW; vLrBld = 0.0;
+      #else
+        vLrBld = lrBld;
       #endif
         vLrW = (modelMatrix * lrW).xyz; }`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
-varying vec3 vLrW; uniform vec3 uCam; uniform vec3 uFocus; uniform float uSeeR; uniform vec3 uFocus2; uniform float uSeeR2;
+varying vec3 vLrW; varying float vLrBld; uniform sampler2D uBld;
+uniform vec3 uCam; uniform vec3 uFocus; uniform float uSeeR; uniform vec3 uFocus2; uniform float uSeeR2;
 float lrB2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
 float lrBayer(vec2 a) { return lrB2(0.5 * a) * 0.25 + lrB2(a); }
 float lrCover(vec3 P, vec3 F, float R) {
@@ -92,10 +118,15 @@ float lrCover(vec3 P, vec3 F, float R) {
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
       if (vLrW.y > 0.3) {
         float lrC = min(lrCover(vLrW, uFocus, uSeeR), lrCover(vLrW, uFocus2, uSeeR2));
+        if (vLrBld > 0.5) {
+          float lrI = floor(vLrBld + 0.5);
+          float lrF = texture2D(uBld, (vec2(mod(lrI, ${BLD_N}.0), floor(lrI / ${BLD_N}.0)) + 0.5) / ${BLD_N}.0).r;
+          lrC = min(lrC, 1.0 - lrF * (1.0 - ${BLD_CUT.floor.toFixed(3)}) * smoothstep(${BLD_CUT.lo.toFixed(2)}, ${BLD_CUT.hi.toFixed(2)}, vLrW.y));
+        }
         if (lrC < 0.999 && lrC <= lrBayer(gl_FragCoord.xy) + 0.001) discard;
       }`);
   };
-  mat.customProgramCacheKey = () => (prevKey ? prevKey() : '') + '|lr_see2';
+  mat.customProgramCacheKey = () => (prevKey ? prevKey() : '') + '|lr_see3';
   mat.needsUpdate = true;
 }
 
@@ -151,14 +182,14 @@ function makeBatcher(group, { shadows }) {
       });
     },
     /** merge a one-off model or a code-built group (world matrix applied) */
-    mergeModel(proto, m4, { tint = null } = {}) {
-      for (const p of proto.parts) this.mergeGeo(p.geometry, tintMat(p.material, tint), tmp.multiplyMatrices(m4, p.matrix));
+    mergeModel(proto, m4, { tint = null, bld = 0 } = {}) {
+      for (const p of proto.parts) this.mergeGeo(p.geometry, tintMat(p.material, tint), tmp.multiplyMatrices(m4, p.matrix), true, bld);
     },
     mergeGroup(g) {
       g.updateMatrixWorld(true);
       g.traverse((m) => { if (m.isMesh) this.mergeGeo(m.geometry, m.material, m.matrixWorld); });
     },
-    mergeGeo(geo, mat, m4, cast = true) {
+    mergeGeo(geo, mat, m4, cast = true, bld = 0) {
       pos.setFromMatrixPosition(m4);
       const k = `${mat.uuid}|${chunk(pos.x, pos.z)}|${cast}`;
       if (!merge.has(k)) merge.set(k, { material: mat, geos: [], cast });
@@ -166,6 +197,7 @@ function makeBatcher(group, { shadows }) {
       for (const n of Object.keys(g.attributes)) if (!['position', 'normal', 'uv', 'color'].includes(n)) g.deleteAttribute(n);
       if (!g.attributes.normal) g.computeVertexNormals();
       if (!g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count * 2), 2));
+      g.setAttribute('lrBld', new THREE.BufferAttribute(new Float32Array(g.attributes.position.count).fill(bld), 1));   // building slot (cutaway)
       g.applyMatrix4(m4);
       merge.get(k).geos.push(g);
     },
@@ -314,44 +346,63 @@ const BUILDING = {
   x1_loomhouse: { style: 'plaster', floors: 2 }, x1_turf_hut: { style: 'plaster', floors: 1, low: true }, x1_watchtower: { style: 'brick', floors: 3, tower: true, solidTower: true },
 };
 
-async function buildHouse(P, B, def, x0, z0, w, d, doorCol, seed) {
+// Towns are drawn lower than the kit's 3.12 m storeys so the lanes stay readable from above: the ground floor keeps
+// most of its height (the doors stay taller than the hero), the upper floors and the roof give up more. About 0.78 of
+// the full height overall. The footprint never changes, so the walls still stand where the collision map blocks.
+const TOWN_H = { ground: 0.85, upper: 0.72, roof: 0.75 };
+const EAVE = 0.12;   // roof overhang past the footprint (m per side): a sliver over the lane, no more
+
+/** One house from kit pieces on the footprint (x0, z0, w, d). Returns its bounds for the cutaway. */
+async function buildHouse(P, B, def, x0, z0, w, d, doorCol, seed, { town = false, bld = 0 } = {}) {
   const st = STYLE[def.style];
   const nx = Math.max(1, Math.round(w / 2)), nz = Math.max(1, Math.round(d / 2));
   const sx = w / (nx * 2), sz = d / (nz * 2);
-  const root = new THREE.Matrix4().compose(new THREE.Vector3(x0 + w / 2, 0, z0 + d / 2), new THREE.Quaternion(), new THREE.Vector3(sx, def.low ? 0.8 : 1, sz));
-  const put = async (name, lx, ly, lz, ry) => { const pr = await P(`village/${name}.gltf`); B.mergeModel(pr, root.clone().multiply(M4(lx, ly, lz, ry))); };
+  const low = def.low ? 0.8 : 1;
+  // storey heights (world m) and the y scale each storey's pieces get
+  const fy = [];
+  let top = 0;
+  for (let f = 0; f < def.floors; f++) { const k = low * (town ? (f === 0 ? TOWN_H.ground : TOWN_H.upper) : 1); fy.push({ y: top, k }); top += FLOOR_H * k; }
+  const roofK = low * (town ? TOWN_H.roof : 1);
+  const cx = x0 + w / 2, cz = z0 + d / 2;
+  const floorRoot = (f) => new THREE.Matrix4().compose(new THREE.Vector3(cx, fy[f].y, cz), new THREE.Quaternion(), new THREE.Vector3(sx, fy[f].k, sz));
+  const put = async (f, name, lx, ly, lz, ry) => { const pr = await P(`village/${name}.gltf`); B.mergeModel(pr, floorRoot(f).multiply(M4(lx, ly, lz, ry)), { bld }); };
   const W2 = nx, D2 = nz;
   const door = Math.max(0, Math.min(nx - 1, Math.floor(doorCol / 2)));
   const jobs = [];
   for (let f = 0; f < def.floors; f++) {
-    const y = f * FLOOR_H;
     for (let i = 0; i < nx; i++) {
       const lx = -W2 + 1 + i * 2;
       let nm, glass = null;
       if (f === 0) { nm = i === door ? st.ground.door : (hashXY(i, seed) < 0.75 ? st.ground.win : st.ground.wall); if (nm === st.ground.win) glass = st.ground.glass; }
       else { nm = (i + f) % 2 ? UPPER.grid : UPPER.win; if (nm === UPPER.win) glass = UPPER.glass; }
-      jobs.push(put(nm, lx, y, D2, 0));
-      if (glass) jobs.push(put(glass, lx, y, D2, 0));
-      if (f === 0 && i === door) jobs.push(put('Door_1_Round', lx - 0.53, y, D2, 0));
-      jobs.push(put(f === 0 ? st.ground.wall : UPPER.wall, lx, y, -D2, Math.PI));
+      jobs.push(put(f, nm, lx, 0, D2, 0));
+      // window frames sit back so they stand out of the wall face by a sliver, not over the lane
+      if (glass) jobs.push(P(`village/${glass}.gltf`).then((pr) => put(f, glass, lx, 0, D2 - Math.max(0, pr.box.max.z - 0.12) / sz, 0)));
+      if (f === 0 && i === door) jobs.push(put(f, 'Door_1_Round', lx - 0.53, 0, D2, 0));
+      jobs.push(put(f, f === 0 ? st.ground.wall : UPPER.wall, lx, 0, -D2, Math.PI));
     }
     for (let j = 0; j < nz; j++) {
       const lz = -D2 + 1 + j * 2;
-      jobs.push(put(f === 0 ? st.ground.wall : UPPER.wall, W2, y, lz, Math.PI / 2));
-      jobs.push(put(f === 0 ? st.ground.wall : UPPER.wall, -W2, y, lz, -Math.PI / 2));
+      jobs.push(put(f, f === 0 ? st.ground.wall : UPPER.wall, W2, 0, lz, Math.PI / 2));
+      jobs.push(put(f, f === 0 ? st.ground.wall : UPPER.wall, -W2, 0, lz, -Math.PI / 2));
     }
-    for (const [cx, cz] of [[W2, D2], [-W2, D2], [W2, -D2], [-W2, -D2]]) jobs.push(put(st.corner, cx, y, cz, 0));
+    // corner posts turned to wrap each corner (the brick post is built for the south-west one) and, for the chunky
+    // brick post, set in a little so it stands flush with the walls instead of jutting into the lane
+    const ins = st.corner === 'Corner_Exterior_Brick' ? 0.24 : 0;
+    for (const [ccx, ccz, ry] of [[-W2, D2, 0], [W2, D2, Math.PI / 2], [W2, -D2, Math.PI], [-W2, -D2, -Math.PI / 2]]) jobs.push(put(f, st.corner, ccx - Math.sign(ccx) * ins, 0, ccz - Math.sign(ccz) * ins, ry));
   }
   await Promise.all(jobs);
-  // roof: the kit roof whose plan best fits the house, scaled to the footprint plus an overhang
-  const top = def.floors * FLOOR_H;
+  // roof: the kit roof whose plan best fits the house, scaled to the footprint plus a small eave, sitting on the walls
+  let roofTop = top;
   if (def.tower) {
     const pr = await P('village/Roof_Tower_RoundTiles.gltf');
     const b = pr.box, bw = b.max.x - b.min.x, bd = b.max.z - b.min.z;
-    const k = Math.min((nx * 2 + 0.4) / bw, (nz * 2 + 0.4) / bd);
-    B.mergeModel(pr, root.clone().multiply(new THREE.Matrix4().compose(new THREE.Vector3(-(b.min.x + b.max.x) / 2 * k, top - b.min.y * k, -(b.min.z + b.max.z) / 2 * k), new THREE.Quaternion(), new THREE.Vector3(k, k, k))));
+    const kx = (w + EAVE * 2) / bw, kz = (d + EAVE * 2) / bd, ky = Math.min(kx, kz) * roofK;
+    const m = new THREE.Matrix4().compose(new THREE.Vector3(cx - (b.min.x + b.max.x) / 2 * kx, top - b.min.y * ky, cz - (b.min.z + b.max.z) / 2 * kz), new THREE.Quaternion(), new THREE.Vector3(kx, ky, kz));
+    B.mergeModel(pr, m, { bld });
+    roofTop = top + (b.max.y - b.min.y) * ky;
   } else {
-    const want = [nx * 2 + 0.6, nz * 2 + 0.6];
+    const want = [w + EAVE * 2, d + EAVE * 2];
     let best = null;
     for (const name of ROOFS) {
       const pr = await P(`village/${name}.gltf`);
@@ -363,17 +414,21 @@ async function buildHouse(P, B, def, x0, z0, w, d, doorCol, seed) {
       }
     }
     const b = best.pr.box;
-    const kx = want[0] / best.rw, kz = want[1] / best.rd, ky = Math.min(kx, kz) * (def.low ? 0.8 : 1);
-    const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+    const kx = want[0] / best.rw, kz = want[1] / best.rd, ky = Math.min(kx, kz) * roofK;
+    const bcx = (b.min.x + b.max.x) / 2, bcz = (b.min.z + b.max.z) / 2;
     const rot = new THREE.Matrix4().makeRotationY(best.rot ? Math.PI / 2 : 0);
     const scl = new THREE.Matrix4().makeScale(best.rot ? kz : kx, ky, best.rot ? kx : kz);
-    const cen = new THREE.Matrix4().makeTranslation(-cx, -b.min.y, -cz);
-    const lift = new THREE.Matrix4().makeTranslation(0, top, 0);
-    // undo the house's own x/z stretch for the roof: it is sized to metres already
-    const unstretch = new THREE.Matrix4().makeScale(1 / sx, 1 / (def.low ? 0.8 : 1), 1 / sz);
-    B.mergeModel(best.pr, root.clone().multiply(unstretch).multiply(lift).multiply(rot).multiply(scl).multiply(cen));
+    const cen = new THREE.Matrix4().makeTranslation(-bcx, -b.min.y, -bcz);
+    const at = new THREE.Matrix4().makeTranslation(cx, top, cz);
+    B.mergeModel(best.pr, at.multiply(rot).multiply(scl).multiply(cen), { bld });
+    roofTop = top + (b.max.y - b.min.y) * ky;
   }
-  if (def.chimney) await put('Prop_Chimney', W2 - 0.8, top + 0.6, -D2 + 0.8, 0);
+  if (def.chimney) {
+    const pr = await P('village/Prop_Chimney.gltf');
+    const k = roofK, m = new THREE.Matrix4().compose(new THREE.Vector3(cx + (W2 - 0.8) * sx, top + 0.6 * k, cz + (-D2 + 0.8) * sz), new THREE.Quaternion(), new THREE.Vector3(1, k, 1));
+    B.mergeModel(pr, m, { bld });
+  }
+  return { id: bld, x0, z0, w, d, top: roofTop };
 }
 
 // ---------- code-built props ----------
@@ -498,6 +553,8 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const P = makeProtoCache(L);
   const B = makeBatcher(group, { shadows: !!quality.shadows });
   const lamps = [];
+  const buildings = [];            // [{ id, x0, z0, w, d, top }] for the building cutaway
+  const town = zone.kind === 'town';
   const W = zone.w, H = zone.h;
   let waterTex = null;
   // yield to the frame loop whenever this build has held the thread for a few milliseconds (no hitch while walking)
@@ -630,8 +687,9 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     if (BUILDING[t]) {
       const def = BUILDING[t];
       const door = meta && meta.doorAt ? meta.doorAt[0] : Math.floor(fw / 2);
-      if (def.solidTower) jobs.push(buildHouse(P, B, def, fx0, fz0, fw, Math.max(fd, 3), door, d.x * 7 + d.y));
-      else jobs.push(buildHouse(P, B, def, fx0, fz0, fw, fd, door, d.x * 7 + d.y));
+      const o = { town, bld: bldSlot() };
+      const fd2 = def.solidTower ? Math.max(fd, 3) : fd;
+      jobs.push(buildHouse(P, B, def, fx0, def.solidTower ? fz0 + fd - fd2 : fz0, fw, fd2, door, d.x * 7 + d.y, o).then((bb) => { buildings.push(bb); }));
     } else if (t === 'town_gate') B.mergeGroup(townGate(fx0, d.y + 0.5, fw));
     else if (t === 'x1_barrow_door_closed') B.mergeGroup(barrowMound(cx, cz, fw));
     else if (t === 'well') B.mergeGroup(well(cx, cz));
@@ -704,8 +762,9 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   }
   const halo = { set opacity(v) { for (const m of haloMats) m.opacity = v; } };
   return {
-    group, lamps, halo, calls,
+    group, lamps, halo, calls, buildings, town,
     dispose() {
+      for (const bb of buildings) setBuildingFade(bb.id, 0);
       group.traverse((m) => { if (((m.isMesh && !m.isInstancedMesh) || m.isPoints) && m.geometry) m.geometry.dispose(); });
       gtex.color.dispose(); gtex.weights.dispose(); apronMap.dispose(); if (waterTex) waterTex.dispose();
     },

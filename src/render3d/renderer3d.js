@@ -10,13 +10,17 @@
 // 2D renderer, through the same layout), so input, the HUD and every driver keep working unchanged.
 //
 // Camera: the approved action-RPG angle (mockups3d_hero still 3): 40 degrees down, following from the south, at three
-// zoom distances (view.zoom 1, 1.5, 2: 20, 13.3, 10 m; phones 10% further). It stays north-up, so screen up is world
+// zoom distances (view.zoom 1, 1.5, 2: 20, 13.3, 10 m; phones 10% further). In a town (zone kind 'town') it looks down
+// steeper (57 degrees) from 1.3 times as far, so the narrow lanes between houses stay in sight; crossing a zone join
+// eases between the two over about half a second (real time). It stays north-up, so screen up is world
 // north (W walks up the screen as in 2D and on the minimap) and a point h px "above" a 2D anchor maps to the same screen
 // spot as a point h px north on the ground: anchorOf() returns that h, measured each frame by projection. Picking,
 // devToWorld and worldToHud all go through the live camera, so they follow any angle.
 //
 // Cutaway: static scenery between the camera and the hero, and between the camera and the hero's target, fades to
-// about 25% (zone3d.js SEE). Bodies outside the view frustum are hidden and not animated (draw calls, CPU).
+// about 25% (zone3d.js SEE). On top of that a building whose roof or upper walls cover the hero, the target or an NPC
+// with a quest mark on screen fades its whole roof and upper walls out (smoothly, the same dither), while its lower
+// walls stay to show what blocks the way. Bodies outside the view frustum are hidden and not animated (draw calls, CPU).
 // Zones next to the shown one are built in the background in small time slices and their shaders compiled before
 // they are needed, so walking into a zone does not stall.
 //
@@ -37,7 +41,7 @@ import { createFx } from '../render/fx.js';
 import { isTouchDevice } from '../input/touch.js';
 import { BitmapFont } from '../core/font.js';
 import { createLoader, WINDOW_LIT } from './loader.js';
-import { buildZone, LAMP_GLASS, SEE, tickWater } from './zone3d.js';
+import { buildZone, BLD_CUT, flushBuildingFade, LAMP_GLASS, SEE, setBuildingFade, tickWater } from './zone3d.js';
 import { createActors } from './actors.js';
 import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
@@ -47,6 +51,10 @@ const PITCH = THREE.MathUtils.degToRad(40);
 const FOV = 30;
 const DIST = 20;              // camera distance at zoom 1 (m); zoom 1.5 -> 13.3, zoom 2 -> 10
 const PHONE_DIST = 1.1;       // phones sit a little further out (the screen is short)
+const TOWN_PITCH = THREE.MathUtils.degToRad(57);   // towns: steeper and further out (narrow lanes, roofs)
+const TOWN_DIST = 1.3;
+const CAM_EASE = 5;           // 1/s: the field <-> town camera blend across a zone join
+const BLD_EASE = 9;           // 1/s: a building's roof fading out or back in
 
 const GradeShader = {
   uniforms: { tDiffuse: { value: null }, vig: { value: 1.0 }, desat: { value: 0 }, tint: { value: new THREE.Vector3(1, 1, 1) } },
@@ -181,6 +189,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   let layout = layoutFor(canvas.width, canvas.height, 1);
   const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null, quality, info: null, camDist: null };   // camDist: drivers' close-up
   let lastNow = null;
+  let camK = null, camT = 0;     // camera blend: 0 field, 1 town (eased in real time)
   const focus = new THREE.Vector3();
   const frustum = new THREE.Frustum(), projView = new THREE.Matrix4(), sph = new THREE.Sphere();
   /** Is a body (feet at p, h m tall) in or near the view? A margin keeps edge bodies and their shadows in. */
@@ -191,6 +200,24 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   Object.defineProperty(dev, 'see', { value: SEE, enumerable: false });
   Object.defineProperty(dev, 'zonesBuilt', { get: () => [...state.zones.keys()], enumerable: false });
   Object.defineProperty(dev, 'building', { get: () => state.building.size, enumerable: false });
+  /** Drivers: each building of the shown zone, its footprint (m), its fade now and the box its drawn pieces really fill
+   *  (from the merged geometry), so a check can see that no roof or wall reaches past the footprint. */
+  dev.buildingBoxes = () => {
+    if (!shown || !shown.buildings) return [];
+    const box = new Map(shown.buildings.map((bb) => [bb.id, { id: bb.id, foot: [bb.x0, bb.z0, bb.x0 + bb.w, bb.z0 + bb.d], top: +bb.top.toFixed(2), k: +(bb.k || 0).toFixed(2), min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] }]));
+    shown.group.traverse((m) => {
+      const g = m.isMesh && !m.isInstancedMesh && m.geometry, a = g && g.attributes.lrBld;
+      if (!a) return;
+      const ps = g.attributes.position;
+      for (let i = 0; i < a.count; i++) {
+        const o = box.get(Math.round(a.getX(i)));
+        if (!o) continue;
+        const v = [ps.getX(i), ps.getY(i), ps.getZ(i)];
+        for (let j = 0; j < 3; j++) { o.min[j] = Math.min(o.min[j], v[j]); o.max[j] = Math.max(o.max[j], v[j]); }
+      }
+    });
+    return [...box.values()].map((o) => ({ ...o, min: o.min.map((v) => +v.toFixed(2)), max: o.max.map((v) => +v.toFixed(2)) }));
+  };
   /** Drivers: what a body looks like now ({ kind, built, sig, spec }) or null. */
   dev.actor = (id) => { const a = actors.get(id); if (!a) return null; const b = a.body; return { kind: a.kind, built: !!b, sig: a.sig, building: a.building, type: b && b.type, spec: b && b.spec ? { parts: b.spec.parts, helm: b.spec.helm, cape: b.spec.cape, main: b.spec.main, off: b.spec.off } : null, anim: b && b.anim ? b.anim.name : null }; };
 
@@ -330,7 +357,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const zone = zones[view.zone];
     const z = zoneFor(view.zone);
     if (z !== shown) {
-      if (shown) scene.remove(shown.group);
+      if (shown) { scene.remove(shown.group); for (const bb of shown.buildings || []) { bb.k = 0; setBuildingFade(bb.id, 0); } }
       shown = z;
       if (shown) scene.add(shown.group);
       actors.clear(view.followId);     // the hero keeps its body across zones (no rebuild on the step through)
@@ -350,12 +377,20 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       focus.set(((pe ? pe.x : meE.x) + (meE.x - (pe ? pe.x : meE.x)) * k) / PX, 0, ((pe ? pe.y : meE.y) + (meE.y - (pe ? pe.y : meE.y)) * k) / PX);
     } else if (zone) { const ar = zone.arrival || [zone.w / 2, zone.h / 2]; focus.set(ar[0] + 0.5, 0, ar[1] + 0.5); }
     const target = focus.clone().setY(0.9);
-    const dist = dev.camDist || (DIST * (layout.touch ? PHONE_DIST : 1)) / (view.zoom || 1);
-    camera.position.set(target.x, target.y + dist * Math.sin(PITCH), target.z + dist * Math.cos(PITCH));
+    const tnow = performance.now(), rdt = Math.min(0.1, Math.max(0, (tnow - camT) / 1000));
+    camT = tnow;
+    const townWant = zone && zone.kind === 'town' ? 1 : 0;
+    if (camK == null) camK = townWant;
+    else { camK += (townWant - camK) * (1 - Math.exp(-rdt * CAM_EASE)); if (Math.abs(townWant - camK) < 0.002) camK = townWant; }
+    const ck = camK * camK * (3 - 2 * camK);
+    const pitch = PITCH + (TOWN_PITCH - PITCH) * ck, distK = 1 + (TOWN_DIST - 1) * ck;
+    dev.cam = { pitch: +THREE.MathUtils.radToDeg(pitch).toFixed(1), distK: +distK.toFixed(3) };
+    const dist = dev.camDist || (DIST * distK * (layout.touch ? PHONE_DIST : 1)) / (view.zoom || 1);
+    camera.position.set(target.x, target.y + dist * Math.sin(pitch), target.z + dist * Math.cos(pitch));
     camera.lookAt(target);
     camera.updateMatrixWorld();
     frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
-    actors.sync(prevSnap, snap, alpha, view.zone, now, dt, fx3, focus, 14 + 18 / (view.zoom || 1), inView);
+    actors.sync(prevSnap, snap, alpha, view.zone, now, dt, fx3, focus, (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
     // a zone edge finds its neighbour ready
@@ -366,6 +401,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     SEE.uCam.value.copy(camera.position);
     SEE.uFocus.value.copy(me ? me.root.position : focus).setY(1.0); SEE.uSeeR.value = me ? 3.2 : 0;
     if (tgA && tgA.e && !tgA.e.dead && tgA.kind !== 'object') { SEE.uFocus2.value.copy(tgA.root.position).setY(Math.min(1.2, tgA.height * 0.55)); SEE.uSeeR2.value = 1.9; } else SEE.uSeeR2.value = 0;
+    cutBuildings(snap, view, me, tgA, rdt);
     tickWater(now);
     animateLineup(now, dt);
     renderer.info.reset();
@@ -408,6 +444,60 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const ms = performance.now() - t0;
     const s = dev.stats; s.ms = ms; s.n++; s.avg += (ms - s.avg) / Math.min(s.n, 120);
     dev.info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, actors: actors.list().length, gpu: renderer.userData.gpu };
+  }
+
+  // ---- building cutaway: which buildings cover someone who must stay visible. A ray from the camera to a few points
+  // on each kept body (feet, middle, head, and a little to each side, so standing beside a wall counts) is tested
+  // against each building's box above the cut line.
+  const cutRay = new THREE.Ray(), cutBox = new THREE.Box3(), cutHit = new THREE.Vector3(), cutP = new THREE.Vector3();
+  /** Bodies that must never hide behind a roof: the hero, the target, NPCs with a quest mark. [{ p, h, pad }] */
+  function keepVisible(snap, view, me, tgA) {
+    const out = [];
+    if (me && me.root) out.push({ p: me.root.position, h: me.height || 1.8, pad: 0.6 });
+    if (tgA && tgA.root && tgA.e && !tgA.e.dead) out.push({ p: tgA.root.position, h: tgA.height || 1.7, pad: 0.4 });
+    const h = snap.hud && view.followId != null ? snap.hud[view.followId] : null;
+    if (h && h.npcMarkers) {
+      for (const id of Object.keys(h.npcMarkers)) {
+        const a = actors.get(Number(id));
+        if (!a || !a.root || !a.root.visible) continue;
+        v3.copy(a.root.position).project(camera);
+        if (Math.abs(v3.x) > 1.05 || v3.y < -1.05 || v3.y > 1.3) continue;      // on screen only (a head may peek in at the top)
+        out.push({ p: a.root.position, h: a.height || 1.7, pad: 0.3 });
+      }
+    }
+    return out;
+  }
+  function covers(bb, k) {
+    cutBox.min.set(bb.x0, BLD_CUT.lo, bb.z0); cutBox.max.set(bb.x0 + bb.w, bb.top, bb.z0 + bb.d);
+    for (const dx of [0, -k.pad, k.pad]) {
+      for (const y of [0.25, k.h * 0.55, k.h + 0.25]) {
+        cutP.set(k.p.x + dx, y, k.p.z);
+        cutRay.origin.copy(camera.position); cutRay.direction.copy(cutP).sub(camera.position);
+        const L = cutRay.direction.length(); cutRay.direction.divideScalar(L);
+        if (cutRay.intersectBox(cutBox, cutHit) && cutHit.distanceTo(camera.position) < L - 0.05) return true;
+      }
+    }
+    return false;
+  }
+  function cutBuildings(snap, view, me, tgA, rdt) {
+    const list = shown && shown.buildings;
+    if (!list || !list.length) { flushBuildingFade(); return; }
+    const keep = keepVisible(snap, view, me, tgA);
+    const ease = 1 - Math.exp(-rdt * BLD_EASE);
+    let n = 0;
+    for (const bb of list) {
+      let want = 0;
+      for (const k of keep) {
+        if (Math.abs(k.p.x - (bb.x0 + bb.w / 2)) > bb.w / 2 + 12 || Math.abs(k.p.z - (bb.z0 + bb.d / 2)) > bb.d / 2 + 12) continue;
+        if (covers(bb, k)) { want = 1; break; }
+      }
+      bb.k = bb.k == null ? want : bb.k + (want - bb.k) * ease;
+      if (Math.abs(want - bb.k) < 0.01) bb.k = want;
+      setBuildingFade(bb.id, bb.k);
+      if (bb.k > 0.5) n++;
+    }
+    dev.cut = n;
+    flushBuildingFade();
   }
 
   function drawPlates(snap, view) {

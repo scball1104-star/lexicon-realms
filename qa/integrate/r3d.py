@@ -10,8 +10,10 @@ Starts its own static server on a free 127.0.0.1 port (and stops it at the end),
   D phone 844x390 at dpr 2 (touch): tap the ground to walk (3D devToWorld), tap a foe to target it (3D pick)
   E no WebGL: ?r=3d falls back to the 2D renderer with a console warning
   F foe gallery: every foe family in a row at game zoom (renderer.dev.lineup), desktop, plus slimes on the phone
-  G cutaway and zone change: the hero behind the library (roof and walls fade around him), then a walk from
-    Willowmere into the valley with every frame time logged (the hitch check: no frame over 100 ms, few over 50 ms)
+  G cutaway and zone change: the town camera (steeper, further out), the hero behind the library (its whole roof and
+    upper walls fade out), every building's drawn box within its footprint plus a sliver, then a walk from Willowmere
+    into the valley with every frame time logged (the hitch check: no frame over 100 ms, few over 50 ms) and the
+    camera back at the field angle
 Frame rate on desktop and phone (rAF window plus the uncapped probe). Screenshots in qa/out/r3d/.
 Prints R3D_DONE: ok=<bool> errors=<n> (machine-read sentinel).
 """
@@ -398,7 +400,16 @@ def session_g(b):
     time.sleep(0.8)
     see = g.ev('(() => { const S = window.__realms.renderer.dev.see; return S ? { r: S.uSeeR.value, r2: S.uSeeR2.value } : null; })()')
     assert see and see['r'] > 0, f'the cutaway is on around the hero: {see}'
-    g.shot('01_behind_library', f'the hero just north of the library: roof and wall fade to 25% around him {see}')
+    cam = g.ev('window.__realms.renderer.dev.cam')
+    assert cam and cam['pitch'] > 50 and cam['distK'] > 1.2, f'the town camera looks down steeper from further out: {cam}'
+    boxes = g.ev('window.__realms.renderer.dev.buildingBoxes()')
+    lib = next((o for o in boxes if o['foot'] == [33, 16, 43, 23]), None)
+    assert lib and lib['k'] > 0.9, f'the library (the hero behind it) fades its roof and upper walls: {lib}'
+    over = max(max(o['foot'][0] - o['min'][0], o['foot'][1] - o['min'][2], o['max'][0] - o['foot'][2], o['max'][2] - o['foot'][3]) for o in boxes)
+    metrics['town_buildings'] = {'n': len(boxes), 'maxOverhangM': round(over, 2), 'faded': sum(1 for o in boxes if o['k'] > 0.5), 'cam': cam}
+    log('  town buildings', json.dumps(metrics['town_buildings']))
+    assert len(boxes) >= 10 and over <= 0.2, f'no roof, eave or wall reaches past a footprint by more than a sliver: {over}'
+    g.shot('01_behind_library', f'the hero just north of the library: its roof and upper walls fade out {see} {cam}')
     # the zone change: neighbours are prebuilt in the background; log every frame while crossing
     t0 = time.time()
     while time.time() - t0 < 60 and 'valley' not in g.ev('window.__realms.renderer.dev.zonesBuilt'):
@@ -420,6 +431,8 @@ def session_g(b):
     metrics['zone_change_willowmere_to_valley'] = hm
     log('  zone change frames', json.dumps(hm))
     g.shot('02_valley_arrival', f'arrived in the valley: {hm}')
+    cam = g.ev('window.__realms.renderer.dev.cam')
+    assert cam and abs(cam['pitch'] - 40) < 1 and abs(cam['distK'] - 1) < 0.02, f'the field camera is back after the zone join: {cam}'
     assert hm['maxMs'] < 100 and hm['over50ms'] <= 2, f'no hitch on the zone change: {hm}'
     page.close()
 
