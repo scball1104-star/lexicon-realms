@@ -201,7 +201,7 @@ export function createHud(env) {
   function tracker(ctx, L, m, st, regions, fade) {
     const T = L.tracker;
     if (!m.tracked.length) return;
-    let rows = trackerRows(m.tracked, T.w, (s, w) => g.wrap(s, w), (s) => g.textW(s), { areas: true });
+    let rows = trackerRows(m.tracked, T.w, (s, w) => g.wrap(s, w), (s) => g.textW(s), L.touch ? { areas: true, compact: true, maxQuests: 3, selected: m.selectedQuest } : { areas: true });
     const collapsed = L.touch && st.trackerCollapsed;
     if (collapsed) rows = rows.slice(0, 1);
     const maxLines = T.maxLines;
@@ -213,8 +213,8 @@ export function createHud(env) {
     let y = T.y + 2;
     for (const row of rows) {
       if (row.kind === 'head') {
-        g.text(ctx, 'Quests', T.x + 5, y, 'gold', { large: true });
-        if (L.touch) g.text(ctx, collapsed ? `${m.tracked.length} +` : '-', T.x + T.w - 5, y + 3, 'gray', { align: 'right' });
+        g.text(ctx, 'Quests', T.x + 5, y, 'gold', row.small ? {} : { large: true });
+        if (L.touch) g.text(ctx, collapsed ? `${m.tracked.length} +` : '-', T.x + T.w - 5, y + (row.small ? 0 : 3), 'gray', { align: 'right' });
         regions.push({ rect: { x: T.x, y: T.y, w: T.w, h: Math.max(18, L.minHit || 0) }, kind: 'tracker_head' });
       } else {
         // a gold ? when the quest is ready to hand in, a small parchment bullet while it is in progress (a yellow ! means

@@ -77,7 +77,26 @@ function touchLayout(minHit, LW, LH) {
  * name wrapped to the width, the count right-aligned on the first line when the quest has one count objective,
  * and one gray line per extra objective. wrap(text, width) -> lines; textW(text) -> px.
  */
-export function trackerRows(quests, width, wrap, textW, { maxQuests = 5, areas = false } = {}) {
+export function trackerRows(quests, width, wrap, textW, { maxQuests = 5, areas = false, compact = false, selected = null } = {}) {
+  // compact (the phone, Scott 2026-11-19: "the quest text and box are too big"): a small heading, each quest on one line,
+  // the where-to-go line and the next objective only for the selected quest (the one the map and arrow follow)
+  if (compact) {
+    const rows = [{ kind: 'head', text: 'Quests', h: 12, small: true }];
+    const list = (quests || []).slice(0, maxQuests);
+    const sel = list.find((q) => q.id === selected) || list[0];
+    for (const q of list) {
+      const objs = q.objectives || [];
+      const count = objs.length === 1 && objs[0].need > 1 ? `${objs[0].cur}/${objs[0].need}` : (q.done ? 'Done' : '');
+      const nameW = width - 22 - (count ? textW(count) + 6 : 0);
+      const lines = wrap(q.name, nameW);
+      rows.push({ kind: 'quest', text: lines.length > 1 ? `${lines[0]}...` : lines[0] || '', right: count, done: !!q.done, id: q.id, h: 11 });
+      if (q !== sel) continue;
+      const next = objs.length > 1 ? objs.find((o) => o.cur < o.need) : null;
+      const where = q.done ? (q.turnInName ? `Return to ${q.turnInName}` : '') : next ? `${next.need > 1 ? `${next.cur}/${next.need} ` : ''}${next.text}` : (areas ? q.areaName || '' : '');
+      if (where) { const wl = wrap(where, width - 30); rows.push({ kind: 'area', text: wl.length > 1 ? `${wl[0]}...` : wl[0], id: q.id, h: 11 }); }
+    }
+    return rows;
+  }
   const rows = [{ kind: 'head', text: 'Quests', h: 16 }];
   for (const q of (quests || []).slice(0, maxQuests)) {
     const objs = q.objectives || [];

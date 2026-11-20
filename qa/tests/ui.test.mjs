@@ -308,6 +308,14 @@ export const tests = [
       const rows = trackerRows([{ id: 'q', name: 'Q', objectives: [], areaName: 'The Fork' }, { id: 'r', name: 'R', done: true, turnInName: 'Nella', objectives: [] }], 184, wrapBy, charW, { areas: true });
       assert(rows.some((r) => r.kind === 'area' && r.text === 'The Fork'), 'place line');
       assert(rows.some((r) => r.kind === 'area' && r.text === 'Return to Nella'), 'hand-in line');
+      // the phone (Scott 2026-11-19: "the quest text and box are too big"): one line per quest, directions for the selected one only
+      const qs = [{ id: 'q', name: 'Wolves on the Pilgrim Road and far beyond the hills', objectives: [], areaName: 'The Fork' },
+        { id: 'r', name: 'R', done: true, turnInName: 'Nella', objectives: [] }, { id: 's', name: 'S', objectives: [] }, { id: 't', name: 'T', objectives: [] }];
+      const c = trackerRows(qs, 150, wrapBy, charW, { areas: true, compact: true, maxQuests: 3, selected: 'r' });
+      eq(c.filter((r) => r.kind === 'quest').length, 3, 'three quests at most');
+      assert(c.every((r) => r.kind === 'head' || r.kind === 'quest' || r.kind === 'area'), 'no wrapped name or objective rows');
+      eq(c.filter((r) => r.kind === 'area').map((r) => r.text).join('|'), 'Return to Nella', 'only the selected quest says where');
+      assert(c.find((r) => r.id === 'q').text.endsWith('...'), 'a long name is cut to one line');
     },
   },
 ];
