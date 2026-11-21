@@ -758,6 +758,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     class: 'Your class cannot use that.', weapon: 'You cannot use that weapon.', armor: 'You cannot wear that armor.', combat: 'Not while in combat.',
     no_value: 'The vendor will not buy that.', bags_full: 'You can wear 4 bags.', cooldown: 'Not ready yet.', full: 'You are already at full health.',
     known: 'You already know that.', points: 'No talent points left.', tier: 'That tier is not open yet.', dependency: 'A deeper talent needs that one.', empty: 'Nothing to reset.' };
+  const QUEST_FAIL_TEXT = { bag_full: 'Your bags are full. Sell or drop an item, then try again.', range: 'Too far away. Walk closer and talk again.',
+    not_ready: 'That quest is not finished yet.', not_active: 'You do not have that quest.' };
   function onOwnEvent(ev) {
     const me = playerId;
     switch (ev.type) {
@@ -781,6 +783,13 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         toast(`You learn ${(abilityInfo(ev.ability) || { name: ev.ability }).name}.`);
         say('system', `You learn ${(abilityInfo(ev.ability) || { name: ev.ability }).name}. It is on your bar.`);
         return;
+      case 'cmd_reject': {
+        // a refused quest turn-in or accept used to fail with no word (Scott 2026-11-20: "Complete (pick one)" did nothing)
+        if (ev.id !== me || (ev.cmd !== 'quest_turnin' && ev.cmd !== 'quest_accept')) return;
+        const t = QUEST_FAIL_TEXT[ev.reason];
+        if (t) { toast(t); say('error', t); }
+        return;
+      }
       case 'train_fail': case 'inventory_fail': case 'talent_fail':
         if (ev.id !== me) return;
         if (ev.type === 'inventory_fail' && ev.cmd === 'use_item' && ev.reason === 'no_item') { const t = `No ${(itemInfo(ev.item) || { name: ev.item }).name} left.`; toast(t); say('error', t); return; }

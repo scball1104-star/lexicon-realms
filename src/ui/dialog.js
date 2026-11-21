@@ -154,6 +154,13 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     }
     if (offer) button(x0, bottom, 90, 'Accept', 'green', () => { act.send({ t: 'quest_accept', quest: q.id, npc: d.ent }); act.refreshDialog(); }, 'forest');
     // one reward choice is simply yours: no "pick one" (CRITIQUE_1 item 20)
+    // say it before the press: a full bag refuses the turn-in (Scott 2026-11-20)
+    if (ready) {
+      const bag = m.bag || { size: 12, items: [] };
+      const gifts = (rw.items || []).length + ((rw.choice || []).length ? 1 : 0);
+      const freeSlots = (bag.size || 0) - (bag.items || []).filter(Boolean).length;
+      if (gifts > 0 && freeSlots < gifts) g.text(ctx, `Bags full: free ${gifts - Math.max(0, freeSlots)} slot${gifts - Math.max(0, freeSlots) > 1 ? 's' : ''} first`, x0 + 118, bottom + Math.floor(Math.max(16, env.L.minHit || 0) / 2) - 6, 'red');
+    }
     if (ready) button(x0, bottom, 110, (rw.choice || []).length > 1 ? 'Complete (pick one)' : 'Complete', 'gold', () => { act.send({ t: 'quest_turnin', quest: q.id, npc: d.ent, choice: (rw.choice || []).length > 1 ? d.choice : 0 }); act.refreshDialog(); }, 'ember');
     back();
     return;
