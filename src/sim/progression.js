@@ -10,6 +10,7 @@
 import { SUB, TILE, BAR_SLOTS } from './constants.js';
 import { ticks as T } from './data.js';
 import { distPx, distPxXY } from './geom.js';
+import { satchelGrowth } from './loot.js';
 
 export function createProgression(C) {
   const { state, emit, data, stats } = C;
@@ -80,6 +81,7 @@ export function createProgression(C) {
       }
     }
     emit({ type: 'level', id: e.id, level: e.level, hpMax: e.hpMax, talentPoints: pts.free, trainable: newAbilities, trainer,
+      bagGrew: satchelGrowth(e.level) - satchelGrowth(e.level - 1),
       firstTalentAt: !e.b2 && e.level < P.talents.firstLevel ? P.talents.firstLevel : null, ...(e.b2 ? { b2: true, b2Free: C.b2.points(e).free + 0 } : {}) });
     if (e.b2) C.b2.onLevel(e);
   }

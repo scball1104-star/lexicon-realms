@@ -136,7 +136,7 @@ export const tests = [
     const w2sys = [];
     const w = createWorld({ seed: 11, content: C, systems: [{ id: 'killer', tick: (world) => w2sys.forEach((f) => f(world)) }] });
     const s = freeNear('valley', 41, 10, 3);
-    const full = ['slime_ink', 'scarab_shell', 'wolf_pelt', 'thorny_pelt', 'blot_residue', 'tangled_wool', 'crow_feather', 'grave_dust', 'mist_pelt', 'boar_hide', 'torn_page', 'ink_wisp'].map((item) => ({ item, qty: 20 }));
+    const full = ['slime_ink', 'scarab_shell', 'wolf_pelt', 'thorny_pelt', 'blot_residue', 'tangled_wool', 'crow_feather', 'grave_dust', 'mist_pelt', 'boar_hide', 'torn_page', 'ink_wisp', 'slime_ink', 'scarab_shell'].map((item) => ({ item, qty: 20 }));   // 14: a level 8 satchel has grown +2
     const id = w.addPlayer({ name: 'Full', cls: 'warden', zone: 'valley', x: s[0], y: s[1], level: 8, bag: full, quests: { wm_copied_twice: { state: 'active', counts: [0] } }, questsDone: ['wm_name_twice', 'wm_keeper_marks'] });
     const p = w.get(id);
     const slimes = w.state.ents.filter((m) => m.kind === 'mob' && m.template === 'ink_slime' && m.zone === 'valley' && m.level >= 3);
@@ -149,7 +149,7 @@ export const tests = [
     pending = (p.pendingLoot || []).length;
     assert(pending > 0, 'something that did not fit is waiting (junk or gear from the kills)');
     assert(pages > 0, `Quill's pages reached the quest bag with a full bag (${pages})`);
-    eq(p.bag.length, 12, 'the bag is still 12 full slots');
+    eq(p.bag.length, 14, 'the bag is still 14 full slots (12 + 2 grown at level 5)');
     assert((p.qbag || []).some((s2) => s2.item === 'quills_copy'), 'pages in the quest bag');
     const lootEv = events.filter((e) => e.type === 'loot' && e.id === id);
     assert(lootEv.length > 0, 'loot events still fire');

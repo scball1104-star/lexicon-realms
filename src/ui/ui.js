@@ -814,6 +814,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           if (ev.b2Free > 0) { const l = `${ev.b2Free} talent point${ev.b2Free > 1 ? 's' : ''} to spend (${st.metrics.touch ? 'star button' : 'N'})`; lines.push(l); say('system', `You have ${l}.`); }
         } else if (ev.talentPoints > 0) { const l = `${ev.talentPoints} talent point${ev.talentPoints > 1 ? 's' : ''} to spend (${st.metrics.touch ? 'star button' : 'N'})`; lines.push(l); say('system', `You have ${l}.`); }
         else if (ev.firstTalentAt) lines.push(`Your first talent point comes at level ${ev.firstTalentAt}`);
+        if (ev.bagGrew > 0) { const l = `Your satchel stretches: +${ev.bagGrew} bag slots`; lines.push(l); say('loot', `${l}.`); }
         lines.push('Health and power grow stronger');
         st.levelUp = { t0: st.now, level: ev.level, lines };
         // the trainer's mark turns gold until you train (or for two minutes)

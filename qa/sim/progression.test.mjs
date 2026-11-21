@@ -7,6 +7,7 @@ import { PROGRESSION } from '../../src/data/progression.js';
 import { CLASSES } from '../../src/data/classes.js';
 import { DAY_TICKS } from '../../src/sim/constants.js';
 import { dayFraction, isNight } from '../../src/sim/clock.js';
+import { bagCapacity } from '../../src/sim/loot.js';
 
 const at = (e, tx, ty) => { e.x = tx * 256 + 128; e.y = (ty + 1) * 256 - 16; };
 function trainerWorld(cls = 'warden', level = 1) {
@@ -18,6 +19,15 @@ function trainerWorld(cls = 'warden', level = 1) {
 }
 
 export const tests = [
+  { name: 'bags: the starter satchel grows +2 at levels 5, 10, 15 and 20 (12 -> 20), the level-up message reads bagGrew', fn() {
+    const { world: w, p } = duelWorld({ cls: 'warden', level: 1 });
+    const content = w.internals.content;
+    eq(bagCapacity(p, content), 12, 'level 1: 12 slots');
+    const grew = [];
+    while (p.level < 20) { const cap = bagCapacity(p, content); w.grantXp(p.id, 50, 'quest'); if (bagCapacity(p, content) > cap) grew.push(p.level); }
+    eq(bagCapacity(p, content), 20, 'level 20: 20 slots');
+    eq(grew.join(), '5,10,15,20', 'grows at 5, 10, 15, 20');
+  } },
   { name: 'xp: the curve: granting 81,640 XP from level 1 lands exactly on the cap 20 (41,000 on 15), with a level event at every PROGRESSION.md threshold', fn() {
     const { world: w, pid, p } = duelWorld({ cls: 'mender', level: 1 });
     const levels = [];

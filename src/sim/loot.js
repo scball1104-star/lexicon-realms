@@ -21,8 +21,13 @@ export function bagCapacity(e, content) {
   const items = content.items || {};
   let n = 0;
   for (const b of e.bags || ['starter_satchel']) n += (items[b] && items[b].bagSlots) || 0;
-  return n || 12;
+  return (n || 12) + satchelGrowth(e.level);
 }
+// the satchel grows with you at milestones (Scott 2026-11-20): +2 slots at levels 5, 10, 15 and 20 (12 -> 20)
+export const SATCHEL_GROWTH = Object.freeze([5, 10, 15, 20]);
+export const SATCHEL_GROWTH_SLOTS = 2;
+/** Slots the starter satchel has grown by at this level. */
+export function satchelGrowth(level) { return SATCHEL_GROWTH.filter((L) => (level || 1) >= L).length * SATCHEL_GROWTH_SLOTS; }
 export function bagCount(e, item) {
   let n = 0;
   for (const s of e.bag || []) if (s.item === item) n += s.qty;
