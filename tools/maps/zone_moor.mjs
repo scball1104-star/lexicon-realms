@@ -5,9 +5,20 @@
 // across the tarn, which in phase 1 is only water with a faint ink path to the islet (an Episode 1 tease, no access).
 //
 // Closed hook: the stile to the Keepers' Terrace, choked with roots. The Orrery's dome shows over the north-east rim.
-import { Canvas, scatter, hash01, vnoise, dresser } from './kit.mjs';
+import { Canvas, scatter, hash01, vnoise, dresser, carveSecret, dressSecret, secretEntry } from './kit.mjs';
 
 export const W = 160, H = 100;
+
+// Secrets (landscape pass 2026-11-20, docs/design/LANDSCAPE_PASS.md; kit.mjs carveSecret): a spring falling off the
+// east crags with a dry shelter behind it, and a false face in the Ridgeline rock.
+export const SECRETS = [
+  { id: 'moor_spring', name: "The Shepherds' Shelter", kind: 'waterfall', passage: [[150, 75], [151, 75], [150, 76], [151, 76], [150, 77], [151, 77]],
+    nook: [149, 72, 152, 74], top: '^', floor: '.', look: 'T', chest: [151, 72], hint: [150, 78], gold: [120, 160],
+    chestName: "Shepherd's Chest", text: 'Behind the spring, a dry shelter and a chest. The old shepherds wintered here and kept their best things where the wind could not find them.' },
+  { id: 'moor_crack', name: 'The Split Rock', kind: 'rockface', passage: [[102, 38], [103, 38], [102, 39], [103, 39]], nook: [101, 35, 105, 37], top: '^',
+    floor: '.', look: '|', chest: [103, 35], hint: [102, 40], gold: [110, 150],
+    chestName: "Watchman's Box", text: 'The rock is hollow here. A watchman of the tower kept a box in it, with a candle end and a list of names nobody can read.' },
+];
 
 export function build(db) {
   const c = new Canvas(W, H, '.');
@@ -76,6 +87,7 @@ export function build(db) {
   // the Ridgeline's one-way drops (south, down only) across the hump, with the road crossing at the ledge
   for (const [x0, x1, y] of [[96, 112, 39], [114, 130, 33]]) for (let x = x0; x <= x1; x++) if (c.at(x, y) !== '^' && c.at(x, y) !== '|') c.put(x, y, x === x0 ? 'L' : x === x1 ? 'R' : 'M');
 
+  for (const s of SECRETS) carveSecret(c, s);
   const ground = c.rows();
 
   // ---------------------------------------------------------------- overlays
@@ -91,12 +103,14 @@ export function build(db) {
   ].filter((o) => !(o.t.startsWith('ink_bridge') ? false : ground[o.y][o.x] === 'T'));
 
   // ---------------------------------------------------------------- decor
-  const d = dresser(c, db, { soft: '.,bp' });
+  const d = dresser(c, db, { soft: '.,bp', roadGap: 2 });   // landscape pass: nothing within 2 tiles of a road
   d.reserve(104, 2, 134, 14);           // the tower yard
   d.reserve(98, 15, 114, 24);           // Odo's hut
   d.reserve(64, 46, 94, 66);            // the overlook
   d.reserve(66, 80, 92, 99);            // the Ridge Path
   d.reserve(144, 10, 159, 22);          // the stile
+  const open = [];
+  for (const s of SECRETS) open.push(...dressSecret(d, s, db));
   d.add('x1_watchtower', 116, 6);       // foot (116..119, 5..6); the elite stands at (118, 8)
   d.add('x1_turf_hut', 103, 19);        // door (104, 19)
   d.add('x1_hearth', 110, 21);
@@ -179,11 +193,11 @@ export function build(db) {
   const nodes = [];
 
   // clearings round camps, then gorse, boulders and the odd wind-bent pine
-  for (const p of [...spawns, ...npcs]) d.reserve(p.x - 1, p.y - 1, p.x + 1, p.y + 1);
+  for (const p of [...spawns, ...npcs]) d.reserve(p.x - 2, p.y - 2, p.x + 2, p.y + 3);   // landscape pass: wider clearings, deeper south
   for (let y = 4; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
     const heath = x >= 100 && y >= 44;
     const stand = vnoise(x, y, 5, 61);
-    let p = heath ? (stand > 0.6 ? 0.22 : 0.03) : (stand > 0.74 ? 0.14 : 0.008);
+    let p = heath ? (stand > 0.64 ? 0.16 : 0.015) : (stand > 0.76 ? 0.12 : 0.006);   // landscape pass: thinner gorse
     const r = hash01(x, y, 62);
     if (r < p) d.try(r < p * 0.3 ? 'x1_boulder_a' : r < p * 0.38 ? 'tree_pine' : (r < p * 0.7 ? 'x1_gorse_a' : 'x1_gorse_b'), x, y);
   }
@@ -212,10 +226,10 @@ export function build(db) {
       under: 'x1_moor_turf',
       legend: { '.': 'x1_moor_turf', ',': 'x1_heath', b: 'x1_bracken', p: 'x1_peat', '=': 'dirt', T: 'x1_tarn',
         '^': 'x1_crag_top', '|': 'x1_crag_face', L: 'ledge_s_a', M: 'ledge_s_m', R: 'ledge_s_b' },
-      ground, overlays, decor: d.decor,
+      ground, overlays, decor: d.decor, open,
       overhead: [{ t: 'x1_far_dome', x: 148, y: -2 }],
       solids: [],
     },
-    realm: { levels: [10, 15], arrival: [78, 96], areas, lanterns: LANTERNS, spawns, npcs, nodes, signs, hooks, joins, script },
+    realm: { levels: [10, 15], arrival: [78, 96], areas, lanterns: LANTERNS, spawns, npcs, nodes, signs, hooks, joins, script, secrets: SECRETS.map(secretEntry) },
   };
 }

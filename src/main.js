@@ -245,6 +245,8 @@ async function boot() {
     view.zone = me ? me.zone : content.start.zone; view.followId = playerId; view.targetId = me ? me.target : null; view.time = nowMs / 1000;
     view.dpr = window.devicePixelRatio || 1; view.hud = ui.hudMode;
     view.inset = ui.mode === 'game' ? insets : null;   // title screens: the art covers the notch strips too
+    // secret caches this hero has opened draw open, without their glint
+    for (const e of snap.entities) if (e.node && e.node.secret) e.opened = (e.node.openedBy || []).includes(playerId);
     renderer.draw(prev, snap, alpha, view);
     const dpr = window.devicePixelRatio || 1;
     ui.setMetrics({ cssPerHud: renderer.layout.base / dpr });

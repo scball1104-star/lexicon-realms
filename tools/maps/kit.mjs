@@ -289,6 +289,48 @@ export function writeModule(file, header, obj) {
   fs.writeFileSync(file, `${header}\nexport default ${JSON.stringify(obj)};\n`);
 }
 
+// ------------------------------------------------------------------------------------------------ secrets
+/**
+ * Secrets (landscape pass 2026-11-20, docs/design/LANDSCAPE_PASS.md): a spot that looks solid but is not, leading to a
+ * small sealed nook with a chest. The sim walks the passage cells (their collision is forced open after baking), and
+ * every renderer draws them as the solid thing they pretend to be: a waterfall (water over a cliff face), a false rock
+ * face (cliff face), a bush wall (bushes placed on open cells).
+ *
+ *   carveSecret(c, s)        ground only, call last before c.rows(): the nook floor and the passage look
+ *   dressSecret(d, s)        decor: reserve the nook (no trees in it), place the bush wall; returns the open cells
+ *   secretEntry(s)           the zone table entry (realm.secrets), CONTRACTS 6
+ *
+ * s = { id, name, kind: 'waterfall' | 'rockface' | 'bushwall', passage: [[x, y], ...], nook: [x0, y0, x1, y1],
+ *       floor: '.', top: optional ground char the nook keeps (the cliff top: the shelf is opened, so no notch is drawn),
+ *       look: ground char for the passage (water / cliff face; bushwall: the floor), chest: [x, y],
+ *       hint: [x, y], gold: [lo, hi], text }
+ * build_world.mjs checks every secret: passage walkable, chest reachable, and the nook sealed (from inside, every cell
+ * you can reach without the passage lies in the nook box).
+ */
+export function carveSecret(c, s) {
+  const [x0, y0, x1, y1] = s.nook;
+  c.box(x0, y0, x1, y1, s.top || s.floor || '.');   // s.top: the nook keeps the cliff-top look (opened below), no notch shows
+  for (const [x, y] of s.passage) c.put(x, y, s.look);
+  for (const [x, y, ch] of s.extra || []) c.put(x, y, ch);
+}
+export function dressSecret(d, s, db) {
+  const [x0, y0, x1, y1] = s.nook;
+  d.reserve(x0 - 1, y0 - 1, x1 + 1, y1 + 1);
+  for (const [x, y] of s.passage) d.reserve(x - 1, y - 1, x + 1, y + 1);   // the passage and its approach stay clear
+  if (s.kind === 'bushwall') for (const [x, y] of s.passage) d.add('bush', x, y);
+  for (const [t, x, y] of s.ring || []) d.add(t, x, y);
+  const open = s.passage.map(([x, y]) => [x, y]);
+  if (s.top) for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) open.push([x, y]);
+  return open;
+}
+export function secretEntry(s) {
+  const [x0, y0, x1, y1] = s.nook;
+  return {
+    id: s.id, name: s.name, kind: s.kind, passage: s.passage, nook: { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 }, hint: s.hint,
+    chest: { id: `secret_${s.id}`, x: s.chest[0], y: s.chest[1], gold: s.gold, name: s.chestName || 'Hidden Cache', text: s.text },
+  };
+}
+
 // ------------------------------------------------------------------------------------------------ decor placement
 /**
  * Keeps decor off roads, buildings and each other. `free(x, y)` is true when a 1-cell prop may stand at (x, y):

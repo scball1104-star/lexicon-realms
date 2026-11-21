@@ -188,6 +188,7 @@ export function createObjectArt({ tiles, propsDb, img, book, silhouette }) {
         if (f) { blitF(g, f, ix - f.ox - cam.x, iy - f.oy - cam.y); }
         else if (pf) g.drawImage(pf.im, pf.r[0], pf.r[1], pf.r[2], pf.r[3], ix - pf.a[0] - cam.x, iy - pf.a[1] - cam.y, pf.r[2], pf.r[3]);
         else g.drawImage(nodeArt(), ix - 5 - cam.x, iy - 8 - cam.y);
+        if (e.opened) { g.fillStyle = 'rgba(20,14,24,0.45)'; g.fillRect(ix - 6 - cam.x, top + 2 - cam.y, 12, 4); return; }   // opened: a dark mouth, no glint
         glint(g, ix + 4 - cam.x, top - cam.y, now, e.id);
       } });
       if (f) { w = f.w; h = f.h; top = iy - f.oy + 4; out[0].pick = { x: ix - f.ox, y: iy - f.oy, w, h }; }

@@ -32,6 +32,14 @@ async function willowmere() {
   // the west gate (LQ's X1 Orchard Lane gate, which the baseline import leaves out): a lamp, and the join to the Downs
   z.decor.push({ t: 'lamp_post', x: 1, y: 15, state: 1 });
   z.collision[15] = '#' + z.collision[15].slice(1);
+  // landscape pass 2026-11-20: the trees and bushes LQ stood in or beside the town lanes go (a pine in the south lane,
+  // a pine on the east lane's verge, the bush at Sloe's elbow); their cells walk again
+  const CLEAR = [['tree_pine', 11, 29], ['tree_pine', 25, 9], ['bush', 35, 15]];
+  z.decor = z.decor.filter((d) => {
+    if (!CLEAR.some(([t, x, y]) => d.t === t && d.x === x && d.y === y)) return true;
+    z.collision[d.y] = z.collision[d.y].slice(0, d.x) + '.' + z.collision[d.y].slice(d.x + 1);
+    return false;
+  });
   z.joins = [
     { x: 20, y: 31, w: 2, h: 1, to: 'valley', tx: 1, ty: 52, dir: 'right' },
     { x: 0, y: 16, w: 1, h: 2, to: 'downs', tx: 142, ty: 42, dir: 'left' },
@@ -109,6 +117,26 @@ function finish(z) {
       if (!ok(px, py)) continue;
       if (canStep(z, px, py, dx, dy)) { back[py * z.w + px] = 1; bq.push([px, py]); }
     }
+  }
+  // secrets (landscape pass, kit.mjs carveSecret): the passage is walkable, the chest reachable, and the nook sealed:
+  // from the chest, walking without the passage cells, every cell reached lies in the nook box (no back door out of
+  // the zone, round a quest gate or onto a cliff top)
+  for (const s of z.secrets || []) {
+    for (const [x, y] of s.passage) if (!isWalk(x, y)) problems.push(`${z.id}: secret ${s.id} passage ${x},${y} is not walkable`);
+    if (!ok(s.chest.x, s.chest.y)) problems.push(`${z.id}: secret ${s.id} chest ${s.chest.x},${s.chest.y} is not reachable`);
+    const pass = new Set(s.passage.map(([x, y]) => `${x},${y}`));
+    const inNook = (x, y) => x >= s.nook.x && y >= s.nook.y && x < s.nook.x + s.nook.w && y < s.nook.y + s.nook.h;
+    const sq = [[s.chest.x, s.chest.y]], sseen = new Set([`${s.chest.x},${s.chest.y}`]);
+    while (sq.length) {
+      const [x, y] = sq.pop();
+      if (!inNook(x, y)) { problems.push(`${z.id}: secret ${s.id} leaks at ${x},${y}`); break; }
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const k = `${x + dx},${y + dy}`;
+        if (sseen.has(k) || pass.has(k) || !isWalk(x + dx, y + dy)) continue;
+        sseen.add(k); sq.push([x + dx, y + dy]);
+      }
+    }
+    s.chest.levels = [...(z.levels || [1, 1])];
   }
   const pits = [];
   for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) if (ok(x, y) && !back[y * z.w + x]) pits.push(`${x},${y}`);

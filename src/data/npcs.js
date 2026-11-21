@@ -159,6 +159,7 @@ export const NPCS = {
     talk: [
       'Henrietta runs the coop. Bertha sits on things. The rest are working on their personalities.',
       'I named every one of my hens. They have never once said thank you.',
+      'My da swore there was a dry room behind the falls under the north cliff. My da swore a lot of things.',
     ],
   },
 
@@ -220,6 +221,7 @@ export const NPCS = {
     talk: [
       'Supplies for the road! Potions, remedies, and directions. The directions are free.',
       'My brother worries enough for both of us, so I do not have to. Very efficient.',
+      'Down the east bank there is a ring of thorn the wolves walk round. One bush in it is thinner than the rest.',
     ],
   },
 
@@ -253,6 +255,7 @@ export const NPCS = {
       'Twelve in the fold. Twelve is right. Twelve is always right.',
       'Never named a one of them. A sheep knows its whistle.',
       'One, two, three... twelve. I checked. I always check.',
+      'South of the ford there is a hawthorn ring. A lamb got in once. Never did find the hole it used.',
     ],
   },
 
@@ -278,6 +281,7 @@ export const NPCS = {
       'Hold still. Ah. There. That stitch is older than my mother.',
       'Every cloth I sell has a name in the hem, so it finds its way home.',
       'Look as long as you like. Touch with clean hands.',
+      'The cliff over the Stones has one pale patch, cracked like an old plate. The stone-cutters used to work up there.',
     ],
   },
 
@@ -291,6 +295,7 @@ export const NPCS = {
       'Nine posts. I count them. They count me.',
       'Visitor, Odo. Be polite. ...I am being polite. Good.',
       'Wind from the west today. Good for chimes. Bad for hats.',
+      'A spring falls off the east crags. Behind it the old shepherds kept a dry place. Wet feet first, Odo.',
     ],
   },
 
@@ -300,6 +305,7 @@ export const NPCS = {
     talk: [
       'Every hearth in Thornfold burns my peat. I like to think they think of me. They do not.',
       'Cut it square, stack it dry, and never argue with a boar.',
+      'There is a split in the Ridgeline rock, just west of the road. My spade went straight through it once.',
     ],
   },
 };

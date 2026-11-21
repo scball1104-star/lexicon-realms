@@ -115,6 +115,10 @@ function objectLook(e) {
       const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.66, 12, 1, false, 0, Math.PI), wood); lid.rotation.set(0, Math.PI / 2, Math.PI / 2); lid.position.y = 0.36; g.add(lid);
       for (const x of [-0.24, 0.24]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.38, 0.46), gold); b.position.set(x, 0.19, 0); g.add(b); }
       g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+      // the lid hinges at the back edge: opened = tipped back (the update loop sets it from e.opened)
+      const hinge = new THREE.Group(); hinge.position.set(0, 0.36, -0.22); g.add(hinge);
+      g.remove(lid); lid.position.set(0, 0, 0.22); hinge.add(lid);
+      g.userData.secretLid = hinge;
     }
     else { const c = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: '#8a6a40', roughness: 0.9 })); c.position.y = 0.25; c.castShadow = true; g.add(c); }
     const s = new THREE.Sprite(NODE_GLOW); s.scale.setScalar(0.9); s.position.y = 0.9; g.add(s); g.userData.glow = s;
@@ -320,6 +324,10 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
         }
       } else if (b && b.type === 'object') {
         if (b.o.userData.chicken) { b.o.children[0].position.y = moving ? Math.abs(Math.sin(now * 14)) * 0.05 : 0; }
+        if (b.o.userData.secretLid) {
+          b.o.userData.secretLid.rotation.x = e.opened ? -1.9 : 0;
+          if (b.o.userData.glow) b.o.userData.glow.visible = !e.opened;
+        }
         if (b.o.userData.glow) b.o.userData.glow.material.opacity = 0.55 + Math.sin(now * 3) * 0.25;
       }
     }

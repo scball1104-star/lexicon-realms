@@ -19,7 +19,7 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
   switch (ev.type) {
     case 'zone': return ev.id === me ? [{ ch: 'system', text: `Entered ${zoneNames[ev.to] || ev.to}.` }] : [];
     case 'interact': return ev.src === me ? [{ ch: 'system', text: `You speak with ${nameOf(ev.id)}.` }] : [];
-    case 'interact_fail': return ev.src === me ? [{ ch: 'error', text: ev.reason === 'range' ? 'Too far away.' : ev.reason === 'combat' ? 'Not while in combat.' : 'You cannot do that.' }] : [];
+    case 'interact_fail': return ev.src === me ? [{ ch: 'error', text: ev.reason === 'range' ? 'Too far away.' : ev.reason === 'combat' ? 'Not while in combat.' : ev.reason === 'used' ? 'You have already opened that.' : ev.reason === 'bag_full' ? 'Your bags are full.' : 'You cannot do that.' }] : [];
     case 'cast_fail':
       if (ev.src !== me || ev.reason === 'gcd' || ev.reason === 'dead') return [];
       if (ev.reason === 'resource') return [{ ch: 'error', quiet: true, text: `Not enough ${resWord}.` }];
@@ -68,6 +68,8 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
       if (ev.kind === 'abandon') return [{ ch: 'system', text: `Quest abandoned: ${q}` }];
       return [];
     }
+    // a secret cache (landscape pass): its name and its line of story
+    case 'secret_found': return ev.id === me ? [{ ch: 'loot', text: `Secret found: ${ev.name || 'a hidden cache'}!` }, ...(ev.text ? [{ ch: 'system', text: ev.text }] : [])] : [];
     case 'lantern': return ev.id === me ? [{ ch: 'system', text: `${ev.name ? `${ev.name}: the` : 'The'} lantern knows your name now. You will wake here.` }] : [];
     case 'loot_lost': return ev.id === me ? [{ ch: 'error', text: `Your waiting loot was full: ${(itemInfo(ev.item) || {}).name || ev.item} was lost.` }] : [];
     default: return [];

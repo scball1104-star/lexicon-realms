@@ -30,7 +30,7 @@
 // Q.state.day, a whole number the world is given (createWorld({ day }) / world.setDay(day): the client passes its local
 // calendar day), never a clock read here. A bounty is a quest with `bounty: { board, kind }`: it never goes to
 // questsDone; a turn-in goes to p.bounties = { day, done: [ids] }, so the same bounty is open again on another day.
-import { bagCount, bagAdd, bagRemove, bagFree } from './loot.js';
+import { bagCount, bagAdd, bagRemove, bagFree, rollGear } from './loot.js';
 import { moveAxis } from './collision.js';
 import { SUB, TILE } from './constants.js';
 
@@ -330,11 +330,40 @@ export function createQuests(Q) {
           dead: false, node: { item: n.item, respawn: n.respawn || 30, channel: n.channel || 0, perPlayer: !!n.perPlayer, readyAt: 0 },
         });
       }
+      // secret caches (landscape pass, zone `secrets`, tools/maps/kit.mjs): once per hero, the hero's nodesUsed keeps it
+      for (const s of C.zones[zid].secrets || []) {
+        const k = s.chest;
+        const [x, y] = tileToSub(k.x, k.y);
+        Q.addEntity({
+          id: Q.nextId(), kind: 'object', zone: zid, x, y, dir: 'down', moving: false, name: k.name || 'Hidden Cache', level: 1, faction: 'neutral',
+          sprite: 'chest_gold', template: k.id, hp: 1, hpMax: 1, res: null, target: null, cast: null, auras: [], cd: {}, gcdUntil: 0,
+          dead: false, node: { item: null, respawn: 0, channel: 0, perPlayer: true, readyAt: 0, secret: { id: s.id, gold: k.gold || [10, 20], levels: k.levels || [1, 1], text: k.text || '' } },
+        });
+      }
     }
+  }
+
+  /** A secret cache: gold and one rare piece rolled for the hero's class, once per hero (p.nodesUsed). */
+  function openSecret(p, t) {
+    const n = t.node, s = n.secret;
+    if (p.nodesUsed.includes(t.template)) { emit({ type: 'interact_fail', src: p.id, id: t.id, reason: 'used' }); return false; }
+    const C2 = C.dropRules ? { ...C, dropRules: { ...C.dropRules, classBias: 1 } } : C;
+    const ilvl = Math.max(s.levels[0], Math.min(s.levels[1], p.level || 1));
+    const gear = C.items && C.dropRules ? rollGear({ content: C2, rng: Q.rng }, { ilvl, source: 'chest_gold', cls: p.cls, rarity: 'rare' }) : null;
+    if (gear && bagAdd(p, gear.item, 1, gear.inst, C) < 1) { emit({ type: 'interact_fail', src: p.id, id: t.id, reason: 'bag_full' }); return false; }
+    const gold = Q.rng.int(s.gold[0], Math.max(s.gold[0], s.gold[1]));
+    p.gold = (p.gold || 0) + gold;
+    p.nodesUsed.push(t.template);
+    emit({ type: 'secret_found', id: p.id, from: t.id, secret: s.id, name: t.name, text: s.text });
+    emit({ type: 'loot', id: p.id, from: t.id, gold, items: gear ? [{ item: gear.item, qty: 1, inst: gear.inst }] : [] });
+    emit({ type: 'gold', id: p.id, amount: gold, total: p.gold, source: 'secret' });
+    if (gear) recountCollect(p);
+    return true;
   }
 
   function pickNode(p, t) {
     const n = t.node;
+    if (n.secret) return openSecret(p, t);
     if (t.dead || tick() < n.readyAt) { emit({ type: 'interact_fail', src: p.id, id: t.id, reason: 'empty' }); return false; }
     if (!needsItem(p, n.item)) { emit({ type: 'interact_fail', src: p.id, id: t.id, reason: 'not_needed' }); return false; }
     if (n.perPlayer && p.nodesUsed.includes(t.template)) { emit({ type: 'interact_fail', src: p.id, id: t.id, reason: 'used' }); return false; }

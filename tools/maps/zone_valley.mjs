@@ -7,9 +7,27 @@
 //
 // Closed hooks (OPEN_QUESTIONS Q19): the east road (a fallen oak, Holt's sign) and the Keepers' stair over the cleft
 // (black ink across its foot; it wants the Lantern).
-import { Canvas, bridgeH, bridgeV, scatter, hash01, vnoise, dresser } from './kit.mjs';
+import { Canvas, bridgeH, bridgeV, scatter, hash01, vnoise, dresser, carveSecret, dressSecret, secretEntry } from './kit.mjs';
 
 export const W = 96, H = 64;
+
+// Secrets (landscape pass 2026-11-20, docs/design/LANDSCAPE_PASS.md; kit.mjs carveSecret): a waterfall in the north
+// cliff with a dry shelf behind it, and a glade in the east bank wood behind one bush that is not a bush.
+const glade = { x0: 88, y0: 51, x1: 93, y1: 56 };
+const GLADE_RING = [];
+for (let x = glade.x0; x <= glade.x1; x++) for (let y = glade.y0; y <= glade.y1; y++) {
+  const border = x === glade.x0 || x === glade.x1 || y === glade.y0 || y === glade.y1;
+  if (!border || (x === 88 && y === 54)) continue;
+  GLADE_RING.push([y === glade.y0 || x === glade.x1 ? 'tree_pine' : 'bush', x, y]);
+}
+export const SECRETS = [
+  { id: 'valley_falls', name: 'Behind the Falls', kind: 'waterfall', passage: [[62, 4], [63, 4], [62, 5], [63, 5]], nook: [59, 1, 66, 3], top: '^',
+    floor: '.', look: '~', extra: [[61, 6, '-'], [62, 6, '-'], [63, 6, '-'], [64, 6, '-']], chest: [62, 1], hint: [62, 6], gold: [30, 45],
+    chestName: 'Keeper Cache', text: 'A dry shelf behind the falls. Someone kept a box here, and a name scratched on the lid has worn away.' },
+  { id: 'valley_glade', name: 'The Quiet Glade', kind: 'bushwall', passage: [[88, 54]], nook: [89, 52, 92, 55], floor: '.', look: '.',
+    ring: GLADE_RING, chest: [91, 53], hint: [88, 54], gold: [25, 40],
+    chestName: "Woodcutter's Box", text: 'A ring of thorn round a little glade. The wolves walk round it and never through.' },
+];
 
 export function build(db) {
   const c = new Canvas(W, H, '.');
@@ -106,6 +124,7 @@ export function build(db) {
   // a drift of moss under the Whisperwood
   c.drift('m', '.', 0.62, 71, [5, 3], [70, 6, W - 1, 44]);
 
+  for (const s of SECRETS) carveSecret(c, s);
   const ground = c.rows();
 
   // ---------------------------------------------------------------- overlays
@@ -124,7 +143,7 @@ export function build(db) {
   ].filter((o) => !(o.t.startsWith('flowers') && ground[o.y][o.x] === '=') );
 
   // ---------------------------------------------------------------- decor
-  const d = dresser(c, db);
+  const d = dresser(c, db, { roadGap: 2 });   // landscape pass: nothing stands within 2 tiles of a road
   // landmarks first (forced), so trees keep off them
   d.reserve(40, 2, 53, 8);                 // the Archive forecourt
   d.reserve(44, 18, 58, 28);               // the fork
@@ -136,6 +155,14 @@ export function build(db) {
   d.reserve(84, 24, 92, 31);               // Lark's clearing
   d.reserve(20, 5, 28, 10);                // the cleft
   d.reserve(17, 14, 21, 20); d.reserve(7, 15, 11, 19);   // the plateau stairs and the ledge hop
+  const open = [];
+  for (const s of SECRETS) open.push(...dressSecret(d, s, db));
+  // Lark's way home (the escort, 88,26 -> 74,30 -> 60,38): a clear lane 5 tiles wide, so the fight is the ambush
+  const LARK = [[88, 26], [74, 30], [62, 34], [60, 38]];
+  for (let i = 0; i + 1 < LARK.length; i++) {
+    const [ax, ay] = LARK[i], [bx, by] = LARK[i + 1];
+    for (let k = 0; k <= 20; k++) { const x = Math.round(ax + (bx - ax) * k / 20), y = Math.round(ay + (by - ay) * k / 20); d.reserve(x - 2, y - 2, x + 2, y + 2); }
+  }
   d.add('tree_willow', 45, 1);             // the Mother Willow above the door
   d.add('tree_willow', 41, 0); d.add('tree_willow', 49, 0);
   d.add('root_column', 42, 5); d.add('root_column', 48, 5);
@@ -227,21 +254,24 @@ export function build(db) {
   const nodes = [];
   [[33, 52], [36, 54], [40, 56], [34, 58], [38, 60], [31, 56], [41, 54], [37, 50]].forEach(([x, y], i) => nodes.push({ id: `hen_${i + 1}`, item: 'stray_hen', x, y, respawn: 30, name: i === 0 ? 'Henrietta' : i === 1 ? 'Bertha' : 'Stray Hen', sprite: 'animal_chicken' }));
   // clearings round every camp, node and NPC, then the trees
-  for (const p of [...spawns, ...nodes, ...npcs]) d.reserve(p.x - 2, p.y - 2, p.x + 2, p.y + 1);
+  // landscape pass: a clearing round every camp, deeper on its south side (the 3D camera looks from the south)
+  for (const p of [...spawns, ...nodes, ...npcs]) d.reserve(p.x - 2, p.y - 2, p.x + 2, p.y + 4);
   // trees: a broken line on the cliff top, Whisperwood thickening east, copses in the meadows, a hedge on the south edge
   for (let x = 1; x < W - 1; x++) {
-    if ((x >= 20 && x <= 36) || (x >= 39 && x <= 53)) continue;
+    if ((x >= 20 && x <= 36) || (x >= 39 && x <= 53) || (x >= 57 && x <= 68)) continue;   // the falls shelf (secret)
     const r = hash01(x, 1, 41);
     if (r < 0.45) d.add('tree_pine', x, Math.floor(hash01(x, 2, 42) * 3));
   }
   const pineDensity = (x, y) => {
     let p = 0;
-    if (x >= 68) p = 0.05 + Math.pow(Math.min(1, (x - 68) / 22), 1.2) * 0.8;   // the Whisperwood edge
+    // landscape pass 2026-11-20: the Whisperwood about half as thick inside, the zone's east and south edges still a wall
+    if (x >= 68) p = 0.08 + Math.pow(Math.min(1, (x - 68) / 22), 1.2) * 0.7;   // the Whisperwood edge
     if (x >= 68 && y >= 44) p *= 0.45;                                          // thinner over the east bank
-    if (x >= 68 && vnoise(x, y, 6, 48) < 0.32) p *= 0.15;                      // glades
+    if (x >= 68 && vnoise(x, y, 6, 48) < 0.36) p *= 0.12;                      // glades
     const cop = vnoise(x, y, 7, 47);
-    if (x < 68 && cop > 0.74) p = 0.45;                                         // copses in the meadows
-    if (y >= 60) p = Math.max(p, 0.55);                                         // the south hedge of trees
+    if (x < 68 && cop > 0.8) p = 0.3;                                           // copses in the meadows
+    if (x >= W - 3) p = Math.max(p, 0.6);                                       // the east edge (border)
+    if (y >= 61) p = Math.max(p, 0.55);                                         // the south hedge of trees
     if (x <= 1) p = Math.max(p, 0.6);                                           // the west edge
     return p;
   };
@@ -257,7 +287,7 @@ export function build(db) {
   // bushes along the river and in the meadows
   for (let y = 7; y < H; y += 2) for (let x = 1; x < W - 1; x += 2) {
     const r = hash01(x, y, 53);
-    if (r < 0.06) d.try(r < 0.012 ? 'x1_boulder_a' : 'bush', x + (hash01(x, y, 54) < 0.5 ? 0 : 1), y + (hash01(x, y, 55) < 0.5 ? 0 : 1));
+    if (r < 0.035) d.try(r < 0.008 ? 'x1_boulder_a' : 'bush', x + (hash01(x, y, 54) < 0.5 ? 0 : 1), y + (hash01(x, y, 55) < 0.5 ? 0 : 1));
   }
 
   const signs = [
@@ -288,8 +318,8 @@ export function build(db) {
       under: 'grass',
       legend: { '.': 'grass', ',': 'tallgrass', '=': 'dirt', s: 'sand', '~': 'water', '-': 'shallow', i: 'ink', m: 'moss', F: 'fence_wood',
         '^': 'cliff_top', '|': 'cliff_face', S: 'cliff_stairs_top', t: 'cliff_stairs_mid', z: 'cliff_stairs_bot', L: 'ledge_s_a', M: 'ledge_s_m', R: 'ledge_s_b' },
-      ground, overlays, decor: d.decor, overhead: [], solids,
+      ground, overlays, decor: d.decor, overhead: [], solids, open,
     },
-    realm: { levels: [1, 6], arrival: [1, 52], areas, lanterns: LANTERNS, spawns, npcs, nodes, signs, hooks, joins },
+    realm: { levels: [1, 6], arrival: [1, 52], areas, lanterns: LANTERNS, spawns, npcs, nodes, signs, hooks, joins, secrets: SECRETS.map(secretEntry) },
   };
 }

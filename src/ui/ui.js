@@ -948,6 +948,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       case 'bar_fail':
         if (ev.id === me) toast(ev.reason === 'empty' ? 'That slot is empty.' : ev.reason === 'not_usable' ? 'Only items you can use go on the bar.' : 'That cannot go there.');
         return;
+      case 'secret_found':
+        if (ev.id === me) toast(`Secret found: ${ev.name || 'a hidden cache'}!`, 3);
+        return;
       case 'quest':
         if (ev.id === me && ev.kind === 'complete') toast(`${(questInfoName(ev.quest))}: complete`, 2.5);
         // turned in: a banner drawn above every window, the npc's included (it used to land behind the dialog)

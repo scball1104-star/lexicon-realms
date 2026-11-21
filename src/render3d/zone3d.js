@@ -17,6 +17,7 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
 import { WINDOW_LIT } from './loader.js';
 import { dyeMaterial } from './hero.js';
 import { canvasTex, groundDetail, radial, waterNormal, woodTex } from './textures.js';
+import { treeDims, edgeCell } from './flora.js';
 
 const CH = 48;   // chunk size (m): the town is one chunk, the big fields a few
 const FLOOR_H = 3.12;
@@ -50,7 +51,26 @@ export const LAMP_GLASS = MAT.glass;
 const RIPPLE = waterNormal();
 RIPPLE.repeat.set(0.25, 0.25);
 /** Scroll the water ripples (t: seconds). */
-export function tickWater(t) { RIPPLE.offset.set(t * 0.011, t * 0.017); }
+export function tickWater(t) {
+  RIPPLE.offset.set(t * 0.011, t * 0.017);
+  FALL.offset.y = (t * 0.9) % 1;
+  SPARK.opacity = 0.25 + 0.65 * Math.max(0, Math.sin(t * 2.3)) * Math.max(0, Math.sin(t * 0.7 + 1));
+}
+// Secrets (landscape pass, zone `secrets`): a waterfall curtain (streaks scrolling down, see-through, drawn both sides)
+// over a passage the sim walks through, and a small twinkle at each secret's hint spot (tickWater animates both)
+const FALL = (() => {
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(120,170,200,0.7)'; g.fillRect(0, 0, 64, 128);
+  for (let i = 0; i < 46; i++) {
+    const x = Math.floor(hashXY(i, 1, 71) * 64), y = Math.floor(hashXY(i, 2, 71) * 128), h = 16 + Math.floor(hashXY(i, 3, 71) * 48);
+    g.fillStyle = `rgba(255,255,255,${(0.35 + hashXY(i, 4, 71) * 0.5).toFixed(2)})`; g.fillRect(x, y, 1 + (i % 2), h); g.fillRect(x, y - 128, 1 + (i % 2), h);
+  }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+const FALL_MAT = new THREE.MeshBasicMaterial({ map: FALL, color: '#d8ecf4', transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide });
+const SPARK = new THREE.PointsMaterial({ map: radial('rgba(255,255,240,1)', 'rgba(255,240,190,0.2)'), color: '#fff4c8', size: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.5 });
 
 
 // See-through, the action-RPG cutaway: static scenery between the camera and the hero (and the hero's target) is
@@ -130,7 +150,7 @@ float lrCover(vec3 P, vec3 F, float R) {
   mat.needsUpdate = true;
 }
 
-const hashXY = (x, y, s = 0) => { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1103515245)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+function hashXY(x, y, s = 0) { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 1103515245)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 
 /** Geometry + material pieces of a loaded model (cached), with its bounding box. */
 function makeProtoCache(L) {
@@ -557,6 +577,10 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const town = zone.kind === 'town';
   const W = zone.w, H = zone.h;
   let waterTex = null;
+  const secretCells = new Set();   // passage cells of the zone's secrets (they draw solid; the sim walks them)
+  const fallSide = new Map();      // face cells beside a waterfall: their rock is smaller and leans away (x shift), so the fall shows
+  for (const s of zone.secrets || []) for (const [x, y] of s.passage) secretCells.add(`${x},${y}`);
+  for (const s of zone.secrets || []) if (s.kind === 'waterfall') for (const [x, y] of s.passage) for (const dx of [-1, 1]) if (!secretCells.has(`${x + dx},${y}`)) fallSide.set(`${x + dx},${y}`, dx * 0.22);
   // yield to the frame loop whenever this build has held the thread for a few milliseconds (no hitch while walking)
   let slice = performance.now();
   const step = async () => { if (yieldFn && performance.now() - slice > 5) { await yieldFn(); slice = performance.now(); } };
@@ -653,7 +677,10 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     } else if (id && /_face$/.test(id)) {
       const i = Math.floor(hashXY(x, y, 3) * 3);
       const h = 1.8 + hashXY(x, y, 5) * 0.8;
-      B.instance(rocks[i], M4(x + 0.5, -0.2, y + 0.5, hashXY(x, y, 9) * 6.28, 1.5, h / rockH[i], 1.5), { tint: '#9a9286' });
+      // a false rock face (secret passage): the same rock, a little paler and split, so a sharp eye can tell
+      const fake = secretCells.has(`${x},${y}`), side = fallSide.get(`${x},${y}`) || 0;
+      const sxz = fake ? 1.35 : side ? 1.05 : 1.5;
+      B.instance(rocks[i], M4(x + 0.5 + side, -0.2, y + 0.5, hashXY(x, y, 9) * 6.28 + (fake ? 0.4 : 0), sxz, h / rockH[i], sxz), { tint: fake ? '#b4a890' : '#9a9286' });
     } else if (id && /^ledge_/.test(id)) {
       const i = Math.floor(hashXY(x, y, 3) * 3);
       B.instance(rocks[i], M4(x + 0.5, -0.1, y + 0.7, hashXY(x, y, 9) * 6.28, 1.1, 0.5 / rockH[i], 0.7), { tint: '#9a9286' });
@@ -664,11 +691,11 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   // decor
   const tiles = (tilesDb && tilesDb.objects) || {};
   const tree = { pine: [1, 2, 3, 4, 5].map((i) => `nature/Pine_${i}.gltf`), common: [1, 2, 3, 4, 5].map((i) => `nature/CommonTree_${i}.gltf`) };
-  const placeModel = async (url, x, z, { h = null, s = 1, ry = 0, tint = null, tintMatch = null, merge = false, cast = true, y = 0, sy = null } = {}) => {
+  const placeModel = async (url, x, z, { h = null, s = 1, ry = 0, tint = null, tintMatch = null, merge = false, cast = true, y = 0, sy = null, xz = 1 } = {}) => {
     const pr = await P(url);
     const bh = Math.max(0.05, pr.box.max.y - pr.box.min.y);
     const k = h ? h / bh : s;
-    const m = M4(x, y - pr.box.min.y * k, z, ry, k, sy != null ? sy * k : k, k);
+    const m = M4(x, y - pr.box.min.y * k, z, ry, k * xz, sy != null ? sy * k : k, k * xz);
     if (merge) B.mergeModel(pr, m, { tint }); else B.instance(pr, m, { tint, tintMatch, cast });
   };
   const jobs = [];
@@ -694,8 +721,9 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     else if (t === 'x1_barrow_door_closed') B.mergeGroup(barrowMound(cx, cz, fw));
     else if (t === 'well') B.mergeGroup(well(cx, cz));
     else if (t === 'lamp_post') { const lp = lampPost(d.x + 0.5, d.y + 0.5); B.mergeGroup(lp.g); lamps.push({ pos: lp.light, color: '#ffb35c', k: 1 }); }
-    else if (t === 'tree_pine') jobs.push(placeModel(tree.pine[Math.floor(r(1) * 5)], d.x + 0.5, d.y + 0.6, { h: 4.8 + r(2) * 2.2, ry: r(3) * 6.28 }));
-    else if (t === 'tree_willow') jobs.push(placeModel('nature/TwistedTree_1.gltf', cx, d.y + 0.5, { h: 6.5 + r(2), ry: r(3) * 6.28, tint: '#d8f0b0', tintMatch: /Leaves/ }));
+    // trees (landscape pass, flora.js): inland pines 3.3 to 4.3 m with slim crowns, border pines taller; willows 4.6 to 5.2 m
+    else if (t === 'tree_pine') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel(tree.pine[Math.floor(r(1) * 5)], d.x + 0.5, d.y + 0.6, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28 })); }
+    else if (t === 'tree_willow') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel('nature/TwistedTree_1.gltf', cx, d.y + 0.5, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28, tint: '#d8f0b0', tintMatch: /Leaves/ })); }
     else if (t === 'root_column') jobs.push(placeModel('nature/TwistedTree_3.gltf', cx, d.y + 0.5, { h: 5, ry: r(3) * 6.28 }));
     else if (t === 'bush') jobs.push(placeModel(r(1) < 0.25 ? 'nature/Bush_Common_Flowers.gltf' : 'nature/Bush_Common.gltf', d.x + 0.5, d.y + 0.5, { h: 0.9 + r(2) * 0.5, ry: r(3) * 6.28 }));
     else if (/^x1_gorse/.test(t)) jobs.push(placeModel('nature/Bush_Common_Flowers.gltf', cx, d.y + 0.5, { h: 0.8 + r(2) * 0.4, ry: r(3) * 6.28, tint: '#c8b060' }));
@@ -727,6 +755,24 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     if (++n % 20 === 0) { await Promise.all(jobs.splice(0)); await step(); }
   }
   await Promise.all(jobs.splice(0));
+  // secrets: a waterfall curtain across its passage (from the cliff top down to the water), and a twinkle at every hint
+  const sparks = [];
+  for (const s of zone.secrets || []) {
+    if (s.kind === 'waterfall') {
+      const xs = s.passage.map((p) => p[0]), ys = s.passage.map((p) => p[1]);
+      const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
+      const w = x1 - x0 - 0.1, hgt = 2.7;
+      for (const [z, k] of [[y1 + 0.05, 1], [(y0 + y1) / 2, 0.8]]) {
+        const geo = new THREE.PlaneGeometry(w, hgt, 1, 1);
+        geo.translate((x0 + x1) / 2, hgt / 2 - 0.05, z);
+        const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w * 0.5, uv.getY(i) * k);
+        const m = new THREE.Mesh(geo, FALL_MAT); m.renderOrder = 2; group.add(m);
+      }
+      sparks.push(new THREE.Vector3((x0 + x1) / 2, 0.25, y1 + 0.3));   // the spray at its foot
+    }
+    if (s.hint) sparks.push(new THREE.Vector3(s.hint[0] + 0.5, 0.9, s.hint[1] + 0.35));
+  }
+  if (sparks.length) { const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints(sparks), SPARK); pts.renderOrder = 3; group.add(pts); }
   // lantern posts (the respawn lanterns) are lamp posts too
   for (const ln of zone.lanterns || []) {
     if (!ln.post) continue;

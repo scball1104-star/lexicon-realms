@@ -7,9 +7,33 @@
 //
 // Closed hooks: the Drovers' Road (Ferrick's chain), the Larchhill gate. The Watchtower stands on the north skyline as
 // a far-off decal, so the next zone is promised before it is reached.
-import { Canvas, scatter, hash01, vnoise, dresser } from './kit.mjs';
+import { Canvas, scatter, hash01, vnoise, dresser, carveSecret, dressSecret, secretEntry } from './kit.mjs';
 
 export const W = 144, H = 96;
+
+// Secrets (landscape pass 2026-11-20, docs/design/LANDSCAPE_PASS.md; kit.mjs carveSecret): a false face in the cliff
+// over the Standing Stones (a shelf behind it), and a hawthorn ring south of the ford with one bush you can push through.
+const RING_B = { x0: 125, y0: 80, x1: 131, y1: 85 };
+const HAWTHORN = [];
+// a ragged thicket, not a square (Scott 2026-11-21: the square read as obvious): the sealed inner ring stays, with a
+// broken outer layer and a few strays round it; the approach to the push-through bush stays open
+const hh = (x, y) => (((x * 73856093) ^ (y * 19349663)) >>> 0) % 100;
+for (let x = RING_B.x0 - 2; x <= RING_B.x1 + 2; x++) for (let y = RING_B.y0 - 2; y <= RING_B.y1 + 2; y++) {
+  const d = Math.max(RING_B.x0 - x, x - RING_B.x1, RING_B.y0 - y, y - RING_B.y1, 0);
+  const border = d === 0 && (x === RING_B.x0 || x === RING_B.x1 || y === RING_B.y0 || y === RING_B.y1);
+  if (border) { if (!(x === 128 && y === 85)) HAWTHORN.push(['bush', x, y]); continue; }
+  if (x >= 126 && x <= 130 && y >= 85) continue;                    // the way in stays clear
+  if ((d === 1 && hh(x, y) < 85) || (d === 2 && hh(x, y) < 40)) HAWTHORN.push(['bush', x, y]);
+}
+
+export const SECRETS = [
+  { id: 'downs_shelf', name: "The Stone-Cutters' Shelf", kind: 'rockface', passage: [[44, 3], [45, 3], [44, 4], [45, 4]], nook: [41, 1, 48, 2], top: '^',
+    floor: '.', look: '|', chest: [44, 1], hint: [44, 5], gold: [60, 85],
+    chestName: "Stone-Cutter's Chest", text: 'A shelf cut behind the cliff. The stones of the ring were dressed here, and one was left half done.' },
+  { id: 'downs_hawthorn', name: 'The Hawthorn Ring', kind: 'bushwall', passage: [[128, 85]], nook: [126, 81, 130, 84], floor: '.', look: '.',
+    ring: HAWTHORN, chest: [128, 82], hint: [128, 85], gold: [55, 80],
+    chestName: "Drover's Strongbox", text: 'Inside the hawthorn the grass is short and green. A drover hid his strongbox here and never came back for it.' },
+];
 
 export function build(db) {
   const c = new Canvas(W, H, '.');
@@ -105,6 +129,7 @@ export function build(db) {
     if (!inFold && (inHamlet || c.near(x, y, '=', 1))) c.put(x, y, '.');
   }
 
+  for (const s of SECRETS) carveSecret(c, s);
   const ground = c.rows();
 
   // ---------------------------------------------------------------- overlays
@@ -118,7 +143,7 @@ export function build(db) {
   ];
 
   // ---------------------------------------------------------------- decor
-  const d = dresser(c, db);
+  const d = dresser(c, db, { roadGap: 2 });   // landscape pass: nothing stands within 2 tiles of a lane
   const RING_C = [28, 20];
   const RING = [];
   for (let i = 0; i < 12; i++) {
@@ -135,6 +160,8 @@ export function build(db) {
   // the landing strip under every one-way ledge stays clear: a bush or rock there made a one-cell pit you hop into and
   // can never leave (PLAYTEST_BOT bug 2, (114, 53))
   for (const [x0, x1, y] of ledges) d.reserve(x0 - 1, y + 1, x1 + 1, y + 2);
+  const open = [];
+  for (const s of SECRETS) open.push(...dressSecret(d, s, db));
   RING.forEach(([x, y], i) => d.add(i % 3 === 1 ? 'x1_menhir_b' : 'x1_menhir_a', x, y));
   d.add('x1_cairn_moor', RING_C[0], RING_C[1] - 1);
   d.add('x1_blank_slab', 40, 14);                           // the thirteenth stone, apart
@@ -217,14 +244,15 @@ export function build(db) {
   RING.forEach(([x, y], i) => nodes.push({ id: `stone_${i + 1}`, item: 'stone_rubbing', x, y: y + 1, respawn: 30, name: 'Standing Stone', channel: 3, perPlayer: true, at: [x, y] }));
 
   // clearings round every camp and node, then the hawthorn stands, pines on the cliff tops, boulders
-  for (const p of [...spawns, ...nodes, ...npcs]) d.reserve(p.x - 1, p.y - 1, p.x + 1, p.y + 1);
+  for (const p of [...spawns, ...nodes, ...npcs]) d.reserve(p.x - 2, p.y - 2, p.x + 2, p.y + 3);   // landscape pass: wider clearings, deeper south
   for (let x = 1; x < W - 1; x++) {
     if (x >= 56 && x <= 99) continue;
     if (hash01(x, 1, 51) < 0.4) d.try('tree_pine', x, Math.floor(hash01(x, 2, 52) * 3));
   }
   for (let y = 5; y < H; y++) for (let x = 0; x < W; x++) {
+    // landscape pass 2026-11-20: fewer, smaller hawthorn stands and almost no lone bushes in the open grass
     const stand = vnoise(x, y, 6, 53);
-    let p = stand > 0.72 ? 0.32 : 0.012;
+    let p = stand > 0.78 ? 0.24 : 0.004;
     if (x <= 1 || x >= W - 2 || y >= H - 2) p = Math.max(p, 0.45);
     const r = hash01(x, y, 54);
     if (r < p) d.try(r < p * 0.12 ? 'x1_boulder_a' : r < p * 0.3 ? 'tree_pine' : 'bush', x, y);
@@ -261,11 +289,11 @@ export function build(db) {
       under: 'grass',
       legend: { '.': 'grass', ',': 'tallgrass', '=': 'dirt', m: 'x1_moor_turf', w: 'x1_drystone', s: 'sand', '~': 'water', '-': 'shallow',
         '^': 'cliff_top', '|': 'cliff_face', S: 'cliff_stairs_top', t: 'cliff_stairs_mid', z: 'cliff_stairs_bot', L: 'ledge_s_a', M: 'ledge_s_m', R: 'ledge_s_b' },
-      ground, overlays, decor: d.decor,
+      ground, overlays, decor: d.decor, open,
       // the Watchtower on the north skyline above the Ridge gap; the Windmill a speck to the south-west
       overhead: [{ t: 'x1_far_tower', x: 80, y: -3 }, { t: 'x1_far_windmill', x: 4, y: 84 }],
       solids: [],
     },
-    realm: { levels: [5, 10], arrival: [141, 42], areas, lanterns: LANTERNS, spawns, npcs, nodes, signs, hooks, joins },
+    realm: { levels: [5, 10], arrival: [141, 42], areas, lanterns: LANTERNS, spawns, npcs, nodes, signs, hooks, joins, secrets: SECRETS.map(secretEntry) },
   };
 }

@@ -902,7 +902,11 @@ function wrap(state, content, rng, systems) {
       o.rank = mt.boss ? 'boss' : o.elite ? 'elite' : (e.mob && e.mob.kind === 'weak') ? 'weak' : 'normal';
       o.aggro = e.ai && e.ai.mode === 'combat' ? e.ai.target : null; o.aiMode = e.ai ? e.ai.mode : null;
     }
-    if (e.kind === 'object' && e.node) { o.node = { item: e.node.item, channel: e.node.channel || 0 }; }
+    if (e.kind === 'object' && e.node) {
+      o.node = { item: e.node.item, channel: e.node.channel || 0 };
+      // a secret cache: which heroes have opened it (each client draws it open for its own hero)
+      if (e.node.secret) { o.node.secret = true; o.node.openedBy = state.ents.filter((p) => p.kind === 'player' && (p.nodesUsed || []).includes(e.template)).map((p) => p.id); }
+    }
     else if (e.kind === 'object' && e.chest) { o.chest = { id: e.chest.id, place: e.chest.place || null }; }
     else if (e.kind === 'object') {
       o.owner = e.owner; o.objType = e.obj.def.id; o.radius = e.obj.def.radius || (e.obj.def.trigger && e.obj.def.trigger.radius) || 0;
