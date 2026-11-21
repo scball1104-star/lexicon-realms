@@ -226,6 +226,8 @@ function fromSimHud(vm, snap, ctx) {
     // skills the hero knows that are not on the bar (CONTRACTS "Moving skills on the bar"): name and icon for the window
     spare: (h.spare || []).map((x) => { const a = abilityInfo(x.ability) || {}; return { ability: x.ability, name: a.name || x.name, icon: a.icon || x.icon }; }),
     stats: h.stats ? { ...h.stats, derived: h.derived } : null, buyback: h.buyback || [], combo: h.combo, questBag: h.questBag || [], pendingLoot: h.pendingLoot || [],
+    // the glyph pouch (one stack per letter) and the Lantern Chest while it is open (src/sim/storage.js; null when away)
+    glyphBag: h.glyphBag || [], storage: h.storage || null,
     // Builds 2 (null for a class on today's talents): the sim's points, gold star, open picks, respec cost, and the build itself
     builds2: h.builds2 ? { ...h.builds2, build: (meE && meE.build) || null } : null,
   };

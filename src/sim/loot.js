@@ -12,6 +12,8 @@
 // Quest items (kind 'quest') never take a bag slot: bagAdd puts them in the separate quest bag `e.qbag` (no limit), and
 // bagCount / bagRemove read both lists, so a quest item always fits (PLAYTEST_BOT bug 4). Every bag slot gets a `uid`
 // (per player, never reused) so a command can name the exact slot it means even after the list shifts (bug 16).
+// Glyphs (kind 'glyph', src/data/storage.js) never take a bag slot either: bagAdd puts them in the glyph pouch `e.gbag`
+// (one stack per letter, kept A to Z, no limit), and bagCount / bagRemove read it too.
 //
 // ctx = { content, rng, questNeeds(player, item) -> bool }. questNeeds says whether the player has an active quest that
 // still needs this item; a quest-item drop only rolls when it does (CONTRACTS 7.3 `quest` on a table entry).
@@ -32,6 +34,7 @@ export function bagCount(e, item) {
   let n = 0;
   for (const s of e.bag || []) if (s.item === item) n += s.qty;
   for (const s of e.qbag || []) if (s.item === item) n += s.qty;
+  for (const s of e.gbag || []) if (s.item === item) n += s.qty;
   return n;
 }
 export function bagFree(e, content) { return bagCapacity(e, content) - (e.bag || []).length; }
@@ -48,9 +51,18 @@ export function nextUid(e) {
 export function ensureUids(e) { for (const list of [e.bag, e.qbag]) for (const s of list || []) if (!(s.uid > 0)) s.uid = nextUid(e); }
 export function bagFindUid(e, uid) { return (e.bag || []).findIndex((s) => s.uid === uid); }
 const isQuestItem = (content, item) => !!(content && content.items && content.items[item] && content.items[item].kind === 'quest');
+export const isGlyph = (content, item) => !!(content && content.items && content.items[item] && content.items[item].kind === 'glyph');
+/** Add qty of a glyph to a pouch list (one stack per letter, sorted by item id so A to Z). Returns qty. */
+export function pouchAdd(list, item, qty) {
+  const have = list.find((s) => s.item === item);
+  if (have) have.qty += qty;
+  else { list.push({ item, qty }); list.sort((a, b) => (a.item < b.item ? -1 : a.item > b.item ? 1 : 0)); }
+  return qty;
+}
 /** Add qty of item (stacking up to the item's `stack`). Instanced gear never stacks. Returns how many went in. */
 export function bagAdd(e, item, qty = 1, inst = null, content = null) {
   if (!e.bag) e.bag = [];
+  if (isGlyph(content, item)) { if (!e.gbag) e.gbag = []; return qty > 0 ? pouchAdd(e.gbag, item, qty) : 0; }
   const quest = isQuestItem(content, item);
   if (quest && !e.qbag) e.qbag = [];
   const list = quest ? e.qbag : e.bag;
@@ -76,7 +88,7 @@ export function bagAdd(e, item, qty = 1, inst = null, content = null) {
 /** Remove up to qty of item (the quest bag first, then the last stacks first). Returns how many were removed. */
 export function bagRemove(e, item, qty = 1) {
   let left = qty;
-  for (const list of [e.qbag, e.bag]) {
+  for (const list of [e.gbag, e.qbag, e.bag]) {
     if (!list) continue;
     for (let i = list.length - 1; i >= 0 && left > 0; i--) {
       const s = list[i];

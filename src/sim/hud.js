@@ -122,6 +122,9 @@ export function createHud(C) {
       questBag: (e.qbag || []).map((s) => itemView(e, s)),
       pendingLoot: (e.pendingLoot || []).map((s, i) => ({ ...itemView(e, s), index: i })),
       buyback: (e.buyback || []).map((b) => ({ ...itemView(e, b), price: b.price })),
+      // the glyph pouch (kind 'glyph': no bag slot, one stack per letter, A to Z) and the Lantern Chest while it is open
+      glyphBag: (e.gbag || []).map((g) => ({ item: g.item, qty: g.qty, letter: (C.content.items && C.content.items[g.item] || {}).letter || '?' })),
+      storage: C.storage ? C.storage.view(e, itemView) : null,
     };
   }
 

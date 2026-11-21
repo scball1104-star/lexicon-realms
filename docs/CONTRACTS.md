@@ -73,6 +73,7 @@ world.enqueue(entityId, cmd)          // local
 | `buy` | `npc` (entity id), `index` (stock row) or `item`, `qty` (stackables, 1..20) | at a vendor (range 40 px): gold and bag-space checks, then the item goes in the bag. Price: consumables and bags at `price`, gear at 4 x value (PROGRESSION 4.8 / 6.2) | `inventory` kind `buy` + `gold`, or `inventory_fail` reason `range`/`gold`/`bag_full`/`no_item` (LIVE, integration wave) |
 | `sell` | `npc`, `uid` **or** `bag` (bag index) + `item` **or** `item`, `qty` (default the whole stack) | the vendor pays value x qty; quest items are never in the bag (section 7.4); the sale joins the buyback list (last 6). A bag index with neither `item` nor `uid` is refused (`no_item`): the list may have shifted since the client read it (fix pass 1). The same slot rule holds for `equip` and `use_item` | `inventory` kind `sell` + `gold`, or `inventory_fail` reason `no_value`/`no_item` (LIVE) |
 | `buyback` | `npc`, `index` (into `hud.buyback`) | buy a sold item back for what it paid | `inventory` kind `buyback` (LIVE) |
+| `chest_store` / `chest_take` / `chest_move` / `chest_row` / `chest_sort` | `chest` (entity id), `tab` (`'hero'` / `'shared'`), a bag slot (`uid` / `bag` + `item`) or a chest slot (`index` + `item`) or `glyph`, `qty` | the Lantern Chest (section "Storage" at the end) | `chest`, or `inventory_fail` (LIVE, 2026-11-20) |
 
 Without combat content (no `classes` / `abilities` / `progression` in `content`), `cast` is the foundation stub: it
 checks the global cooldown and emits `cast_start` then `cast_stop` reason `stub`; mobs only wander.
@@ -408,6 +409,12 @@ export default {
   signs: [{ id, x, y, text, hook? }],   // readable things (the sign decor is solid; read it from the next cell)
   hooks: [{ id, to, x, y, text }],      // closed roads (OPEN_QUESTIONS Q19): a standing cell in front of the blocker
   script: { long_watch: { elite, odo_post, adds_from, lamps, leash } },   // moor only: spots for the elite fight
+  secrets: [{ id, name, kind: 'waterfall' | 'rockface' | 'bushwall', passage: [[x, y], ...], nook: { x, y, w, h },
+              hint: [x, y], chest: { id, x, y, gold: [lo, hi], name, text, levels } }],   // landscape pass 2026-11-20:
+                                        // passage cells are walkable in `collision` but drawn solid (water over a cliff
+                                        // face, a cliff face, a bush); the nook is sealed; the chest is an object entity
+                                        // (sprite chest_gold, node.secret) opened once per hero (p.nodesUsed), giving gold
+                                        // and one rare piece rolled for the hero's class; event secret_found
   lq: { npcs, enemies, doors, marks, start },   // willowmere only: LQ's own spots, for reference
 };
 ```
@@ -1085,3 +1092,45 @@ Scott: "Add the ability to rearrange skills on the bar."
   Cancel prompt; tap a slot to move or swap. Items always fire on release; a skill fires on release while out of a fight
   (so the long press never casts it) and on touch down in a fight, as before, where a long press only shows its tooltip.
   Character window, Spare skills: tap one for its card with Put on bar, then tap a gold slot.
+
+## Storage: the Lantern Chest and the glyph pouch (2026-11-20, LIVE)
+
+Design: `D:\LQOnline\storage_stills\BRIEF.md` (approved 2026-11-20, every open question at its recommended default).
+Code: `src/sim/storage.js` (rules), `src/data/storage.js` (sizes, prices, where chests stand, the 26 glyph records),
+`src/ui/chest.js` (window, glyph stones, pouch strip).
+
+- **Chest objects**: `content.lanternChests` (`src/data/storage.js` LANTERN_CHESTS, added by `buildContent`) become
+  `kind: 'object'` entities with `chest: { id, place }` (snapshot) and `sprite: 'lantern_chest'`, spawned after the quest
+  nodes. Today one, at the Willowmere inn (only Willowmere has an inn). `interact` on one (Talk, F, a tap, a right-click,
+  like an npc) checks reach (40 px), death and combat (`interact_fail` reason `range` / `dead` / `combat`), sets the
+  hero's `chestAt` and emits `chest_open { src, id, chest, place }`.
+- **Tabs**: `tab` is `'hero'` (this hero only, `player.chest`) or `'shared'` (every hero on the device, `state.shared`).
+  A tab is `{ rows, items: [{ item, qty, inst? }], glyphs: [{ item, qty }] }`; capacity `start + rows x rowSize` up to
+  `max` (`content.storage`: hero 30 + rows at 100 / 300 / 800 gold, max 60; shared 30 + rows at 300 / 900 / 2,000, max
+  60). Glyphs in a tab use no slots. Quest items never go in (they live in the quest bag).
+- **Commands** (every one names `chest`; reach 64 px, alive, out of combat, else `inventory_fail` `range` / `combat`;
+  a dead hero's commands are `cmd_reject` `dead`):
+  `chest_store` bag slot (or `glyph`) -> tab (stacks merge; `chest_full`, `no_item`, `quest`); `chest_take` tab slot
+  (`index` + `item`, the item must still be there) or `glyph` -> bags or pouch (`bag_full`); `chest_move` to the other
+  tab; `chest_row` buys the tab's next row (one at a time, the buyer pays; `gold`, `max`); `chest_sort` merges stacks
+  and orders by kind (`STORAGE.sortKinds`), rarity (best first), name, item level. Event
+  `chest { id, kind: 'store' | 'take' | 'move' | 'row' | 'sort', tab, to?, item, qty, glyph?, cost?, size?, shared }`
+  (`shared: true` when the Shared tab changed) plus `gold` (source `chest_row`) for a row.
+- **HUD**: `hud.storage` = `{ chest, place, hero: tab view, shared: tab view }` while the hero stands within 64 px of the
+  chest they opened, else `null` (tab view: `{ size, rows, max, nextPrice, items: [item view], glyphs: [{ item, qty,
+  letter }] }`). `hud.glyphBag` = `[{ item, qty, letter }]` always.
+- **Glyphs**: items `glyph_a` .. `glyph_z`, `kind: 'glyph'`, `letter`, `vowel`, `rule` (the lone stat rule; numbers are
+  left to the Builds 2 balance pass), `words`. `bagAdd` puts them in the glyph pouch `player.gbag` (one stack per letter,
+  A to Z, no limit; never a bag slot); `bagCount` / `bagRemove` read it. No drops are wired; `?dev=1` has
+  `__realms.dev.glyphs('ASH', n)`. Socketing and spelled words are a later build.
+- **Save**: `world.saveFields(id)` adds `chest` (the hero tab) and `gbag` (the pouch); `addPlayer` takes them back;
+  missing = empty, so every older save loads unchanged. SAVE_VERSION / STATE_VERSION are NOT bumped. The Shared tab is
+  never in a hero save: `world.shared()` / `world.setShared(obj)` (malformed parts dropped), and main.js keeps it under
+  `lexicon_realms.shared` `{ v: 1, rows, items, glyphs }` (`src/ui/save.js` loadShared / saveShared; a corrupt or newer
+  blob is copied to `<key>.bad` and the tab starts empty). main.js saves the Shared key (when `shared`) and the hero on
+  every `chest` event, and reloads the tab when another browser tab writes the key.
+- **UI**: desktop: right-click a chest item takes it, Shift + right-click moves it to the other tab, a drag onto the bags
+  takes it; right-click (or a drag onto the chest) stores a bag item, Shift + right-click straight to Shared; glyph stones
+  move whole (Ctrl + right-click: one). Phone: a tap pins the item's card (chest: Take, Move to <tab>, Close; bag: Store,
+  Store in Shared, Close), a second tap does the main action; the grid and the glyph strips scroll with a drag
+  (`scrollDrag` regions, `src/input/touch.js`). A row costs gold: its button asks once ("Again") before buying.

@@ -79,6 +79,12 @@ export function createTouch({ canvas, input, ui, now = () => performance.now() }
         ui.setJoystick({ x: rec.x0, y: rec.y0, dx: dx / JOY_RADIUS, dy: dy / JOY_RADIUS });
         setJoyKeys(joyKeys(dx, dy));
       } else if (rec.kind === 'ui' && rec.region && rec.region.drag) rec.region.drag(p.x);
+      else if (rec.kind === 'ui' && rec.region && rec.region.scrollDrag) {
+        // a list that scrolls under the finger (the Lantern Chest grid, the glyph strips): past the tap slop it is a drag,
+        // so the item under the finger is not tapped and no long-press card opens
+        if (Math.hypot(p.x - rec.x0, p.y - rec.y0) > TAP_SLOP && rec.timer) { clearTimeout(rec.timer); rec.timer = null; }
+        rec.region.scrollDrag(p.x - rec.x0, p.y - rec.y0, rec);
+      }
       else if (Math.hypot(p.x - rec.x0, p.y - rec.y0) > TAP_SLOP && rec.timer) { clearTimeout(rec.timer); rec.timer = null; }
     }
   }

@@ -218,7 +218,10 @@ export function drawBags(ctx, env, m, st, regions, act) {
     const it = bag.items[c.i] || null;
     itemSlot(ctx, env, c, it, null);
     const touchHint = env.L.touch ? 'Tap to' : 'Right-click to';
-    if (it) regions.push({ rect: c, kind: 'bag', i: c.i, barItem: itemInfo(it).use && it.kind !== 'quest' ? it.item : null, tip: itemTooltip(it, itemInfo(it).slot ? `${touchHint} equip` : itemInfo(it).use ? (env.L.touch ? `${touchHint} use` : 'Right-click to use. Drag it to the bar') : null, itemInfo(it).slot ? (m.equip[itemInfo(it).slot] || null) : undefined),
+    // at an open Lantern Chest a right-click (or the card's Store) stores the item instead (Shift: straight to Shared)
+    const chestOpen = !!(st.chest && m.storage);
+    if (it) regions.push({ rect: c, kind: 'bag', i: c.i, item: it.item, icon: itemInfo(it).icon, barItem: itemInfo(it).use && it.kind !== 'quest' ? it.item : null,
+      tip: itemTooltip(it, chestOpen ? (env.L.touch ? null : 'Right-click or drag to store it. Shift + right-click: to Shared.') : itemInfo(it).slot ? `${touchHint} equip` : itemInfo(it).use ? (env.L.touch ? `${touchHint} use` : 'Right-click to use. Drag it to the bar') : null, itemInfo(it).slot ? (m.equip[itemInfo(it).slot] || null) : undefined),
       on: (btn) => {
         if (!env.L.touch) { if (btn === 2) act.useItem(c.i); return; }
         if (samePick(st.itemPick, 'bag', c.i, it)) { st.itemPick = null; act.useItem(c.i); return; }
@@ -233,10 +236,12 @@ export function drawBags(ctx, env, m, st, regions, act) {
     else {
       const info = itemInfo(it) || {};
       const vendor = st.dialog && st.dialog.page === 'vendor';
-      const label = vendor ? (info.value && info.kind !== 'quest' ? `Sell (${info.value}g)` : null) : info.slot || it.kind === 'bag' ? 'Equip' : info.use ? 'Use' : null;
+      const chest = !!(st.chest && m.storage);
+      const label = chest ? 'Store' : vendor ? (info.value && info.kind !== 'quest' ? `Sell (${info.value}g)` : null) : info.slot || it.kind === 'bag' ? 'Equip' : info.use ? 'Use' : null;
       const tip = itemTooltip(it, null, info.slot ? (m.equip[info.slot] || null) : undefined);
       // a usable item (potion, ether, food, antidote) can go on the skill bar: the card asks which slot next
-      const more = !vendor && info.use && it.kind !== 'quest' && act.barPickStart ? [['Put on bar', 'violet', () => act.barPickStart(it.item)]] : [];
+      const more = chest ? (st.chest.tab !== 'shared' ? [['Store in Shared', 'violet', () => { st.itemPick = null; act.chestStore(i, 'shared'); }]] : [])
+        : !vendor && info.use && it.kind !== 'quest' && act.barPickStart ? [['Put on bar', 'violet', () => act.barPickStart(it.item)]] : [];
       if (tip) itemCard(ctx, env, st, regions, tip, Math.max(4, r.x - 220), r.y, label, () => { st.itemPick = null; act.useItem(i); }, { more });
     }
   }

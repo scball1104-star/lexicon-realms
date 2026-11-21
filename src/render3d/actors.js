@@ -71,12 +71,51 @@ function chicken() {
   return o;
 }
 const NODE_GLOW = new THREE.SpriteMaterial({ map: radial('rgba(255,240,190,1)', 'rgba(255,200,90,0.3)'), color: '#ffd27a', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+/** The Lantern Chest (storage, src/sim/storage.js): Lexicon Quest's banded chest built in code (wood, iron bands, a gold
+ *  latch, a rounded lid) with a small lantern on the lid: a warm glow sprite and a lantern light (userData.lights). */
+const CHEST_GLOW = new THREE.SpriteMaterial({ map: radial('rgba(255,236,180,1)', 'rgba(255,170,70,0.25)'), color: '#ffc46b', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true });
+function lanternChest() {
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color: '#7a4a26', roughness: 0.85 });
+  const iron = new THREE.MeshStandardMaterial({ color: '#3c3a44', roughness: 0.5, metalness: 0.6 });
+  const gold = new THREE.MeshStandardMaterial({ color: '#e0b040', roughness: 0.35, metalness: 0.7 });
+  const W = 0.78, D = 0.5, H = 0.42;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), wood); body.position.y = H / 2; g.add(body);
+  // the rounded lid: a cylinder along the chest's width, its lower half hidden inside the body
+  const lid = new THREE.Mesh(new THREE.CylinderGeometry(D / 2, D / 2, W, 16), wood);
+  lid.rotation.z = Math.PI / 2; lid.position.y = H; g.add(lid);
+  for (const x of [-W / 2 + 0.1, W / 2 - 0.1]) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(0.07, H + 0.02, D + 0.02), iron); band.position.set(x, H / 2, 0); g.add(band);
+    const arc = new THREE.Mesh(new THREE.CylinderGeometry(D / 2 + 0.012, D / 2 + 0.012, 0.07, 16), iron);
+    arc.rotation.z = Math.PI / 2; arc.position.set(x, H, 0); g.add(arc);
+  }
+  const latch = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.04), gold); latch.position.set(0, H - 0.02, D / 2 + 0.02); g.add(latch);
+  // the lantern on the lid: a little iron cage round a warm glass
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.16, 6), iron); post.position.set(W / 2 - 0.16, H + D / 2 + 0.06, 0); g.add(post);
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.13, 0.1), new THREE.MeshStandardMaterial({ color: '#ffd27a', emissive: '#ffb347', emissiveIntensity: 2.2, roughness: 0.3 }));
+  glass.position.set(W / 2 - 0.16, H + D / 2 + 0.2, 0); glass.castShadow = false; g.add(glass);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.07, 4), iron); cap.position.set(W / 2 - 0.16, H + D / 2 + 0.3, 0); cap.rotation.y = Math.PI / 4; g.add(cap);
+  const s = new THREE.Sprite(CHEST_GLOW); s.scale.setScalar(0.85); s.position.copy(glass.position); g.add(s);
+  g.traverse((m) => { if (m.isMesh && m !== glass) m.castShadow = true; });
+  g.userData.glow = s; g.userData.h = 1.0; g.userData.chest = true;
+  g.userData.lights = [{ obj: glass, color: '#ffc46b', k: 2.2, lantern: true }];
+  return g;
+}
 function objectLook(e) {
   const g = new THREE.Group();
   const sp = String(e.sprite || '');
+  if (e.chest) return lanternChest();
   if (/chicken/.test(sp)) { g.add(chicken()); g.userData.h = 0.7; g.userData.chicken = true; return g; }
   if (e.node) {
     if (/hay/.test(sp)) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.7, 10), new THREE.MeshStandardMaterial({ color: '#7a5aa8', roughness: 1 })); b.rotation.z = Math.PI / 2; b.position.y = 0.4; b.castShadow = true; g.add(b); }
+    else if (/^chest_/.test(sp)) {
+      // a secret cache (landscape pass, zone `secrets`): a small chest, dark wood with gold bands
+      const wood = new THREE.MeshStandardMaterial({ color: '#5e3a1e', roughness: 0.85 }), gold = new THREE.MeshStandardMaterial({ color: '#e0b040', roughness: 0.35, metalness: 0.7 });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.36, 0.44), wood); body.position.y = 0.18; g.add(body);
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.66, 12, 1, false, 0, Math.PI), wood); lid.rotation.set(0, Math.PI / 2, Math.PI / 2); lid.position.y = 0.36; g.add(lid);
+      for (const x of [-0.24, 0.24]) { const b = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.38, 0.46), gold); b.position.set(x, 0.19, 0); g.add(b); }
+      g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+    }
     else { const c = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.5, 0.5), new THREE.MeshStandardMaterial({ color: '#8a6a40', roughness: 0.9 })); c.position.y = 0.25; c.castShadow = true; g.add(c); }
     const s = new THREE.Sprite(NODE_GLOW); s.scale.setScalar(0.9); s.position.y = 0.9; g.add(s); g.userData.glow = s;
     g.userData.h = 1.0; return g;
@@ -113,7 +152,7 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
       return { type: 'creature', c, lights: c.lights, height: c.height, sig: 'mob' };
     }
     const o = objectLook(e);
-    return { type: 'object', o, lights: [], height: o.userData.h || 0.6, sig: 'obj' };
+    return { type: 'object', o, lights: o.userData.lights || [], height: o.userData.h || 0.6, sig: 'obj' };
   }
 
   function attach(a, b) {

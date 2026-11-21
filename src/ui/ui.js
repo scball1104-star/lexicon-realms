@@ -25,6 +25,7 @@ import { createCharStore, loadOptions, saveOptions, validateName } from './save.
 import { routeKey, rebind, effectiveBinds, keyLabel } from './keymap.js';
 import { eventLines } from './eventlog.js';
 import { drawDialog, dialogFromInteract, dialogRectFor } from './dialog.js';
+import { drawChest, drawPouch } from './chest.js';
 import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 
@@ -126,6 +127,21 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     close(id) { if (id === 'dialog') { act.closeDialog(); return; } st.open.delete(id); st.confirm = null; st.rebinding = null; st.talentSel = null; },
     send,
     closeDialog() { if (st.dialog && st.dialog.page === 'vendor') st.open.delete('bags'); st.dialog = null; st.confirm = null; },
+    // ---- the Lantern Chest (chest.js; src/sim/storage.js): every move is a sim command naming the chest it is at
+    closeChest() { if (st.chest) st.open.delete('bags'); st.chest = null; st.confirm = null; st.itemPick = null; },
+    /** Store bag slot i in a tab ('hero' | 'shared'). */
+    chestStore(i, tab = 'hero') {
+      const it = lastModel && lastModel.bag.items[i];
+      if (!st.chest || !it) return;
+      if (it.kind === 'quest') { toast('Quest items stay in the quest bag.'); return; }
+      send({ t: 'chest_store', chest: st.chest.ent, tab, bag: i, item: it.item, ...(it.uid != null ? { uid: it.uid } : {}) });
+    },
+    chestTake(tab, index, item) { if (st.chest) send({ t: 'chest_take', chest: st.chest.ent, tab, index, item }); },
+    chestMove(tab, index, item) { if (st.chest) send({ t: 'chest_move', chest: st.chest.ent, tab, index, item }); },
+    /** A glyph stack: kind 'store' (pouch -> tab), 'take' (tab -> pouch) or 'move' (to the other tab); one = a single stone. */
+    chestGlyph(kind, tab, glyph, one = false) { if (st.chest) send({ t: `chest_${kind}`, chest: st.chest.ent, tab, glyph, ...(one ? { qty: 1 } : {}) }); },
+    chestRow(tab) { if (st.chest) send({ t: 'chest_row', chest: st.chest.ent, tab }); },
+    chestSort(tab) { if (st.chest) send({ t: 'chest_sort', chest: st.chest.ent, tab }); },
     /** Ask the npc again (fresh quest lists after accept / turn-in), staying on the main page. */
     refreshDialog() { if (st.dialog) { const ent = st.dialog.ent; st.dialog.page = 'main'; st.dialog.quest = null; send({ t: 'interact', id: ent }); } },
     openVendor() { if (!st.dialog) return; st.dialog.page = 'vendor'; st.dialog.scroll = 0; st.open.add('bags'); },
@@ -213,6 +229,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         const it = lastModel.bag.items[i];
         if (!it) return;
         const ref = { bag: i, item: it.item, ...(it.uid != null ? { uid: it.uid } : {}) };   // uid: fix pass 1
+        if (st.chest && lastModel.storage) { act.chestStore(i, st.mods && st.mods.shift ? 'shared' : st.chest.tab || 'hero'); return; }
         if (st.dialog && st.dialog.page === 'vendor') {
           if (it.kind === 'quest' || !it.value) { toast('The vendor will not buy that.'); return; }
           send({ t: 'sell', npc: st.dialog.ent, bag: i, item: it.item, ...(it.uid != null ? { uid: it.uid } : {}) });
@@ -289,6 +306,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   function hudMode() {
     if (!st.metrics.touch) return 'big';
     if (st.mode !== 'game') return 'win';
+    if (st.chest) return 'win';
     for (const id of st.open) if (CENTER.includes(id) || SIDE.includes(id)) return 'win';
     return 'big';
   }
@@ -327,11 +345,22 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
         if (!me || !n || me.zone !== n.zone || me.dead || Math.hypot(me.x - n.x, me.y - n.y) > 64) act.closeDialog();
       }
+      // the Lantern Chest closes when the hero walks off (the sim stops sending its contents), dies or changes zone
+      if (st.chest && (!m.player || m.player.dead || (!m.storage && st.now - st.chest.t0 > 0.5))) act.closeChest();
       if (m.player) {
         if (st.levelUp) drawLevelUp(ctx, L, t);
         if (st.dialog) drawDialog(ctx, env, m, st, regions, act);
         centred(ctx, L, regions, () => {
+          if (st.chest && m.storage) drawChest(ctx, env, m, st, regions, act);
           for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? drawCharacter : drawBags)(ctx, env, m, st, regions, act);
+          // the glyph pouch strip over the bags (and over the quest strip when there is one)
+          // on a phone a pinned chest card covers the strip: hide the strip while the card is up (it overlapped, 2026-11-21)
+          if (st.open.has('bags') && !(L.touch && st.chest && st.chest.cardFn && m.storage)) {
+            const tops = regions.filter((o) => o.kind === 'window' && (o.id === 'bags' || o.id === 'bags_extra'));
+            const b = tops.find((o) => o.id === 'bags');
+            if (b) drawPouch(ctx, env, m, st, regions, act, b.rect.x, Math.min(...tops.map((o) => o.rect.y)) - 2, b.rect.w);
+          }
+          if (st.chest && st.chest.cardFn && m.storage) st.chest.cardFn(regions);
           if (st.open.has('quests')) drawQuestLog(ctx, env, m, st, regions, act);
           if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
           if (st.open.has('talents') && !isBuilds2(m)) drawTalents(ctx, env, m, st, regions, act);
@@ -632,10 +661,15 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (ev.pointerType === 'touch' || ev.sourceCapabilities && ev.sourceCapabilities.firesTouchEvents) return;
     const p = toHud(ev.clientX, ev.clientY);
     st.hover = p;
+    st.mods = { shift: !!ev.shiftKey, ctrl: !!(ev.ctrlKey || ev.metaKey) };
     // PC: an item in the bags (potion, ether, food, antidote) can be dragged onto a bar slot
     const r0 = st.mode === 'game' && ev.button === 0 ? topRegion(p.x, p.y) : null;
     st.itemDrag = r0 && r0.kind === 'bag' && r0.barItem
       ? { entry: `item:${r0.barItem}`, icon: (itemInfo(r0.barItem) || {}).icon || r0.barItem, x0: p.x, y0: p.y, x: p.x, y: p.y, active: false } : null;
+    // at the Lantern Chest: a bag item drags into the chest, a chest item drags onto the bags
+    const chestUp = !!(st.chest && lastModel && lastModel.storage);
+    if (chestUp && r0 && r0.kind === 'bag') st.itemDrag = { ...(st.itemDrag || { x0: p.x, y0: p.y, x: p.x, y: p.y, active: false }), icon: r0.icon || (st.itemDrag && st.itemDrag.icon), bagFrom: r0.i };
+    if (chestUp && r0 && r0.kind === 'chest_item') st.itemDrag = { chestFrom: { tab: r0.tab, index: r0.index, item: r0.item }, icon: r0.icon, x0: p.x, y0: p.y, x: p.x, y: p.y, active: false };
     // a spare skill (Character window) drags onto a slot the same way
     if (r0 && r0.kind === 'spare' && r0.ability) st.itemDrag = { entry: r0.ability, icon: r0.icon || (abilityInfo(r0.ability) || {}).icon, x0: p.x, y0: p.y, x: p.x, y: p.y, active: false };
     // a bar slot (skill or item): held and moved a few pixels it drags to another slot (swap) or off the bar; a plain
@@ -657,6 +691,17 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (!d || !ev) return;
     if (!d.active) { if (d.from) press(d.x0, d.y0, 0); return; }   // a bar slot clicked, not dragged: cast it
     const p = toHud(ev.clientX, ev.clientY);
+    // the Lantern Chest: dropped on the bags takes it, dropped on the chest stores it
+    if (d.chestFrom || d.bagFrom != null) {
+      const under = [...st.regions].reverse().filter((o) => inRect(o.rect, p.x, p.y));
+      const onWin = (id) => under.some((o) => o.kind === 'window' && o.id === id);
+      if (d.chestFrom && (onWin('bags') || under.some((o) => o.kind === 'bag'))) { act.chestTake(d.chestFrom.tab, d.chestFrom.index, d.chestFrom.item); return; }
+      if (d.bagFrom != null && onWin('chest')) {
+        const tb = under.find((o) => o.label === 'chest_tab:shared') ? 'shared' : under.find((o) => o.label === 'chest_tab:hero') ? 'hero' : (st.chest && st.chest.tab) || 'hero';
+        act.chestStore(d.bagFrom, tb); return;
+      }
+      if (!d.entry) return;
+    }
     // the slot under the pointer, even where a window edge overlaps the bar
     const r = [...st.regions].reverse().find((o) => o.kind === 'slot' && o.slot && inRect(o.rect, p.x, p.y));
     if (d.from) {
@@ -736,6 +781,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
       else if (st.hint) act.dismissHint();
       else if (st.dialog) act.closeDialog();
+      else if (st.chest) act.closeChest();
       else if (open.length) act.close(open[open.length - 1]);
       else if (lastModel && lastModel.target) hooks.input && hooks.input.inject({ k: 'clear' });
       else act.toggle('menu');
@@ -756,7 +802,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   // ---------------------------------------------------------------- sim events that drive windows and prompts
   const FAIL_TEXT = { gold: 'Not enough gold.', bag_full: 'Your bags are full.', range: 'Too far away.', level: 'You are not high enough level.',
     class: 'Your class cannot use that.', weapon: 'You cannot use that weapon.', armor: 'You cannot wear that armor.', combat: 'Not while in combat.',
-    no_value: 'The vendor will not buy that.', bags_full: 'You can wear 4 bags.', cooldown: 'Not ready yet.', full: 'You are already at full health.',
+    no_value: 'The vendor will not buy that.', chest_full: 'The chest is full. Buy a row or take something out.', max: 'That tab is as big as it gets.',
+    quest: 'Quest items stay in the quest bag.', dead: 'Not while dead.', bags_full: 'You can wear 4 bags.', cooldown: 'Not ready yet.', full: 'You are already at full health.',
     known: 'You already know that.', points: 'No talent points left.', tier: 'That tier is not open yet.', dependency: 'A deeper talent needs that one.', empty: 'Nothing to reset.' };
   const QUEST_FAIL_TEXT = { bag_full: 'Your bags are full. Sell or drop an item, then try again.', range: 'Too far away. Walk closer and talk again.',
     not_ready: 'That quest is not finished yet.', not_active: 'You do not have that quest.' };
@@ -768,6 +815,24 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (st.dialog && st.dialog.ent === ev.id) Object.assign(st.dialog, { trainer: ev.trainer || null, vendor: ev.vendor || null, line: st.dialog.line + 1 });
         else { st.dialog = dialogFromInteract(ev); st.dialog.line = Math.floor(st.now * 7); if (st.metrics.touch) st.open.clear(); }
         return;
+      case 'chest_open':
+        if (ev.src !== me) return;
+        st.dialog = null; st.confirm = null; st.itemPick = null;
+        if (st.metrics.touch) st.open.clear();
+        st.chest = { ent: ev.id, tab: (st.chest && st.chest.tab) || 'hero', place: ev.place || null, pick: null, scroll: 0, t0: st.now };
+        st.open.add('bags');
+        return;
+      case 'chest': {
+        if (ev.id !== me) return;
+        const nm = ev.item ? (itemInfo(ev.item) || { name: ev.item }).name : '';
+        const qty = ev.qty > 1 ? ` x${ev.qty}` : '';
+        const heroName = (lastModel && lastModel.player && lastModel.player.name) || 'your hero';
+        if (ev.kind === 'store') say('loot', `Stored ${nm}${qty}${ev.tab === 'shared' ? ' in Shared' : ''}.`);
+        else if (ev.kind === 'take') say('loot', `Took ${nm}${qty} from the chest.`);
+        else if (ev.kind === 'move') say('loot', `Moved ${nm}${qty} to ${ev.to === 'shared' ? 'Shared' : heroName}.`);
+        else if (ev.kind === 'row') { toast(`+10 slots: ${ev.size} in ${ev.tab === 'shared' ? 'Shared' : heroName}.`, 3); say('loot', `You buy a chest row for ${ev.cost} gold.`); }
+        return;
+      }
       case 'quest_dialog':
         if (ev.id !== me || !st.dialog || st.dialog.ent !== ev.ent) return;
         Object.assign(st.dialog, { offers: ev.offers || [], turnins: ev.turnins || [], progress: ev.progress || [], soon: ev.soon || [], rewards: ev.rewards || st.dialog.rewards || null });

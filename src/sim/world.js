@@ -30,6 +30,7 @@ import { createProgression } from './progression.js';
 import { createBuilds2 } from './builds2.js';
 import { createHud } from './hud.js';
 import { createQuests } from './quests.js';
+import { createStorage } from './storage.js';
 import { rollKill, bagAdd, bagRemove, bagFree, resolveItem, ensureUids, migrateQuestItems, bagFindUid } from './loot.js';
 import { dayFraction, isNight } from './clock.js';
 
@@ -114,6 +115,12 @@ function wrap(state, content, rng, systems) {
     addEntity: add, removeEntity: (e) => { if (index.has(e.id)) remove(e); }, nextId: () => state.nextId++, spawnMob: (spec) => spawnMob(spec),
     spotFree, INTERACT_RANGE_PX,
   }) : null;
+  // ---- storage (the Lantern Chest, src/sim/storage.js): the hero tab, the Shared tab (state.shared) and glyph trips
+  const ST = combatOn && content.items ? createStorage({
+    state, content, emit, get: (id) => index.get(id) || null, distPx, reach: INTERACT_RANGE_PX + 24, openReach: INTERACT_RANGE_PX, tileToSub,
+    bagIndex: (e, cmd) => bagIndex(e, cmd), onBag: (e) => { if (QS) QS.onBag(e); },
+  }) : null;
+  if (combatOn) C.storage = ST;
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -237,6 +244,7 @@ function wrap(state, content, rng, systems) {
         if (!isNight(state.tick)) hideNightMob(m);
       }
       if (QS) QS.spawnObjects();
+      if (ST) ST.spawnChests(add, () => state.nextId++);     // the Lantern Chests (content.lanternChests)
     },
     /** Spawn one mob from a template (tests, scripted events). spec: { mob, zone, x, y (tiles), wander?, respawn? } */
     spawnMob(spec) { return spawnMob(spec).id; },
@@ -283,6 +291,7 @@ function wrap(state, content, rng, systems) {
         e.hp = e.hpMax;
         if (e.res && e.res.kind === 'mana') e.res.cur = e.res.max;
         restoreVitals(e, spec);
+        if (ST) ST.restore(e, spec);               // the hero's chest tab and glyph pouch (missing = empty)
       }
       add(e);
       emit({ type: 'join', id: e.id, name: e.name });
@@ -311,10 +320,16 @@ function wrap(state, content, rng, systems) {
         .map((a) => ({ id: a.id, left: a.until == null ? null : a.until - state.tick, stacks: a.stacks || 1, def: clone(a.def) }));
       out.escorts = Object.entries(e.quests || {}).filter(([, q]) => q.escort != null).map(([k]) => k);
       out.build = C.b2.saveOf(e);                // Builds 2 (save v2: state.build)
+      if (e.chest) out.chest = clone(e.chest);   // the hero's Lantern Chest tab (the Shared tab is NOT here: w.shared())
+      if (e.gbag && e.gbag.length) out.gbag = clone(e.gbag);   // the glyph pouch
       if (e.barOff && e.barOff.length) out.barOff = [...e.barOff];   // skills taken off the bar (bar_set null on a skill)
       return out;
     },
     get(id) { return index.get(id) || null; },
+    /** The Shared chest tab (every hero on this device): a plain copy for main.js to save under its own key. */
+    shared() { return ST ? ST.shared() : null; },
+    /** Load the Shared tab (main.js, from lexicon_realms.shared; another browser tab's write). Malformed parts drop. */
+    setShared(obj) { if (ST) ST.setShared(obj); },
     /** Remove a player (log-out). Mobs forget them; their placed objects and escorts go. */
     removePlayer(id) {
       const e = index.get(id);
@@ -521,6 +536,7 @@ function wrap(state, content, rng, systems) {
       case 'b2_leaning': if (combatOn) C.b2.setLeaning(e, cmd); return;
       case 'b2_auto': if (combatOn) C.b2.setAuto(e, cmd); return;
       case 'b2_suggest': if (combatOn) C.b2.spendSuggested(e); return;
+      case 'chest_store': case 'chest_take': case 'chest_move': case 'chest_row': case 'chest_sort': if (ST) ST.command(e, cmd); return;
       case 'interact': {
         const t = index.get(cmd.id);
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');
@@ -529,6 +545,7 @@ function wrap(state, content, rng, systems) {
           if (QS) QS.interact(e, t);
           return;
         }
+        if (t.kind === 'object' && t.chest) { if (ST) ST.open(e, t); return; }
         if (t.kind !== 'npc') return reject(id, cmd, 'not_interactable');
         if (distPx(e, t) > INTERACT_RANGE_PX) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
         t.dir = facingToward(t, e);
@@ -886,6 +903,7 @@ function wrap(state, content, rng, systems) {
       o.aggro = e.ai && e.ai.mode === 'combat' ? e.ai.target : null; o.aiMode = e.ai ? e.ai.mode : null;
     }
     if (e.kind === 'object' && e.node) { o.node = { item: e.node.item, channel: e.node.channel || 0 }; }
+    else if (e.kind === 'object' && e.chest) { o.chest = { id: e.chest.id, place: e.chest.place || null }; }
     else if (e.kind === 'object') {
       o.owner = e.owner; o.objType = e.obj.def.id; o.radius = e.obj.def.radius || (e.obj.def.trigger && e.obj.def.trigger.radius) || 0;
       o.armed = state.tick >= e.obj.armAt; o.until = e.obj.until;

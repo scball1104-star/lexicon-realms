@@ -19,6 +19,7 @@ import { PROGRESSION } from '../progression.js';
 import { packOf } from '../packs.js';
 import { BUILDS2, RULES as BUILDS2_RULES, SKILL_PICKS, B2_ABILITIES } from '../builds2.js';
 import { BOARDS, BOUNTIES, NAMED_SPAWNS } from '../bounties.js';
+import { STORAGE, LANTERN_CHESTS } from '../storage.js';
 
 export const ZONES = { willowmere, valley, downs, moor };
 
@@ -56,6 +57,8 @@ export function buildContent() {
     // the chain (questOrder) plus the bounty boards' quests (BUILDS_2 5.6); boards: which npc posts which pools
     quests: { ...QUESTS, ...BOUNTIES }, questOrder: QUEST_ORDER, comingLater: COMING_LATER, bounties: { boards: BOARDS },
     spawns: day, nightSpawns: night,
+    // the Lantern Chests (src/data/storage.js): where they stand, tab sizes and row prices
+    storage: STORAGE, lanternChests: LANTERN_CHESTS.filter((c) => ZONES[c.zone]),
     start: { zone: 'willowmere', x: willowmere.arrival[0], y: willowmere.arrival[1], lantern: { zone: 'willowmere', id: sq.id, x: sq.x, y: sq.y } },
   };
 }

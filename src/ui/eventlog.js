@@ -19,7 +19,7 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
   switch (ev.type) {
     case 'zone': return ev.id === me ? [{ ch: 'system', text: `Entered ${zoneNames[ev.to] || ev.to}.` }] : [];
     case 'interact': return ev.src === me ? [{ ch: 'system', text: `You speak with ${nameOf(ev.id)}.` }] : [];
-    case 'interact_fail': return ev.src === me ? [{ ch: 'error', text: ev.reason === 'range' ? 'Too far away.' : 'You cannot do that.' }] : [];
+    case 'interact_fail': return ev.src === me ? [{ ch: 'error', text: ev.reason === 'range' ? 'Too far away.' : ev.reason === 'combat' ? 'Not while in combat.' : 'You cannot do that.' }] : [];
     case 'cast_fail':
       if (ev.src !== me || ev.reason === 'gcd' || ev.reason === 'dead') return [];
       if (ev.reason === 'resource') return [{ ch: 'error', quiet: true, text: `Not enough ${resWord}.` }];

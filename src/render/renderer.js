@@ -371,6 +371,8 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     for (const l of lighting.windowLights(wins)) lights.push(l);
     const me = anchors.get(view.followId);
     if (me) lights.push({ x: me.x, y: me.y - 10, r: 44, rgb: LIGHT_RGB.player, k: 0.5, lamp: true, glow: 0 });
+    // the Lantern Chest's lantern (storage): a small warm lamp on its lid
+    for (const e of ents) if (e.chest) { const a = anchors.get(e.id); if (a) lights.push({ x: a.x + 4, y: a.y - 12, r: 30, rgb: LIGHT_RGB.lamp, k: 0.85, lamp: true, flicker: true, glow: 0.2 }); }
     fx.update(now, (id) => anchors.get(id) || null);
     for (const l of fx.lights(now)) lights.push(l);
     if (fxLevel === 'high') for (const l of atmos.lights()) lights.push(l);
@@ -418,6 +420,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       g.fillStyle = col; g.fillRect(ax - 2, ay - 2, 5, 1); g.fillRect(ax - 1, ay - 1, 3, 1); g.fillRect(ax, ay, 1, 1);
     }
     for (const [l, x, y] of auraDraws) fx.drawAuraLook(g, l, x, y, cam, now);
+    drawSecrets(g, zone, cam, now, W, H);
     fx.drawWorld(g, cam, W, H, now);
     if (snap.projectiles && snap.projectiles.length) drawSimProjectiles(g, prevSnap, snap, alpha, zoneId);
     drawZoneGrade(g, zone, zoneId, W, H, now, fxLevel);
@@ -463,6 +466,31 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
   }
 
   // sim projectiles with no event visual (a late join, a page that missed the launch): a small bolt at the sim's spot
+  /** Secrets (landscape pass, zone `secrets`): falling streaks over a waterfall's passage cells (drawn as water over
+   *  the cliff face; the sim walks them) and a small twinkle at each hint spot, now and then. No map marker. */
+  function drawSecrets(g, zone, cam, now, W, H) {
+    for (const s of (zone && zone.secrets) || []) {
+      if (s.kind === 'waterfall') {
+        for (const [x, y] of s.passage) {
+          const px0 = x * 16 - cam.x, py0 = y * 16 - cam.y;
+          if (px0 < -16 || py0 < -16 || px0 > W + 16 || py0 > H + 16) continue;
+          g.fillStyle = 'rgba(220,240,250,0.55)';
+          for (let i = 0; i < 4; i++) {
+            const sx = px0 + 2 + i * 4 + ((x + i) % 2), off = Math.floor(now * 40 + i * 5 + x * 3) % 16;
+            g.fillRect(sx, py0 + off, 1, 5); if (off > 11) g.fillRect(sx, py0 + off - 16, 1, 5);
+          }
+        }
+      }
+      if (!s.hint) continue;
+      const k = (now * 0.45 + (s.hint[0] % 5) * 0.21) % 1;
+      if (k > 0.22) continue;
+      const hx = s.hint[0] * 16 + 8 - cam.x, hy = s.hint[1] * 16 + 6 - cam.y;
+      const r = k < 0.07 || k > 0.15 ? 1 : 2;
+      g.fillStyle = '#fff1a8'; g.fillRect(hx, hy - r, 1, r * 2 + 1); g.fillRect(hx - r, hy, r * 2 + 1, 1);
+      g.fillStyle = '#ffffff'; g.fillRect(hx, hy, 1, 1);
+    }
+  }
+
   function drawSimProjectiles(g, prevSnap, snap, alpha, zoneId) {
     const live = new Set();
     let prevP = null;

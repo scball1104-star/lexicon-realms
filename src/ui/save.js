@@ -133,6 +133,35 @@ export function createCharStore(storage) {
   };
 }
 
+// ---------------------------------------------------------------- the Shared chest tab
+// Every hero on this device sees one Shared tab of the Lantern Chest (src/sim/storage.js). It lives OUTSIDE the hero list,
+// under its own key with its own version, so deleting a hero never deletes shared items and two heroes never write a
+// stale copy over each other. NEVER fold it into CHAR_KEY or bump SAVE_VERSION for it: load() treats any other `v` as
+// unknown and the hero list comes up empty. Schema v1: { v: 1, rows, items: [{ item, qty, inst? }], glyphs: [{ item, qty }] }.
+// A corrupt or newer blob is copied to `<key>.bad` once and the tab starts empty (never overwritten unseen).
+export const SHARED_KEY = 'lexicon_realms.shared';
+export const SHARED_VERSION = 1;
+
+/** The Shared tab from storage: { rows, items, glyphs } (empty when there is none). */
+export function loadShared(storage) {
+  const empty = { rows: 0, items: [], glyphs: [] };
+  let raw = null;
+  try { raw = storage ? storage.getItem(SHARED_KEY) : null; } catch { raw = null; }
+  if (raw == null) return empty;
+  let o = null;
+  try { o = JSON.parse(raw); } catch { o = null; }
+  if (!isObj(o) || o.v !== SHARED_VERSION) {
+    try { if (storage.getItem(SHARED_KEY + '.bad') == null) storage.setItem(SHARED_KEY + '.bad', String(raw)); } catch { /* full or blocked */ }
+    return { ...empty, bad: true };
+  }
+  return { rows: Math.max(0, o.rows | 0), items: Array.isArray(o.items) ? o.items : [], glyphs: Array.isArray(o.glyphs) ? o.glyphs : [] };
+}
+/** Write the Shared tab (main.js calls it on every chest event that touched it). False when storage refused. */
+export function saveShared(storage, tab) {
+  if (!storage || !tab) return false;
+  try { storage.setItem(SHARED_KEY, JSON.stringify({ v: SHARED_VERSION, rows: tab.rows | 0, items: tab.items || [], glyphs: tab.glyphs || [] })); return true; } catch { return false; }
+}
+
 // ---------------------------------------------------------------- options
 
 export const DEFAULT_OPTIONS = Object.freeze({

@@ -1,4 +1,5 @@
-// Placed objects (CONTRACTS 3 `kind: 'object'`): traps, ground zones, hedges, ink trails and doubles, quest nodes.
+// Placed objects (CONTRACTS 3 `kind: 'object'`): traps, ground zones, hedges, ink trails and doubles, quest nodes, the
+// Lantern Chest (storage).
 // Drawn by the snapshot's `sprite` and `radius`; every key has a procedural pixel look (cached canvases, whole
 // pixels), unknown keys get a neutral one. Ground zones go under the actors; the rest is y-sorted with them.
 //
@@ -124,6 +125,16 @@ export function createObjectArt({ tiles, propsDb, img, book, silhouette }) {
     px(g, 4, 1, '#3a2a1e'); px(g, 5, 1, '#3a2a1e');
     return c;
   });
+  const chestGlow = () => once('chest_glow', () => {
+    const [c, g] = canvas(24, 24);
+    for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
+      const d = Math.hypot(x - 11.5, y - 11.5) / 12;
+      if (d > 1) continue;
+      g.fillStyle = `rgba(255,${190 + Math.round(40 * (1 - d))},110,${(1 - d) * (1 - d)})`;
+      g.fillRect(x, y, 1, 1);
+    }
+    return c;
+  });
   const glint = (g, x, y, now, seed) => {
     const k = (now * 0.7 + (seed % 7) * 0.13) % 1;
     if (k > 0.35) { px(g, x, y, '#f9d77a'); return; }
@@ -148,6 +159,26 @@ export function createObjectArt({ tiles, propsDb, img, book, silhouette }) {
     const out = [];
     const ix = Math.round(x), iy = Math.round(y);
     const look = objectLook(e.sprite, e.radius);
+    if (e.chest) {
+      // the Lantern Chest (storage): Lexicon Quest's iron-banded chest tile with a lantern on its lid and a warm glow
+      const pf = propFrame('chest_iron') || propFrame('chest_wood');
+      const flick = 0.75 + 0.25 * Math.sin(now * 5 + e.id);
+      out.push({ sortY: iy, draw(g, cam) {
+        const sx = ix - cam.x, sy = iy - cam.y;
+        g.globalAlpha = 0.22 * flick;
+        g.drawImage(chestGlow(), sx - 12, sy - 26);
+        g.globalAlpha = 1;
+        if (pf) g.drawImage(pf.im, pf.r[0], pf.r[1], pf.r[2], pf.r[3], sx - pf.a[0], sy - pf.a[1], pf.r[2], pf.r[3]);
+        else g.drawImage(nodeArt(), sx - 5, sy - 8);
+        // the lantern: an iron hook and a lit glass on the lid's right
+        g.fillStyle = '#2a2430'; g.fillRect(sx + 3, sy - 17, 1, 4); g.fillRect(sx + 2, sy - 18, 3, 1);
+        g.fillStyle = '#3a3040'; g.fillRect(sx + 1, sy - 14, 5, 5);
+        g.fillStyle = flick > 0.9 ? '#fff1a8' : '#ffc46b'; g.fillRect(sx + 2, sy - 13, 3, 3);
+        px(g, sx + 3, sy - 12, '#ffffff');
+      } });
+      out[0].pick = pf ? { x: ix - pf.a[0], y: iy - pf.a[1] - 6, w: pf.r[2], h: pf.r[3] + 6 } : { x: ix - 8, y: iy - 18, w: 16, h: 18 };
+      return out;
+    }
     if (e.node) {
       // quest node: its own sprite (an animal, a prop) or a bundle, plus a gold glint so it reads as usable
       const f = book.frameFor({ ...e, moving: false }, t);

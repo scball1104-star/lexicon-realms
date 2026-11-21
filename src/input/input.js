@@ -179,8 +179,8 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
           if (id === me.id) continue;
           const e = snap.entities.find((o) => o.id === id);
           if (it.k === 'rclick' && e && e.kind === 'mob' && e.faction === 'hostile' && !e.dead) { target = id; out.push({ t: 'attack', id }); continue; }
-          if (id !== target && !(e && e.kind === 'object' && e.node)) { target = id; out.push({ t: 'target', id }); }
-          if ((it.k === 'rclick' || it.k === 'tap') && e && (e.kind === 'npc' || (e.kind === 'object' && e.node))) {
+          if (id !== target && !(e && e.kind === 'object' && (e.node || e.chest))) { target = id; out.push({ t: 'target', id }); }
+          if ((it.k === 'rclick' || it.k === 'tap') && e && (e.kind === 'npc' || (e.kind === 'object' && (e.node || e.chest)))) {
             const d = Math.hypot(e.x - me.x, e.y - me.y);
             if (it.k === 'tap' && d > INTERACT_REACH_PX - 8) walkTo(e.x, e.y, TALK_REACH_PX, { t: 'interact', id });
             else out.push({ t: 'interact', id });
@@ -236,7 +236,7 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
           else {
             let best = INTERACT_REACH_PX + 1;
             for (const o of snap.entities) {
-              if (!(o.kind === 'npc' || (o.kind === 'object' && o.node)) || o.zone !== me.zone || o.dead) continue;
+              if (!(o.kind === 'npc' || (o.kind === 'object' && (o.node || o.chest))) || o.zone !== me.zone || o.dead) continue;
               const d = Math.hypot(o.x - me.x, o.y - me.y);
               if (d < best || (d === best && npcId != null && o.id < npcId)) { best = d; npcId = o.id; }
             }

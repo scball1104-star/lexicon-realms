@@ -1,6 +1,6 @@
 // Items (docs/CONTRACTS.md 7.4, docs/design/PROGRESSION.md 4 and 6). Plain data, built once at module load from the
 // PROGRESSION formulas so every number traces to the design: weapon dps, armor kit shares, item value, rarity and
-// affixes (Lexicon Quest's rarity ids and colours). No imports.
+// affixes (Lexicon Quest's rarity ids and colours). Imports only the glyph records (./storage.js).
 //
 // Two item kinds need the looter's class to finish them (resolved by src/sim/loot.js resolveItem):
 //   armorType: 'class'            "any armor type, rolls to class" (plate / mail / leather / cloth by the class)
@@ -8,6 +8,8 @@
 //   stats.main                    the class's main stat (str Warden, int Mender and Scribe, agi Wayfinder and Inkblade)
 // A bag entry for gear may carry an instance: { item, qty: 1, inst: { ilvl, rarity, affixes: [{ id, value }],
 // armorType, weaponType } }; base gear (gear_*) always drops or sells with one.
+
+import { glyphItems } from './storage.js';
 
 export const RARITY = {
   common: { id: 'common', name: 'Common', color: '#e8e8e8', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 1.0 },
@@ -254,6 +256,9 @@ junk('crow_feather', 'Crow Feather', 9); junk('grave_dust', 'Grave Dust', 10); j
 junk('boar_hide', 'Boar Hide', 13); junk('torn_page', 'Torn Page', 14); junk('ink_wisp', 'Ink Wisp', 14);
 junk('lamp_glass', 'Lamp Glass', 15); junk('moor_scarab_shell', 'Moor Scarab Shell', 12);
 
+// ---------------------------------------------------------------- glyphs (kind 'glyph': the glyph pouch, src/data/storage.js)
+for (const g of glyphItems()) add(g);
+
 // ---------------------------------------------------------------- icons (assets/icons/items16.json frame ids, the art lane)
 const ICONS = new Set(['potion', 'hi_potion', 'ether', 'hi_ether', 'antidote', 'honey_roll', 'travel_satchel', 'drovers_pack', 'loom_bag',
   'slime_ink', 'stray_hen', 'pells_crate', 'quills_copy', 'thornback_hide', 'fold_fleece', 'ink_soaked_hay', 'pocket_button', 'boar_tusk',
@@ -270,6 +275,7 @@ export function iconFor(it, armorType = null) {
   if (it.kind === 'bag') return 'travel_satchel';
   if (it.id === 'stone_rubbing') return 'quills_copy';
   if (it.kind === 'junk' || it.kind === 'quest') return 'slime_ink';
+  if (it.kind === 'glyph') return 'icon_magic';      // the HUD draws a letter stone (PLACEHOLDER art)
   return 'gold';
 }
 for (const id of Object.keys(ITEMS)) ITEMS[id] = Object.freeze({ ...ITEMS[id], icon: iconFor(ITEMS[id]) });

@@ -22,7 +22,7 @@ import { createRenderer } from './render/renderer.js';
 import { createInput } from './input/input.js';
 import { createTouch, isTouchDevice } from './input/touch.js';
 import { createUI } from './ui/ui.js';
-import { padBar, loadOptions } from './ui/save.js';
+import { padBar, loadOptions, loadShared, saveShared, SHARED_KEY } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
 
 const ZOOMS = [1, 1.5, 2];
@@ -129,6 +129,9 @@ async function boot() {
   view.fx = fxOverride || ui.options.fx;
   audio.setVolumes({ master: 1, music: ui.options.music, sfx: ui.options.sfx });
   if (touch) createTouch({ canvas, input, ui });
+  // the Lantern Chest's Shared tab (every hero on this device): its own key, never inside a hero save (src/ui/save.js)
+  world.setShared(loadShared(storage));
+  window.addEventListener('storage', (ev) => { if (ev.key === SHARED_KEY) world.setShared(loadShared(storage)); });   // another tab wrote it
 
   /** addPlayer spec for a stored character: a new hero, or the full restore (CONTRACTS 2.4). */
   function specFor(c) {
@@ -141,6 +144,7 @@ async function boot() {
       // fix pass 1: the sim-owned part (health, resource, cooldowns, lasting buffs, quest bag, loot waiting, escorts)
       qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts,
       bounties: s.bounties,                                                  // the bounty boards: which were handed in today
+      chest: s.chest, gbag: s.gbag,                                          // the hero's Lantern Chest tab and glyph pouch (missing = empty)
       barOff: s.barOff };                                                    // skills the player took off the bar (save v2)
   }
   // an escort in progress cannot be restored (its npc is gone): it restarts as a fresh accept would
@@ -174,6 +178,13 @@ async function boot() {
   } else audio.music('title');
   const nameOf = (id) => { const e = world.get(id); return e ? e.name : `#${id}`; };
   bus.on('*', (ev) => ui.handleEvents([ev], { nameOf, zoneNames: content.zoneNames }));
+  // every store / take / move / row at the Lantern Chest saves at once: the Shared tab under its own key when it changed,
+  // and the hero (a crash must not duplicate or lose an item)
+  bus.on('*', (ev) => {
+    if (ev.type !== 'chest' || ev.id !== playerId) return;
+    if (ev.shared) saveShared(storage, world.shared());
+    ui.saveProgress();
+  });
 
   /** Quest marks over npc heads, in HUD px (the sim's npcMarkers + where the renderer drew each npc). */
   function worldMarks() {
@@ -293,6 +304,8 @@ async function boot() {
       gold(n) { const e = world.get(playerId); if (e) e.gold = (e.gold || 0) + n; },
       /** a bag item for drivers (phone item-card check): an item id from content.items */
       item(id, qty = 1) { const e = world.get(playerId); if (e) return bagAdd(e, id, qty, null, content); return 0; },
+      /** glyph stones into the pouch (no drops are wired yet): glyphs('AOGS', 2) */
+      glyphs(letters = 'ASHVOW', qty = 1) { const e = world.get(playerId); let n = 0; if (e) for (const L of String(letters).toUpperCase()) if (content.items[`glyph_${L.toLowerCase()}`]) n += bagAdd(e, `glyph_${L.toLowerCase()}`, qty, null, content); return n; },
       hp(n) { const e = world.get(playerId); if (e && !e.dead) e.hp = Math.max(1, Math.min(e.hpMax, n)); },
     };
   }
