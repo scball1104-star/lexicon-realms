@@ -382,8 +382,9 @@ patches, procs). Each script has a test in `qa/sim/talents.test.mjs`.
 
 One module per zone in `src/data/maps/<id>.js`, registered in `src/data/maps/index.js` (`ZONES`). Every zone module is
 **generated** by `node tools/maps/build_world.mjs` (world wave, 2026-11-19); never hand-edit one, change the generator.
-Willowmere is Lexicon Quest's map as is plus a small Realms patch (west gate, joins, NPC spots); the valley (96 x 64),
-Shepherd's Downs (`downs`, 144 x 96) and the High Moor (`moor`, 160 x 100) come from `tools/maps/zone_<id>.mjs`.
+Every zone comes from `tools/maps/zone_<id>.mjs`: Willowmere (48 x 32, Realms' own town since the 2026-11-21 relayout;
+it was Lexicon Quest's map as is before), the valley (96 x 64), Shepherd's Downs (`downs`, 144 x 96) and the High Moor
+(`moor`, 160 x 100).
 `tools/dev/import_lq_maps.mjs` now exports `importLqMap(id)` and, run directly, rebuilds the whole world.
 
 ```js
@@ -663,7 +664,7 @@ r.draw(prevSnap, snap, alpha, view)   // view: { zone, followId, zoom: 1 | 1.5 |
                                       //         fx: 'low' | 'high' (default high), tod: 0..1 (sky clock override),
                                       //         weather: 'clear' | 'rain' | 'leaves' | 'pollen' | { rain, leaves, pollen } }
 r.feed(events)                        // this tick's sim events, every tick, after world.step() (spell fx, numbers, corpses)
-r.drawHud(fn)                         // fn(ctx, layout): HUD on a 640x360 layer composited at the base integer scale
+r.drawHud(fn)                         // fn(ctx, layout): HUD on a hudW x hudH layer (640x360 in 2D) composited at the base integer scale
 r.pick(devX, devY) -> id | null       // entity under a canvas device-pixel point (click targeting; quest nodes too)
 r.devToWorld(devX, devY) -> [wx, wy]  // world px under a device-pixel point (ground-targeted casts)
 r.worldToHud(wx, wy) -> [hx, hy]      // nameplates, floating combat text
@@ -693,6 +694,14 @@ LIVE since the integration wave (2026-11-19):
 
 - Desktop: internal view 640x360, letterboxed at the largest integer `base` scale. The world is drawn at integer `ws =
   round(base * zoom)` (at 1080p: 3, 5, 6 for zoom 1, 1.5, 2). Keys `+` / `-` change zoom.
+- Desktop wide HUD (2026-11-21, Scott: "the HUD is too close the center of the screen"): the HUD layer covers the area the
+  world is drawn in. 2D: the letterboxed 640x360 display rect (unchanged). 3D (`layoutFor(..., { fill: true })`, the 3D
+  world fills the canvas): the whole canvas at the same integer `base`, `hudW = floor(devW / base)`, `hudH = floor(devH
+  / base)` (957x460 at 1915x920; 640x360 exactly at 1920x1080 and 1280x720). `src/ui/layout.js` `hudLayout({ W, H })`
+  anchors each desktop box to its own edge (frames top left, zone label + minimap + tracker top right, bar and cast bar
+  bottom centre, XP bar along the bottom, chat bottom left; at 640x360 the stills' numbers). Windows, the npc window,
+  talents, title screens and prompts stay 640x360 designs centred on the layer (`designOrigin`, ui.js `centred`: the
+  design sees a 640x360 `env.L` and the pointer in design px; regions come back in layer px).
 - Touch (fix wave 1, 2026-11-19, CRITIQUE_1 item 8; `view.touch`, `view.dpr`, `view.hud`): no bars. The world fills the
   canvas at integer `ws`; the HUD layer is `hudW x hudH` (the screen's aspect) at its own integer `base`: `view.hud =
   'big'` (play, about 1.75 css px per HUD px, at least 200 HUD px tall; 506x234 at 844x390 dpr 3) or `'win'` (a menu
@@ -741,6 +750,7 @@ It never reads the sim or the renderer.
 HUD layout target: the approved stills (`D:\LQOnline\mockups\out\still1_questing.png` and siblings).
 
 **Decided (HUD agent, 2026-11-19): the HUD layer stays 640x360, the same pixel density as the world. No 1280x720 layer.**
+(2026-11-21: same pixel density, but in 3D the layer grows to the window at that scale; see section 9 "Desktop wide HUD".)
 The stills only look finer because the LQ font is small (1 px strokes, 7 px caps) next to chunky world art: their builder
 (`D:\LQOnline\mockups\lqui.py`, "all drawing is at 1x on a 640x360 frame", then a 3x nearest upscale) draws every HUD
 pixel at 640x360. So the HUD draws through `renderer.drawHud` at the base integer scale (3x at 1080p, 2x at 1280x720),

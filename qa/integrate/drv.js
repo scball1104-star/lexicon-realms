@@ -99,6 +99,51 @@
       return hudToCss(r.rect.x + r.rect.w / 2, r.rect.y + r.rect.h / 2);
     },
     labels() { return (R.ui.regions || []).filter((o) => o.label).map((o) => o.label); },
+    /** The desktop HUD on its layer (wide layer check, Scott 2026-11-21): every HUD box inside the layer and anchored to
+     *  its edge, no two overlapping, and every open window where its 640x360 design puts it, centred on the layer. */
+    hudCheck() {
+      const l = R.renderer.layout, W = l.hudW, H = l.hudH, regs = R.ui.regions || [];
+      const ox = Math.max(0, Math.floor((W - 640) / 2)), oy = Math.max(0, Math.floor((H - 360) / 2));
+      // the whole 8-slot bar from any slot on it (empty slots have no region): slot n sits at x0 + (n - 1) * 29
+      const barBox = (ss) => { if (!ss.length) return null; const s = ss[0]; const x0 = s.rect.x - (s.slot - 1) * (s.rect.w + 3);
+        return { x: x0, y: s.rect.y, w: 8 * s.rect.w + 7 * 3, h: s.rect.h }; };
+      const union = (rs) => { if (!rs.length) return null; const x = Math.min(...rs.map((r) => r.x)), y = Math.min(...rs.map((r) => r.y));
+        return { x, y, w: Math.max(...rs.map((r) => r.x + r.w)) - x, h: Math.max(...rs.map((r) => r.y + r.h)) - y }; };
+      // only the HUD itself (the regions hud.js draws before any window)
+      const firstWin = regs.findIndex((o) => o.kind === 'window');
+      const hudRegs = firstWin < 0 ? regs : regs.slice(0, firstWin);
+      const of = (k) => hudRegs.filter((o) => o.kind === k).map((o) => o.rect);
+      const boxes = { player: of('player')[0], target: of('target')[0], minimap: of('minimap')[0], chat: union(of('chat')), xp: of('xp')[0],
+        tracker: union([...of('tracker_head'), ...of('tracker_quest')]), bar: barBox(hudRegs.filter((o) => o.kind === 'slot' && o.slot)) };
+      of('party').forEach((r, i) => { boxes[`party${i}`] = r; });
+      const problems = [];
+      for (const [k, b] of Object.entries(boxes)) {
+        if (!b) { problems.push(`${k} missing`); continue; }
+        if (b.x < 0 || b.y < 0 || b.x + b.w > W || b.y + b.h > H) problems.push(`${k} outside ${W}x${H}: ${JSON.stringify(b)}`);
+      }
+      const ks = Object.keys(boxes).filter((k) => boxes[k]);
+      const ov = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+      for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) if (ov(boxes[ks[i]], boxes[ks[j]])) problems.push(`${ks[i]} overlaps ${ks[j]}`);
+      const B = boxes, gap = { player: B.player && [B.player.x, B.player.y], minimapRight: B.minimap && W - B.minimap.x - B.minimap.w,
+        trackerRight: B.tracker && W - B.tracker.x - B.tracker.w, barBottom: B.bar && H - B.bar.y - B.bar.h, barCentre: B.bar && Math.round(B.bar.x + B.bar.w / 2 - W / 2),
+        chatLeft: B.chat && B.chat.x, chatBottom: B.chat && H - B.chat.y - B.chat.h, xpBottom: B.xp && H - B.xp.y - B.xp.h, xpW: B.xp && B.xp.w };
+      if (gap.player && (gap.player[0] > 6 || gap.player[1] > 6)) problems.push(`player frame not top left: ${gap.player}`);
+      if (gap.minimapRight > 6) problems.push(`minimap not at the right edge: ${gap.minimapRight}`);
+      if (gap.trackerRight > 6) problems.push(`tracker not at the right edge: ${gap.trackerRight}`);
+      if (gap.barBottom > 20 || Math.abs(gap.barCentre) > 1) problems.push(`bar not bottom centre: ${gap.barBottom} ${gap.barCentre}`);
+      if (gap.chatLeft > 6 || gap.chatBottom > 70) problems.push(`chat not bottom left: ${gap.chatLeft} ${gap.chatBottom}`);
+      if (gap.xpBottom > 2 || gap.xpW !== W) problems.push(`xp bar not along the bottom: ${gap.xpBottom} ${gap.xpW}`);
+      const windows = {};
+      for (const o of regs) if (o.kind === 'window' && o.id && !windows[o.id]) {
+        windows[o.id] = o.rect;
+        const d = R.ui.rect(o.id);
+        // Character keeps its design corner; Bags its design x and its bottom at 340 (its height follows the bag size)
+        if (o.id === 'character' && (o.rect.x !== d.x + ox || o.rect.y !== d.y + oy)) problems.push(`character window at ${o.rect.x},${o.rect.y}, its design spot is ${d.x + ox},${d.y + oy}`);
+        if (o.id === 'bags' && (o.rect.x !== d.x + ox || o.rect.y + o.rect.h !== Math.max(20 + o.rect.h, 340) + oy)) problems.push(`bags window at ${o.rect.x},${o.rect.y}+${o.rect.h}, its design x is ${d.x + ox}, bottom ${340 + oy}`);
+        if (o.rect.x < 0 || o.rect.y < 0 || o.rect.x + o.rect.w > W || o.rect.y + o.rect.h > H) problems.push(`${o.id} window outside the layer`);
+      }
+      return { layer: { W, H, base: l.base, ox: l.ox, oy: l.oy }, design: { x: ox, y: oy }, boxes, gap, windows, problems };
+    },
     /** CSS point on an entity's body (for clicks / taps). */
     entCss(id) { const a = R.renderer.anchorOf(id); if (!a) return null; return worldToCss(a.x, a.y - Math.max(4, Math.round(a.h / 2))); },
     dialog() { const d = R.ui.state.dialog; return d ? { page: d.page, npc: d.npc, offers: d.offers, turnins: d.turnins, quest: d.quest, vendor: !!d.vendor, trainer: !!d.trainer } : null; },

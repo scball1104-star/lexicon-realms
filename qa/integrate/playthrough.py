@@ -8,7 +8,9 @@ there, Show on map, the gold arrow; kill with abilities, loot) -> turn in -> lev
 the lantern -> a Builds 2 talent point at 6 (the Warden: phase 2, every class runs Builds 2)
 -> quit to select -> reload -> continue (same level / xp / gold / quests / place) -> a new Mender on Builds 2: Spend
 suggested at level 1, Hearth to its fork with real clicks, the other side closed, Undo, a skill pick, the level-up
-prompt. Screenshots in qa/out/integrate/.
+prompt. Then a wide window (1915x920, Scott 2026-11-21): the 2D HUD stays on the letterboxed 640x360 world, every box
+anchored to its edge, Character + Bags in their design spots (hud_wide_2d.png, hud_wide_2d_windows.png).
+Screenshots in qa/out/integrate/.
 DEV ONLY hooks (?dev=1, window.__realms.dev): xp to reach levels 3 and 5 quickly, hp to make the death quick.
 Prints INTEGRATE_DONE: ok=<bool> errors=<n> at the end (machine-read sentinel).
 """
@@ -516,8 +518,36 @@ def run():
 
         # ---- Builds 2: a new Mender spends a point and takes a fork through the new talents window (real keys and mouse)
         mender_builds2(g)
+        hud_wide_2d(b)
         b.close()
         return fps_seen
+
+
+def hud_wide_2d(b):
+    """1915x920 css px in 2D: the world keeps its letterboxed 640x360 pixel view and the HUD stays on it (the 3D
+    renderer's wide layer is checked in qa/integrate/r3d.py session H)."""
+    log('wide window 1915x920 (2D)')
+    ctx = b.new_context(viewport={'width': 1915, 'height': 920})
+    page = ctx.new_page()
+    page.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
+    page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+    g = Game(page)
+    g.boot(BASE + '?dev=1&zone=valley&x=14&y=48&cls=warden&name=Talia&uidemo=worst')
+    time.sleep(0.6)
+    g.key('Tab', 0.5)
+    c = g.ev('__drv.hudCheck()')
+    log('  layer', c['layer'], 'gaps', json.dumps(c['gap']))
+    page.screenshot(path=os.path.join(OUT, 'hud_wide_2d.png'))
+    steps.append(('hud_wide_2d', f'1915x920 2D: HUD layer {c["layer"]["W"]}x{c["layer"]["H"]} at {c["layer"]["base"]}x on the letterboxed world, problems {c["problems"]}'))
+    assert c['layer']['W'] == 640 and c['layer']['H'] == 360 and c['layer']['base'] == 2, f'2D keeps its 640x360 layer: {c["layer"]}'
+    assert not c['problems'], f'2D wide window HUD: {c["problems"]}'
+    g.key('KeyC', 0.3)
+    g.key('KeyB', 0.4)
+    c2 = g.ev('__drv.hudCheck()')
+    page.screenshot(path=os.path.join(OUT, 'hud_wide_2d_windows.png'))
+    steps.append(('hud_wide_2d_windows', f'1915x920 2D with Character and Bags: {json.dumps(c2["windows"])}, problems {c2["problems"]}'))
+    assert 'character' in c2['windows'] and 'bags' in c2['windows'] and not c2['problems'], f'2D wide windows: {c2["windows"]} {c2["problems"]}'
+    ctx.close()
 
 
 def b2_ranks(g):

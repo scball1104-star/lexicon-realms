@@ -18,7 +18,8 @@ export function cameraFor(fx, fy, mapW, mapH, viewW, viewH) {
  *
  * Desktop (default): the game view is 640x360 at the largest integer scale `base` that fits (letterboxed). The world is
  * drawn at integer scale `ws` = round(base * zoom), so zoom 1.5 at 1080p (base 3) draws world pixels 5x and zoom 2
- * draws them 6x: always whole device pixels per world pixel. The HUD layer is 640x360 at `base`.
+ * draws them 6x: always whole device pixels per world pixel. The HUD layer is 640x360 at `base`, or with `opts.fill`
+ * (3D: the world fills the canvas) the whole canvas at `base` (hudW x hudH >= 640x360; the HUD anchors to its edges).
  *
  * Touch (opts.touch, fix wave 2026-11-19, CRITIQUE_1 item 8): no black bars. The world fills the whole canvas at the
  * integer scale `ws` (the view width follows the screen aspect), and the HUD layer is `hudW x hudH` HUD px at its own
@@ -37,6 +38,14 @@ export function layoutFor(devW, devH, zoom = 1, VW = 640, VH = 360, opts = {}) {
     const dispW = VW * base, dispH = VH * base;
     const ox = Math.floor((devW - dispW) / 2), oy = Math.floor((devH - dispH) / 2);
     const viewW = Math.ceil(dispW / ws), viewH = Math.ceil(dispH / ws);
+    // opts.fill (the 3D renderer, whose world fills the whole canvas): the HUD layer covers the canvas at the same
+    // integer `base`, so the frames, minimap, bar and chat sit at the real edges (Scott 2026-11-21: "there's still room
+    // around the border"). A 640x360-exact window (1920x1080, 1280x720) gives the same 640x360 layer as before.
+    if (opts.fill) {
+      const hudW = Math.max(VW, Math.floor(devW / base)), hudH = Math.max(VH, Math.floor(devH / base));
+      const hox = Math.floor((devW - hudW * base) / 2), hoy = Math.floor((devH - hudH * base) / 2);
+      return { base, ws, dispW, dispH, ox: hox, oy: hoy, wox: ox, woy: oy, viewW, viewH, VW, VH, hudW, hudH, touch: false, fill: true };
+    }
     return { base, ws, dispW, dispH, ox, oy, wox: ox, woy: oy, viewW, viewH, VW, VH, hudW: VW, hudH: VH, touch: false };
   }
   // touch: the world fills the screen

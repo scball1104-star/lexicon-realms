@@ -2,7 +2,9 @@
 // key routing, talent rules, event log lines, joystick directions. No canvas; screenshots are qa/ui/ui_shots.py.
 import { assert, eq, newWorld } from './_helpers.mjs';
 import { buildViewModel } from '../../src/core/viewmodel.js';
-import { hudLayout, hitPx, trackerRows, talentLayout, bagGrid, menuRect, inRect, W, H } from '../../src/ui/layout.js';
+import { hudLayout, hitPx, trackerRows, talentLayout, bagGrid, menuRect, inRect, designOrigin, W, H } from '../../src/ui/layout.js';
+import { DIALOG_RECT } from '../../src/ui/dialog.js';
+import { talents2Rect } from '../../src/ui/talents2.js';
 import { buildHudModel, defaultBar } from '../../src/ui/uivm.js';
 import { validateName, createCharStore, migrate, CHAR_KEY, MAX_CHARS, SAVE_VERSION, loadOptions, saveOptions } from '../../src/ui/save.js';
 import { routeKey, rebind, effectiveBinds, keyLabel } from '../../src/ui/keymap.js';
@@ -33,6 +35,78 @@ export const tests = [
       const boxes = [L.player, L.target, L.minimap, L.party(0), L.party(1), L.party(2), ...L.bar];
       for (const b of boxes) assert(b.x >= 0 && b.y >= 0 && b.x + b.w <= W && b.y + b.h <= H, `inside the layer: ${JSON.stringify(b)}`);
       for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) assert(!rectsOverlap(boxes[i], boxes[j]), `overlap ${i} ${j}`);
+      // the rest of the 640x360 numbers, so the wide layer below cannot move them
+      eq(JSON.stringify(L.zoneLabel), JSON.stringify({ x: 540, y: 4, w: 96, h: 13 }));
+      eq(JSON.stringify(L.tracker), JSON.stringify({ x: 452, y: 86, w: 184, maxLines: 16 }));
+      eq(JSON.stringify(L.cast), JSON.stringify({ x: 245, y: 296, w: 150 }));
+      eq(JSON.stringify(L.xp), JSON.stringify({ y: 350 }));
+      eq(JSON.stringify(L.chat), JSON.stringify({ x: 4, w: 184, lines: 6, bottom: 296 }));
+      eq(L.W, 640); eq(L.H, 360);
+      eq(JSON.stringify(hudLayout({ touch: false, W: 640, H: 360 }).bar), JSON.stringify(L.bar), 'an explicit 640x360 layer is the same');
+    },
+  },
+  {
+    name: 'wide desktop HUD (Scott 2026-11-21 "room around the border"): 3D fills the window at the same scale, 2D and 640x360 windows unchanged',
+    fn() {
+      const w = layoutFor(1915, 920, 1, { fill: true });
+      eq(w.base, 2, 'same integer scale as today (text size unchanged)'); eq(w.hudW, 957); eq(w.hudH, 460);
+      assert(w.ox >= 0 && w.ox + w.hudW * w.base <= 1915 && w.oy >= 0 && w.oy + w.hudH * w.base <= 920, 'the layer is on the canvas');
+      assert(1915 - w.hudW * w.base < w.base && 920 - w.hudH * w.base < w.base, 'the layer covers the canvas');
+      const d2 = layoutFor(1915, 920, 1);
+      eq(d2.hudW, 640); eq(d2.hudH, 360); eq(d2.ox, 317, '2D: the HUD stays on its letterboxed 640x360 world');
+      for (const [dw, dh, base] of [[1920, 1080, 3], [1280, 720, 2]]) {
+        const a = layoutFor(dw, dh, 1, { fill: true }), b = layoutFor(dw, dh, 1);
+        eq(a.base, base); eq(a.hudW, 640); eq(a.hudH, 360); eq(a.ox, b.ox); eq(a.oy, b.oy, `${dw}x${dh} is exactly today's layer`);
+      }
+      eq(JSON.stringify(layoutFor(2532, 1170, 1.5, { touch: true, hud: 'big', dpr: 3, fill: true })), JSON.stringify(layoutFor(2532, 1170, 1.5, { touch: true, hud: 'big', dpr: 3 })), 'the phone ignores fill');
+    },
+  },
+  {
+    name: 'wide desktop HUD: every box inside the layer, anchored to its own edge, nothing overlaps; windows centred',
+    fn() {
+      const ref = hudLayout({ touch: false });
+      const boxesOf = (L) => {
+        const tH = 4 + 16 + (L.tracker.maxLines + 1) * 11 + 4;          // the tallest tracker (heading + every line + "...")
+        const chatH = 4 + 11 * L.chat.lines + 2;
+        return {
+          player: L.player, target: L.target, party0: L.party(0), party1: L.party(1), party2: L.party(2),
+          zoneLabel: L.zoneLabel, minimap: L.minimap,
+          tracker: { x: L.tracker.x, y: L.tracker.y, w: L.tracker.w, h: tH },
+          ...Object.fromEntries(L.bar.map((b) => [`slot${b.slot}`, b])),
+          cast: { x: L.cast.x - 2, y: L.cast.y - 12, w: L.cast.w + 4, h: 22 },
+          xp: { x: 0, y: L.xp.y - 3, w: L.W, h: 13 },
+          chat: { x: L.chat.x, y: L.chat.bottom - chatH, w: L.chat.w, h: chatH },
+        };
+      };
+      const R = boxesOf(ref);
+      for (const [LW, LH] of [[957, 460], [800, 450], [1280, 360], [640, 480], [960, 540]]) {
+        const L = hudLayout({ touch: false, W: LW, H: LH });
+        const tag = `${LW}x${LH}`;
+        eq(L.W, LW); eq(L.H, LH);
+        const B = boxesOf(L);
+        for (const [k, b] of Object.entries(B)) assert(b.x >= 0 && b.y >= 0 && b.x + b.w <= LW && b.y + b.h <= LH, `${k} inside ${tag}: ${JSON.stringify(b)}`);
+        // anchored: top-left boxes keep x and y; top-right ones their gap to the right edge; bottom ones their gap to the bottom
+        for (const k of ['player', 'target', 'party0', 'party1', 'party2']) eq(JSON.stringify(B[k]), JSON.stringify(R[k]), `${k} top left ${tag}`);
+        for (const k of ['zoneLabel', 'minimap', 'tracker']) { eq(LW - (B[k].x + B[k].w), 640 - (R[k].x + R[k].w), `${k} right edge ${tag}`); eq(B[k].y, R[k].y, `${k} top ${tag}`); }
+        for (const k of ['slot1', 'cast', 'xp', 'chat']) eq(LH - (B[k].y + B[k].h), 360 - (R[k].y + R[k].h), `${k} bottom edge ${tag}`);
+        eq(B.chat.x, 4, `chat left edge ${tag}`); eq(B.xp.w, LW, `XP bar spans the layer ${tag}`);
+        const barL = L.bar[0].x, barR = L.bar[7].x + L.bar[7].w;
+        assert(Math.abs((barL + barR) / 2 - LW / 2) <= 1, `bar centred ${tag}`);
+        assert(Math.abs(L.cast.x + L.cast.w / 2 - LW / 2) <= 1, `cast bar centred ${tag}`);
+        // nothing overlaps (the XP strip runs under the whole bottom edge by design: only the bar, cast and chat must clear it)
+        const ks = Object.keys(B);
+        for (let i = 0; i < ks.length; i++) for (let j = i + 1; j < ks.length; j++) assert(!rectsOverlap(B[ks[i]], B[ks[j]]), `${ks[i]} overlaps ${ks[j]} ${tag}`);
+        // windows: the 640x360 designs are centred on the layer and stay inside it
+        const o = designOrigin(LW, LH);
+        eq(o.x, Math.floor((LW - 640) / 2)); eq(o.y, Math.floor((LH - 360) / 2));
+        for (const r of [...['talents', 'character', 'bags', 'quests', 'map', 'menu', 'help'].map(menuRect), DIALOG_RECT, talents2Rect({ touch: false, W: 640, H: 360 })]) {
+          const s = { ...r, x: r.x + o.x, y: r.y + o.y };
+          assert(s.x >= 0 && s.y >= 0 && s.x + s.w <= LW && s.y + s.h <= LH, `window inside ${tag}: ${JSON.stringify(s)}`);
+        }
+        const design = { x: o.x, y: o.y, w: 640, h: 360 };
+        assert(Math.abs(design.x + 320 - LW / 2) <= 1 && Math.abs(design.y + 180 - LH / 2) <= 1, `the window design is centred ${tag}`);
+      }
+      eq(JSON.stringify(designOrigin(640, 360)), JSON.stringify({ x: 0, y: 0 }), '640x360: windows exactly where they were');
     },
   },
   {

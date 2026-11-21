@@ -11,25 +11,42 @@ export function hitPx(cssPerHud) { return Math.ceil(44 / Math.max(0.25, cssPerHu
 export const BAR = { n: 8, sz: 26, gap: 3, y: 318 };
 
 export function hudLayout({ touch = false, minHit = 15, W: LW = W, H: LH = H } = {}) {
-  if (!touch) {
-    const tw = BAR.n * BAR.sz + (BAR.n - 1) * BAR.gap;
-    const bx = Math.floor((W - tw) / 2);
-    return {
-      touch: false, W, H,
-      player: { x: 4, y: 4, w: 194, h: 46 },
-      party: (i) => ({ x: 4, y: 53 + i * 35, w: 150, h: 32 }),
-      target: { x: 204, y: 4, w: 150, h: 34 },
-      zoneLabel: { x: 540, y: 4, w: 96, h: 13 },
-      minimap: { x: 540, y: 18, w: 96, h: 64 },
-      tracker: { x: 452, y: 86, w: 184, maxLines: 16 },
-      bar: Array.from({ length: BAR.n }, (_, i) => ({ slot: i + 1, x: bx + i * (BAR.sz + BAR.gap), y: BAR.y, w: BAR.sz, h: BAR.sz })),
-      cast: { x: Math.floor((W - 150) / 2), y: 296, w: 150 },
-      xp: { y: 350 },
-      chat: { x: 4, w: 184, lines: 6, bottom: 296 },
-      menuBar: null, cluster: null,
-    };
-  }
+  if (!touch) return desktopLayout(LW, LH);
   return touchLayout(minHit, LW, LH);
+}
+
+/**
+ * The desktop HUD on a layer of LW x LH HUD px (at least 640x360). At 640x360 every box is the approved stills'
+ * (D:\LQOnline\mockups\build_stills.py). On a wider or taller layer (the 3D renderer fills the window, Scott
+ * 2026-11-21: "there's still room around the border to spread these out") each box keeps its distance from its own
+ * edge: frames top left, zone label + minimap + tracker top right, the bar and cast bar bottom centre, the XP bar along
+ * the bottom edge, chat bottom left. Menu windows stay 640x360 designs centred on the layer (ui.js `centred`).
+ */
+function desktopLayout(LW, LH) {
+  const W = Math.max(640, LW | 0), H = Math.max(360, LH | 0);
+  const dy = H - 360;                            // how much taller than the 640x360 design
+  const tw = BAR.n * BAR.sz + (BAR.n - 1) * BAR.gap;
+  const bx = Math.floor((W - tw) / 2);
+  const barY = BAR.y + dy;
+  return {
+    touch: false, W, H,
+    player: { x: 4, y: 4, w: 194, h: 46 },
+    party: (i) => ({ x: 4, y: 53 + i * 35, w: 150, h: 32 }),
+    target: { x: 204, y: 4, w: 150, h: 34 },
+    zoneLabel: { x: W - 100, y: 4, w: 96, h: 13 },
+    minimap: { x: W - 100, y: 18, w: 96, h: 64 },
+    tracker: { x: W - 188, y: 86, w: 184, maxLines: 16 + Math.floor(dy / 11) },
+    bar: Array.from({ length: BAR.n }, (_, i) => ({ slot: i + 1, x: bx + i * (BAR.sz + BAR.gap), y: barY, w: BAR.sz, h: BAR.sz })),
+    cast: { x: Math.floor((W - 150) / 2), y: 296 + dy, w: 150 },
+    xp: { y: 350 + dy },
+    chat: { x: 4, w: 184, lines: 6, bottom: 296 + dy },
+    menuBar: null, cluster: null,
+  };
+}
+
+/** Where a 640x360 window design sits on a layer of LW x LH (centred, whole pixels; 0, 0 on a 640x360 layer). */
+export function designOrigin(LW = W, LH = H) {
+  return { x: Math.max(0, Math.floor((LW - W) / 2)), y: Math.max(0, Math.floor((LH - H) / 2)) };
 }
 
 /**

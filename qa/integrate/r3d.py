@@ -14,6 +14,9 @@ Starts its own static server on a free 127.0.0.1 port (and stops it at the end),
     upper walls fade out), every building's drawn box within its footprint plus a sliver, then a walk from Willowmere
     into the valley with every frame time logged (the hitch check: no frame over 100 ms, few over 50 ms) and the
     camera back at the field angle
+  H wide desktop 1915x920 (Scott 2026-11-21, "room around the border"): the HUD layer fills the window at the same
+    scale (957x460 HUD px at 2x), every HUD box anchored to its own edge, none overlapping; then Character + Bags open,
+    centred as their 640x360 design (hud_wide_3d.png, hud_wide_3d_windows.png)
 Frame rate on desktop and phone (rAF window plus the uncapped probe). Screenshots in qa/out/r3d/.
 Prints R3D_DONE: ok=<bool> errors=<n> (machine-read sentinel).
 """
@@ -437,6 +440,35 @@ def session_g(b):
     page.close()
 
 
+def session_h(b):
+    log('H: wide desktop 1915x920: the HUD at the window edges, windows centred')
+    page = b.new_page(viewport={'width': 1915, 'height': 920})
+    hook(page)
+    g = Game(page, 'h')
+    g.boot('r=3d&dev=1&zone=valley&x=14&y=48&cls=warden&name=Talia&uidemo=worst')
+    g.key('Tab', 0.5)                                   # a target, so the target frame shows
+    time.sleep(0.6)
+    c = g.ev('__drv.hudCheck()')
+    log('  layer', c['layer'], 'gaps', json.dumps(c['gap']))
+    metrics['hud_wide_3d'] = {'layer': c['layer'], 'gap': c['gap']}
+    page.screenshot(path=os.path.join(OUT, 'hud_wide_3d.png'))
+    steps.append(('hud_wide_3d', f'1915x920 3D: HUD layer {c["layer"]["W"]}x{c["layer"]["H"]} at {c["layer"]["base"]}x, problems {c["problems"]}'))
+    assert c['layer']['W'] == 957 and c['layer']['H'] == 460 and c['layer']['base'] == 2, f'the HUD layer covers the window at 2x: {c["layer"]}'
+    assert not c['problems'], f'wide HUD: {c["problems"]}'
+    g.key('KeyC', 0.3)
+    g.key('KeyB', 0.4)
+    c2 = g.ev('__drv.hudCheck()')
+    page.screenshot(path=os.path.join(OUT, 'hud_wide_3d_windows.png'))
+    steps.append(('hud_wide_3d_windows', f'1915x920 3D with Character and Bags: {json.dumps(c2["windows"])}, problems {c2["problems"]}'))
+    assert 'character' in c2['windows'] and 'bags' in c2['windows'], f'both windows open: {c2["windows"]}'
+    assert not c2['problems'], f'wide windows: {c2["problems"]}'
+    # a click inside the centred design lands (the Bags window closes on its own close button or the key)
+    g.key('KeyB', 0.2)
+    g.key('KeyC', 0.2)
+    assert not g.ev('window.__realms.ui.isOpen("bags")') and not g.ev('window.__realms.ui.isOpen("character")'), 'windows closed'
+    page.close()
+
+
 def session_e(pw):
     log('E: no WebGL -> the 2D renderer with a console warning')
     b = pw.chromium.launch(args=['--disable-webgl', '--disable-webgl2', '--disable-3d-apis'])
@@ -471,7 +503,7 @@ def run():
         with sync_playwright() as pw:
             b = pw.chromium.launch(args=GPU)
             try:
-                for s in (session_a, session_b, session_c, session_d, session_f, session_g):
+                for s in (session_a, session_b, session_c, session_d, session_f, session_g, session_h):
                     s(b)
             finally:
                 b.close()

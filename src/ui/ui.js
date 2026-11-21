@@ -3,18 +3,19 @@
 //
 //   const ui = await createUI({ canvas, font, zones, zoneNames, storage, touch, hooks })
 //   hooks: { enterWorld(char) -> playerId, command(cmd), input (createInput object), setZoom(z), logout(), getLayout() }
-//   ui.draw(ctx, vm, snap, timeSec)   once per frame, inside renderer.drawHud (640x360 layer)
+//   ui.draw(ctx, vm, snap, timeSec)   once per frame, inside renderer.drawHud (the HUD layer)
 //   ui.handleEvents(events)           sim events -> chat / combat log
 //   ui.mode                           'title' | 'select' | 'create' | 'game'
 //
-// The HUD layer is 640x360, the same pixel density as the world (CONTRACTS section 10, decided 2026-11-19).
+// The HUD layer has the same pixel density as the world (CONTRACTS section 10, decided 2026-11-19): 640x360, or in 3D the
+// whole window at that scale with the HUD at its edges and the 640x360 window designs centred (2026-11-21).
 import { loadUiArt } from './uiassets.js';
 import { createGfx } from './gfx.js';
 import { createCharArt } from './charsprite.js';
 import { createMinimapBook } from './minimap.js';
 import { createHud, drawTooltip, drawQuestMark, drawGoalArrow } from './hud.js';
 import { arrowMode } from './questnav.js';
-import { hudLayout, hitPx, inRect, menuRect, W, H, BAR } from './layout.js';
+import { hudLayout, hitPx, inRect, menuRect, designOrigin, W, H, BAR } from './layout.js';
 import { buildHudModel } from './uivm.js';
 import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions, itemCard, itemTooltip } from './menus.js';
 import { drawHelp } from './help.js';
@@ -302,7 +303,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     return hudLayout({ touch: st.metrics.touch, minHit: st.metrics.touch ? hitPx(st.metrics.cssPerHud) : 15, W: (l && l.hudW) || W, H: (l && l.hudH) || H });
   }
   /** Phone: menu windows and the title screens are 640x360 designs; they open on the larger layer ('win'), play and
-   *  the npc window use the big legible one ('big'). Desktop is always 640x360. */
+   *  the npc window use the big legible one ('big'). Desktop has one layer: 640x360, or in 3D the whole window at the
+   *  same scale (camera.js `fill`), with the windows centred on it. */
   function hudMode() {
     if (!st.metrics.touch) return 'big';
     if (st.mode !== 'game') return 'win';
@@ -310,27 +312,37 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     for (const id of st.open) if (CENTER.includes(id) || SIDE.includes(id)) return 'win';
     return 'big';
   }
-  /** Draw a 640x360 window design centred on a larger layer; its regions are shifted to layer px. */
-  function centred(ctx, L, regions, fn) {
-    const ox = Math.max(0, Math.floor((L.W - W) / 2)), oy = Math.max(0, Math.floor((L.H - H) / 2));
+  /** Draw a 640x360 window design centred on a larger layer; its regions are shifted to layer px (a slider's drag gets
+   *  design px back). On desktop the design also sees a 640x360 layer and the pointer in design px, so a window on the
+   *  wide 3D layer looks and clamps its tooltips exactly as on a 640x360 one. */
+  function centred(ctx, L, regions, fn, env) {
+    const { x: ox, y: oy } = designOrigin(L.W, L.H);
     if (!ox && !oy) { fn(); return; }
     const n0 = regions.length;
+    const swap = env && !L.touch ? { L: env.L, hover: env.hover } : null;
+    if (swap) { env.L = { ...L, W, H }; env.hover = env.hover ? { ...env.hover, x: env.hover.x - ox, y: env.hover.y - oy } : null; }
     ctx.save(); ctx.translate(ox, oy);
-    try { fn(); } finally { ctx.restore(); }
-    for (let i = n0; i < regions.length; i++) { const r = regions[i]; regions[i] = { ...r, rect: { ...r.rect, x: r.rect.x + ox, y: r.rect.y + oy } }; }
+    try { fn(); } finally { ctx.restore(); if (swap) { env.L = swap.L; env.hover = swap.hover; } }
+    for (let i = n0; i < regions.length; i++) {
+      const r = regions[i];
+      regions[i] = { ...r, rect: { ...r.rect, x: r.rect.x + ox, y: r.rect.y + oy }, ...(r.drag ? { drag: (hx) => r.drag(hx - ox) } : {}) };
+    }
   }
+  /** Where the 640x360 design sits on this layer (0, 0 on a 640x360 one): desktop prompts keep their design spots. */
+  const dOrg = (L) => (L.touch ? { x: 0, y: 0 } : designOrigin(L.W, L.H));
 
   function draw(ctx, vm, snap, t) {
     st.now = t;
     lastSnap = snap;
     const L = layoutNow();
+    st.layer = { W: L.W, H: L.H };
     const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList };
     const regions = [];
     ctx.imageSmoothingEnabled = false;
     if (st.mode !== 'game' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
-    if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t));
-    else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t));
-    else if (st.mode === 'create') centred(ctx, L, regions, () => drawCreate(ctx, env, st, regions, act, t));
+    if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
+    else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t), env);
+    else if (st.mode === 'create') centred(ctx, L, regions, () => drawCreate(ctx, env, st, regions, act, t), env);
     else {
       let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones });
       if (demoExtra) m = applyDemo(m);
@@ -349,7 +361,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (st.chest && (!m.player || m.player.dead || (!m.storage && st.now - st.chest.t0 > 0.5))) act.closeChest();
       if (m.player) {
         if (st.levelUp) drawLevelUp(ctx, L, t);
-        if (st.dialog) drawDialog(ctx, env, m, st, regions, act);
+        // the npc window is a 640x360 design on desktop (centred on a wide layer), the phone's own on a phone
+        if (st.dialog) { if (L.touch) drawDialog(ctx, env, m, st, regions, act); else centred(ctx, L, regions, () => drawDialog(ctx, env, m, st, regions, act), env); }
         centred(ctx, L, regions, () => {
           if (st.chest && m.storage) drawChest(ctx, env, m, st, regions, act);
           for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? drawCharacter : drawBags)(ctx, env, m, st, regions, act);
@@ -366,9 +379,12 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           if (st.open.has('talents') && !isBuilds2(m)) drawTalents(ctx, env, m, st, regions, act);
           if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
           if (st.open.has('help')) drawHelp(ctx, env, st, regions, act, options.binds);
-        });
-        // Builds 2 (talents2.js): the whole layer on a phone (six columns), the 640x360 window on desktop
-        if (st.open.has('talents') && isBuilds2(m)) drawTalents2(ctx, env, m, st, regions, act);
+        }, env);
+        // Builds 2 (talents2.js): the whole layer on a phone (six columns), the 640x360 window on desktop (centred)
+        if (st.open.has('talents') && isBuilds2(m)) {
+          if (L.touch) drawTalents2(ctx, env, m, st, regions, act);
+          else centred(ctx, L, regions, () => drawTalents2(ctx, env, m, st, regions, act), env);
+        }
         hud.menuBar(ctx, L, st, regions);
         if (st.barPick) drawBarPick(ctx, L, regions);
         if (st.slotCard) drawSlotCard(ctx, env, m, L, regions);
@@ -392,7 +408,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (st.levelUp && t - st.levelUp.t0 > 6) st.levelUp = null;
     if (st.banner && st.banner.until > t && st.mode === 'game') {
       const bw = Math.min(L.W - 8, Math.max(g.textW(st.banner.title), g.textW(st.banner.sub || '')) + 28), bh = st.banner.sub ? 32 : 20;
-      const bx = Math.floor((L.W - bw) / 2), by = L.touch ? Math.floor(L.H * 0.3) : 70;
+      const bx = Math.floor((L.W - bw) / 2), by = L.touch ? Math.floor(L.H * 0.3) : dOrg(L).y + 70;
       g.window(ctx, bx, by, bw, bh, 'thin', 'ember', 0.97);
       g.text(ctx, g.clip(st.banner.title, bw - 12), L.W / 2, by + 3, 'gold', { align: 'center' });
       if (st.banner.sub) g.text(ctx, st.banner.sub, L.W / 2, by + 16, 'cream', { align: 'center' });
@@ -400,8 +416,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (st.toast && st.toast.until > t) {
       // above everything, clear of the npc window (CRITIQUE_1 item 20)
       const w = g.textW(st.toast.text) + 16;
-      let cx = Math.floor(L.W / 2), ty = L.touch ? L.minHit + 8 : 44;
-      if (st.dialog) { const dr = dialogRect(L); cx = Math.floor((dr.x + dr.w + L.W) / 2); ty = L.touch ? Math.floor(L.H / 2) - 30 : 92; }
+      let cx = Math.floor(L.W / 2), ty = L.touch ? L.minHit + 8 : dOrg(L).y + 44;
+      if (st.dialog) { const dr = dialogRect(L); cx = Math.floor((dr.x + dr.w + L.W) / 2); ty = L.touch ? Math.floor(L.H / 2) - 30 : dOrg(L).y + 92; }
       const tx = Math.max(2, Math.min(L.W - w - 2, cx - Math.floor(w / 2)));
       g.window(ctx, tx, ty, w, 18, 'thin', 'slate', 0.95);
       g.text(ctx, st.toast.text, tx + Math.floor(w / 2), ty + 3, 'cream', { align: 'center' });
@@ -427,7 +443,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const text = st.barPick.from ? `Tap a slot to move ${st.barPick.name}` : `Tap a bar slot for ${st.barPick.name}`;
     const bh = Math.max(20, L.minHit || 0), bw = Math.max(60, L.minHit || 0);
     const w = Math.min(L.W - 8, g.textW(text) + bw + 30), h = bh + 10;
-    const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.floor(L.H * 0.3) : 260;
+    const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.floor(L.H * 0.3) : L.H - 100;
     g.window(ctx, x, y, w, h, 'thin', 'ember', 0.97);
     regions.push({ rect: { x, y, w, h }, kind: 'window', id: 'bar_pick' });
     g.text(ctx, g.clip(text, w - bw - 22), x + 8, y + Math.floor(h / 2) - 6, 'cream');
@@ -452,7 +468,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
 
   /** The npc window's rect on this layer (dialog.js draws it; the toast and the quest marks keep clear of it). */
   function dialogRect(L) {
-    return dialogRectFor(L);
+    const r = dialogRectFor(L), o = dOrg(L);
+    return { ...r, x: r.x + o.x, y: r.y + o.y };
   }
 
   /** Builds 2 prompts: a gold count on the phone's talents button while points or a skill pick wait, and once per visit
@@ -484,7 +501,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     ctx.globalAlpha = Math.round(out * 10) / 10;
     const lines = lu.lines.slice(0, 3);
     const h = 30 + lines.length * 11 + 4;
-    const y = L.touch ? Math.floor(L.H * 0.32) : 96;
+    const y = L.touch ? Math.floor(L.H * 0.32) : dOrg(L).y + 96;
     const grow = Math.min(1, age / 0.25);
     const bw = Math.round(L.W * grow);
     const x = Math.floor((L.W - bw) / 2);
@@ -561,7 +578,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       : ['WASD to walk. Tab or click to target a foe.', '1 to 8 to use skills. Right-click a foe to attack.', 'F or right-click to talk. X to sit and rest.', 'C B L N M: character, bags, quests, talents, map.', 'H lists every control.'];
     const bh = Math.max(14, L.minHit || 0);
     const w = 250, h = 22 + lines.length * 11 + 6 + bh + 6;      // the button has its own row (CRITIQUE_1 item 20)
-    const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.max(L.minHit + 6, Math.floor((L.H - h) / 2) - 10) : 96;
+    const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.max(L.minHit + 6, Math.floor((L.H - h) / 2) - 10) : dOrg(L).y + 96;
     g.window(ctx, x, y, w, h, 'std', 'blue', 0.96);
     g.text(ctx, 'How to play', x + 9, y + 5, 'gold', { large: true });
     lines.forEach((l, i) => g.text(ctx, l, x + 9, y + 22 + i * 11, 'cream'));
@@ -652,7 +669,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
 
   const onMouseMove = (ev) => {
     const p = toHud(ev.clientX, ev.clientY);
-    st.hover = p.x >= 0 && p.y >= 0 && p.x < W && p.y < H ? p : null;
+    const lw = (st.layer && st.layer.W) || W, lh = (st.layer && st.layer.H) || H;
+    st.hover = p.x >= 0 && p.y >= 0 && p.x < lw && p.y < lh ? p : null;
     if (st.drag && st.drag.drag && (ev.buttons & 1)) st.drag.drag(p.x);
     const d = st.itemDrag;
     if (d) { d.x = p.x; d.y = p.y; if (!d.active && Math.hypot(p.x - d.x0, p.y - d.y0) > 3) d.active = true; }

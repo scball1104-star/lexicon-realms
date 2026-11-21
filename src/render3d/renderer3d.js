@@ -186,7 +186,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   const canvas2d = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; return [c, g]; };
   let [hud, hctx] = canvas2d(640, 360);
   let [over, octx] = canvas2d(640, 360);
-  let layout = layoutFor(canvas.width, canvas.height, 1);
+  let layout = layoutFor(canvas.width, canvas.height, 1, { fill: true });
   const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null, quality, info: null, camDist: null };   // camDist: drivers' close-up
   let lastNow = null;
   let camK = null, camT = 0;     // camera blend: 0 field, 1 town (eased in real time)
@@ -346,7 +346,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (fallback) return fallback.draw(prevSnap, snap, alpha, view);
     if (state.failed) { useFallback(state.failed); return; }
     const t0 = performance.now();
-    layout = layoutFor(canvas.width, canvas.height, view.zoom || 1, { touch: !!view.touch, hud: view.hud || 'big', dpr: view.dpr || 1, inset: view.inset });
+    layout = layoutFor(canvas.width, canvas.height, view.zoom || 1, { touch: !!view.touch, hud: view.hud || 'big', dpr: view.dpr || 1, inset: view.inset, fill: true });
     layout.worldOx = layout.wox; layout.worldOy = layout.woy;
     if (hud.width !== layout.hudW || hud.height !== layout.hudH) { [hud, hctx] = canvas2d(layout.hudW, layout.hudH); [over, octx] = canvas2d(layout.hudW, layout.hudH); }
     sizeGl();
