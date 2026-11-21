@@ -242,8 +242,8 @@ export function nodeTip(cd, o, build, level, free, { touch = false, pinned = fal
   if (o.fork) {
     const other = Object.values(cd.nodes).find((x) => x.track === o.track && x.tier === o.tier && x.id !== o.id);
     sub = `${t.name}  Tier ${o.tier} fork`;
-    lines.push(`${t.axis}: take one side, the other closes.`);
-    if (other) lines.push(`Other side: ${other.name}. ${rankText(other.text, 1)}`);
+    // only the chosen node's details; the other side is just named (Scott 2026-11-20: "just the details for the one selected")
+    lines.push(other ? `Fork: taking this closes ${other.name}.` : 'Fork: taking this closes the other side.');
   }
   if (o.keystone) {
     sub = `${t.name}  Tier ${o.tier} keystone`;
