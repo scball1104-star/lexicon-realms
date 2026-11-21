@@ -204,6 +204,15 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
             if (gcdLeft <= GCD_QUEUE_S) queued = { intent: { ...it, fromQueue: true }, until: now + gcdLeft + 0.3 };
             continue;
           }
+          // WoW: an attack skill pressed with no live foe targeted (yours just died) takes the nearest foe, the ones
+          // fighting you and in front first (Scott 2026-11-20: "apply the same default action as WoW")
+          if (ab && ab.target === 'enemy' && !me.dead) {
+            const cur = target != null ? snap.entities.find((o) => o.id === target) : null;
+            if (!cur || cur.dead || cur.faction !== 'hostile') {
+              const list = hostilesByDistance(snap, me);
+              if (list.length) { target = list[0]; out.push({ t: 'target', id: target }); }
+            }
+          }
           if (ab && ab.target === 'ground') {
             out.push({ t: 'cast', slot: it.slot, target: target ?? null, at: groundPoint(snap, me, target, toWorld) });
             continue;
