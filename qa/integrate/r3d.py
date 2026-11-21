@@ -398,15 +398,15 @@ def session_g(b):
     page = b.new_page(viewport={'width': 1600, 'height': 900})
     hook(page)
     g = Game(page, 'g')
-    g.boot('r=3d&dev=1&zone=willowmere&x=36&y=14&cls=warden&name=Talia')
-    g.walk('willowmere', 37, 15, near=0)
+    g.boot('r=3d&dev=1&zone=willowmere&x=36&y=18&cls=warden&name=Talia')   # Willowmere relayout 2026-11-21: the library is on Gate Road
+    g.walk('willowmere', 37, 19, near=0)
     time.sleep(0.8)
     see = g.ev('(() => { const S = window.__realms.renderer.dev.see; return S ? { r: S.uSeeR.value, r2: S.uSeeR2.value } : null; })()')
     assert see and see['r'] > 0, f'the cutaway is on around the hero: {see}'
     cam = g.ev('window.__realms.renderer.dev.cam')
     assert cam and cam['pitch'] > 50 and cam['distK'] > 1.2, f'the town camera looks down steeper from further out: {cam}'
     boxes = g.ev('window.__realms.renderer.dev.buildingBoxes()')
-    lib = next((o for o in boxes if o['foot'] == [33, 16, 43, 23]), None)
+    lib = next((o for o in boxes if o['foot'] == [32, 20, 42, 27]), None)
     assert lib and lib['k'] > 0.9, f'the library (the hero behind it) fades its roof and upper walls: {lib}'
     over = max(max(o['foot'][0] - o['min'][0], o['foot'][1] - o['min'][2], o['max'][0] - o['foot'][2], o['max'][2] - o['foot'][3]) for o in boxes)
     metrics['town_buildings'] = {'n': len(boxes), 'maxOverhangM': round(over, 2), 'faded': sum(1 for o in boxes if o['k'] > 0.5), 'cam': cam}

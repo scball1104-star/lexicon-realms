@@ -60,26 +60,28 @@ Joins (CONTRACTS 6 `joins`; the map wave sets exact cells):
 
 ## 2. Zone 1: Willowmere and the valley (levels 1 to 6)
 
-### 2.1 Willowmere (hub, LQ map as is)
+### 2.1 Willowmere (hub, Realms' own town since 2026-11-21)
 Safe. Lantern `square` (by the well, bound at creation). Every service lives here.
+
+Layout (relayout approved by Scott 2026-11-21; generator `tools/maps/zone_willowmere.mjs`, no longer LQ's map). 48 x 32. Every door is on a building's south wall, so every building sits on the north side of the street it opens onto. **Lantern Square** (13..33, 13..20) is the middle, with the well, Mael and the lantern; the chapel, the Lantern Inn and the large house open onto it. **Bell Street** and **Ferry Lane** (3 wide) run up to the **North Road** on the shore, east to the bridge and Nella. **Gate Walk** (6 wide) runs south to the gate. **Gate Road** (3 wide) runs along the inside of the wall: two houses, Willowmere Goods, the smithy and the library open onto it. **Orchard Lane** runs west to the Downs join past the hero's home and the bakery; the orchard green with two houses is north west. No one-tile back lanes; `qa/world/willowmere.test.mjs` checks every NPC, door, mark, join and sign is reachable on foot from the arrival (20, 24).
 
 | npc id | name | where | roles | trainer |
 |---|---|---|---|---|
 | `mael` | Elder Mael | the well, Lantern Square | quest | |
-| `hob` | Hob | the Lantern Inn | quest, innkeeper (rest, bind) | |
+| `hob` | Hob | the Lantern Inn door, on the square | quest, innkeeper (rest, bind) | |
 | `holt` | Sergeant Holt | south gate | quest, trainer | Warden |
-| `hazel` | Hazel | her house by the square | trainer | Mender |
-| `iris` | Iris | the library | trainer | Scribe |
-| `tess` | Tess | south square | trainer | Wayfinder |
-| `sloe` | Sloe (new) | the Lantern Inn cellar stair | trainer | Inkblade |
-| `mira` | Mira | the library | quest | |
+| `hazel` | Hazel | the hero's home door, Orchard Lane | trainer | Mender |
+| `iris` | Iris | the library door, Gate Road | trainer | Scribe |
+| `tess` | Tess | by the south gate, Gate Road | trainer | Wayfinder |
+| `sloe` | Sloe (new) | the Lantern Inn corner, on the square | trainer | Inkblade |
+| `mira` | Mira | the library door, Gate Road | quest | |
 | `bram` | Bram | south gate, beside Holt | quest | |
-| `oren` | Oren | the bakery | quest, vendor (honey roll) | |
-| `garrick` | Garrick | the smithy | quest, vendor (plate, mail, swords, shields) | |
-| `pell` | Pell | Willowmere Goods | quest, vendor (general goods, cloth, leather, bows, daggers, rods, quills, bags) | |
+| `oren` | Oren | the bakery door, Orchard Lane | quest, vendor (honey roll) | |
+| `garrick` | Garrick | the smithy door, Gate Road | quest, vendor (plate, mail, swords, shields) | |
+| `pell` | Pell | the Willowmere Goods door, Gate Road | quest, vendor (general goods, cloth, leather, bows, daggers, rods, quills, bags) | |
 | `cobb` | Cobb | his farm gate (valley side of the south gate) | quest | |
-| `nella` | Nella | the ferry landing | quest | |
-| `lark`, `wick`, `pip`, `edda` | | as in LQ | ambient, talk lines | |
+| `nella` | Nella | the bridge on the North Road | quest | |
+| `lark`, `wick`, `pip`, `edda` | | the square (Pip at the chapel door, with the bounty board), Edda on the North Road | ambient, talk lines | |
 
 ### 2.2 Willowmere Valley: target **96 x 64 tiles**, grows from LQ `valley` (60 x 40)
 Scale LQ's layout about 1.6 times and keep its bones: the river north to south through the middle, the stone bridge,

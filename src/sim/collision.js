@@ -78,3 +78,52 @@ export function spotFree(zone, tx, ty) {
   const x = tx * TILE + TILE / 2, y = (ty + 1) * TILE - SUB;
   return !boxBlocked(zone, x, y, 0, 0, -99999, -99999, null);
 }
+
+// zone -> Uint8Array of the cells reachable on foot from the zone's arrival (1 = reachable); built once per zone
+const reachCache = new WeakMap();
+function reachFromArrival(zone) {
+  if (reachCache.has(zone)) return reachCache.get(zone);
+  let seen = null;
+  if (zone.arrival && zone.collision) {
+    const [ax, ay] = zone.arrival;
+    seen = new Uint8Array(zone.w * zone.h);
+    const q = [[ax, ay]];
+    if (ax >= 0 && ay >= 0 && ax < zone.w && ay < zone.h) seen[ay * zone.w + ax] = 1; else q.pop();
+    while (q.length) {
+      const [x, y] = q.pop();
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= zone.w || ny >= zone.h || seen[ny * zone.w + nx]) continue;
+        const c = zone.collision[ny][nx], ld = LEDGE_DIR[c];
+        if (c !== WALK && !(ld && ld[0] === dx && ld[1] === dy)) continue;
+        seen[ny * zone.w + nx] = 1;
+        q.push([nx, ny]);
+      }
+    }
+  }
+  reachCache.set(zone, seen);
+  return seen;
+}
+
+/**
+ * Where a restored hero stands (a save holds the tile they logged out on). The saved tile when the feet box is free
+ * there; otherwise (the map changed under the save: the tile is now inside a building, a fence, water) the nearest tile,
+ * ring by ring, that is free and reachable on foot from the zone's arrival; failing that the arrival. Returns [tx, ty].
+ */
+export function standTile(zone, tx, ty) {
+  if (!zone || !zone.collision) return [tx, ty];
+  if (spotFree(zone, tx, ty)) return [tx, ty];
+  const seen = reachFromArrival(zone);
+  const ok = (x, y) => x >= 0 && y >= 0 && x < zone.w && y < zone.h && (!seen || seen[y * zone.w + x] === 1) && spotFree(zone, x, y);
+  const R = Math.max(zone.w, zone.h);
+  for (let d = 1; d <= R; d++) {
+    let best = null, bestD = Infinity;
+    for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== d || !ok(tx + dx, ty + dy)) continue;
+      const e = dx * dx + dy * dy;
+      if (e < bestD) { bestD = e; best = [tx + dx, ty + dy]; }
+    }
+    if (best) return best;
+  }
+  return zone.arrival ? [zone.arrival[0], zone.arrival[1]] : [tx, ty];
+}

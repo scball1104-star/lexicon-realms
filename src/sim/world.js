@@ -18,7 +18,7 @@
 // (cast = GCD check + cast_start/cast_stop 'stub', mobs only wander), so the zone-only content still runs.
 import { createRng } from './rng.js';
 import { SUB, TILE, PLAYER_SPEED, DIAG, GCD_TICKS, INTERACT_RANGE_PX, TARGET_RANGE_PX } from './constants.js';
-import { moveAxis, feetTile, inJoin, spotFree, boxBlocked } from './collision.js';
+import { moveAxis, feetTile, inJoin, spotFree, boxBlocked, standTile } from './collision.js';
 import { mobThink, createAi } from './ai.js';
 import { hashString } from './hash.js';
 import { distPx, distPxXY, dirFromVec } from './geom.js';
@@ -255,7 +255,10 @@ function wrap(state, content, rng, systems) {
      */
     addPlayer(spec = {}) {
       const st = content.start;
-      const e = baseEntity(state.nextId++, 'player', spec.zone || st.zone, spec.x ?? st.x, spec.y ?? st.y);
+      const zid = spec.zone || st.zone;
+      // a saved tile that is no longer free (the map changed under the save) starts on the nearest walkable tile
+      const [px, py] = spec.x != null && spec.y != null && content.zones[zid] ? standTile(content.zones[zid], spec.x, spec.y) : [spec.x ?? st.x, spec.y ?? st.y];
+      const e = baseEntity(state.nextId++, 'player', zid, px, py);
       Object.assign(e, {
         name: spec.name || 'Hero', cls: spec.cls || 'warden', look: spec.look || 0, level: 1, xp: 0,
         faction: 'player', sprite: 'hero', hp: 100, hpMax: 100, res: { kind: 'mana', cur: 100, max: 100 }, dir: 'up',

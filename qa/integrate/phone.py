@@ -129,7 +129,9 @@ def run():
         log('  joystick moved px', moved)
         assert moved > 20, 'the joystick walks'
         hob = ph.ev('__drv.npc("hob")')
-        ph.walk('willowmere', hob['tx'], hob['ty'], near=2)
+        # stand beside Hob, not in front of him (a hero one row south is drawn over his body and takes the tap)
+        side = ph.ev('(h) => { const z = window.__realms.content.zones.willowmere; const ok = (x, y) => z.collision[y] && z.collision[y][x] === "."; for (const d of [-2, 2, -3, 3]) if (ok(h.tx + d, h.ty)) return [h.tx + d, h.ty]; return null; }', hob)
+        ph.walk('willowmere', side[0], side[1], near=0) if side else ph.walk('willowmere', hob['tx'], hob['ty'], near=2)
         time.sleep(0.3)
         ph.tap(ph.ev(f'__drv.entCss({hob["id"]})'), 0.6)     # tap a person to talk
         d = ph.ev('__drv.dialog()')
