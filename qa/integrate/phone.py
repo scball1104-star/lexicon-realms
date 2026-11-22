@@ -16,7 +16,7 @@ from playwright.sync_api import sync_playwright
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 OUT = os.path.join(ROOT, 'qa', 'out', 'integrate')
 os.makedirs(OUT, exist_ok=True)
-BASE = 'http://127.0.0.1:8790/index.html'
+BASE = f"http://127.0.0.1:{int(os.environ.get('PORT', '8790'))}/index.html"   # PORT=8794 for a second tree's server
 GPU = ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-gpu-rasterization']
 DRV = open(os.path.join(os.path.dirname(__file__), 'drv.js'), encoding='utf-8').read()
 errors, steps = [], []

@@ -69,6 +69,9 @@ export function createQuests(Q) {
   const emit = (ev) => Q.emit(ev);
   const ensure = (p) => { if (!p.quests) p.quests = {}; if (!p.questsDone) p.questsDone = []; if (!p.nodesUsed) p.nodesUsed = []; return p; };
   const done = (p, id) => ensure(p).questsDone.includes(id);
+  // a story chain step counts as done when the hero has done or holds a LATER step of it (src/data/worldlife.js storyLater):
+  // a save that finished part of a chain out of order is never locked out by the prerequisites the chain added
+  const doneOrLater = (p, id) => done(p, id) || ((C.storyLater || {})[id] || []).some((x) => done(p, x) || !!p.quests[x]);
   const active = (p) => ORDER.filter((id) => ensure(p).quests[id]);
 
   // ---------------------------------------------------------------- status
@@ -81,7 +84,7 @@ export function createQuests(Q) {
     if (s) return s.state === 'ready' ? 'ready' : 'active';
     if (q.bounty && !bountiesToday().includes(id)) return 'locked';   // not on the board today
     const req = q.requires || {};
-    if ((req.quests || []).some((r) => !done(p, r))) return 'locked';
+    if ((req.quests || []).some((r) => !doneOrLater(p, r))) return 'locked';
     if (req.cls && req.cls !== p.cls) return 'locked';
     if (p.level < (req.level || q.minLevel || 1)) return 'soon';
     return 'available';

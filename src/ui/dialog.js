@@ -83,6 +83,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     if (!q) { d.page = 'main'; return; }
     const ready = d.turnins.includes(q.id), offer = d.offers.includes(q.id);
     for (const ln of g.wrap(q.name, w0, true)) { g.text(ctx, ln, x0, y, 'gold', { large: true }); y += 15; }
+    if (q.story) { g.text(ctx, g.clip(`${q.story.name}, part ${q.story.step} of ${q.story.of}`, w0), x0, y, 'gray'); y += 11; }   // a story chain (src/data/story_chains.js)
     const text = (ready ? q.text.complete : offer ? q.text.offer : q.text.progress) || '';
     // long text pages: the rest waits behind "more" (tap or click the text, or scroll) instead of being cut
     const objH = offer ? 11 + q.objectives.length * 11 : 0;

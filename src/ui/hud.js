@@ -47,6 +47,8 @@ const hit = (a, b) => !!a && !!b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < 
 
 const CH_COLOR = { system: 'gold', combat: 'gray', damage_in: 'red', damage_out: 'white', heal: 'green', party: 'blue', say: 'white', loot: 'green', xp: 'violet', error: 'red' };
 
+// world life (src/data/worldlife.js): the rare foe's silver and the rested blue
+export const RARE_SILVER = '#d4dce8', REST_BLUE = '#9fc4ff';
 export function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }
 
 /** Draw a tooltip box near (x, y), kept on screen. tip: { title, right, sub, body, foot, footColor, lines }. */
@@ -148,14 +150,16 @@ export function createHud(env) {
     const headOk = (t.npc && g.head(ctx, t.npc, r.x + 6, r.y + 6)) || (t.head && g.head(ctx, t.head, r.x + 6, r.y + 6));
     if (!headOk) { g.rect(ctx, r.x + 6, r.y + 6, 12, 12, '#14101e'); g.rect(ctx, r.x + 7, r.y + 7, 10, 10, '#251d34'); g.text(ctx, '?', r.x + 10, r.y + 6, 'gray'); }
     if (t.elite || t.boss) g.icon(ctx, 'elite_mark', r.x + 6, r.y + 1);
+    else if (t.rare) rareMark(ctx, r.x + 6, r.y + 2);           // a rare named foe: the silver mark (src/data/rares.js)
     const lv = t.boss ? 'Boss' : `Lv ${t.level}`;
     const lvW = g.textW(lv);
-    g.text(ctx, g.clip(t.name, r.w - 22 - 7 - lvW - 4), r.x + 22, r.y + 4, t.elite || t.boss ? 'gold' : 'white');
+    g.text(ctx, g.clip(t.name, r.w - 22 - 7 - lvW - 4), r.x + 22, r.y + 4, t.elite || t.boss ? 'gold' : t.rare ? RARE_SILVER : 'white');
     g.text(ctx, lv, r.x + r.w - 7, r.y + 4, hostile ? 'orange' : 'gold', { align: 'right' });
     g.gauge(ctx, r.x + 22, r.y + 17, r.w - 66, t.hpFrac, 'hp');
     g.text(ctx, t.dead ? 'Dead' : `${t.hpPct}%`, r.x + r.w - 7, r.y + 15, 'white', { align: 'right' });
     if (t.elite && !t.boss) g.text(ctx, 'Elite', r.x + 22, r.y + 22, 'gold');
-    let ax = r.x + 22 + (t.elite && !t.boss ? 26 : 0);
+    else if (t.rare) g.text(ctx, 'Rare', r.x + 22, r.y + 22, RARE_SILVER);
+    let ax = r.x + 22 + ((t.elite && !t.boss) || t.rare ? 26 : 0);
     for (const a of (t.auras || []).slice(0, 8)) { const ic = `st8_${a.icon || a.id}`; if (g.frame(ic)) { g.icon(ctx, ic, ax, r.y + 24); ax += 9; } }
   }
 
@@ -284,11 +288,23 @@ export function createHud(env) {
     const LW = L.W || W;
     g.scrim(ctx, 0, y - 3, LW, 13, 170);
     g.text(ctx, `Lv ${p.level}`, 4, y - 3, 'gold');
-    const label = p.xpToLevel ? `${fmtInt(p.xp)} / ${fmtInt(p.xpToLevel)} XP` : 'Max level';
+    // rest XP (src/sim/worldlife.js): "Rested" and the banked part as the lighter segment past the fill; "zz" where the
+    // hero would rest if they logged out here (a town, a hub, beside a lantern)
+    const rest = p.rest || null, banked = rest && p.xpToLevel ? rest.banked || 0 : 0;
+    const label = p.xpToLevel ? `${banked > 0 ? 'Rested  ' : ''}${fmtInt(p.xp)} / ${fmtInt(p.xpToLevel)} XP` : 'Max level';
     const lw = g.textW(label);
-    const gx = 34, gw = LW - 4 - lw - 8 - gx;
-    g.gauge(ctx, gx, y, gw, p.xpToLevel ? p.xp / p.xpToLevel : 1, 'exp');
-    g.text(ctx, label, LW - 4, y - 3, 'white', { align: 'right' });
+    const zz = rest && rest.resting ? 12 : 0;
+    const gx = 34, gw = LW - 4 - lw - 8 - gx - zz;
+    g.gauge(ctx, gx, y, gw, p.xpToLevel ? p.xp / p.xpToLevel : 1, 'exp', false, banked > 0 ? Math.min(1, (p.xp + banked) / p.xpToLevel) : null);
+    g.text(ctx, label, LW - 4, y - 3, banked > 0 ? REST_BLUE : 'white', { align: 'right' });
+    if (zz) g.text(ctx, 'zz', gx + gw + 3, y - 4, REST_BLUE);
+  }
+  /** The rare's mark on the target frame: a small silver diamond (the elite's is the gold dragon). */
+  function rareMark(ctx, x, y) {
+    g.rect(ctx, x + 4, y, 3, 1, '#14101e'); g.rect(ctx, x + 2, y + 1, 7, 1, '#14101e'); g.rect(ctx, x, y + 2, 11, 3, '#14101e');
+    g.rect(ctx, x + 2, y + 5, 7, 1, '#14101e'); g.rect(ctx, x + 4, y + 6, 3, 1, '#14101e');
+    g.rect(ctx, x + 4, y + 1, 3, 1, RARE_SILVER); g.rect(ctx, x + 2, y + 2, 7, 3, RARE_SILVER); g.rect(ctx, x + 4, y + 5, 3, 1, RARE_SILVER);
+    g.rect(ctx, x + 4, y + 2, 2, 1, '#ffffff');
   }
 
   function chat(ctx, L, lines, st, regions, fade) {
@@ -420,7 +436,10 @@ export function createHud(env) {
       if (region.kind === 'attack') return autoTooltip(liveStats(m), m.player.cls);
       if (region.kind === 'xp' && m.player.xpToLevel) {
         const left = m.player.xpToLevel - m.player.xp;
-        return { title: `Level ${m.player.level}`, sub: `${fmtInt(m.player.xp)} of ${fmtInt(m.player.xpToLevel)} XP`, body: `${fmtInt(left)} XP to level ${m.player.level + 1}.` };
+        const rest = m.player.rest || {};
+        const rested = rest.banked > 0 ? ` Rested: kills give double experience for ${fmtInt(rest.banked)} more.` : '';
+        const zz = rest.resting ? ' You are resting here: time away from the game banks rest.' : '';
+        return { title: `Level ${m.player.level}`, sub: `${fmtInt(m.player.xp)} of ${fmtInt(m.player.xpToLevel)} XP`, body: `${fmtInt(left)} XP to level ${m.player.level + 1}.${rested}${zz}` };
       }
       if (region.kind === 'minimap' && m.zone) return { title: m.zone.name, sub: 'Click to open the world map (M).' };
       return null;

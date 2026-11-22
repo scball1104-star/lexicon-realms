@@ -34,6 +34,7 @@ import { createStorage } from './storage.js';
 import { rollKill, rollGear, bagAdd, bagRemove, bagFree, resolveItem, ensureUids, migrateQuestItems, bagFindUid } from './loot.js';
 import { createDungeons, withCopies } from './dungeons.js';
 import { dayFraction, isNight } from './clock.js';
+import { createWorldLife } from './worldlife.js';
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -122,7 +123,8 @@ function wrap(state, content0, rng, systems) {
     C.prog = createProgression(C);
     C.b2 = createBuilds2(C);                 // Builds 2 (off unless content.progression.builds2.enabled)
     C.hud = createHud(C);
-    C.onDeath = (dst, killer) => { C.prog.onDeath(dst, killer); if (dst.kind === 'mob') questKill(dst, killer); };
+    C.life = createWorldLife(C);             // rares, rest XP, story cards, Night at the Stones (src/sim/worldlife.js)
+    C.onDeath = (dst, killer) => { C.prog.onDeath(dst, killer); if (dst.kind === 'mob') { C.life.onMobDeath(dst); questKill(dst, killer); } };
     C.onDamaged = (e) => { if (QS) QS.onDamaged(e); };
     C.spawnMobEnt = (spec) => spawnMob(spec);
   }
@@ -156,6 +158,7 @@ function wrap(state, content0, rng, systems) {
     if (!content.items) return;
     const drop = rollKill({ content, rng, questNeeds: QS ? QS.needsItem : () => false }, mob, p);
     if (DG) DG.onKill(mob, p, drop);                 // a boss's named piece, set piece, rare, legendary roll; the daily chest
+    if (combatOn) C.life.extraLoot(mob, p, drop);   // a rare's named item and blue piece; Night at the Stones gear
     const got = [], pending = [];
     for (const it of drop.items) {
       const n = bagAdd(p, it.item, it.qty, it.inst || null, content);
@@ -325,6 +328,7 @@ function wrap(state, content0, rng, systems) {
         e.hp = e.hpMax;
         if (e.res && e.res.kind === 'mana') e.res.cur = e.res.max;
         restoreVitals(e, spec);
+        C.life.restore(e, spec);                   // the rest XP bank (save `rest`, missing = 0) plus the time away
         if (ST) ST.restore(e, spec);               // the hero's chest tab and glyph pouch (missing = empty)
       }
       add(e);
@@ -358,6 +362,7 @@ function wrap(state, content0, rng, systems) {
       if (e.chest) out.chest = clone(e.chest);   // the hero's Lantern Chest tab (the Shared tab is NOT here: w.shared())
       if (e.gbag && e.gbag.length) out.gbag = clone(e.gbag);   // the glyph pouch
       if (e.barOff && e.barOff.length) out.barOff = [...e.barOff];   // skills taken off the bar (bar_set null on a skill)
+      const rest = C.life.saveOf(e); if (rest) out.rest = rest;      // rest XP banked (missing = none)
       return out;
     },
     get(id) { return index.get(id) || null; },
@@ -437,6 +442,7 @@ function wrap(state, content0, rng, systems) {
       if (combatOn) C.combat.tickWorld();
       if (QS) QS.tick();
       if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
+      if (combatOn) C.life.tick(events);
       // 4) systems (quests): read this tick's events, may call grantXp / emit
       for (const s of systems) if (s && s.tick) s.tick(w, events);
       state.rng = rng.state;
@@ -462,6 +468,7 @@ function wrap(state, content0, rng, systems) {
           const h = C.hud.build(e);
           const zz = content.zones[e.zone] || {};
           h.zone = (DG && DG.info(e.zone)) || { id: e.zone, base: e.zone, kind: zz.kind || 'field', name: zz.name || '', levels: zz.levels ? [...zz.levels] : null };
+          h.rest = C.life.hudOf(e);
           if (QS) {
             h.quests = QS.tracker(e);
             h.npcMarkers = {};
@@ -949,6 +956,7 @@ function wrap(state, content0, rng, systems) {
       o.elite = !!(e.mob && e.mob.elite); o.mobKind = e.mob ? e.mob.kind : 'normal'; o.pack = (e.spawn && e.spawn.pack) || null;
       const mt = (content.mobs || {})[e.template] || {};
       o.rank = mt.boss ? 'boss' : o.elite ? 'elite' : (e.mob && e.mob.kind === 'weak') ? 'weak' : 'normal';
+      if (mt.rare) o.rare = true;                // a rare named foe (src/data/rares.js): the silver mark
       o.aggro = e.ai && e.ai.mode === 'combat' ? e.ai.target : null; o.aiMode = e.ai ? e.ai.mode : null;
     }
     if (e.kind === 'object' && e.node) {

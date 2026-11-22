@@ -27,6 +27,7 @@ import { routeKey, rebind, effectiveBinds, keyLabel } from './keymap.js';
 import { eventLines } from './eventlog.js';
 import { drawDialog, dialogFromInteract, dialogRectFor } from './dialog.js';
 import { drawChest, drawPouch } from './chest.js';
+import { drawStoryCard } from './worldlife_ui.js';
 import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
@@ -409,6 +410,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (st.itemDrag && st.itemDrag.active) g.iconIn(ctx, st.itemDrag.icon || 'icon_book', Math.round(st.itemDrag.x) - 11, Math.round(st.itemDrag.y) - 11, 22, 22);
     if (st.hint && t - st.hint.t0 > 30) st.hint = null;
     if (st.levelUp && t - st.levelUp.t0 > 6) st.levelUp = null;
+    if (st.story && st.mode === 'game') drawStoryCard(ctx, g, L, st, regions);   // the end of a story chain (worldlife_ui.js)
     if (st.banner && st.banner.until > t && st.mode === 'game') {
       const bw = Math.min(L.W - 8, Math.max(g.textW(st.banner.title), g.textW(st.banner.sub || '')) + 28), bh = st.banner.sub ? 32 : 20;
       const bx = Math.floor((L.W - bw) / 2), by = L.touch ? Math.floor(L.H * 0.3) : dOrg(L).y + 70;
@@ -991,6 +993,16 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         return;
       case 'quest_hook':
         if (ev.id === me) for (const l of ev.lines || []) say('say', l);
+        return;
+      // world life (src/sim/worldlife.js): the story card, coming back rested, Night at the Stones
+      case 'story':
+        if (ev.id === me) st.story = { title: ev.title, lines: ev.lines || [], until: st.now + 40 };
+        return;
+      case 'rest':
+        if (ev.id === me && ev.gained > 0) toast('Rested: your kills give double experience for a while', 4);
+        return;
+      case 'world_event':
+        if (ev.text) toast(ev.text, 5);
         return;
       default:
     }
