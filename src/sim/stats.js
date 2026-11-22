@@ -24,6 +24,14 @@ export function createStats(C) {
     return null;
   }
 
+  /** The powers of the legendary items `e` wears (src/data/items.js `power`), in slot order. */
+  function powersOf(e) {
+    const items = C.content.items || {};
+    const out = [];
+    for (const id of e.powers || []) { const d = items[id]; if (d && d.power) out.push(d.power); }
+    return out;
+  }
+
   function isSolo(e) {
     for (const u of C.state.ents) if (u.kind === 'player' && u !== e && !u.dead && u.zone === e.zone && distPx(u, e) <= 256) return false;
     return true;
@@ -113,6 +121,12 @@ export function createStats(C) {
         if (m.mul != null) mul *= Math.pow(m.mul, n);
       }
     }
+    // legendary item powers worn (src/data/legendary_powers.js; recalcPlayer lists the item ids on e.powers)
+    if (e.powers) for (const pw of powersOf(e)) for (const m of pw.mods || []) {
+      if (m.stat !== stat || !matches(m, ctx) || !cond(e, m.when, ctx)) continue;
+      if (m.add != null) add += m.add;
+      if (m.mul != null) mul *= m.mul;
+    }
     for (const a of e.auras) {
       const mods = a.def.mods;
       if (!mods) continue;
@@ -152,6 +166,8 @@ export function createStats(C) {
     const st = {};
     for (const k of ['str', 'agi', 'int', 'spi', 'sta']) st[k] = Math.floor(cls.base[k] + cls.perLevel[k] * (L - 1));
     let armor = 0, sp = 0, crit = 0, gearSpeed = 0, gearMana = 0;
+    const resist = {}, powers = [];
+    const RS = (C.content.resist && C.content.resist.stats) || {};
     let main = null, off = null;
     const items = C.content.items || {};
     const gearLevel = e.gearMode === 'design' ? (e.designGear || L) : null;
@@ -176,7 +192,9 @@ export function createStats(C) {
         for (const [k, v] of Object.entries(it.stats || {})) {
           if (k in st) st[k] += v; else if (k === 'sp') sp += v; else if (k === 'crit') crit += v / 100;
           else if (k === 'speed') gearSpeed += v / 100; else if (k === 'mana') gearMana += v;
+          else if (RS[k]) for (const sc of RS[k]) resist[sc] = (resist[sc] || 0) + v / 100;      // resist affixes (src/data/resist.js)
         }
+        if (it.power && !powers.includes(it.id)) powers.push(it.id);                               // a legendary's power
         if (it.damage && (slot === 'main' || slot === 'two')) main = { type: it.weaponType, min: it.damage[0], max: it.damage[1], speed: it.speed };
         if (it.damage && slot === 'off') off = { type: it.weaponType, min: it.damage[0], max: it.damage[1], speed: it.speed };
       }
@@ -190,6 +208,8 @@ export function createStats(C) {
     const spv = cls.spPerInt ? cls.spPerInt * st.int + sp : sp;
     e.stats = st;
     e.derived = { ap, sp: spv, crit: (cls.critBase || 0.05) + crit, block: cls.blockBase || 0, hpMax, gearSpeed };
+    if (Object.keys(resist).length) e.derived.resist = resist;
+    if (powers.length) e.powers = powers; else if (e.powers) delete e.powers;
     e.weapon = { main, off };
     const frac = e.hpMax > 0 ? e.hp / e.hpMax : 1;
     e.hpMax = hpMax;
@@ -250,6 +270,14 @@ export function createStats(C) {
     e.derived = { ap: 0, sp: 0, crit: 0, block: 0, hpMax };
     e.mob = { kind, kinds, elite, damage: dmg, attackSpeed: (t.attackSpeed || c.attackSpeed) * swingM, school: t.school || 'physical',
       physReduce, family: t.family || e.template, traits, plating, speedMult: speedM, unblockable, drain, snareMult };
+    // the hit table (src/data/hittable.js, src/data/resist.js): a boss crits more, an armed foe parries, resists by school
+    const HT = C.content.hitTable, RZ = C.content.resist;
+    if (t.boss) e.mob.boss = true;
+    if (HT && (t.armed || (HT.armed || []).includes(e.template))) e.mob.armed = true;
+    if (RZ || t.resist) {
+      const r = { ...((RZ && RZ.family && RZ.family[t.family]) || {}), ...((RZ && RZ.template && RZ.template[e.template]) || {}), ...(t.resist || {}) };
+      if (Object.keys(r).length) e.mob.resist = r;
+    }
     e.hpMax = hpMax;
     if (e.hp > hpMax || e.hp <= 0 || e.hp == null) e.hp = hpMax;
   }
@@ -259,5 +287,5 @@ export function createStats(C) {
     else if (e.kind === 'mob') recalcMob(e);
   }
 
-  return { mod, cond, slowOf, hasFlag, findAura, recalc, weaponFor, isSolo };
+  return { mod, cond, slowOf, hasFlag, findAura, recalc, weaponFor, isSolo, powersOf };
 }

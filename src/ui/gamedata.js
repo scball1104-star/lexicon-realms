@@ -5,6 +5,7 @@
 // once at boot and their entries override the design text field by field (names, costs, icons, tree shape).
 import { DESIGN_DATA } from './design_data.js';
 import { B2_ABILITIES } from '../data/builds2.js';
+import { POWER_ABILITY_NAMES } from '../data/legendary_powers.js';
 
 // PLACEHOLDER until the sim exposes xpToLevel: docs/design/PROGRESSION.md section 1 (XP to next, levels 1..19; cap 20).
 export const XP_TO_NEXT = [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080, 6720, 7390, 8100, 8830, 9600];
@@ -18,11 +19,11 @@ export const resourceWord = (kind) => RESOURCE_WORD[kind] || (kind ? kind[0].toU
 // the raw content abilities (effects, coefficients) and the mob abilities, for live tooltips and log names
 let CONTENT_AB = {}, MOB_AB = {};
 // Builds 2's new skills (the Blessings) join the UI's table too, so their names, icons and tooltips show (the sim gates who learns them)
-export function setAbilityContent(abilities, mobAbilities) { CONTENT_AB = { ...B2_ABILITIES, ...(abilities || {}) }; MOB_AB = mobAbilities || {}; }
+export function setAbilityContent(abilities, mobAbilities) { CONTENT_AB = { ...B2_ABILITIES, ...POWER_ABILITY_NAMES, ...(abilities || {}) }; MOB_AB = mobAbilities || {}; }
 /** Display name of any ability id, player or mob; null for auto-attack and unknown ids (never the raw id). */
 export function abilityName(id) {
   if (!id || id === 'auto') return null;
-  const a = D.abilities[id] || CONTENT_AB[id] || MOB_AB[id];
+  const a = D.abilities[id] || CONTENT_AB[id] || MOB_AB[id] || POWER_ABILITY_NAMES[id];     // legendary powers' log names
   if (a && a.name) return a.name;
   return null;
 }
@@ -374,10 +375,11 @@ export function itemInfo(ref) {
   if (typeof ref === 'object') return ref.item && typeof ref.item === 'string' ? ITEMS[ref.item] || { id: ref.item, name: ref.item } : ref;
   return ITEMS[ref] || { id: ref, name: ref };
 }
-// CONTRACTS rarity names on Lexicon Quest's rarity colours (assets/ui/ui.json "rarity": common, magic, rare, legendary,
-// set). LQ has no "uncommon"/"epic" words, so: uncommon = LQ magic (blue), epic = LQ set (green).
-export const RARITY_COLOR = { junk: '#8e8997', common: '#e8e8e8', uncommon: '#6f8cff', rare: '#ffd34d', epic: '#3cdc6a', legendary: '#ff8a2a' };
-export const RARITY_NAME = { junk: 'Junk', common: 'Common', uncommon: 'Uncommon', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+// The sim's rarity ids (src/data/items.js RARITY) on Lexicon Quest's rarity colours (assets/ui/ui.json "rarity"): common,
+// magic (blue), rare (gold), epic (purple, 2026-11-22), legendary (orange), set (green). `uncommon` stays as an alias of
+// magic for older UI placeholders.
+export const RARITY_COLOR = { junk: '#8e8997', common: '#e8e8e8', magic: '#6f8cff', uncommon: '#6f8cff', rare: '#ffd34d', epic: '#a335ee', legendary: '#ff8a2a', set: '#3cdc6a' };
+export const RARITY_NAME = { junk: 'Junk', common: 'Common', magic: 'Magic', uncommon: 'Magic', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', set: 'Set' };
 
 /** PLACEHOLDER base stats at a level from CLASSES.md (floor(base + growth * (L - 1))) until the snapshot has `stats`. */
 export function statsAt(cls, level) {

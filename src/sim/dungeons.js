@@ -220,8 +220,9 @@ export function createDungeons(D) {
       const d = dun(p);
       const chance = Math.min(1, place.legend.chance + place.legend.step * (d.miss || 0));
       if (rng.chance(chance)) {
-        drop.items.push(piece(place.legendary, p.cls));
-        emit({ type: 'legendary', id: p.id, item: place.legendary, place: place.id, chance, misses: d.miss || 0 });
+        const lid = Array.isArray(place.legendary) ? pickFor(place.legendary, p.cls) : place.legendary;     // a list: one the killer can use
+        drop.items.push(piece(lid, p.cls));
+        emit({ type: 'legendary', id: p.id, item: lid, place: place.id, chance, misses: d.miss || 0 });
         d.miss = 0;
       } else d.miss = (d.miss || 0) + 1;
     }

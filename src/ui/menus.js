@@ -26,7 +26,8 @@ export function frame(ctx, env, r, title, regions, act, id) {
   regions.push({ rect: cr, kind: 'button', on: () => act.close(id), tip: { title: 'Close', sub: 'Esc' } });
 }
 
-const STAT_NAME = { str: 'Strength', agi: 'Agility', int: 'Intellect', spi: 'Spirit', sta: 'Stamina' };
+const STAT_NAME = { str: 'Strength', agi: 'Agility', int: 'Intellect', spi: 'Spirit', sta: 'Stamina',
+  resInk: 'Ink Resistance', resShadow: 'Shadow Resistance', resLight: 'Light Resistance', resFire: 'Fire Resistance', resNature: 'Nature Resistance', resAll: 'All Resistances' };
 /** Green / red lines: what wearing `i` instead of `worn` changes (CRITIQUE_1 item 13). */
 export function compareLines(i, worn) {
   const w = worn ? itemInfo(worn) : null;
@@ -56,7 +57,7 @@ export function itemTooltip(it, extra, worn) {
   const body = [];
   if (i.damage) body.push(`${i.damage[0]} to ${i.damage[1]} damage, speed ${i.speed}`);
   if (i.armor) body.push(`${i.armor} armor`);
-  for (const [k, v] of Object.entries(i.stats || {})) body.push(`+${v} ${({ str: 'Strength', agi: 'Agility', int: 'Intellect', spi: 'Spirit', sta: 'Stamina' })[k] || k}`);
+  for (const [k, v] of Object.entries(i.stats || {})) body.push(`+${v}${k.startsWith('res') ? '%' : ''} ${STAT_NAME[k] || k}`);
   if (i.text) body.push(i.text);
   if (i.kind === 'quest') body.push('Quest item.');
   return { title: i.name, titleColor: RARITY_COLOR[i.rarity] || RARITY_COLOR.common, right: i.level ? `Lv ${i.level}` : '', sub,

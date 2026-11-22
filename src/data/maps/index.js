@@ -35,6 +35,8 @@ import { BUILDS2, RULES as BUILDS2_RULES, SKILL_PICKS, B2_ABILITIES } from '../b
 import { BOARDS, BOUNTIES, NAMED_SPAWNS } from '../bounties.js';
 import { STORAGE, LANTERN_CHESTS } from '../storage.js';
 import { applyWorldLife } from '../worldlife.js';
+import { HIT_CONTENT } from '../hittable.js';
+import { RESIST_CONTENT } from '../resist.js';
 
 // The four areas as generated (their own local tiles): tools, tests and the quest data's authoring helpers read these.
 export const REGIONS = { willowmere, valley, downs, moor };
@@ -109,6 +111,7 @@ export function buildContent() {
     mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES },
     mobs: MOBS, mobSprites: MOB_SPRITES, npcs: NPCS,
     items: ITEMS, rarity: RARITY, affixes: AFFIXES, dropRules: DROP_RULES, weaponTypes: WEAPON_TYPES, armorTypes: ARMOR_TYPES, classGear: CLASS_GEAR,
+    hitTable: HIT_CONTENT, resist: RESIST_CONTENT,        // the hit table and resistances (src/data/hittable.js, resist.js)
     // the chain (questOrder) plus the bounty boards' quests (BUILDS_2 5.6); boards: which npc posts which pools
     quests: worldQuests({ ...QUESTS, ...BOUNTIES, ...DUNGEON_QUESTS }), questOrder: QUEST_ORDER, comingLater: COMING_LATER, bounties: { boards: BOARDS },
     sideQuests: DUNGEON_QUEST_ORDER,           // offered after the chain and the bounties (src/data/dungeon_quests.js)

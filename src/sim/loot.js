@@ -173,6 +173,13 @@ export function rollGear(ctx, { ilvl, source = 'normal', cls = null, rarity = nu
 }
 
 // ---------------------------------------------------------------- a kill
+/** The drop band for a source ('normal' or 'elite') at a dropper's level: { gearChance, weights }, or null (no bands). */
+export function bandRule(rules, source, level) {
+  const list = rules && rules.bands && rules.bands[source];
+  if (!Array.isArray(list) || !list.length) return null;
+  const b = list.find(([upTo]) => level <= upTo) || list[list.length - 1];
+  return b[1];
+}
 /** The drop of a dead mob for `player` (its tagger). Grey mobs (5+ levels below) give coin only. */
 export function rollKill(ctx, mob, player) {
   const C = ctx.content;
@@ -195,8 +202,9 @@ export function rollKill(ctx, mob, player) {
   // gear
   const kinds = Array.isArray(t.kind) ? t.kind : [t.kind || 'normal'];
   const source = t.elite || kinds.includes('elite') ? 'elite' : kinds.includes('weak') ? 'weak' : 'normal';
-  const rule = C.dropRules[source];
-  if (ctx.rng.chance(rule.gearChance)) out.items.push(rollGear(ctx, { ilvl: L, source, cls: player ? player.cls : null }));
+  // BUILDS_2 6.8 drop pacing (src/data/items.js DROP_RULES.bands): the dropper's level picks the band; else the flat rule
+  const rule = bandRule(C.dropRules, source, L) || C.dropRules[source];
+  if (ctx.rng.chance(rule.gearChance)) out.items.push(rollGear(ctx, { ilvl: L, source, cls: player ? player.cls : null, rarity: weighted(ctx.rng, rule.weights) }));
   return out;
 }
 

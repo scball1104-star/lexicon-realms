@@ -7,13 +7,13 @@ const item = (id, name, icon, rarity, extra = {}) => ({ id, name, icon, rarity, 
 export const DEMO_ITEMS = [
   item('rusty_sword', 'Rusty Sword', 'icon16_sword', 'common', { kind: 'weapon', slot: 'main', weaponType: 'sword', damage: [3, 6], speed: 2.4 }),
   item('plank_shield', 'Plank Shield', 'icon_shield', 'common', { slot: 'off', armor: 14 }),
-  item('tess_gloves', "Tess's Patched Gloves", 'icon_charm', 'uncommon', { slot: 'hands', armor: 6, stats: { sta: 1, str: 1 } }),
+  item('tess_gloves', "Tess's Patched Gloves", 'icon_charm', 'magic', { slot: 'hands', armor: 6, stats: { sta: 1, str: 1 } }),
   item('willow_cloak', 'Willowbark Cloak of the Lantern Road', 'icon_mantle', 'rare', { slot: 'chest', armor: 21, stats: { sta: 3, spi: 2 } }),
   item('briar_helm', 'Briar Crown', 'icon_helm', 'epic', { slot: 'head', armor: 18, stats: { sta: 4, str: 3 } }),
   item('keeper_lamp', 'Lamp of the First Keeper', 'icon_lantern', 'legendary', { slot: 'trinket', stats: { int: 5, spi: 5 }, text: 'It was lit before the roads' }),
   item('minor_potion', 'Minor Healing Draught', 'icon_potion', 'common', { kind: 'consumable', use: { ability: 'minor_heal' }, value: 5 }),
   item('wolf_pelt', 'Thornback Wolf Pelt', 'icon_leaf', 'common', { kind: 'quest', value: 0 }),
-  item('ink_vial', 'Vial of Wet Ink', 'icon_ether', 'uncommon', { kind: 'junk', value: 3 }),
+  item('ink_vial', 'Vial of Wet Ink', 'icon_ether', 'magic', { kind: 'junk', value: 3 }),
   item('old_boots', 'Old Ferry Boots', 'icon_boots', 'common', { slot: 'feet', armor: 5 }),
 ];
 

@@ -8,6 +8,7 @@
 //   node qa/sim/builds2.mjs --cls warden,scribe --runs 6     some classes only (the gate needs all five)
 //   node qa/sim/builds2.mjs --runs 6 --pack also fights a 3-pack from level 3 (printed, not gated)
 //   node qa/sim/builds2.mjs --struggle      also each build against its class's BUILDS_2_PLAY struggle foe (gated: slower, never a wall)
+//   NO_HIT_TABLE=1 node qa/sim/builds2.mjs  the same without the live game's hit table (src/data/hittable.js), to compare
 //   import { runBuild, NAMED, NAMED_ALL, B2_LEVELS, bandOk } from './builds2.mjs'   (qa/sim/builds2.test.mjs)
 // Prints BUILDS2_DONE: cells=<n> runs=<n> solo_ok=<n> deaths=<n> target_ok=<n> spread_ok=<n> gate=<pass|FAIL> (machine-read
 // sentinel; read gate=, the exit code alone is not success).
@@ -36,7 +37,7 @@ const auraOn = (t, id, src) => t.auras.some((a) => a.id === id && (src == null |
 /** A Builds 2 Mender at `level` with `build` spent through the real rules. Returns the duel world. */
 export function makeHero(build, level, seed = 1, { x = 40, y = 15 } = {}) {
   const cls = build.cls || 'mender';
-  const d = duelWorld({ seed, cls, level, x, y, learnAll: false, builds2: true });
+  const d = duelWorld({ seed, cls, level, x, y, learnAll: false, builds2: true, hitTable: process.env.NO_HIT_TABLE !== '1' });   // the live game's hit table (src/data/hittable.js)
   const { world, p, C } = d;
   p.build.firstKill = true;
   p.build.leaning = build.id;

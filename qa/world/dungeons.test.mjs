@@ -207,7 +207,7 @@ export const tests = [
           const named = loot.filter((it) => C0.items[it.item].dungeon === id);
           const blue = named.filter((it) => C0.items[it.item].rarity === 'magic');
           if (b !== D.last) assert(blue.length >= 1, `${cls} ${b}: a blue (${JSON.stringify(loot.map((x) => x.item))})`);
-          else assert(named.some((it) => ['rare', 'legendary'].includes(C0.items[it.item].rarity)), `${cls} ${b}: a rare`);
+          else assert(named.some((it) => ['epic', 'legendary'].includes(C0.items[it.item].rarity)), `${cls} ${b}: an epic`);     // epic since 2026-11-22
           for (const it of named) {
             const def = C0.items[it.item];
             assert(!def.classes || def.classes.includes(cls), `${cls}: ${it.item} is for ${def.classes}`);

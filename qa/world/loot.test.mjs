@@ -34,7 +34,7 @@ export const tests = [
         const d = rollKill({ content: C, rng, questNeeds: () => false }, { template: 'sentinel_long_watch', level: 14 }, { level: 14, cls: 'warden' });
         const gear = d.items.filter((x) => x.inst);
         eq(gear.length, 1, 'the elite always drops one piece');
-        assert(['magic', 'rare'].includes(gear[0].inst.rarity), 'elite gear is magic or rare');
+        assert(['magic', 'rare', 'epic'].includes(gear[0].inst.rarity), 'elite gear is magic, rare or (a little) epic');
       }
     },
   },

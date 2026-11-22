@@ -298,7 +298,7 @@ object: {
   off, GCD, cooldown/charges, target, `requires`, range, line of sight, resource, moving. Cast-time spells pay and
   start their cooldown on completion; channels and instants at start. Moving breaks a cast-time spell or channel
   (`cast_stop` `move`); a stun, incapacitate or silence breaks it (`interrupt`); damage pushes a cast back 0.25 s, at
-  most twice per cast (talents cut it, Warding Word stops it); an `interrupt` effect locks that spell 3 s.
+  most twice per cast (talents cut it, Warding Word stops it); an `interrupt` effect locks that spell's whole school 3 s (2026-11-22).
 - **Range and sight**: feet point to feet point in px; line of sight samples the segment every 4 px against `'#'` cells
   (water and ledges do not block).
 - **Projectiles** (`projectile.speed` px/s) home on the target; effects land on arrival; a dead target drops them.
@@ -306,7 +306,8 @@ object: {
 - **Auto-attack**: per-hand swing timer from the weapon speed (Inkblade off hand 50% on its own timer); paused while
   casting; Wayfinder Auto Shot (range 9) only while standing still. Warden +10 Resolve per auto hit.
 - **Hit table**: one roll: block (Warden only, front 180 degrees, melee: -50% damage, +5 Resolve), then crit (players
-  5% + mods, x1.5), else hit. Miss, dodge and parry are 0 (OPEN_QUESTIONS Q11).
+  5% + mods, x1.5), else hit. Since 2026-11-22 a table runs first when content carries `hitTable` (miss, dodge, parry,
+  glancing, foe crits): see "Combat core" at the end.
 - **Mitigation**: physical damage x (1 - min(0.6, armor / (armor + 40 x attacker level + 100))); armored mobs a further
   -30%; level gap -5% per level the target is above you, +5% below (max 4); rounded, never below 1; absorbs eat it next.
 - **Threat**: damage x ability `threatMult` x class `threatMult` (Warden Guard 1.5) x `threat` mods; healing 0.5 per
@@ -558,7 +559,7 @@ export function mobStats(id, level)   // { level, hp, damage, attackSpeed, armor
 ### 7.4 `src/data/items.js` (LIVE, world wave)
 
 Rarity ids are Lexicon Quest's (OPEN_QUESTIONS Q9): `common` `#e8e8e8`, `magic` `#6f8cff`, `rare` `#ffd34d`,
-`legendary` `#ff8a2a`, `set` `#3cdc6a` (`RARITY`). No `uncommon`, no `epic`.
+`epic` `#a335ee` (purple, 2026-11-22), `legendary` `#ff8a2a`, `set` `#3cdc6a` (`RARITY`). No `uncommon`.
 
 ```js
 export const ITEMS = {
@@ -668,7 +669,7 @@ rewards: { questId: { xp, gold, items, choice: [{ item, inst (as this class woul
 | `cast_stop` | `src, ability, target, reason: 'done' \| 'interrupt' \| 'move' \| 'cancel' \| 'target' \| 'resource' \| 'death' \| 'stub'` |
 | `cast_fail` | `src, ability, reason: 'gcd' \| 'cooldown' \| 'range' \| 'resource' \| 'los' \| 'requires' \| 'combo' \| 'silenced' \| 'stunned' \| 'moving' \| 'busy' \| 'combat' \| 'target' \| 'unknown' \| 'dead'` |
 | `projectile` | `id, src, dst, ability ('auto' for Auto Shot), speed` (px/s; the damage lands on arrival) |
-| `damage` | `src, dst, ability \| 'auto', school, amount, crit, result: 'hit' \| 'block' \| 'immune', absorbed, blocked, overkill, periodic` |
+| `damage` | `src, dst, ability \| 'auto', school, amount, crit, result: 'hit' \| 'block' \| 'immune' \| 'miss' \| 'dodge' \| 'parry' \| 'resist', absorbed, blocked, overkill, periodic`, and only when set: `glancing: true`, `resisted: n` (a partial resist) |
 | `heal` | `src, dst, ability, amount, overheal, crit, periodic` |
 | `aura_add` / `aura_remove` | `dst, src, aura, stacks, until, refresh?` / `dst, aura, src, reason: 'expire' \| 'dispel' \| 'break' \| 'death' \| 'cancel' \| 'consume' \| 'moved'` |
 | `combo` | `id, target, n` (Ink Marks) |
@@ -1267,3 +1268,39 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   event's groups at night pay `xpBonus` and roll extra gear; `world_event { event, name, on, region, text }` at dusk and
   dawn (never on a world's first tick). State field `lifeNight`.
 - Events added: `story`, `world_event`, `rest { id, gained, banked, cap }` (on the first step after a rested hero joins).
+
+## Combat core: the hit table, resistances, school lockout, epic, item powers (2026-11-22, LIVE)
+
+- **Content**: `hitTable` (src/data/hittable.js `HIT_CONTENT`) and `resist` (src/data/resist.js `RESIST_CONTENT`), both
+  set by `buildContent()`. Content without them fights by the old rules (the qa fixtures default to off so the formula
+  tests keep exact numbers; `fixtureContent({ hitTable: true })`, `duelWorld({ hitTable: true })` and qa/sim/builds2.mjs
+  turn it on; `NO_HIT_TABLE=1 node qa/sim/builds2.mjs` compares).
+- **What is on the table**: an ability's own direct, single-target damage (`dealDamage` info `avoidable`, set by
+  `applyOne` when the context has an ability and no area, aura tick, copy or `fx.cannotMiss`), auto-attacks and foes'
+  melee swings. Never: DoT ticks, area attacks, procs, cleaves, pets and traps, scripts. One roll on its own stream
+  (`state.hitRng`, forked from the seed, saved with the state): miss, then dodge, then parry, then glancing; then block
+  and crit as before. `kind` = `melee` | `ranged` | `spell` (any non-physical school; a spell's miss is `result:
+  'resist'`). Miss by level gap both ways (`miss`, `spellMiss`, `foeMiss`). Foes dodge weapon blows from any side,
+  armed foes (`ARMED` or a template's `armed: true`) parry blows from the front. Heroes dodge from the front (2% +
+  agility x 0.05% + the `dodge` mod), the Warden and the Inkblade parry blows from the front (3% + the `parry` mod).
+  Glancing: a hero's melee auto-attack on a foe above them. Foes crit (5%, elites 8%, bosses 10%; never area attacks).
+  A missed blow still makes 1 threat and tags the foe; the defender's `dodge` / `parry` procs fire; the Warden keeps her
+  Resolve for a blow she turned. Riders (`ridersOnAvoid`): a debuff, interrupt or Ink Mark later in the same effect list
+  skips the target that avoided the blow. A skill that missed refunds 80% of the Resolve or Focus it cost. A stealth
+  opener (`opener`) is on the table like any blow. Heroes' weapon blows carry an equal-level pay (`equalLevelPay`,
+  `payLevels`), the Inkblade's dual-wield auto-attacks miss 6% more (`dualWieldMiss`).
+- **Resistances**: a foe's `mob.resist` (family, then template, then the template's own `resist`), a hero's
+  `derived.resist` from the gear affixes `resInk` `resShadow` `resLight` `resFire` `resNature` `resAll` (percentage points)
+  plus the `resist` mod. Any non-physical damage (ticks too) rolls a band of 0, 25, 50 or 75% around that average.
+- **Interrupts** lock the whole school of the interrupted spell (physical casts: only themselves): `e.schoolLock = {
+  school: untilTick }`, every known ability of that school gets the lock as its cooldown, `castAbility` fails with
+  `reason: 'locked'`. Event `school_lock { id, school, ability, until, by }`. The 110% melee / 130% ranged threat rule to
+  pull aggro was already live (`P.combat.threatSwitchMelee`, `threatSwitchRanged`, src/sim/ai.js `pickTarget`).
+- **Epic** rarity: 4 to 5 affixes (3 prefixes, 2 suffixes), sell x3.2. Drops: `DROP_RULES.bands` (BUILDS_2 6.8, by the
+  dropper's level, `loot.js bandRule`): elites 2 / 4 / 8 / 12% epic by band, normal kills from level 20; the dungeons'
+  last bosses' pool (`rare` in src/data/dungeons.js) is epic; a world rare's 1 in 20 extra piece is epic (src/data/rares.js).
+- **Item powers** (src/data/legendary_powers.js): an item's `power = { id, name, text, mods, procs }`; worn items' ids are
+  on `e.powers` (stats.js recalcPlayer); `stats.mod` adds the mods, `combat.procs` the procs (ICD key `power_<id>:<on>`,
+  or `icdKey`). Proc `on` adds `parry`; effect `resource` takes `kind: 'any'`. The five legendaries: Reeve's Tally Ring,
+  Bellwether's Last Toll (the Barrow), The Unsleeping Eye, Mantle of the Last Wick (the Watchtower), Hollowfang's
+  Mistwalkers (Tarn Hollow, new legendary roll). `legendary` in src/data/dungeons.js may be a list (one the killer can use).

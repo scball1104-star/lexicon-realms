@@ -71,6 +71,8 @@ export function planEvent(ev, ctx = {}) {
       else if (ev.amount > 0) {
         const style = ev.crit ? 'crit' : ev.dst === pid ? 'taken' : 'dmg';
         out.push({ kind: 'number', dst: ev.dst, text: String(Math.round(ev.amount)), style });
+        // the hit table (src/data/hittable.js): a glancing blow also floats LQ's WEAK word (a parry shows GUARD above)
+        if (ev.glancing) out.push({ kind: 'number', dst: ev.dst, text: '', style: 'word', word: 'WEAK' });
       } else if (ev.absorbed > 0) out.push({ kind: 'number', dst: ev.dst, text: '', style: 'word', word: 'GUARD' });
       break;
     }

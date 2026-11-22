@@ -17,7 +17,7 @@ export const RARE_RULES = {
   respawn: [30 * 60, 60 * 60],        // seconds of sim time, picked from the world seed and the kill count
   namedRarity: 'magic',               // the rare's own item (blue)
   extraRarity: 'magic',               // one more random piece for the looter's class (blue)
-  upgradeRarity: 'rare', upgradeChance: 1 / 20,   // ...which is a gold `rare` piece 1 time in 20 (the "purple")
+  upgradeRarity: 'epic', upgradeChance: 1 / 20,   // ...which is a purple `epic` piece 1 time in 20 (a gold rare before 2026-11-22)
 };
 // PROGRESSION mobTraits entry (merged by src/data/worldlife.js): on top of `tough` (x1.6 hp, x1.15 damage, x1.5 xp)
 // a rare has x2.0 health, x1.15 damage and x2.1 kill XP of a normal foe of its level (an elite is x2.5 / x1.3). Measured

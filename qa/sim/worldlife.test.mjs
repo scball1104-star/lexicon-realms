@@ -114,7 +114,7 @@ export const tests = [
       const own = p.bag.find((s) => s.item === 'mossback_buckle');
       assert(own && own.inst && own.inst.rarity === 'magic', 'the named blue item is in the bag');
       const extra = p.bag.filter((s) => s.inst && s.item.startsWith('gear_'));
-      assert(extra.length >= 1 && ['magic', 'rare'].includes(extra[0].inst.rarity), 'one more blue (or gold) piece');
+      assert(extra.length >= 1 && ['magic', 'epic'].includes(extra[0].inst.rarity), 'one more blue (or purple) piece');
       assert(ofType(ev, 'loot').length || p.bag.length, 'loot');
       // the upgrade rate over many rolls (the drop function alone)
       const L = w.internals.life;
@@ -125,7 +125,7 @@ export const tests = [
         eq(drop.items.length, 2, 'two pieces');
         eq(drop.items[0].item, 'mossback_buckle', 'its own item first');
         const r = drop.items[1].inst.rarity; n++;
-        if (r === 'rare') gold++; else eq(r, 'magic', 'blue otherwise');
+        if (r === 'epic') gold++; else eq(r, 'magic', 'blue otherwise');      // the 1 in 20 is epic (purple) since 2026-11-22
         const cls = C.classGear.mender;
         const base = C.items[drop.items[1].item];
         if (base.armorType) eq(base.armorType, cls.armor, 'for the looter\'s class');
