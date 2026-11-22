@@ -36,6 +36,7 @@ import { rollKill, rollGear, bagAdd, bagRemove, bagFree, resolveItem, ensureUids
 import { createDungeons, withCopies } from './dungeons.js';
 import { dayFraction, isNight } from './clock.js';
 import { createWorldLife } from './worldlife.js';
+import { createProfessions } from './professions.js';
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -167,6 +168,12 @@ function wrap(state, content0, rng, systems) {
     combat: () => C.combat, ai: () => C.ai, stats: combatOn ? () => C.stats : null,
   }) : null;
   C.dungeons = DG;
+  // ---- professions (src/sim/professions.js): gathering nodes, the gather and craft casts, trainers, recipes, consumables
+  const PF = combatOn && content.professions ? createProfessions({
+    state, content, emit, get: (id) => index.get(id) || null, add, remove, nextId: () => state.nextId++, spotFree, reach: INTERACT_RANGE_PX + 24,
+    combat: () => C.combat, grantXp: (e, amount, reason) => C.prog.grantXp(e, amount, reason), onBag: (e) => { if (QS) QS.onBag(e); },
+  }) : null;
+  C.prof = PF;
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -178,6 +185,7 @@ function wrap(state, content0, rng, systems) {
     const drop = rollKill({ content, rng, questNeeds: QS ? QS.needsItem : () => false }, mob, p);
     if (DG) DG.onKill(mob, p, drop);                 // a boss's named piece, set piece, rare, legendary roll; the daily chest
     if (combatOn) C.life.extraLoot(mob, p, drop);   // a rare's named item and blue piece; Night at the Stones gear
+    if (PF) PF.extraLoot(mob, p, drop);             // professions: meat, world Patterns, dungeon Patterns and materials
     const got = [], pending = [];
     for (const it of drop.items) {
       const n = bagAdd(p, it.item, it.qty, it.inst || null, content);
@@ -296,6 +304,7 @@ function wrap(state, content0, rng, systems) {
       }
       if (QS) QS.spawnObjects();
       if (ST) ST.spawnChests(add, () => state.nextId++);     // the Lantern Chests (content.lanternChests)
+      if (PF) PF.spawnNodes();                              // professions: a third of each area's gathering nodes
     },
     /** Spawn one mob from a template (tests, scripted events). spec: { mob, zone, x, y (tiles), wander?, respawn? } */
     spawnMob(spec) { return spawnMob(spec).id; },
@@ -350,6 +359,7 @@ function wrap(state, content0, rng, systems) {
         restoreVitals(e, spec);
         C.life.restore(e, spec);                   // the rest XP bank (save `rest`, missing = 0) plus the time away
         if (ST) ST.restore(e, spec);               // the hero's chest tab and glyph pouch (missing = empty)
+        if (PF) PF.restore(e, spec);               // professions: skills, recipes, a flask (save `prof`, missing = none)
       }
       add(e);
       emit({ type: 'join', id: e.id, name: e.name });
@@ -383,6 +393,7 @@ function wrap(state, content0, rng, systems) {
       if (e.gbag && e.gbag.length) out.gbag = clone(e.gbag);   // the glyph pouch
       if (e.barOff && e.barOff.length) out.barOff = [...e.barOff];   // skills taken off the bar (bar_set null on a skill)
       const rest = C.life.saveOf(e); if (rest) out.rest = rest;      // rest XP banked (missing = none)
+      const prof = PF && PF.saveOf(e); if (prof) out.prof = prof;     // professions (missing = none)
       return out;
     },
     get(id) { return index.get(id) || null; },
@@ -473,6 +484,7 @@ function wrap(state, content0, rng, systems) {
       if (QS) QS.tick();
       if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
       if (combatOn) C.life.tick(events);
+      if (PF) PF.tick();                         // professions: node respawns, the gather and craft casts
       // 4) systems (quests): read this tick's events, may call grantXp / emit
       for (const s of systems) if (s && s.tick) s.tick(w, events);
       state.rng = rng.state;
@@ -499,6 +511,7 @@ function wrap(state, content0, rng, systems) {
           const zz = content.zones[e.zone] || {};
           h.zone = (DG && DG.info(e.zone)) || { id: e.zone, base: e.zone, kind: zz.kind || 'field', name: zz.name || '', levels: zz.levels ? [...zz.levels] : null };
           h.rest = C.life.hudOf(e);
+          if (PF) h.prof = PF.hudOf(e);            // professions: skills, recipes, the gather / craft bar
           if (QS) {
             h.quests = QS.tracker(e);
             h.npcMarkers = {};
@@ -618,12 +631,14 @@ function wrap(state, content0, rng, systems) {
       case 'b2_auto': if (combatOn) C.b2.setAuto(e, cmd); return;
       case 'b2_suggest': if (combatOn) C.b2.spendSuggested(e); return;
       case 'chest_store': case 'chest_take': case 'chest_move': case 'chest_row': case 'chest_sort': if (ST) ST.command(e, cmd); return;
+      case 'prof_train': case 'prof_recipe': case 'prof_unlearn': case 'prof_craft': case 'prof_cancel': if (PF) PF.command(e, cmd); return;
       case 'interact': {
         const t = index.get(cmd.id);
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');
         if (t.kind === 'object' && t.node) {
           if (distPx(e, t) > INTERACT_RANGE_PX) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
           if (t.dchest) { if (DG) DG.openChest(e, t); return; }      // a dungeon or cave chest (src/sim/dungeons.js)
+          if (t.node.gather) { if (PF) PF.gather(e, t); return; }    // a gathering node (src/sim/professions.js)
           if (QS) QS.interact(e, t);
           return;
         }
@@ -841,6 +856,7 @@ function wrap(state, content0, rng, systems) {
     else if (u.kind === 'mana_pct') { if (!e.res || e.res.kind !== 'mana') return invFail(e, cmd, 'no_mana'); C.combat.gainRes(e, 'mana', u.amount * e.res.max); }
     else if (u.kind === 'rest_food') { if (e.inCombat) return invFail(e, cmd, 'combat'); e.restFood = u.amount || 0.1; e.mx = 0; e.my = 0; e.sitting = state.tick; emit({ type: 'sit', id: e.id, food: def.id }); }
     else if (u.kind === 'dispel') { for (const a of [...e.auras]) if (a.def.dispel === (u.dispel || 'poison') && a.def.kind === 'debuff') C.combat.removeAura(e, a, 'dispel'); }
+    else if (PF && PF.canUse(u)) { const why = PF.useItem(e, def, u); if (why) return invFail(e, cmd, why); }   // professions: elixirs, food, bandages, Patterns
     else return invFail(e, cmd, 'not_usable');
     if (u.cooldown) e.cd[key] = state.tick + Math.round(u.cooldown * 20);
     bagRemove(e, def.id, 1);
@@ -980,6 +996,7 @@ function wrap(state, content0, rng, systems) {
           qbag: JSON.parse(JSON.stringify(e.qbag || [])), pendingLoot: JSON.parse(JSON.stringify(e.pendingLoot || [])), bags: e.bags ? [...e.bags] : ['starter_satchel'],
           quests: JSON.parse(JSON.stringify(e.quests || {})), questsDone: [...(e.questsDone || [])],
           b2: !!e.b2, build: e.build ? JSON.parse(JSON.stringify(e.build)) : null });
+        if (PF && e.work) o.work = PF.workView(e);      // professions: a hero mining or crafting (the 3D pickaxe)
       }
     }
     if (e.kind === 'mob' && combatOn) {
@@ -991,6 +1008,7 @@ function wrap(state, content0, rng, systems) {
     }
     if (e.kind === 'object' && e.node) {
       o.node = { item: e.node.item, channel: e.node.channel || 0 };
+      if (e.node.gather) { const { prof, skill, kind, node, pool } = e.node.gather; o.node.gather = { prof, skill, kind, node, pool }; }   // professions: a gathering node
       // a secret cache: which heroes have opened it (each client draws it open for its own hero)
       if (e.node.secret) { o.node.secret = true; o.node.openedBy = e.dchest ? [...e.dchest.opened] : state.ents.filter((p) => p.kind === 'player' && (p.nodesUsed || []).includes(e.template)).map((p) => p.id); }
       // a dungeon or cave chest: a copy's cache (once per hero) or the first-clear-of-the-day chest (its hero only)

@@ -34,6 +34,7 @@ import { BUILDS2, RULES as BUILDS2_RULES, SKILL_PICKS, B2_ABILITIES } from '../b
 import { BOARDS, BOUNTIES, NAMED_SPAWNS } from '../bounties.js';
 import { STORAGE, LANTERN_CHESTS } from '../storage.js';
 import { applyWorldLife } from '../worldlife.js';
+import { applyProfessions } from '../professions.js';
 
 // The four areas as generated (their own local tiles): tools, tests and the quest data's authoring helpers read these.
 export const REGIONS = { willowmere, valley, downs, moor };
@@ -98,7 +99,8 @@ export function buildContent() {
   const { day, night } = allSpawns();
   const sq = WORLD.lanterns.find((l) => l.region === 'willowmere');
   // the open world's life (src/data/worldlife.js): rare foes, rest XP, story chains, Night at the Stones
-  return applyWorldLife({
+  // professions (src/data/professions.js): trainers, materials, recipes, gathering nodes, consumables
+  return applyProfessions(applyWorldLife({
     zones: ZONES,
     worldId: WORLD_ID, regionAt: REGION_AT,      // old area-local specs (saves, links, tests) -> world tiles (sim/world.js)
     zoneNames: withCopies(ZONE_NAMES),           // a copy ('barrow#12') reads its place's name (the log, the HUD)
@@ -117,5 +119,5 @@ export function buildContent() {
     // the Lantern Chests (src/data/storage.js): where they stand, tab sizes and row prices
     storage: STORAGE, lanternChests: LANTERN_CHESTS.map(tileRef).filter((c) => ZONES[c.zone]),
     start: { zone: WORLD_ID, x: WORLD.arrival[0], y: WORLD.arrival[1], lantern: { zone: WORLD_ID, id: sq.id, x: sq.x, y: sq.y } },
-  });
+  }));
 }

@@ -169,7 +169,8 @@ async function boot() {
       barOff: s.barOff,                                                      // skills the player took off the bar (save v2)
       // rest XP (src/sim/worldlife.js): the bank, and the real time away since the last save (savedAt, ms; this PC's clock,
       // never inside the sim). A save without them banks nothing new. Optional fields: SAVE_VERSION is unchanged.
-      rest: s.rest, offlineSecs: Number.isFinite(s.savedAt) ? Math.max(0, (Date.now() - s.savedAt) / 1000) : 0 };
+      rest: s.rest, offlineSecs: Number.isFinite(s.savedAt) ? Math.max(0, (Date.now() - s.savedAt) / 1000) : 0,
+      prof: s.prof };                                                       // professions (optional; src/sim/professions.js)
   }
   // an escort in progress cannot be restored (its npc is gone): it restarts as a fresh accept would
   const stripEscorts = (qs) => { if (!qs) return qs; const o = {}; for (const [k, v] of Object.entries(qs)) { const { escort, ...rest } = v; void escort; o[k] = rest; } return o; };
