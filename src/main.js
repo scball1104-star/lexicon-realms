@@ -7,6 +7,7 @@
 //   (quests, bags, party) for screenshots. ?touch=1|0 forces the phone HUD on or off.
 //   View: ?tod=0..1 (freeze the time of day), ?weather=clear|rain|leaves|pollen, ?fx=low|high (overrides the option).
 //   DEV ONLY: ?dev=1 adds window.__realms.dev (xp, level, gold) for drivers. Never linked from the game.
+//   Online co-op (docs/NET.md): ?net=local|relay picks the signalling (default: the free room-code broker), ?stun=0 no STUN.
 //
 // Headless drivers (qa/shot.py, qa/ui/ui_shots.py, qa/integrate/) use window.__realms: press/release keys, inject
 // intents, step ticks, read snapshots; window.__realms.ui is the UI controller.
@@ -25,6 +26,7 @@ import { createTouch, isTouchDevice } from './input/touch.js';
 import { createUI } from './ui/ui.js';
 import { padBar, loadOptions, loadShared, saveShared, SHARED_KEY } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
+import { createCoop } from './net/coop.js';
 
 const ZOOMS = [1, 1.5, 2];
 const TILE = 16;
@@ -84,7 +86,7 @@ async function boot() {
   // ---- audio (CONTRACTS 11): music after the first user input (browser rule), zone themes, event sfx
   const audio = createAudio({ base: 'assets/audio/' });
   // one world: music and the HUD's place name follow the area you stand in (render() below), not zone events
-  audio.attach(bus, { playerId: () => playerId, cls: () => (world.get(playerId) || {}).cls, zoneMusic: (z) => (content.zones[z] || {}).music, followPlace: true });
+  audio.attach(bus, { playerId: () => playerId, cls: () => (heroEnt() || {}).cls, zoneMusic: (z) => (content.zones[z] || {}).music, followPlace: true });
   let place = null;                    // placeAt() of the hero's tile, refreshed each frame (HUD place name)
   let musicArea = null;                // the area whose music is playing; null: pick on the next frame
   const unlockAudio = () => audio.unlock();
@@ -107,10 +109,19 @@ async function boot() {
       // Settings > Graphics: save, then reload into the other renderer (a ?r= in the link would override it, so drop it)
       setGraphics: () => { ui.saveProgress(); const u = new URL(window.location.href); u.searchParams.delete('r'); window.location.replace(u.toString()); },
       optionsChanged: (o) => { view.fx = fxOverride || o.fx; audio.setVolumes({ master: 1, music: o.music, sfx: o.sfx }); },
-      enterWorld: (c) => addHero(specFor(c)),
-      saveState: (id) => saveState(id),
+      enterWorld: (c) => {
+        // a hero joining a friend's game: the friend's world made it (coop.js); this tab plays back their frames
+        const gid = coop.takeGuestId();
+        if (gid != null) { playerId = gid; renderer.setPlayer(gid); musicArea = null; return gid; }
+        return addHero(specFor(c));
+      },
+      saveState: (id) => { const g = coop.guestSave(id); return g !== undefined ? g : saveState(id); },
+      hostGame: (c) => coop.hostGame(c),
+      joinGame: (c) => coop.joinGame(c),
+      namePlates: () => namePlates(),
       logout: (id) => {
-        if (id != null) world.removePlayer(id);
+        const wasGuest = coop.onLogout(id);
+        if (id != null && !wasGuest) world.removePlayer(id);
         playerId = null;
         uiCommands.length = 0;
         audio.music('title'); audio.ambience(null);
@@ -122,6 +133,10 @@ async function boot() {
       heroAnchor: () => (playerId != null ? renderer.anchorOf(playerId) : null),
     },
   });
+  // online co-op (src/net/): host a game for up to 3 friends, or join one by room code or copy-paste codes
+  const coop = createCoop({ world, ui, content, specFor, saveState: (id) => saveState(id), heroId: () => playerId, q,
+    // the phone HUD has its menu buttons along the top: the co-op bar goes under the party frames (HUD px -> css px)
+    barSpot: () => { const L = ui.layout(); if (!L.touch) return null; const r = L.party(3), l = renderer.layout, d = window.devicePixelRatio || 1; return { left: (l.ox + r.x * l.base) / d, top: (l.oy + (r.y + 2) * l.base) / d }; } });
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
   ui.setItems(content.items);
   ui.setQuests(content.quests, content.npcs);
@@ -186,7 +201,7 @@ async function boot() {
   // every store / take / move / row at the Lantern Chest saves at once: the Shared tab under its own key when it changed,
   // and the hero (a crash must not duplicate or lose an item)
   bus.on('*', (ev) => {
-    if (ev.type !== 'chest' || ev.id !== playerId) return;
+    if (ev.type !== 'chest' || ev.id !== playerId || coop.isGuest) return;   // a guest's chest lives in the host's world
     if (ev.shared) saveShared(storage, world.shared());
     ui.saveProgress();
   });
@@ -210,6 +225,23 @@ async function boot() {
     }
     return out;
   }
+  /** Friends' names over their heads, in HUD px (online co-op: the other heroes of this hero's party). */
+  function namePlates() {
+    const me = heroEnt();
+    if (!me || me.party == null) return [];
+    const out = [];
+    const l = renderer.layout;
+    for (const e of snap.entities) {
+      if (e.kind !== 'player' || e.id === playerId || e.party !== me.party || e.zone !== me.zone) continue;
+      const a = renderer.anchorOf(e.id);
+      if (!a) continue;
+      const [x, y] = renderer.worldToHud(a.x, a.y - a.h);
+      if (x < -40 || y < -16 || x > l.hudW + 40 || y > l.hudH + 16) continue;
+      out.push({ x, y, name: e.name, dead: !!e.dead, id: e.id });
+    }
+    return out;
+  }
+  const heroEnt = () => (playerId != null ? snap.entities.find((e) => e.id === playerId) || null : null);
   /** HUD rects of the player and the target (the chat log and the tracker fade when one is under them). */
   function unitRects() {
     const out = [];
@@ -228,18 +260,33 @@ async function boot() {
   let prev = world.snapshot(), snap = prev;
   const commandLog = [];   // [tick, entityId, cmd]: replayable (CONTRACTS section 2.3)
   function tick() {
+    if (coop.isGuest) {
+      // a guest: input goes to the host; the host's frames come back (one per tick, src/net/session.js nextFrame)
+      if (playerId != null) {
+        const cmds = [...input.poll({ snap, playerId, pick: renderer.pick, toWorld: renderer.devToWorld }), ...uiCommands.splice(0)];
+        coop.sendCmds(cmds);
+      } else { input.poll({ snap, playerId: null }); uiCommands.length = 0; }
+      const fr = coop.nextFrame();
+      prev = snap;
+      if (fr) { snap = fr.snap; bus.publish(fr.events); renderer.feed(fr.events); }
+      return;
+    }
     if (playerId != null) {
       for (const cmd of [...input.poll({ snap, playerId, pick: renderer.pick, toWorld: renderer.devToWorld }), ...uiCommands.splice(0)]) {
         world.enqueue(playerId, cmd);
         commandLog.push([world.tick + 1, playerId, cmd]);
       }
     } else { input.poll({ snap, playerId: null }); uiCommands.length = 0; }
+    coop.beforeStep();                 // a host: friends' commands join the queue
     const events = world.step();
     prev = snap;
     snap = world.snapshot();
     bus.publish(events);
     renderer.feed(events);
+    coop.afterStep(events, snap);      // a host: one frame to each friend
   }
+  coop.onCommandLogged((id, cmd) => commandLog.push([world.tick + 1, id, cmd]));
+  coop.onJoinLogged((tick, spec) => joins.push([tick, spec]));     // a friend's hero, added by the host (docs/NET.md)
   // frame timing for drivers (60 fps check): a rolling window of rAF deltas
   const frames = { last: 0, dts: [] };
   function render(alpha, nowMs) {
@@ -278,7 +325,7 @@ async function boot() {
   // 3D was asked for but could not start: say so once the hero is in the world (a toast on the title would be missed)
   if (fell2d) { const t = setInterval(() => { if (ui.mode === 'game') { clearInterval(t); ui.notify('3D could not start on this device. Showing 2D.', 8); } }, 500); }
   setInterval(() => { if (world.day !== bountyDay()) world.setDay(bountyDay()); }, 60000);
-  window.addEventListener('beforeunload', () => ui.saveProgress());
+  window.addEventListener('beforeunload', () => { ui.saveProgress(); coop.shutdown(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') ui.saveProgress(); });
   // updates reach a Home Screen copy (Scott 2026-11-19: the Home Screen app stayed on an old build with no Graphics switch).
   // iPhone keeps a Home Screen web app suspended, so opening it again resumes the old page. The deploy writes version.json
@@ -286,20 +333,22 @@ async function boot() {
   const siteVersion = () => fetch('version.json', { cache: 'no-store' }).then((r) => (r.ok ? r.json() : null)).then((j) => (j && j.v) || null).catch(() => null);
   // a local test server has no version.json (the deploy writes it): skip the check there, so drivers see no 404
   const bootVersion = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) ? null : await siteVersion();
+  coop.setBuild(bootVersion);          // host and friends must run the same build (a deploy in between: both reload)
   if (bootVersion) {
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState !== 'visible') return;
       const v = await siteVersion();
-      if (v && v !== bootVersion) { ui.saveProgress(); window.location.reload(); }
+      if (v && v !== bootVersion && !coop.role) { ui.saveProgress(); window.location.reload(); }   // never mid co-op game
     });
   }
 
   const loop = createLoop({ hz: TICK_HZ, tick, render });
+  coop.setPump({ loop, tick });
   if (q.get('paused') !== '1') loop.start();
   else render(0, 0);
 
   window.__realms = {
-    world, get playerId() { return playerId; }, input, renderer, view, commandLog, joins, ui, audio, content,
+    world, get playerId() { return playerId; }, input, renderer, view, commandLog, joins, ui, audio, content, net: coop,
     snapshot: () => snap,
     player: () => snap.entities.find((e) => e.id === playerId),
     hud: () => (snap.hud && playerId != null ? snap.hud[playerId] : null),

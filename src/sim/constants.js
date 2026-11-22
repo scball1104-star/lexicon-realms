@@ -18,6 +18,9 @@ export const BODY_DEPTH = 6;
 export const GCD_TICKS = 20;           // 1.0 s global cooldown (DESIGN section 2)
 export const INTERACT_RANGE_PX = 40;   // talk / loot reach
 export const TARGET_RANGE_PX = 640;    // a target further than this (or in another zone) is dropped
+// Online co-op (docs/NET.md): a party member this close to a dying foe (same zone, alive) shares the kill: their own
+// kill XP, their own quest kill credit and their own loot roll, as the tagger gets. 40 tiles, about two screens.
+export const PARTY_SHARE_PX = 640;
 
 // Collision chars written by tools/dev/import_lq_maps.mjs (docs/CONTRACTS.md section 6).
 export const WALK = '.';

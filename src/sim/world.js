@@ -10,6 +10,7 @@
 //   w.hash()                                         16 hex chars over the full state (determinism tests, desync checks)
 //   w.serialize() / restoreWorld(json, content)      full state round trip (late join, save states)
 //   w.grantXp(id, amount, reason)                    XP from outside the combat rules (quest turn-ins, exploration)
+//   w.setParty(id, party)                            system action (log it as { tick, sys: 'party', id, party }): co-op party
 //   w.saveFields(id)                                 the sim-owned part of a character save (hp, resource, cooldowns,
 //                                                    lasting buffs, quest bag, pending loot, escorts); addPlayer takes it back
 //
@@ -17,7 +18,7 @@
 // Combat runs when content carries classes + abilities + progression; without them the foundation stub rules apply
 // (cast = GCD check + cast_start/cast_stop 'stub', mobs only wander), so the zone-only content still runs.
 import { createRng } from './rng.js';
-import { SUB, TILE, PLAYER_SPEED, DIAG, GCD_TICKS, INTERACT_RANGE_PX, TARGET_RANGE_PX } from './constants.js';
+import { SUB, TILE, PLAYER_SPEED, DIAG, GCD_TICKS, INTERACT_RANGE_PX, TARGET_RANGE_PX, PARTY_SHARE_PX } from './constants.js';
 import { moveAxis, feetTile, inJoin, spotFree, boxBlocked, standTile } from './collision.js';
 import { mobThink, createAi } from './ai.js';
 import { hashString } from './hash.js';
@@ -101,11 +102,26 @@ function wrap(state, content, rng, systems) {
   const emit = (ev) => { events.push({ tick: state.tick, ...ev }); };
   const combatOn = !!(content.classes && content.abilities && content.progression);
 
+  /**
+   * Who shares a kill (online co-op, docs/NET.md): the tagger first, then every other player of the tagger's party
+   * (e.party, set by addPlayer spec.party or setParty) who is alive, in the foe's zone and within PARTY_SHARE_PX of it,
+   * in id order. Solo (no party): just the tagger. Each one gets their own kill XP, quest credit and loot roll.
+   */
+  function killShare(mob, who) {
+    if (!who || who.kind !== 'player') return [];
+    const out = [who];
+    if (who.party == null) return out;
+    for (const p of state.ents) {
+      if (p === who || p.kind !== 'player' || p.party !== who.party || p.dead || p.zone !== mob.zone) continue;
+      if (distPx(p, mob) <= PARTY_SHARE_PX) out.push(p);
+    }
+    return out;
+  }
   function add(e) { state.ents.push(e); index.set(e.id, e); return e; }
   function remove(e) { const i = state.ents.indexOf(e); if (i >= 0) state.ents.splice(i, 1); index.delete(e.id); }
 
   // ---- combat context (only when combat content is loaded)
-  const C = { state, content, rng, emit, get: (id) => index.get(id) || null, add, remove, zoneOf, INTERACT_RANGE_PX,
+  const C = { state, content, rng, emit, get: (id) => index.get(id) || null, add, remove, zoneOf, INTERACT_RANGE_PX, killShare,
     spotFree, boxFree: (zone, x, y) => !!zone && !boxBlocked(zone, x, y, 0, 0, -99999, -99999, null) };
   if (combatOn) {
     C.P = content.progression;
@@ -139,6 +155,9 @@ function wrap(state, content, rng, systems) {
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
+    for (const m of killShare(mob, p)) killCreditFor(mob, m);
+  }
+  function killCreditFor(mob, p) {
     if (QS) QS.onKill(p, mob);
     if (!content.items) return;
     const drop = rollKill({ content, rng, questNeeds: QS ? QS.needsItem : () => false }, mob, p);
@@ -279,6 +298,7 @@ function wrap(state, content, rng, systems) {
         name: spec.name || 'Hero', cls: spec.cls || 'warden', look: spec.look || 0, level: 1, xp: 0,
         faction: 'player', sprite: 'hero', hp: 100, hpMax: 100, res: { kind: 'mana', cur: 100, max: 100 }, dir: 'up',
       });
+      if (spec.party != null) e.party = spec.party;          // online co-op: the room's party (docs/NET.md); solo has none
       if (combatOn) {
         const cls = C.data.classes[e.cls];
         if (!cls) throw new Error(`addPlayer: no class ${e.cls}`);
@@ -360,7 +380,17 @@ function wrap(state, content, rng, systems) {
         if (m.escort && m.escort.owner === id) remove(m);
       }
       remove(e);
-      emit({ type: 'leave', id });
+      emit({ type: 'leave', id, name: e.name });
+      return true;
+    },
+    /**
+     * Put a player in a party (online co-op, docs/NET.md), or out of one (party null). A system action like addPlayer:
+     * log it as { tick, sys: 'party', id, party }. Party members share kills (killShare). Returns false for a non-player.
+     */
+    setParty(id, party) {
+      const e = index.get(id);
+      if (!e || e.kind !== 'player') return false;
+      if (party == null) delete e.party; else e.party = party;
       return true;
     },
     /** The quest module (CONTRACTS 7.7 queries: tracker, marker, status). */
@@ -905,7 +935,7 @@ function wrap(state, content, rng, systems) {
       cd: { ...e.cd }, gcdUntil: e.gcdUntil, dead: e.dead,
     };
     if (e.kind === 'player') {
-      o.cls = e.cls; o.look = e.look; o.xp = e.xp;
+      o.cls = e.cls; o.look = e.look; o.xp = e.xp; o.party = e.party ?? null;
       if (combatOn) {
         Object.assign(o, { bar: [...e.bar], known: [...e.known], talents: { ...e.talents }, gold: e.gold, combo: e.combo ? { ...e.combo } : null,
           lantern: e.lantern ? { ...e.lantern } : null, inCombat: !!e.inCombat, autoOn: !!e.autoOn, sitting: !!e.sitting,

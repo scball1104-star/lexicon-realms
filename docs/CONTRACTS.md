@@ -83,8 +83,9 @@ Unknown or malformed commands never throw: they emit `cmd_reject` with `reason` 
 
 ### 2.3 Replay log
 
-`main.js` keeps `[tick, entityId, cmd]` for the session (`window.__realms.commandLog`). Seed + `addPlayer` calls +
-this log reproduce the session exactly (`qa/tests/sim.test.mjs` proves it over 2,000 ticks; `qa/sim/` over full fights
+`main.js` keeps `[tick, entityId, cmd]` for the session (`window.__realms.commandLog`); in online co-op the host logs its
+friends' commands there too, and `setParty` calls in `window.__realms.net.sysLog` (`{ tick, sys: 'party', id, party }`).
+Seed + `addPlayer` calls + this log reproduce the session exactly (`qa/tests/sim.test.mjs` proves it over 2,000 ticks; `qa/sim/` over full fights
 of every class and a 4,000-tick five-player session on the real map).
 
 ### 2.4 World API (LIVE)
@@ -94,7 +95,13 @@ createWorld({ seed, content, systems })        // systems: optional [{ id, tick(
 restoreWorld(json, content, systems)
 w.addPlayer({ name, cls, look, zone, x, y, level, xp, gold, talents, known, bar, bag, bags, equip, quests, questsDone,
               nodesUsed, respecs, lantern, gearMode: 'items' | 'design', designGear,
-              qbag, pendingLoot, hp, res, cdLeft, auras })   // restores a saved character (the last six: w.saveFields)
+              qbag, pendingLoot, hp, res, cdLeft, auras,     // restores a saved character (the last six: w.saveFields)
+              party })                                       // online co-op: the room's party id (docs/NET.md); solo: none
+w.setParty(id, party)                           // co-op system action: party id on a hero (null: out). Party members alive,
+                                                // in the foe's zone and within PARTY_SHARE_PX (40 tiles) of a kill each get
+                                                // their own kill XP, quest credit and loot roll (xp event `party: true`).
+                                                // The snapshot carries `party` (null solo) on every player. Dungeons key
+                                                // their copies on it.
 w.saveFields(id)                                // fix pass 1: the sim-owned part of a save, plain JSON:
                                                 //   { qbag, pendingLoot, hp, res: { kind, cur }, cdLeft: { abilityOrItemKey: ticks left },
                                                 //     auras: [{ id, left (ticks | null), stacks, def }] (own lasting buffs only), escorts: [quest ids] }
@@ -103,7 +110,7 @@ w.saveFields(id)                                // fix pass 1: the sim-owned par
                                                 // An escort quest in the save restarts fresh on addPlayer: the escort npc
                                                 // respawns at its start (`spawn` event) and the quest stays active; the
                                                 // client never needs to strip `escort` ids (harmless if it still does).
-w.removePlayer(id)                              // log-out: mobs forget them; their traps and escorts go. Event `leave`
+w.removePlayer(id)                              // log-out: mobs forget them; their traps and escorts go. Event `leave` { id, name }
 w.grantXp(id, amount, reason = 'quest', extra)  // the one way to give XP from outside combat (quests, exploration)
 w.setLevel(id, L), w.learnAll(id), w.setTalents(id, talents)   // tests, the balance harness, a debug console
 w.spawnMob({ mob, zone, x, y, level, wander, respawn, temporary })

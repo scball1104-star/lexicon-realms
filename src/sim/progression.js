@@ -353,8 +353,12 @@ export function createProgression(C) {
   function onDeath(dst, killer) {
     if (dst.kind === 'mob') {
       const who = C.get(dst.tagger) || (killer && killer.kind === 'player' ? killer : null);
-      if (who && who.kind === 'player' && !who.dead) grantXp(who, killXp(who, dst), 'kill', { mob: dst.id, template: dst.template });
-      if (who && who.kind === 'player' && who.b2) C.b2.onKill(who);     // Builds 2: the first kill opens the level 1 skill pick
+      // the tagger, and in online co-op every party member alive and near the foe (world.js killShare), each at their own level
+      const share = C.killShare ? C.killShare(dst, who) : (who && who.kind === 'player' ? [who] : []);
+      for (const p of share) {
+        if (!p.dead) grantXp(p, killXp(p, dst), 'kill', { mob: dst.id, template: dst.template, ...(p !== who ? { party: true } : {}) });
+        if (p.b2) C.b2.onKill(p);     // Builds 2: the first kill opens the level 1 skill pick
+      }
       dst.respawnAt = now() + respawnTicks(dst);
       dst.threat = {};
       if (dst.ai) { dst.ai.mode = 'dead'; dst.ai.vx = 0; dst.ai.vy = 0; }

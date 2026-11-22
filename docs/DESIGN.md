@@ -70,7 +70,7 @@ src/
   ui/       HUD and menus (canvas-drawn, LQ window + font art).
   input/    keyboard + mouse -> commands (tab target, click target, move WASD + click-to-move optional).
   audio/    music + sfx, reacts to sim events.
-  net/      (phase 2) host-authoritative sync of commands and snapshots.
+  net/      host-authoritative sync of commands and snapshots (built 2026-11-22: docs/NET.md).
   main.js   wires it together.
 ```
 
