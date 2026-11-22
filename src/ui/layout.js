@@ -31,8 +31,10 @@ function desktopLayout(LW, LH) {
   return {
     touch: false, W, H,
     player: { x: 4, y: 4, w: 194, h: 46 },
-    party: (i) => ({ x: 4, y: 53 + i * 35, w: 150, h: 32 }),
+    // group play (src/ui/group_ui.js): your buff row under the player frame pushes the party frames down a row
+    party: (i) => ({ x: 4, y: 77 + i * 35, w: 150, h: 32 }),
     target: { x: 204, y: 4, w: 150, h: 34 },
+    buffs: { x: 6, y: 53 }, targetCast: { x: 204, y: 40, w: 150 }, threat: { x: 358, y: 4 },
     zoneLabel: { x: W - 100, y: 4, w: 96, h: 13 },
     minimap: { x: W - 100, y: 18, w: 96, h: 64 },
     tracker: { x: W - 188, y: 86, w: 184, maxLines: 16 + Math.floor(dy / 11) },
@@ -77,6 +79,9 @@ function touchLayout(minHit, LW, LH) {
     player: { x: 4, y: 4, w: 150, h: 34 },
     party: (i) => ({ x: 4, y: 76 + i * 22, w: 110, h: 20 }),
     target: { x: 4, y: 40, w: 150, h: 34 },
+    // group play (src/ui/group_ui.js): your buffs right of your frame under the menu buttons, the foe's cast and the
+    // threat warning right of the target frame
+    buffs: { x: 158, y: mbY + m + 2 }, targetCast: { x: 158, y: Math.max(42, mbY + m + 27), w: 150 }, threat: { x: 158, y: Math.max(42, mbY + m + 27) + 20 },
     zoneLabel: { x: W - 4 - mmW, y: 2, w: mmW, h: 13 },
     minimap: { x: W - 4 - mmW, y: 15, w: mmW, h: mmH },
     tracker: { x: W - 4 - 150, y: trY, w: 150, maxLines: Math.max(2, Math.min(8, Math.floor((clusterTop - 6 - trY - 20) / 11))),

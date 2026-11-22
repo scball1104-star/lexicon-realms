@@ -36,6 +36,8 @@ import { rollKill, rollGear, bagAdd, bagRemove, bagFree, resolveItem, ensureUids
 import { createDungeons, withCopies } from './dungeons.js';
 import { dayFraction, isNight } from './clock.js';
 import { createWorldLife } from './worldlife.js';
+import { createParty } from './party.js';
+import { createTrade } from './trade.js';
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -167,6 +169,11 @@ function wrap(state, content0, rng, systems) {
     combat: () => C.combat, ai: () => C.ai, stats: combatOn ? () => C.stats : null,
   }) : null;
   C.dungeons = DG;
+  // ---- group play (src/sim/party.js, src/sim/trade.js): foe scaling, rez, release or wait, quest sharing, ready check,
+  // trade and binding. Off without content.party (src/data/party.js).
+  const GP = combatOn && content.party ? createParty({ state, content, emit, get: (id) => index.get(id) || null, C, quests: () => QS }) : null;
+  const TR = combatOn && content.party && content.items ? createTrade({ state, content, emit, get: (id) => index.get(id) || null, onBag: (e) => { if (QS) QS.onBag(e); } }) : null;
+  C.party = GP; C.trade = TR;
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -177,6 +184,7 @@ function wrap(state, content0, rng, systems) {
     if (!content.items) return;
     const drop = rollKill({ content, rng, questNeeds: QS ? QS.needsItem : () => false }, mob, p);
     if (DG) DG.onKill(mob, p, drop);                 // a boss's named piece, set piece, rare, legendary roll; the daily chest
+    if (TR) TR.onDrop(mob, drop);                   // a dungeon boss's drops bind on pickup
     if (combatOn) C.life.extraLoot(mob, p, drop);   // a rare's named item and blue piece; Night at the Stones gear
     const got = [], pending = [];
     for (const it of drop.items) {
@@ -400,6 +408,8 @@ function wrap(state, content0, rng, systems) {
         if (m.kind === 'object' && m.owner === id) remove(m);
         if (m.escort && m.escort.owner === id) remove(m);
       }
+      if (TR) TR.onLeave(id);
+      if (GP) GP.onLeave(id);
       remove(e);
       emit({ type: 'leave', id, name: e.name });
       return true;
@@ -472,6 +482,8 @@ function wrap(state, content0, rng, systems) {
       if (combatOn) C.combat.tickWorld();
       if (QS) QS.tick();
       if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
+      if (GP) GP.tick();                         // group play: foe scaling, rez casts, death waits, ready checks
+      if (TR) TR.tick();                         // trades end when the two walk apart
       if (combatOn) C.life.tick(events);
       // 4) systems (quests): read this tick's events, may call grantXp / emit
       for (const s of systems) if (s && s.tick) s.tick(w, events);
@@ -499,6 +511,7 @@ function wrap(state, content0, rng, systems) {
           const zz = content.zones[e.zone] || {};
           h.zone = (DG && DG.info(e.zone)) || { id: e.zone, base: e.zone, kind: zz.kind || 'field', name: zz.name || '', levels: zz.levels ? [...zz.levels] : null };
           h.rest = C.life.hudOf(e);
+          if (GP) { const gr = GP.hudOf(e), tr = TR ? TR.hudOf(e, C.hud.itemView) : null; if (gr || tr) h.group = { ...(gr || {}), trade: tr }; }
           if (QS) {
             h.quests = QS.tracker(e);
             h.npcMarkers = {};
@@ -538,6 +551,8 @@ function wrap(state, content0, rng, systems) {
     const e = index.get(id);
     if (!e || e.kind !== 'player') return reject(id, cmd, 'no_actor');
     if (!cmd || typeof cmd.t !== 'string') return reject(id, cmd, 'bad_command');
+    if (GP && GP.handles(cmd.t)) { GP.command(e, cmd); return; }      // group play (src/sim/party.js): some work while dead
+    if (TR && TR.handles(cmd.t)) { TR.command(e, cmd); return; }
     if (e.dead && cmd.t !== 'target') return reject(id, cmd, 'dead');
     switch (cmd.t) {
       case 'move': e.mx = clampUnit(cmd.dx | 0); e.my = clampUnit(cmd.dy | 0); if (e.mx || e.my) e.sitting = 0; return;
@@ -809,6 +824,7 @@ function wrap(state, content0, rng, systems) {
     if (it.slot === 'two') take('off');
     if (slot === 'off') { const mainIt = e.equip.main && resolveItem(content, e.equip.main, e.cls); if (mainIt && mainIt.slot === 'two') take('main'); }
     e.bag.splice(i, 1);
+    if (TR) TR.onEquip(entry);                     // bind on equip: worn once, it is Soulbound
     e.equip[slot] = entry.inst ? { item: entry.item, inst: entry.inst } : entry.item;
     for (const o of out) { const oe = typeof o === 'string' ? { item: o } : o; bagAdd(e, oe.item, 1, oe.inst || null, content); }
     C.stats.recalc(e);

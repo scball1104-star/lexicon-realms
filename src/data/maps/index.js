@@ -23,6 +23,7 @@ import { DUNGEON_QUESTS, DUNGEON_QUEST_ORDER } from '../dungeon_quests.js';
 import { REGION_AT, WORLD_ID, isRegion, toWorld, toWorldPx } from './layout.js';
 import { MOBS, MOB_ABILITIES as WORLD_MOB_ABILITIES, MOB_SPRITES, mobSprite } from '../mobs.js';
 import { NPCS } from '../npcs.js';
+import { applyParty } from '../party.js';
 import { ITEMS, RARITY, AFFIXES, DROP_RULES, WEAPON_TYPES, ARMOR_TYPES, CLASS_GEAR, SETS } from '../items.js';
 import { QUESTS, QUEST_ORDER, COMING_LATER } from '../quests.js';
 import { CLASSES } from '../classes.js';
@@ -98,7 +99,7 @@ export function buildContent() {
   const { day, night } = allSpawns();
   const sq = WORLD.lanterns.find((l) => l.region === 'willowmere');
   // the open world's life (src/data/worldlife.js): rare foes, rest XP, story chains, Night at the Stones
-  return applyWorldLife({
+  return applyParty(applyWorldLife({
     zones: ZONES,
     worldId: WORLD_ID, regionAt: REGION_AT,      // old area-local specs (saves, links, tests) -> world tiles (sim/world.js)
     zoneNames: withCopies(ZONE_NAMES),           // a copy ('barrow#12') reads its place's name (the log, the HUD)
@@ -117,5 +118,5 @@ export function buildContent() {
     // the Lantern Chests (src/data/storage.js): where they stand, tab sizes and row prices
     storage: STORAGE, lanternChests: LANTERN_CHESTS.map(tileRef).filter((c) => ZONES[c.zone]),
     start: { zone: WORLD_ID, x: WORLD.arrival[0], y: WORLD.arrival[1], lantern: { zone: WORLD_ID, id: sq.id, x: sq.x, y: sq.y } },
-  });
+  }));        // group play (src/data/party.js): lantern-ash on two vendors, the party rules
 }

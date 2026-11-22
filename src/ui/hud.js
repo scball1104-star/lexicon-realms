@@ -5,6 +5,7 @@
 import { W, H, trackerRows, inRect } from './layout.js';
 import { drawMarkers } from './minimap.js';
 import { abilityInfo, abilityTooltip, autoTooltip, classInfo, resourceWord, liveStats } from './gamedata.js';
+import { targetCast, threatTag, buffRow, partyExtras } from './group_ui.js';
 
 const MENU_ICON = { character: 'icon_helm', bags: 'icon_bag', quests: 'icon_quest', talents: 'icon_star', map: 'icon_scroll', help: 'emote_question_0', menu: 'icon_gear' };
 /** Quest marks drawn in code (CRITIQUE_1 item 1): a gold ! (quest to take) or ? (ready to turn in), grey when trivial or
@@ -109,7 +110,8 @@ export function createHud(env) {
       if (p.res) g.gauge(ctx, r.x + 33, r.y + 23, r.w - 40, p.res.frac, p.resGauge);
     }
     if (p.inCombat && !p.dead) drawCombatMark(ctx, r.x + (L.touch ? 22 : 30), r.y + r.h - (L.touch ? 11 : 12));
-    if (p.dead) { g.scrim(ctx, r.x + 3, r.y + 3, r.w - 6, r.h - 6, 235); g.text(ctx, p.respawnIn != null ? `Dead. You wake at the lantern in ${Math.ceil(p.respawnIn)}.` : 'Dead. You wake at the lantern.', r.x + r.w / 2, r.y + r.h / 2 - 5, 'red', { align: 'center' }); }
+    // in a party the death panel (group_ui.js) offers Release or Wait, so the frame just says Dead
+    if (p.dead) { g.scrim(ctx, r.x + 3, r.y + 3, r.w - 6, r.h - 6, 235); g.text(ctx, p.groupDeath ? 'Dead' : p.respawnIn != null ? `Dead. You wake at the lantern in ${Math.ceil(p.respawnIn)}.` : 'Dead. You wake at the lantern.', r.x + r.w / 2, r.y + r.h / 2 - 5, 'red', { align: 'center' }); }
   }
 
   function bars(ctx, nx, y0, gw, right, u) {
@@ -161,6 +163,28 @@ export function createHud(env) {
     else if (t.rare) g.text(ctx, 'Rare', r.x + 22, r.y + 22, RARE_SILVER);
     let ax = r.x + 22 + ((t.elite && !t.boss) || t.rare ? 26 : 0);
     for (const a of (t.auras || []).slice(0, 8)) { const ic = `st8_${a.icon || a.id}`; if (g.frame(ic)) { g.icon(ctx, ic, ax, r.y + 24); ax += 9; } }
+  }
+
+  /** Under the target frame (group_ui.js): a foe's cast with its interrupt mark and the threat warning; for a party
+   *  friend, Trade and Ready check (and Rez when they are down). */
+  function groupTarget(ctx, L, m, regions, act) {
+    const t = m.target;
+    if (!L.targetCast) return;
+    if (m.targetCast) targetCast(g, ctx, L.targetCast, m.targetCast);
+    if (t.faction === 'hostile' && t.threat && m.player.inCombat) threatTag(g, ctx, L.threat.x, L.threat.y, t.threat, { tank: m.player.cls === 'warden' });
+    const friend = act && m.group && t.kind === 'player' && (m.party || []).some((u) => u.id === t.id);
+    if (!friend) return;
+    const r = L.targetCast, bh = Math.max(16, L.touch ? L.minHit || 0 : 0);
+    const btns = [['Trade', 'blue', () => act.send({ t: 'trade_open', id: t.id }), 'Trade items and gold with this friend (stand close).'],
+      ['Ready?', 'slate', () => act.send({ t: 'ready_start' }), 'Ready check: ask the party if everyone is ready.']];
+    if (t.dead && (m.group.canRez || m.group.ash > 0)) btns.push(['Rez', 'forest', () => act.send({ t: 'rez', id: t.id, item: !m.group.canRez }), 'Wake them where they fell at 35% health (10 sec, out of combat).']);
+    const bw = Math.floor((r.w - 2 * (btns.length - 1)) / btns.length);
+    btns.forEach(([label, scheme, on, body], i) => {
+      const bx = r.x + i * (bw + 2);
+      g.window(ctx, bx, r.y, bw, bh, 'thin', scheme, 0.95);
+      g.text(ctx, label, bx + Math.floor(bw / 2), r.y + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+      regions.push({ rect: { x: bx, y: r.y, w: bw, h: bh }, kind: 'button', label: `grp:${label.toLowerCase()}`, on, tip: { title: label, body } });
+    });
   }
 
   function minimap(ctx, L, m, zoneName, regions) {
@@ -402,9 +426,16 @@ export function createHud(env) {
       if (!m.player) return regions;
       if (L.touch) chat(ctx, L, opts.log || [], st, regions, opts.fade);
       const party = m.party || [];
-      party.slice(0, 3).forEach((u, i) => { const r = L.party(i); partyFrame(ctx, r, u, L.touch); regions.push({ rect: r, kind: 'party', id: u.id }); });
-      playerFrame(ctx, L, m.player); regions.push({ rect: L.player, kind: 'player' });
-      if (m.target) { targetFrame(ctx, L, m.target); regions.push({ rect: L.target, kind: 'target' }); }
+      const act = opts.act || null;
+      // a party frame: a click targets that friend (heals, Trade, Rez); a dead one shows Dead and the Rez button
+      party.slice(0, 3).forEach((u, i) => {
+        const r = L.party(i); partyFrame(ctx, r, u, L.touch);
+        regions.push({ rect: r, kind: 'party', id: u.id, ...(act ? { on: () => act.send({ t: 'target', id: u.id }) } : {}) });
+        partyExtras(g, ctx, r, u, m.group, regions, act, L.touch);
+      });
+      playerFrame(ctx, L, { ...m.player, groupDeath: !!(m.group && m.group.death) }); regions.push({ rect: L.player, kind: 'player' });
+      if (L.buffs) buffRow(g, ctx, L.buffs.x, L.buffs.y, m.myAuras, regions);
+      if (m.target) { targetFrame(ctx, L, m.target); regions.push({ rect: L.target, kind: 'target' }); groupTarget(ctx, L, m, regions, act); }
       minimap(ctx, L, m.minimap, m.zone && m.zone.name, regions);
       tracker(ctx, L, m, st, regions, opts.fade);
       if (!L.touch) {

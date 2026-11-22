@@ -7,6 +7,7 @@ import { drawMarkers } from './minimap.js';
 import { drawAreas, drawTooltip, drawGoalArrow } from './hud.js';
 import { whereLabel } from './questnav.js';
 import { ACTIONS, effectiveBinds, keyLabel } from './keymap.js';
+import { BIND_TEXT } from './group_ui.js';
 
 const SLOT_ICON = { head: 'icon_helm', chest: 'icon_armor', legs: 'icon_mantle', feet: 'icon_boots', main: 'icon_sword', off: 'icon_shield', hands: 'icon_charm', trinket: 'icon_star' };
 const SLOT_NAME = { head: 'Head', chest: 'Chest', legs: 'Legs', feet: 'Feet', main: 'Main hand', off: 'Off hand', hands: 'Hands', trinket: 'Trinket' };
@@ -49,7 +50,9 @@ export function itemTooltip(it, extra, worn) {
   const lines = [];
   if (i.slot) lines.push(SLOT_NAME[i.slot] || i.slot);
   if (i.weaponType) lines.push(i.weaponType);
-  const sub = [RARITY_NAME[i.rarity] || 'Common', ...lines].join('  ');
+  // binding (src/sim/trade.js): Soulbound, Binds when picked up, Binds when equipped
+  const bind = i.soulbound ? BIND_TEXT.soulbound : i.bind ? BIND_TEXT[i.bind] : null;
+  const sub = [RARITY_NAME[i.rarity] || 'Common', ...lines, ...(bind ? [bind] : [])].join('  ');
   const body = [];
   if (i.damage) body.push(`${i.damage[0]} to ${i.damage[1]} damage, speed ${i.speed}`);
   if (i.armor) body.push(`${i.armor} armor`);
@@ -370,6 +373,15 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
   button(r.x + r.w - 10 - 112 - 6 - 80, 80, q.tracked === false ? 'Track' : 'Untrack', 'cream', () => act.trackQuest(q.id, q.tracked === false));
   // where it sends you: select it and open the map on its goal (Scott, 2026-11-19)
   button(r.x + r.w - 10 - 112 - 6 - 80 - 6 - 96, 96, 'Show on map', 'gold', () => act.showOnMap(q.id));
+  // group play: offer it to the party (src/sim/party.js quest_share)
+  // group play: offer it to the party (src/sim/party.js quest_share), on the rewards line at the right
+  if (m.group && m.group.inParty && act.send) {
+    const sw = 60, sh = Math.max(16, env.L.minHit || 0), sx = r.x + r.w - 10 - sw, sy = ry - 2;
+    g.window(ctx, sx, sy, sw, sh, 'thin', 'blue', 0.95);
+    g.text(ctx, 'Share', sx + sw / 2, sy + Math.floor(sh / 2) - 6, 'cream', { align: 'center' });
+    regions.push({ rect: { x: sx, y: sy, w: sw, h: sh }, kind: 'button', label: 'quest_share', on: () => act.send({ t: 'quest_share', quest: q.id }),
+      tip: { title: 'Share', body: 'Offer this quest to everyone in your party within 40 tiles who can take it.' } });
+  }
 }
 
 // ---------------------------------------------------------------- world map
