@@ -47,7 +47,7 @@ export async function loadUiArt({ font }) {
   }));
   // the Realms icon atlases (art lane, assets/icons/): optional, the HUD falls back to ui.png icons
   const icons = {};
-  await Promise.all(['abilities24', 'abilities16', 'talents16', 'items16'].map(async (k) => {
+  await Promise.all(['abilities24', 'abilities16', 'talents16', 'items16', 'prof16'].map(async (k) => {
     const [j, i] = await Promise.all([optional(loadJson(`assets/icons/${k}.json`)), optional(loadImage(`assets/icons/${k}.png`))]);
     if (j && i) icons[k] = { json: j, img: i };
   }));

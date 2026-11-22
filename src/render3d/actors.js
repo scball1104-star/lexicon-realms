@@ -13,6 +13,7 @@ import { assemble } from './hero.js';
 import { heroSpec, npcSpec, dress } from './gear.js';
 import { createCreature } from './creatures.js';
 import { radial } from './textures.js';
+import { gatherLook, animateGather, gatherPick, workClip } from './gather3d.js';
 
 const PX = 16;
 const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
@@ -106,6 +107,7 @@ function objectLook(e) {
   const sp = String(e.sprite || '');
   if (e.chest) return lanternChest();
   if (/chicken/.test(sp)) { g.add(chicken()); g.userData.h = 0.7; g.userData.chicken = true; return g; }
+  if (e.node && e.node.gather) return gatherLook(e);      // professions: an ore seam or a herb (gather3d.js)
   if (e.node) {
     if (/hay/.test(sp)) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.7, 10), new THREE.MeshStandardMaterial({ color: '#7a5aa8', roughness: 1 })); b.rotation.z = Math.PI / 2; b.position.y = 0.4; b.castShadow = true; g.add(b); }
     else if (/^chest_/.test(sp)) {
@@ -247,6 +249,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     }
     if (fresh('releaseT0')) { a.seen_releaseT0 = h.releaseT0; an.play(cls === 'wayfinder' ? 'Pistol_Shoot' : 'Spell_Simple_Shoot', { once: true, ts: 1.3, now, fade: 0.1 }); return; }
     if (fresh('hurtT0') && !an.busy(now)) { a.seen_hurtT0 = h.hurtT0; an.play('Hit_Chest', { once: true, ts: 1.4, now, fade: 0.08 }); return; }
+    { const wc = workClip(e); if (wc) { if (wc.loop) an.play(wc.name, { now }); else if (!an.busy(now)) an.play(wc.name, { once: true, ts: wc.ts, now, fade: 0.12 }); return; } }   // professions
     if (an.busy(now)) return;
     if (e.cast) { an.play(cls === 'wayfinder' ? 'Pistol_Aim_Neutral' : 'Spell_Simple_Idle_Loop', { now }); return; }
     if (e.sitting) { an.play('Sitting_Idle_Loop', { now }); return; }
@@ -305,6 +308,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       const st = { t: now, moving, speed: a.speed, hints: fx.hints(e.id), cast: !!e.cast };
       const b = a.body;
       if (b && b.type === 'hero') {
+        gatherPick(a, e, L);               // professions: the pickaxe while mining (gather3d.js)
         heroAnim(a, e, st);
         b.ch.mixer.update(fdt);
         // the library's sit is a chair sit: on open ground the body drops to sit on the grass
@@ -331,6 +335,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
           if (b.o.userData.glow) b.o.userData.glow.visible = !e.opened;
         }
         if (b.o.userData.glow) b.o.userData.glow.material.opacity = 0.55 + Math.sin(now * 3) * 0.25;
+        if (b.o.userData.glints) animateGather(b.o, now);   // professions: node glints
       }
     }
     for (const id of [...actors.keys()]) if (!seen.has(id)) remove(id);

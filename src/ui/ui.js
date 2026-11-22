@@ -30,12 +30,13 @@ import { drawDialog, dialogFromInteract, dialogRectFor } from './dialog.js';
 import { drawChest, drawPouch } from './chest.js';
 import { drawStoryCard } from './worldlife_ui.js';
 import { deathPanel, readyCheck, shareOffers, tradeWindow, groupEvent } from './group_ui.js';
+import { createProfUI } from './prof_ui.js';
 import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
 
 const SIDE = ['character', 'bags'];
-const CENTER = ['talents', 'quests', 'map', 'menu', 'help'];
+const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof'];
 
 export async function createUI({ canvas, font, zones, zoneNames = {}, storage = null, touch = false, hooks = {}, demo = null }) {
   const art = await loadUiArt({ font });
@@ -301,6 +302,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     },
   };
 
+  // professions (src/ui/prof_ui.js): the window (K), the trainer page, the gather / craft bar, node card and tracking
+  const prof = createProfUI({ st, act, send, toast, say, storage, hero: () => (lastSnap && playerId != null ? { snap: lastSnap, id: playerId } : null) });
+  act.profOptions = (d) => prof.dialogOptions(d);
+  act.profOpen = (o) => prof.open(o);
+
   /** Save the hero: the select-screen summary plus the full character (hooks.saveState: CONTRACTS 2.4 addPlayer restore). */
   function saveProgress() {
     if (st.charId == null || playerId == null) return;
@@ -376,6 +382,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
       regions.push(...hud.draw(ctx, m, L, st, { log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
+      if (m.player) prof.drawHud(ctx, env, m, L, regions);     // professions: the gather / craft bar, the node card, tracking
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
@@ -403,6 +410,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           if (st.open.has('talents') && !isBuilds2(m)) drawTalents(ctx, env, m, st, regions, act);
           if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
           if (st.open.has('help')) drawHelp(ctx, env, st, regions, act, options.binds);
+          if (st.open.has('prof')) prof.drawWindow(ctx, env, m, regions);   // professions (prof_ui.js)
         }, env);
         // Builds 2 (talents2.js): the whole layer on a phone (six columns), the 640x360 window on desktop (centred)
         if (st.open.has('talents') && isBuilds2(m)) {
@@ -883,6 +891,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const me = playerId;
     const gl = groupEvent(ev, me, nameOf);
     if (gl) { if (gl.toast) toast(gl.toast, 3); if (gl.say) say(gl.say[0], gl.say[1]); return; }
+    if (prof.onEvent(ev, me)) return;            // professions (prof_ui.js)
     switch (ev.type) {
       case 'interact':
         if (ev.src !== me) return;

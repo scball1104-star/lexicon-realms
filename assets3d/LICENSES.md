@@ -192,6 +192,8 @@ Total size: 23.4 MB in 300 files.
 | `props/Crate_Wooden.gltf` | Fantasy Props MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `props/FarmCrate_Apple.bin` | Fantasy Props MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `props/FarmCrate_Apple.gltf` | Fantasy Props MegaKit (Quaternius, free tier) | CC0 1.0 |
+| `props/Pickaxe_Bronze.bin` | Fantasy Props MegaKit (Quaternius, free tier): the gathering pickaxe (professions) | CC0 1.0 |
+| `props/Pickaxe_Bronze.gltf` | Fantasy Props MegaKit (Quaternius, free tier): the gathering pickaxe (professions) | CC0 1.0 |
 | `props/Shield_Wooden.bin` | Fantasy Props MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `props/Shield_Wooden.gltf` | Fantasy Props MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `props/Stall_Cart_Empty.bin` | Fantasy Props MegaKit (Quaternius, free tier) | CC0 1.0 |
