@@ -94,6 +94,8 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
     // world life: coming back rested, the Downs at night, the end of a story chain
     case 'rest': return ev.id === me && ev.gained > 0 ? [{ ch: 'xp', text: `You feel rested. Your next kills give double experience (${Math.round(ev.banked).toLocaleString('en-US')} bonus banked).` }] : [];
     case 'world_event': return ev.text ? [{ ch: 'system', text: ev.text }] : [];
+    // a foe's emote (src/sim/ai.js: a foe that runs away in fear), shown to the heroes it was fighting
+    case 'mob_emote': return ev.text && (!ev.to || ev.to.includes(me)) ? [{ ch: 'combat', text: ev.text }] : [];
     case 'story': return ev.id === me ? [{ ch: 'system', text: `Story complete: ${ev.title}.` }] : [];
     case 'loot_lost': return ev.id === me ? [{ ch: 'error', text: `Your waiting loot was full: ${(itemInfo(ev.item) || {}).name || ev.item} was lost.` }] : [];
     default: return [];

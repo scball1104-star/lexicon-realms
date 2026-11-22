@@ -17,6 +17,7 @@ import { gatherLook, animateGather, gatherPick, workClip } from './gather3d.js';
 
 const PX = 16;
 const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
+const GLINT = { geo: null, mat: null };   // the shared wind-up glint mesh parts (one geometry and material for every foe)
 const SHADOW_R = 9;          // m from the camera focus inside which bodies cast shadows
 const DIR_YAW = { down: 0, up: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 };
 const CLASS_IDLE = { warden: 'Sword_Idle', mender: 'Idle_Torch_Loop', scribe: 'Idle_Loop', wayfinder: 'Idle_Loop', inkblade: 'Idle_Loop' };
@@ -323,6 +324,13 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
         const h = st.hints || {};
         st.attackT = h.attackT0; st.hurtT = h.hurtT0; st.deadT = e.dead ? (corpses.get(e.id) >= 0 ? corpses.get(e.id) : now - 1) : null;
         b.c.update(fdt, st);
+        // the wind-up tell (sim ai.js windup): a gold glint over a foe before its blow lands (Ring Block and dodging read it)
+        const wu = !e.dead && e.windup && e.windup.kind !== 'cast';
+        if (wu || a.glint) {
+          if (!a.glint) { a.glint = new THREE.Mesh(GLINT.geo || (GLINT.geo = new THREE.OctahedronGeometry(0.12)), GLINT.mat || (GLINT.mat = new THREE.MeshBasicMaterial({ color: '#ffe48a', transparent: true, opacity: 0.9, depthWrite: false }))); a.root.add(a.glint); }
+          a.glint.visible = !!wu;
+          if (wu) { const k = (e.windup.kind === 'heavy' ? 1.6 : 1) * (1 + 0.35 * Math.sin(now * 30)); a.glint.position.set(0, (a.height || 1.2) + 0.25, 0); a.glint.scale.setScalar(k); a.glint.rotation.y = now * 6; }
+        }
         if (e.dead) {
           const age = now - (corpses.get(e.id) ?? now);
           const k = age > CORPSE_SECS - CORPSE_FADE ? Math.max(0, (CORPSE_SECS - age) / CORPSE_FADE) : 1;

@@ -48,6 +48,10 @@ export const MOB_SPRITES = {
   gutterwick: { sprite: 'ink_blot', lq: 'ink_blot' },
   hollow_wolf: { sprite: 'mist_wolf', lq: 'mist_wolf' },
   hollowfang: { sprite: 'mist_wolf', lq: 'mist_wolf' },
+  // camp healers (src/data/patrols.js HEALER_POSTS): their family's art until their own exists
+  blot_tender: { sprite: 'ink_blot', lq: 'ink_blot' },
+  barrow_keener: { sprite: 'barrow_shade', lq: 'borrowed_shadow' },
+  page_binder: { sprite: 'page_wraith', lq: 'page_wraith' },
 };
 /** The sprite key for a family at a level (the atlas id; spawns carry it as `sprite`). */
 export function mobSprite(id, level = 1) {
@@ -160,6 +164,15 @@ export const MOB_ABILITIES = {
   mob_oil_pool: { id: 'mob_oil_pool', name: 'Oil Pool', school: 'ink', castTime: 2.0, telegraph: 'circle', cooldown: 10, gcd: true, target: 'ground',
     range: { min: 0, max: 112 }, area: { shape: 'circle', radius: 28, at: 'ground' },
     effects: [{ type: 'damage', to: 'enemies', mobHit: 2.0, canCrit: false, school: 'ink' }, { type: 'aura', to: 'enemies', aura: { id: 'oil_slick', name: 'Oil-Slicked', kind: 'debuff', duration: 4, flags: ['slow'], mods: [{ stat: 'speed', mul: 0.6 }] } }] },
+
+  // ---- camp healers (smarter foes, 2026-11-22): a long cast on a hurt friend, a fifth of its health back. Interrupt it, or
+  // kill the healer first. The AI casts it only on a friend under `healer.below` health (src/sim/ai.js healerTick).
+  mob_tend_ink: { id: 'mob_tend_ink', name: 'Tend the Ink', school: 'ink', castTime: 2.5, interruptible: true, cooldown: 0, gcd: true, target: 'ally',
+    range: { min: 0, max: 128 }, effects: [{ type: 'heal', pctMaxHp: 0.2 }] },
+  mob_keen: { id: 'mob_keen', name: 'Keening', school: 'shadow', castTime: 2.5, interruptible: true, cooldown: 0, gcd: true, target: 'ally',
+    range: { min: 0, max: 128 }, effects: [{ type: 'heal', pctMaxHp: 0.2 }] },
+  mob_bind_pages: { id: 'mob_bind_pages', name: 'Bind the Pages', school: 'ink', castTime: 2.5, interruptible: true, cooldown: 0, gcd: true, target: 'ally',
+    range: { min: 0, max: 128 }, effects: [{ type: 'heal', pctMaxHp: 0.2 }] },
 };
 
 const T = (o) => o;
@@ -293,6 +306,15 @@ export const MOBS = {
     abilities: [{ id: 'mob_wolf_lunge', chance: 1, cooldown: 8 }, { id: 'mob_mist_veil' }],
     fight: { phases: [{ at: 0.5, yell: 'Hollowfang howls, and the hollow howls back.', summon: { mob: 'hollow_wolf', level: 14, count: 2 } }] },
     loot: { junk: 'mist_pelt', table: [{ item: 'shrine_bell_shard', chance: 1.0, qty: 4, quest: 'cv_drowned_shrine' }], gear: 'elite' } }),
+
+  // ---- camp healers (src/data/patrols.js HEALER_POSTS): casters that keep their camp alive. `healer` is the AI rule: cast
+  // `ability` on the most hurt friend in reach under `below` health, at most once every `every` s.
+  blot_tender: T({ name: 'Blot Tender', level: [5, 7], family: 'ooze', kind: 'caster', behavior: 'aggressive', aggroRadius: 80, speed: 56, wander: 1, flee: null,
+    healer: { ability: 'mob_tend_ink', below: 0.6, every: 9 }, abilities: [{ id: 'mob_ink_spit' }, { id: 'mob_tend_ink' }], loot: { junk: 'blot_residue', table: [] } }),
+  barrow_keener: T({ name: 'Barrow Keener', level: [10, 12], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 60, wander: 1, flee: null,
+    healer: { ability: 'mob_keen', below: 0.6, every: 9 }, abilities: [{ id: 'mob_chilling_touch' }, { id: 'mob_keen' }], loot: { junk: 'grave_dust', table: [] } }),
+  page_binder: T({ name: 'Page Binder', level: [16, 18], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 64, wander: 1, flee: null, flying: true,
+    healer: { ability: 'mob_bind_pages', below: 0.6, every: 9 }, abilities: [{ id: 'mob_paper_cut' }, { id: 'mob_bind_pages' }], loot: { junk: 'torn_page', table: [] } }),
 };
 // Boss and named-foe tuning (the dungeon clear bot's knobs, qa/sim/dungeon_bot.mjs): health and damage x the curve
 // (src/sim/stats.js recalcMob). Kept in one table so a tuning pass is one place.

@@ -108,7 +108,11 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       const t = C.mobs[m.template] || {};
       if (t.behavior === 'passive' || t.aggroRadius === 0 || m.level < L - 1) continue;
       const [mx, my] = tileOfSub(m);
-      const r = m.level >= L + 2 ? 7 : 5, pen = m.level >= L + 2 ? 30 : 6;
+      // a rare, an elite or a foe 3+ levels up is a wall to walk round (worldlife rares stand on roads: a level 1 died 10 times to
+      // Old Mossback on the North Road); its notice radius grows 0.5 tile a level (src/sim/ai.js aggroRadius), plus 2 tiles of margin
+      const gap = m.level - L, big = t.rare || t.elite || gap >= 3;
+      const r = big ? Math.min(12, Math.ceil(Math.max(2, Math.min(8, 5 + gap / 2))) + 2) : m.level >= L + 2 ? 7 : 5;
+      const pen = big ? 400 : m.level >= L + 2 ? 30 : 6;
       for (let y = Math.max(0, my - r); y <= Math.min(Z.h - 1, my + r); y++) for (let x = Math.max(0, mx - r); x <= Math.min(Z.w - 1, mx + r); x++) {
         if (Math.hypot(x - mx, y - my) <= r) g[y * Z.w + x] += pen;
       }
@@ -630,6 +634,12 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     if (!spots.length) { viol('kill_target_has_no_spawn', { key: g.mobs.join(','), quest: g.quest, mobs: g.mobs }); goalBan.set(g.key, now() + 3600 * 20); return; }
     if (!spots.some((s) => s.zone === zone)) zone = spots[0].zone;
     spots = spots.filter((s) => s.zone === zone);
+    // a camp next to a living rare or elite well above me is not a place to grind (a level 1 died 500 times grinding the
+    // Gate Road South slimes beside Gutterlick); keep it only when nothing else is left
+    const big = ents().filter((m) => isHostileMob(m) && m.zone === zone && (C.mobs[m.template] || {}).behavior !== 'passive'
+      && ((C.mobs[m.template] || {}).rare || (C.mobs[m.template] || {}).elite) && m.level >= p.level + 2);
+    const safe = spots.filter((s) => !big.some((m) => { const [mx, my] = tileOfSub(m); return Math.hypot(mx - s.x, my - s.y) <= 14; }));
+    if (safe.length) spots = safe;
     if (p.zone === zone) {
       const m = pickMob(g.mobs, zone, g.minLevel || 0, 2);
       if (m && dpx(m, p) < 400) { fight(m); return; }
@@ -688,11 +698,15 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   }
   function grind(g) {
     const p = me();
-    // the level band: zones by level
-    const zonePick = p.level >= 9 ? 'moor' : p.level >= 6 ? 'downs' : 'valley';
+    // the level band: since the one world (2026-11-21) the areas are regions of zone 'world' (layout.js), so the pool is
+    // every open-world spawn near my level, wherever it stands; hunt() walks to the camp whose level is closest
     const pool = new Set();
-    for (const s of C.zones[zonePick].spawns || []) if (s.level >= p.level - 2 && s.level <= p.level + 1) pool.add(s.mob);
-    const tpls = [...pool];
+    let zonePick = null;
+    for (const z of Object.values(C.zones)) {
+      if (z.kind === 'dungeon' || z.kind === 'cave' || z.instanced) continue;
+      for (const s of z.spawns || []) if (!s.night && s.level >= p.level - 2 && s.level <= p.level + 1) { pool.add(s.mob); zonePick = zonePick || z.id; }
+    }
+    const tpls = [...pool].filter((t) => !(C.mobs[t] && (C.mobs[t].elite || C.mobs[t].boss)));
     if (!tpls.length) return;
     if (p.zone === zonePick) {
       const m = pickMob(tpls, zonePick, p.level - 2, 1);
@@ -787,6 +801,10 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       if (ev.type === 'death' && ev.id === id) {
         const killer = ev.killer ? w.get(ev.killer) : null;
         R.deaths.push({ min: simMin(), level: p.level, zone: p.zone, tile: tileOfSub(p), killer: killer ? killer.template : null, killerLevel: killer ? killer.level : null, goal: goal ? goal.key : null, lantern: p.lantern ? `${p.lantern.zone}:${p.lantern.id}` : null });
+        // a death loop (a level 9 died 30 times to Corvina Ninecoats walking to the Ridge Path talk): three deaths on one goal
+        // in 15 sim minutes put that goal aside for 20 minutes, the way a player would go and do something else first
+        const gk = goal ? goal.key : null;
+        if (gk && R.deaths.filter((d) => d.goal === gk && d.min >= simMin() - 15).length >= 3) { goalBan.set(gk, now() + 20 * MIN); viol('death_loop', { key: gk, goal: gk, killer: killer ? killer.template : null }); goal = null; route = null; }
       }
       if (ev.type === 'respawn') { const d = R.deaths[R.deaths.length - 1]; if (d) { d.wokeAt = `${ev.zone}:${ev.x},${ev.y}`; d.wokeMin = simMin(); } }
       if (ev.type === 'quest') {

@@ -2,7 +2,11 @@
 //
 // Modes (CONTRACTS 5.7): idle / walk / home (wander inside a box round the spawn point, the foundation behaviour),
 // combat (chase, swing, cast, use abilities), flee (once, at low health, for mobs flagged `flee`), reset (walk home
-// evading, full heal, threat cleared: the leash).
+// evading, full heal, threat cleared: the leash), patrol (walk a route on a clock, src/data/patrols.js).
+//
+// Smarter foes (2026-11-22, src/sim/mob_rules.js): every melee swing shows a wind-up glint first (m.windup, which the
+// renderers draw and the Warden's Ring Block reads); a camp pulls its linked mates; a fleeing foe calls friends on its way
+// and says so; casters back off a hero in their face; camp healers heal hurt friends with a long interruptible cast.
 //
 //   mobThink(e, tick, rng, zone)    the foundation wander (also used when combat content is not loaded)
 //   createAi(C) -> { think(e), engage(mob, player) }
@@ -11,6 +15,8 @@ import { ticks as T } from './data.js';
 import { distPx, distPxXY } from './geom.js';
 import { hasLos } from './los.js';
 import { walkClear, findPath, tileGoal } from './path.js';
+import { compileRoute, routePoint, nearestParam } from './patrol.js';
+import { MOB_RULES as MR, PATROL_RULES as PR } from './mob_rules.js';
 
 const STEPS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
 
@@ -115,6 +121,10 @@ export function createAi(C) {
     m.ai.mode = 'combat';
     m.ai.target = p.id;
     m.ai.reachTick = now();
+    m.ai.engagedAt = now();
+    // a patrol leashes from, and walks back to, the spot it was pulled at (then picks its road up again on the clock)
+    m.ai.anchor = m.spawn && m.spawn.patrol ? { x: m.x, y: m.y } : null;
+    m.windup = null;
     m.ai.path = null; m.ai.noPath = null; m.ai.lastXY = null;
     m.ai.fled = false;
     m.ai.dx = 0; m.ai.dy = 0;
@@ -142,7 +152,18 @@ export function createAi(C) {
         engage(o, p, false);
       }
     }
+    // camp link (mob_rules campLink): the rest of its camp that can see it comes too, any family (a camp's healer)
+    if (social && socialR > 0 && m.spawn && m.spawn.group && MR.campLink > 0) {
+      for (const o of state.ents) {
+        if (o === m || o.kind !== 'mob' || o.dead || o.zone !== m.zone || !o.ai || o.ai.mode === 'combat' || o.ai.mode === 'reset' || o.ai.mode === 'flee') continue;
+        if (!o.spawn || o.spawn.group !== m.spawn.group || behavior(o) !== 'aggressive' || distPx(o, m) > MR.campLink) continue;
+        if (!hasLos(C.zoneOf(m), o, m)) continue;
+        engage(o, p, false);
+      }
+    }
   }
+  /** Where a foe leashes from and walks home to: a patrol's pull spot, else its spawn point. */
+  function homeOf(m) { return (m.ai && m.ai.anchor) || m.spawn; }
 
   function reset(m) {
     K().cancelCast(m, 'interrupt');
@@ -150,6 +171,7 @@ export function createAi(C) {
     m.ai.mode = 'reset';
     m.ai.target = null;
     m.ai.path = null; m.ai.noPath = null; m.ai.lastXY = null; m.ai.blocked = 0;
+    m.ai.backoff = null; m.windup = null;
     m.hp = m.hpMax;
     for (const a of [...m.auras]) K().removeAura(m, a, 'cancel');
     m.tagger = null;
@@ -258,10 +280,13 @@ export function createAi(C) {
     for (const entry of list) {
       const ab = data.abilities[entry.id];
       if (!ab || ab.passive || ab.trigger) continue;
+      if (template(m).healer && template(m).healer.ability === ab.id) continue;     // healerTick casts it, on its own rule
       if ((m.cd[ab.id] || 0) > now()) continue;
       // a cast-time enemy ability with reach is the caster's bolt (cast below, not here); a boss or a named foe
       // (dungeons) uses its telegraphed moves (a Stair Rush, a charge) from here like any other ability
-      if (ab === casterBolt(m) && !(template(m).boss || template(m).rare)) continue;
+      // (only a caster has a bolt: a melee foe's cast-time charge with reach, the Gorse Boar's Boar Charge, was skipped as one
+      // and never fired before 2026-11-22)
+      if (m.mob.kind === 'caster' && ab === casterBolt(m) && !(template(m).boss || template(m).rare)) continue;
       let target = t;
       if (ab.target === 'ally') {
         const hurt = K().unitsNear(m.x, m.y, m.zone, ab.range ? ab.range.max : 160, (u) => u.kind === 'mob' && K().isFriendly(m, u) && u.hp < u.hpMax * 0.9)
@@ -302,43 +327,50 @@ export function createAi(C) {
   function combat(m) {
     scriptTick(m);
     if (C.dungeons) C.dungeons.bossTick(m);        // boss phases (adds by health) and the frenzy timer (mobs.js `fight`)
+    if (m.windup && windupTick(m)) { stop(m); return; }   // a heavy blow winding up: it plants its feet until the glint ends
     if (K().cannotAct(m)) { stop(m); return; }
     const t = pickTarget(m);
     if (t === 'lost') { stop(m); m.ai.reachTick = now(); return; }      // the foe looks for a hero it cannot see
     if (!t) { reset(m); return; }
     if (t.id !== m.ai.target) { m.ai.target = t.id; emit({ type: 'threat', mob: m.id, top: t.id }); }
     m.target = t.id;
-    const home = distPxXY(m.x, m.y, m.spawn.x, m.spawn.y);
+    const H = homeOf(m);
+    const home = distPxXY(m.x, m.y, H.x, H.y);
     const leashDist = template(m).leash != null ? template(m).leash : A.leashDist;
-    // CONTRACTS 5.7 "10 s without reaching or being hurt by its target": a held foe that its target keeps hurting does not
-    // leash (Builds 2 Long Bramble and Thorn Garden roots can outlast the 10 s)
-    if (K().cannotMove(m) && m.lastHurt && m.lastHurt.by === t.id && now() - m.lastHurt.tick <= 20) m.ai.reachTick = now();
+    // CONTRACTS 5.7 "10 s without reaching or being hurt by its target": a foe that a hero on its threat list keeps hurting
+    // does not leash on the clock (a kited foe, a held foe under Long Bramble); it still leashes by distance, and a foe with
+    // no path at all still evades on its own rule (cannotReach)
+    if (m.lastHurt && m.threat[m.lastHurt.by] != null && now() - m.lastHurt.tick <= 20) m.ai.reachTick = now();
     if (home > leashDist || now() - m.ai.reachTick > T(A.leashTime)) { reset(m); return; }
-    // flee once at low health
-    const flee = template(m).flee;
+    // flee once at low health (a humanoid family runs even without a `flee` on its template)
+    const flee = fleeAt(m);
     if (flee && !m.ai.fled && m.hp / m.hpMax <= flee && t.kind === 'player') {
       m.ai.fled = true; m.ai.mode = 'flee'; m.ai.until = now() + T(A.flee.time);
+      m.ai.fleeFrom = t.id; m.ai.called = 0;
       K().cancelCast(m, 'interrupt');
       const friends = state.ents.filter((o) => o !== m && o.kind === 'mob' && !o.dead && o.zone === m.zone && o.mob.family === m.mob.family && distPx(o, m) <= A.flee.dist);
       const f = K().nearest(friends, m.x, m.y);
       triggers(m, t, 0, 'flee');
-      if (f) { m.ai.fleeTo = { x: f.x, y: f.y }; engage(f, t, false); }
+      if (f) { m.ai.fleeTo = { x: f.x, y: f.y }; if (f.ai && f.ai.mode !== 'combat') m.ai.called++; engage(f, t, false); }
       else {
         const dx = m.x - t.x, dy = m.y - t.y, dd = Math.sqrt(dx * dx + dy * dy) || 1;
         m.ai.fleeTo = { x: Math.round(m.x + (dx / dd) * A.flee.dist * SUB), y: Math.round(m.y + (dy / dd) * A.flee.dist * SUB) };
       }
       emit({ type: 'flee', id: m.id });
+      emit({ type: 'mob_emote', id: m.id, text: MR.flee.line.replace('%s', m.name), to: Object.keys(m.threat).map(Number) });
       return;
     }
     const d = distPx(m, t);
     const reach = A.meleeReach;
     if (d <= reach) m.ai.reachTick = now();
-    if (m.cast) { stop(m); return; }
+    if (m.cast) { castWindup(m); stop(m); return; }
     if (t.kind !== 'object' && triggers(m, t, d, 'tick')) return;
     const taunted = stats.hasFlag(m, 'taunted');
     const isObj = t.kind === 'object';
     const caster = m.mob.kind === 'caster' && !taunted && !isObj;
     if (caster) {
+      if (healerTick(m)) return;
+      if (backOff(m, t, d)) return;
       const bolt = casterBolt(m);
       const range = bolt && bolt.range ? bolt.range.max : 112;
       const los = hasLos(C.zoneOf(m), m, t);
@@ -360,7 +392,146 @@ export function createAi(C) {
     if (d > A.standOff) chase(m, t.x, t.y, speedOf(m), A.standOff - 4); else if (isObj || !spread(m, t, d)) stop(m);
     // Builds 2: an ink double or hound with health (or a hit count) is struck like a hero; a plain decoy only draws the foe
     if (isObj && !(t.obj && t.obj.def && (t.obj.def.hpPct || t.obj.def.hits))) return;
-    if (d <= reach) meleeSwing(m, t);
+    // a plain swing starts its glint as the foe closes the last steps (as far out as it runs in one glint, at least
+    // mob_rules approach), so the first blow of a fight lands about when it always did
+    const run = (speedOf(m) * TICK_HZ / SUB) * MR.windup.swing;
+    if (d <= reach || (!isObj && d <= reach + Math.max(MR.windup.approach, run))) meleeSwing(m, t, d);
+  }
+
+  /** The health share a foe flees at: its template's `flee`, else the humanoid rule, else never. */
+  function fleeAt(m) {
+    const t = template(m);
+    if (t.flee != null) return t.flee;
+    if (m.mob && m.mob.family === 'humanoid' && !t.elite && !t.boss) return MR.flee.humanoid;
+    return null;
+  }
+  /** On the run: friends of its family it passes join the fight, up to mob_rules flee.calls in all. */
+  function fleeCalls(m) {
+    if ((m.ai.called || 0) >= MR.flee.calls || (now() + m.id) % 4 !== 0) return;
+    const foe = m.ai.fleeFrom != null ? C.get(m.ai.fleeFrom) : null;
+    if (!foe || foe.dead || foe.zone !== m.zone) return;
+    for (const o of state.ents) {
+      if (o === m || o.kind !== 'mob' || o.dead || o.zone !== m.zone || !o.ai || o.ai.mode === 'combat' || o.ai.mode === 'reset' || o.ai.mode === 'flee') continue;
+      if (!o.mob || o.mob.family !== m.mob.family || distPx(o, m) > MR.flee.callRadius / 2) continue;
+      engage(o, foe, false);
+      if (++m.ai.called >= MR.flee.calls) return;
+    }
+  }
+
+  // ---------------------------------------------------------------- wind-up tells (mob_rules windup)
+  /**
+   * m.windup = { kind: 'swing' | 'heavy' | 'cast', start, at, target }: the glint before a hit lands (renderers draw it, the
+   * snapshot carries it, Ring Block reads it). Returns true while the foe is committed to a heavy blow (it stands still).
+   * 'cast' mirrors a telegraphed cast (its own cast bar and ground shape resolve it); it only clears when the cast ends.
+   */
+  function windupTick(m) {
+    const w = m.windup;
+    if (w.kind === 'cast') { if (!m.cast || m.cast.startTick !== w.start) m.windup = null; return false; }
+    // a stun or lost control spoils the blow; the swing comes again as soon as the foe can act (its timer is not lost)
+    if (K().cannotAct(m)) { m.windup = null; if (m.swing) m.swing.main = w.beat; emit({ type: 'windup_break', id: m.id, target: w.target }); return false; }
+    // when the blow would have landed without a tell: the swing timer, or the first tick its target was in reach after it
+    if (w.reachAt == null) { const u = C.get(w.target); if (u && !u.dead && u.zone === m.zone && distPx(m, u) <= A.meleeReach) w.reachAt = now(); }
+    // a heavy blow plants its feet for the glint; a plain swing keeps after its target (it only stops starting new swings)
+    if (now() < w.at) return w.kind === 'heavy';
+    // a taunt (or a hound that holds its eye) during the glint takes the blow: it lands on whoever the foe faces now
+    const pick = m.ai && m.ai.mode === 'combat' ? pickTarget(m) : null;
+    const cur = pick && pick !== 'lost' ? pick : null;
+    const t = cur && !cur.dead && cur.zone === m.zone ? cur : C.get(w.target);
+    const alive = t && !t.dead && t.zone === m.zone;
+    const d = alive ? distPx(m, t) : Infinity;
+    // a plain swing whose target is a step out of reach when the glint ends follows it for up to `hold` s and lands the
+    // moment it is in reach (so a plain blow lands when it always did); a heavy blow lands only in reach, then and there
+    if (w.kind !== 'heavy' && d > A.meleeReach && d <= A.meleeReach + MR.windup.swingSlack * 2 && now() - w.at < T(MR.windup.hold)) return false;
+    m.windup = null;
+    // the rhythm of the fight is the one it had without tells: the next swing comes `interval` after the beat this blow would
+    // have landed on, so a glint delays one blow, never the fight; a blow that missed is ready again at once
+    if (d <= A.meleeReach) { if (m.swing) m.swing.main = Math.max(w.beat, w.reachAt ?? now()) + w.interval; K().mobAttack(m, t); }
+    else { if (m.swing) m.swing.main = w.beat; emit({ type: 'windup_miss', id: m.id, target: w.target, kind: w.kind }); }
+    return false;
+  }
+  /** A telegraphed cast (ground shape) shows the same wind-up for as long as it casts. */
+  function castWindup(m) {
+    const c = m.cast;
+    if (!c || (m.windup && m.windup.kind === 'cast' && m.windup.start === c.startTick)) return;
+    const ab = data.abilities[c.ability];
+    if (!ab || !(ab.telegraph || ab.area)) return;
+    m.windup = { kind: 'cast', start: c.startTick, at: c.endTick, target: c.target ?? null, ability: c.ability };
+  }
+  /** The active wind-up of a foe (null when none or it is over): what Ring Block and the renderers read. */
+  function windupOf(m) { return m && m.windup && !m.dead && now() <= m.windup.at ? m.windup : null; }
+
+  // ---------------------------------------------------------------- camp healers (mobs.js `healer`)
+  function healerTick(m) {
+    const h = template(m).healer;
+    if (!h) return false;
+    const ab = abilityOf({ id: h.ability });
+    if (!ab || (m.cd[ab.id] || 0) > now()) return false;
+    const r = ab.range ? ab.range.max : 128;
+    const hurt = K().unitsNear(m.x, m.y, m.zone, r, (u) => u.kind === 'mob' && !u.dead && K().isFriendly(m, u) && u.hp < u.hpMax * h.below && (u === m || (u.ai && u.ai.mode === 'combat')))
+      .filter((u) => u === m || hasLos(C.zoneOf(m), m, u))
+      .sort((p, q) => p.hp / p.hpMax - q.hp / q.hpMax || p.id - q.id);
+    if (!hurt.length) return false;
+    stop(m); notChasing(m);
+    m.ai.reachTick = now();
+    const ok = K().castAbility(m, ab, { target: hurt[0].id });
+    if (ok) { m.cd[ab.id] = now() + T(h.every); emit({ type: 'mob_heal_cast', id: m.id, target: hurt[0].id, ability: ab.id }); }
+    return !!ok;
+  }
+
+  // ---------------------------------------------------------------- casters keep their range (mob_rules casterBackoff)
+  function backOff(m, t, d) {
+    const R = MR.casterBackoff, ai = m.ai, tp = template(m);
+    if (tp.elite || tp.boss || tp.stationary || K().cannotMove(m)) { ai.backoff = null; return false; }
+    if (ai.backoff) {
+      if (now() >= ai.backoff.until || d >= R.to) { ai.backoff = null; stop(m); return false; }
+      ai.reachTick = now();
+      chase(m, ai.backoff.x, ai.backoff.y, speedOf(m), 0);
+      return true;
+    }
+    if (d > R.inside || now() < (ai.backoffNext || 0) || t.kind !== 'player') return false;
+    if (ai.engagedAt == null) ai.engagedAt = now();
+    if (now() - ai.engagedAt < T(R.after)) return false;     // it opens with a spell, not a retreat
+    const dx = m.x - t.x, dy = m.y - t.y, dd = Math.sqrt(dx * dx + dy * dy) || 1;
+    const ux = dd > SUB ? dx / dd : (m.id % 2 ? 1 : -1), uy = dd > SUB ? dy / dd : 0;
+    const gx = Math.round(t.x + ux * R.to * SUB), gy = Math.round(t.y + uy * R.to * SUB);
+    // back off only where it can stand: a wall behind it means it holds its ground and casts
+    const Z = C.zoneOf(m);
+    if (Z && !walkClear(Z, m.x, m.y, gx, gy)) { ai.backoffNext = now() + T(2); return false; }
+    ai.backoff = { x: gx, y: gy, until: now() + T(R.time) };
+    ai.backoffNext = now() + T(R.every);
+    ai.reachTick = now();
+    chase(m, gx, gy, speedOf(m), 0);
+    return true;
+  }
+
+  // ---------------------------------------------------------------- patrols (src/data/patrols.js, src/sim/patrol.js)
+  const patrolSpeed = () => pxToSub(PR.speed);
+  function patrolOffset(m, R) {
+    const p = m.spawn.patrol;
+    if (m.spawn.patOff == null) m.spawn.patOff = p.spread ? nearestParam(R, m.spawn.x, m.spawn.y) : -(p.slot || 0) * PR.pairGap * SUB;
+    return m.spawn.patOff;
+  }
+  /** Walk the route on its clock; returns false (wander instead) when the route cannot be walked. */
+  function patrolTick(m) {
+    const R = compileRoute(C.zoneOf(m), m.spawn.patrol);
+    if (!R) return false;
+    const ai = m.ai;
+    ai.mode = 'patrol';
+    const [tx, ty] = routePoint(R, now(), patrolSpeed(), patrolOffset(m, R));
+    const d = distPxXY(m.x, m.y, tx, ty);
+    const sp = Math.round(patrolSpeed() * (d > 24 ? PR.catchUp : 1));
+    if (d * SUB <= sp) { ai.path = null; ai.vx = tx - m.x; ai.vy = ty - m.y; }
+    else chase(m, tx, ty, sp, 0);
+    // a patrol that walks past a fight joins it (the pat that walks into your pull)
+    if ((now() + m.id) % 10 === 0 && PR.joinFight > 0) {
+      for (const o of state.ents) {
+        if (o === m || o.kind !== 'mob' || o.dead || o.zone !== m.zone || !o.ai || o.ai.mode !== 'combat' || o.faction !== m.faction) continue;
+        if (distPx(o, m) > PR.joinFight || !hasLos(C.zoneOf(m), m, o)) continue;
+        const foe = o.ai.target != null ? C.get(o.ai.target) : null;
+        if (foe && foe.kind === 'player' && !foe.dead && foe.zone === m.zone) { engage(m, foe); break; }
+      }
+    }
+    return true;
   }
 
   /**
@@ -391,6 +562,7 @@ export function createAi(C) {
    * within 10 tiles (the hero's target first) and swings at it; with none, it stays by the hero. The hero's scripts end it.
    */
   function charmed(m) {
+    if (m.windup && windupTick(m)) { stop(m); return; }
     if (K().cannotAct(m)) { stop(m); return; }
     const owner = C.get(m.charmedBy);
     if (!owner || owner.dead || owner.zone !== m.zone) { stop(m); return; }
@@ -405,15 +577,24 @@ export function createAi(C) {
     meleeSwing(m, t);
   }
 
-  function meleeSwing(m, t) {
+  function meleeSwing(m, t, d = 0) {
+    if (m.windup) return;                          // a blow already winding up
     m.swing = m.swing || { main: 0 };
-    if (now() < m.swing.main) return;
+    // the wind-up glint (mob_rules windup) starts its length BEFORE the swing timer is ready, so in a steady fight every blow
+    // lands on the beat it always did; a foe that only now reached its target lands one glint later. A heavy blow's glint is
+    // longer, and only starts in plain reach.
+    const heavy = !!(m.mob && m.mob.unblockable);
+    const w = T(heavy ? MR.windup.heavy : MR.windup.swing);
+    if (d > A.meleeReach && (heavy || w <= 0)) return;
+    if (now() < m.swing.main - w) return;
     if (K().cannotAct(m)) return;
     const interval = Math.max(1, Math.round(T(m.mob.attackSpeed) / stats.mod(m, 'attackSpeed').mul));
-    m.swing.main = now() + interval;
     m.dir = Math.abs(t.x - m.x) > Math.abs(t.y - m.y) ? (t.x < m.x ? 'left' : 'right') : (t.y < m.y ? 'up' : 'down');
-    if (useAbilities(m, t, distPx(m, t))) return;
-    K().mobAttack(m, t);
+    if (useAbilities(m, t, distPx(m, t))) { m.swing.main = now() + interval; return; }
+    if (w <= 0) { m.swing.main = now() + interval; K().mobAttack(m, t); return; }
+    // beat: when the swing timer was ready (windupTick sets the next swing from it, see there)
+    m.windup = { kind: heavy ? 'heavy' : 'swing', start: now(), at: now() + w, target: t.id, interval, beat: m.swing.main, reachAt: d <= A.meleeReach ? now() : null };
+    emit({ type: 'windup', id: m.id, target: t.id, kind: m.windup.kind, at: m.windup.at });
   }
 
   function scan(m) {
@@ -444,18 +625,20 @@ export function createAi(C) {
     switch (ai.mode) {
       case 'flee': {
         if (now() >= ai.until) { ai.mode = 'combat'; ai.reachTick = now(); stop(m); return; }
+        fleeCalls(m);
         steer(m, ai.fleeTo.x, ai.fleeTo.y, speedOf(m, 'flee'), 0);
         return;
       }
       case 'reset': {
-        const d = distPxXY(m.x, m.y, m.spawn.x, m.spawn.y);
+        const H = homeOf(m);
+        const d = distPxXY(m.x, m.y, H.x, H.y);
         if (d <= 2 || (ai.blocked || 0) > 40) {
-          m.x = m.spawn.x; m.y = m.spawn.y;
-          ai.mode = 'idle'; ai.until = now() + 20; ai.vx = null; ai.vy = null; ai.blocked = 0;
+          m.x = H.x; m.y = H.y;
+          ai.mode = 'idle'; ai.until = now() + 20; ai.vx = null; ai.vy = null; ai.blocked = 0; ai.anchor = null;
           m.hp = m.hpMax;
           return;
         }
-        chase(m, m.spawn.x, m.spawn.y, speedOf(m) * 1.5, 0);
+        chase(m, H.x, H.y, speedOf(m) * 1.5, 0);
         if (ai.noPath != null) ai.blocked = Math.max(ai.blocked || 0, 41);   // no way home: snap back next tick
         return;
       }
@@ -468,10 +651,11 @@ export function createAi(C) {
           if (holder) { engage(m, holder, false); return; }
           m.threat = {};
         }
+        if (m.spawn && m.spawn.patrol && patrolTick(m)) { scan(m); return; }
         mobThink(m, now(), rng);
         scan(m);
     }
   }
 
-  return { think, engage, reset, aggroRadius, applyPassives };
+  return { think, engage, reset, aggroRadius, applyPassives, windupOf };
 }

@@ -31,6 +31,7 @@ import { ABILITIES, MOB_ABILITIES } from '../abilities.js';
 import { TALENTS } from '../talents.js';
 import { PROGRESSION } from '../progression.js';
 import { packOf } from '../packs.js';
+import { worldPatrolSpawns, placePatrolSpawns, routeFor, healerSpawns } from '../patrols.js';
 import { BUILDS2, RULES as BUILDS2_RULES, SKILL_PICKS, B2_ABILITIES } from '../builds2.js';
 import { BOARDS, BOUNTIES, NAMED_SPAWNS } from '../bounties.js';
 import { STORAGE, LANTERN_CHESTS } from '../storage.js';
@@ -46,6 +47,8 @@ export const REGIONS = { willowmere, valley, downs, moor };
 export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow };
 // the loading card's one line of flavour (src/ui/loading.js reads zone.flavour)
 for (const [id, z] of Object.entries(PLACES)) if (DUNGEONS[id] && DUNGEONS[id].flavour) PLACES[id] = { ...z, flavour: DUNGEONS[id].flavour };
+// patrols you must time (src/data/patrols.js): a place's patrol pairs spawn with its other foes
+for (const [id, z] of Object.entries(PLACES)) { const pats = placePatrolSpawns(id); if (pats.length) PLACES[id] = { ...z, spawns: [...(z.spawns || []), ...pats] }; }
 // One world (Scott 2026-11-21, layout.js): the sim runs ONE zone, the areas laid out on it with the wilds between; the
 // dungeon and cave doors are joins on it (doors.js).
 export const WORLD = withDoors(composeWorld(REGIONS, wilds), DUNGEONS, PLACES);
@@ -86,10 +89,15 @@ export function allSpawns() {
   const day = [], night = [];
   for (const z of Object.values(ZONES)) {
     if (z.kind === 'dungeon' || z.kind === 'cave') continue;     // a dungeon's foes spawn per copy (src/sim/dungeons.js)
+    const slots = {};
     for (const s of z.spawns || []) {
       const pack = packOf(s.region || z.id, s.group);      // src/data/packs.js: camps that pull as one fight (by area)
-      (s.night ? night : day).push({ zone: z.id, sprite: mobSprite(s.mob, s.level), ...s, ...(pack ? { pack } : {}) });
+      // src/data/patrols.js: a camp with a route walks it (the Tower Sentinels), each member at its own place on the road
+      const route = s.patrol ? null : routeFor(s.region || z.id, s.group, (slots[s.group] = (slots[s.group] ?? -1) + 1));
+      (s.night ? night : day).push({ zone: z.id, sprite: mobSprite(s.mob, s.level), ...s, ...(pack ? { pack } : {}), ...(route ? { patrol: route } : {}) });
     }
+    // the open world's patrols and camp healers (src/data/patrols.js), in world tiles
+    if (z.id === WORLD_ID) for (const s of [...worldPatrolSpawns(), ...healerSpawns()]) day.push({ zone: z.id, sprite: mobSprite(s.mob, s.level), ...s });
     for (const n of z.npcs || []) day.push({ zone: z.id, ...n });
   }
   // the bounty boards' named foes (src/data/bounties.js): one fixed spot each, authored in area tiles
