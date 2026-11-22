@@ -234,7 +234,7 @@ function wrap(state, content0, rng, systems) {
       name, level, faction: t.faction || 'hostile', sprite: sp.sprite || t.sprite, template: sp.mob,
       hp: t.hp, hpMax: t.hp, res: null, dir: 'left',
       spawn: { zone: sp.zone, x: e.x, y: e.y, respawn: sp.temporary ? 5 : sp.respawn ?? null, level: sp.level ?? null,
-        night: !!sp.night, temporary: !!sp.temporary, group: sp.group || null, pack: sp.pack || null },
+        night: !!sp.night, temporary: !!sp.temporary, group: sp.group || null, pack: sp.pack || null, patrol: sp.patrol || null },
       ai: { mode: 'idle', until: 0, dx: 0, dy: 0, leash: (sp.wander ?? t.wander ?? 3) * TILE },
     });
     if (combatOn) { e.threat = {}; e.hp = 0; C.stats.recalc(e); e.hp = e.hpMax; }
@@ -988,6 +988,8 @@ function wrap(state, content0, rng, systems) {
       o.rank = mt.boss ? 'boss' : o.elite ? 'elite' : (e.mob && e.mob.kind === 'weak') ? 'weak' : 'normal';
       if (mt.rare) o.rare = true;                // a rare named foe (src/data/rares.js): the silver mark
       o.aggro = e.ai && e.ai.mode === 'combat' ? e.ai.target : null; o.aiMode = e.ai ? e.ai.mode : null;
+      // the wind-up tell (src/sim/ai.js): the glint before a swing, a heavy blow or a telegraphed cast (Ring Block reads it)
+      o.windup = e.windup && !e.dead && state.tick <= e.windup.at ? { kind: e.windup.kind, start: e.windup.start, at: e.windup.at, target: e.windup.target ?? null } : null;
     }
     if (e.kind === 'object' && e.node) {
       o.node = { item: e.node.item, channel: e.node.channel || 0 };

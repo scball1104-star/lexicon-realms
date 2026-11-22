@@ -328,6 +328,16 @@ object: {
   Chasing (and walking home) goes straight when the line is clear, else along an A* tile path round walls, fences and
   water (`src/sim/path.js`, 8-way, no corner cutting, bounded search, deterministic). A chasing mob with no path to its
   target for 2 s, or that has not moved for 3 s (not rooted or held by a blocking object), evades at once (fix pass 2).
+- **Smarter foes** (2026-11-22, `src/sim/ai.js`, tuning `src/sim/mob_rules.js`, data `src/data/patrols.js`, tests
+  `qa/sim/mobai.test.mjs`): the 10 s leash clock also resets while a hero on its threat list keeps hurting it. **Wind-up**:
+  every melee swing sets `m.windup = { kind: 'swing' | 'heavy' | 'cast', start, at, target }` (snapshot `windup`, event
+  `windup`); a swing glints 0.4 s and keeps the fight's rhythm, a heavy blow glints 0.6 s, plants its feet and lands only in
+  reach; losing control in the glint spoils the blow (`windup_break`); a telegraphed cast mirrors its cast as kind 'cast'.
+  **Patrols**: `spawn.patrol = { id, mode, route, slot }`, mode `patrol`, placed on a clock (`src/sim/patrol.js`), leash
+  and walk home to the pull spot (`ai.anchor`), join a fight within 4 tiles. **Camp link**: a pull brings camp mates (same
+  `group`) within 3.5 tiles in sight, any family. **Flee** also for family `humanoid` at 15%, event `mob_emote` ("X runs
+  away in fear!"), calls up to 3 friends on the way. **Casters** back off a hero in their face (after 3 s, once per 8 s).
+  **Healers** (template `healer: { ability, below, every }`) cast an interruptible heal on the most hurt friend.
   Aggro radius 80 px (or the template's) +-8 px per level of gap, 32 to 128, needs sight; `aggroRadius: 0` or
   `behavior: 'passive'` only fights back. Social: an engaged mob pulls same-family mobs within 3 tiles that can see it.
   Mob ability entries: `passive` (applied at spawn), `trigger: { hpBelow, once } | { onFlee } | { meleeHit } |

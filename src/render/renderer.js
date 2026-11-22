@@ -354,6 +354,12 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
         blit(g, { sx: 0, sy: 0, w: f.w, h: f.h, flip: f.flip }, silhouette(f.img, f.sx, f.sy, f.w, f.h, '#ffffff'), dx, dy);
         g.globalAlpha = 1;
       }
+      const wu = it.ent.windup;     // the wind-up tell (sim ai.js): a gold glint on a foe before its blow lands (Ring Block)
+      if (wu && wu.kind !== 'cast') {
+        g.globalAlpha = (wu.kind === 'heavy' ? 0.5 : 0.3) + (Math.sin(now * 40) > 0 ? 0.15 : 0);
+        blit(g, { sx: 0, sy: 0, w: f.w, h: f.h, flip: f.flip }, silhouette(f.img, f.sx, f.sy, f.w, f.h, '#ffe48a'), dx, dy);
+        g.globalAlpha = 1;
+      }
       if (f.emissive) emissive.push([f, dx, dy]);
       for (const l of looks) auraDraws.push([l, it.x, it.y]);
       picks.push({ id: it.ent.id, x: it.x - f.ox, y: it.y - f.oy, w: f.w, h: f.h });
