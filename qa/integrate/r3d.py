@@ -1,6 +1,7 @@
 """3D renderer check (?r=3d) with REAL input (Playwright, GPU on). Modeled on qa/integrate/phone.py.
 
-    python qa/integrate/r3d.py
+    python qa/integrate/r3d.py            all sessions
+    python qa/integrate/r3d.py g h        only the sessions named (letters a..h; e always runs last when named)
 
 Starts its own static server on a free 127.0.0.1 port (and stops it at the end), then runs four sessions:
   A desktop 1600x900: title (3D loading behind it) -> create a Warden -> walk with WASD -> right-click Hob to talk
@@ -10,13 +11,14 @@ Starts its own static server on a free 127.0.0.1 port (and stops it at the end),
   D phone 844x390 at dpr 2 (touch): tap the ground to walk (3D devToWorld), tap a foe to target it (3D pick)
   E no WebGL: ?r=3d falls back to the 2D renderer with a console warning
   F foe gallery: every foe family in a row at game zoom (renderer.dev.lineup), desktop, plus slimes on the phone
-  G cutaway and zone change: the town camera (steeper, further out), the hero behind the library (its whole roof and
-    upper walls fade out), every building's drawn box within its footprint plus a sliver, then a walk from Willowmere
-    into the valley with every frame time logged (the hitch check: no frame over 100 ms, few over 50 ms) and the
-    camera back at the field angle
+  G cutaway and area seam: the town camera (steeper, further out), the hero behind the library (its whole roof and
+    upper walls fade out), every building's drawn box within its footprint plus a sliver, then a walk out of the town
+    gate and into the valley across the area seams of the one world with every frame time logged (the hitch check: no
+    frame over 100 ms, few over 50 ms, nothing rebuilt on the way) and the camera back at the field angle
   H wide desktop 1915x920 (Scott 2026-11-21, "room around the border"): the HUD layer fills the window at the same
     scale (957x460 HUD px at 2x), every HUD box anchored to its own edge, none overlapping; then Character + Bags open,
     centred as their 640x360 design (hud_wide_3d.png, hud_wide_3d_windows.png)
+One world (2026-11-21): every session runs on zone 'world'; area-local spots go through W() (layout.js REGION_AT).
 Frame rate on desktop and phone (rAF window plus the uncapped probe). Screenshots in qa/out/r3d/.
 Prints R3D_DONE: ok=<bool> errors=<n> (machine-read sentinel).
 """
@@ -36,6 +38,20 @@ DRV3 = """(() => { const R = window.__realms;
   __drv.groundCss = (wx, wy) => { const [hx, hy] = R.renderer.worldToHud(wx, wy); return __drv.hudToCss(hx, hy); };
 })();"""
 errors, steps, metrics = [], [], {}
+# src/data/maps/layout.js REGION_AT: where each area's local tile (0, 0) sits on the one world map
+REGION_AT = {'moor': (0, 0), 'downs': (0, 100), 'willowmere': (144, 126), 'valley': (200, 102)}
+
+
+def W(region, tx, ty):
+    """An area-local tile -> its world tile."""
+    ox, oy = REGION_AT[region]
+    return tx + ox, ty + oy
+
+
+def at(region, tx, ty):
+    """URL part for a spawn at an area-local tile, on the world."""
+    x, y = W(region, tx, ty)
+    return f'zone=world&x={x}&y={y}'
 
 
 def log(*a):
@@ -221,7 +237,7 @@ def session_a(b):
     assert anim and anim['built'], 'the hero body is built'
     # talk to Hob by right-clicking him (3D picking)
     hob = g.ev('__drv.npc("hob")')
-    g.walk('willowmere', hob['tx'], hob['ty'] + 1, near=1)
+    g.walk('world', hob['tx'], hob['ty'] + 1, near=1)
     time.sleep(0.4)
     xy = g.ev(f'__drv.entCss({hob["id"]})')
     assert xy, 'Hob has a 3D anchor'
@@ -240,7 +256,7 @@ def session_a(b):
     assert ga and ga['mode'] in ('arrow', 'pin'), f'the gold quest arrow shows in 3D: {ga}'
     g.shot('04b_goal_arrow', f'3D: the gold quest arrow toward Elder Mael ({ga["mode"]}, {ga["dist"]} tiles)')
     # equip: a helm and a better chest change the hero on screen
-    g.walk('willowmere', 22, 21, near=0)      # an open spot on Lantern Square for the close-up
+    g.walk('world', *W('willowmere', 22, 21), near=0)      # an open spot on Lantern Square for the close-up
     g.ev('window.__realms.dev.level(12)')
     time.sleep(0.3)
     me = g.me()
@@ -282,11 +298,11 @@ def session_b(b):
     page = b.new_page(viewport={'width': 1600, 'height': 900})
     hook(page)
     g = Game(page, 'b')
-    g.boot('r=3d&dev=1&zone=valley&x=14&y=48&cls=scribe&name=Wren&zoom=1.5')
+    g.boot('r=3d&dev=1&' + at('valley', 14, 48) + '&cls=scribe&name=Wren&zoom=1.5')
     mobs = g.ev('__drv.mobs("ink_slime", 3)')
     assert mobs, 'slimes nearby'
     m = mobs[0]
-    g.walk('valley', m['tx'], m['ty'], near=3)
+    g.walk('world', m['tx'], m['ty'], near=3)
     mobs = g.ev('__drv.mobs("ink_slime", 3)')
     m = mobs[0]
     xy = g.ev(f'__drv.entCss({m["id"]})')
@@ -308,7 +324,7 @@ def session_c(b):
     page = b.new_page(viewport={'width': 1600, 'height': 900})
     hook(page)
     g = Game(page, 'c')
-    g.boot('r=3d&dev=1&zone=valley&x=14&y=48&cls=warden&name=Talia&zoom=2')
+    g.boot('r=3d&dev=1&' + at('valley', 14, 48) + '&cls=warden&name=Talia&zoom=2')
     mobs = g.ev('__drv.mobs("ink_slime", 3)')
     m = mobs[0]
     g.fight(m['id'], slots=('Digit1',), melee=True, timeout=60, on_hit=lambda: g.shot('01_swing', 'Sword_Attack on a slime, slash and number'))
@@ -335,7 +351,7 @@ def session_d(b):
     page = ctx.new_page()
     hook(page)
     g = Game(page, 'd')
-    g.boot('r=3d&dev=1&zone=valley&x=14&y=48&cls=wayfinder&name=Ash')
+    g.boot('r=3d&dev=1&' + at('valley', 14, 48) + '&cls=wayfinder&name=Ash')
     assert g.ev('window.__realms.ui.state.metrics.touch'), 'phone HUD on'
     assert g.ev('window.__realms.renderer.dev.quality.low'), 'touch quality cap on (no shadows, bloom or extra lights)'
     g.shot('01_phone', 'phone landscape, 3D world, phone HUD')
@@ -351,7 +367,7 @@ def session_d(b):
     mobs = g.ev('__drv.mobs("ink_slime", 3)')
     m = mobs[0]
     if m['d'] > 150:
-        g.walk('valley', m['tx'], m['ty'], near=5)
+        g.walk('world', m['tx'], m['ty'], near=5)
     xy = g.ev(f'__drv.entCss({m["id"]})')
     page.touchscreen.tap(xy[0], xy[1])
     time.sleep(0.5)
@@ -371,7 +387,7 @@ def session_f(b):
     page = b.new_page(viewport={'width': 1600, 'height': 900})
     hook(page)
     g = Game(page, 'f')
-    g.boot('r=3d&dev=1&zone=willowmere&x=22&y=21&zoom=1.5&cls=warden&name=Ash')
+    g.boot('r=3d&dev=1&' + at('willowmere', 22, 21) + '&zoom=1.5&cls=warden&name=Ash')
     for i, row in enumerate(FOES):
         fams = g.ev('(l) => window.__realms.renderer.dev.lineup(l.map((t) => ({ template: t })), { pose: "idle" })', row)
         assert len(fams) == len(row), f'every foe built: {fams}'
@@ -386,7 +402,7 @@ def session_f(b):
     page = ctx.new_page()
     hook(page)
     g = Game(page, 'f')
-    g.boot('r=3d&dev=1&zone=willowmere&x=22&y=21&cls=scribe&name=Wren')
+    g.boot('r=3d&dev=1&' + at('willowmere', 22, 21) + '&cls=scribe&name=Wren')
     g.ev('window.__realms.renderer.dev.lineup([{ template: "ink_slime" }, { template: "page_wraith" }, { template: "briar_wolf" }], { pose: "idle", gap: 2.2 })')
     time.sleep(1.2)
     g.shot('05_phone_foes', 'phone 844x390: slime, page wraith, wolf read at phone zoom')
@@ -398,45 +414,47 @@ def session_g(b):
     page = b.new_page(viewport={'width': 1600, 'height': 900})
     hook(page)
     g = Game(page, 'g')
-    g.boot('r=3d&dev=1&zone=willowmere&x=36&y=18&cls=warden&name=Talia')   # Willowmere relayout 2026-11-21: the library is on Gate Road
-    g.walk('willowmere', 37, 19, near=0)
+    g.boot('r=3d&dev=1&' + at('willowmere', 36, 18) + '&cls=warden&name=Talia')   # Willowmere relayout 2026-11-21: the library is on Gate Road
+    g.walk('world', *W('willowmere', 37, 19), near=0)
     time.sleep(0.8)
     see = g.ev('(() => { const S = window.__realms.renderer.dev.see; return S ? { r: S.uSeeR.value, r2: S.uSeeR2.value } : null; })()')
     assert see and see['r'] > 0, f'the cutaway is on around the hero: {see}'
     cam = g.ev('window.__realms.renderer.dev.cam')
     assert cam and cam['pitch'] > 50 and cam['distK'] > 1.2, f'the town camera looks down steeper from further out: {cam}'
     boxes = g.ev('window.__realms.renderer.dev.buildingBoxes()')
-    lib = next((o for o in boxes if o['foot'] == [32, 20, 42, 27]), None)
+    lx, ly = W('willowmere', 32, 20)
+    lib = next((o for o in boxes if o['foot'] == [lx, ly, lx + 10, ly + 7]), None)
     assert lib and lib['k'] > 0.9, f'the library (the hero behind it) fades its roof and upper walls: {lib}'
     over = max(max(o['foot'][0] - o['min'][0], o['foot'][1] - o['min'][2], o['max'][0] - o['foot'][2], o['max'][2] - o['foot'][3]) for o in boxes)
     metrics['town_buildings'] = {'n': len(boxes), 'maxOverhangM': round(over, 2), 'faded': sum(1 for o in boxes if o['k'] > 0.5), 'cam': cam}
     log('  town buildings', json.dumps(metrics['town_buildings']))
     assert len(boxes) >= 10 and over <= 0.2, f'no roof, eave or wall reaches past a footprint by more than a sliver: {over}'
     g.shot('01_behind_library', f'the hero just north of the library: its roof and upper walls fade out {see} {cam}')
-    # the zone change: neighbours are prebuilt in the background; log every frame while crossing
-    t0 = time.time()
-    while time.time() - t0 < 60 and 'valley' not in g.ev('window.__realms.renderer.dev.zonesBuilt'):
-        time.sleep(0.3)
-    built = g.ev('window.__realms.renderer.dev.zonesBuilt')
-    log('  zones built before the walk', built)
-    g.walk('willowmere', 20, 27, near=0)
+    # the area seams: one world, so nothing is built on the way; log every frame (and the area under the camera) while
+    # walking out of the town gate, down Gate Road South and into the valley
+    built0 = g.ev('window.__realms.renderer.dev.zonesBuilt')
+    g.walk('world', *W('willowmere', 20, 27), near=0)
     g.ev('''(() => { const L = window.__lrFrames = []; let prev = null;
-      const tick = (t) => { if (prev != null) { const p = window.__realms.player(); L.push([t, t - prev, p ? p.zone : null]); } prev = t; if (L.length < 4000) requestAnimationFrame(tick); };
+      const tick = (t) => { const d = window.__realms.renderer.dev, i = d.info || {}; if (prev != null) L.push([t, t - prev, d.area, d.building || 0, i.programs, i.geometries, d.cells, (() => { const p = window.__realms.player(); return p ? [Math.floor(p.x / 16), Math.floor(p.y / 16)] : null; })(), d.actorsBuilding || 0]); prev = t; if (L.length < 6000) requestAnimationFrame(tick); };
       requestAnimationFrame(tick); })()''')
-    g.walk('valley', 4, 52, near=1)
+    g.walk('world', *W('valley', 4, 52), near=1, timeout=180)
     time.sleep(2.0)
     fr = g.ev('window.__lrFrames')
+    out = next((i for i, f in enumerate(fr) if f[2] != 'willowmere'), None)
     sw = next((i for i, f in enumerate(fr) if f[2] == 'valley'), None)
-    assert sw is not None, 'walked into the valley'
-    win = [f[1] for f in fr[max(0, sw - 60): sw + 180]]
-    hm = {'framesAroundSwitch': len(win), 'maxMs': round(max(win), 1), 'over50ms': sum(1 for x in win if x > 50), 'over33ms': sum(1 for x in win if x > 33),
-          'p95ms': round(sorted(win)[int(len(win) * 0.95) - 1], 1), 'prebuilt': 'valley' in built}
-    metrics['zone_change_willowmere_to_valley'] = hm
-    log('  zone change frames', json.dumps(hm))
-    g.shot('02_valley_arrival', f'arrived in the valley: {hm}')
+    assert out is not None and sw is not None, f'walked out of the town and into the valley: {sorted(set(f[2] for f in fr), key=str)}'
+    win = [f[1] for f in fr[max(0, out - 60): sw + 180]]
+    hm = {'frames': len(win), 'areas': [a for i, a in enumerate(f[2] for f in fr) if i == 0 or fr[i - 1][2] != a], 'maxMs': round(max(win), 1),
+          'over50ms': sum(1 for x in win if x > 50), 'over33ms': sum(1 for x in win if x > 33), 'p95ms': round(sorted(win)[int(len(win) * 0.95) - 1], 1),
+          'rebuilt': max(f[3] for f in fr) > 0 or g.ev('window.__realms.renderer.dev.zonesBuilt') != built0}
+    hm['slowFrames'] = [[round(f[1]), f[2], f[4], f[5], f[6], f[7]] for f in fr if f[1] > 100][:12]   # [ms, area, programs, geometries, cells, tile]
+    metrics['seam_walk_town_to_valley'] = hm
+    log('  seam walk frames', json.dumps(hm))
+    g.shot('02_valley_arrival', f'walked from the town into the valley: {hm}')
     cam = g.ev('window.__realms.renderer.dev.cam')
-    assert cam and abs(cam['pitch'] - 40) < 1 and abs(cam['distK'] - 1) < 0.02, f'the field camera is back after the zone join: {cam}'
-    assert hm['maxMs'] < 100 and hm['over50ms'] <= 2, f'no hitch on the zone change: {hm}'
+    assert cam and abs(cam['pitch'] - 40) < 1 and abs(cam['distK'] - 1) < 0.02, f'the field camera is back outside the town: {cam}'
+    assert not hm['rebuilt'], f'nothing is built while walking across areas: {hm}'
+    assert hm['maxMs'] < 100 and hm['over50ms'] <= 2, f'no hitch across the area seams: {hm}'
     page.close()
 
 
@@ -445,7 +463,7 @@ def session_h(b):
     page = b.new_page(viewport={'width': 1915, 'height': 920})
     hook(page)
     g = Game(page, 'h')
-    g.boot('r=3d&dev=1&zone=valley&x=14&y=48&cls=warden&name=Talia&uidemo=worst')
+    g.boot('r=3d&dev=1&' + at('valley', 14, 48) + '&cls=warden&name=Talia&uidemo=worst')
     g.key('Tab', 0.5)                                   # a target, so the target frame shows
     time.sleep(0.6)
     c = g.ev('__drv.hudCheck()')
@@ -504,15 +522,18 @@ def run():
             b = pw.chromium.launch(args=GPU)
             try:
                 for s in (session_a, session_b, session_c, session_d, session_f, session_g, session_h):
-                    s(b)
+                    if not ONLY or s.__name__[-1] in ONLY:
+                        s(b)
             finally:
                 b.close()
-            session_e(pw)
+            if not ONLY or 'e' in ONLY:
+                session_e(pw)
     finally:
         srv.shutdown()
         srv.server_close()
 
 
+ONLY = set(a.lower() for a in sys.argv[1:])
 ok = True
 try:
     run()

@@ -13,7 +13,7 @@ const unit = (e, tick, tickHz) => e && {
   gcdLeft: Math.max(0, e.gcdUntil - tick) / tickHz,
 };
 
-export function buildViewModel(snap, playerId, { zoneNames = {}, log = [], tickHz = 20 } = {}) {
+export function buildViewModel(snap, playerId, { zoneNames = {}, log = [], tickHz = 20, place = null } = {}) {
   const byId = new Map(snap.entities.map((e) => [e.id, e]));
   const me = byId.get(playerId) || null;
   const target = me && me.target != null ? byId.get(me.target) : null;
@@ -22,7 +22,8 @@ export function buildViewModel(snap, playerId, { zoneNames = {}, log = [], tickH
     player: me ? { ...unit(me, snap.tick, tickHz), xp: me.xp || 0, zone: me.zone } : null,
     target: target ? unit(target, snap.tick, tickHz) : null,
     party: [],                                         // phase 2
-    zone: me ? { id: me.zone, name: zoneNames[me.zone] || me.zone } : null,
+    // one world: `place` (src/data/maps/compose.js placeAt) names the area you stand in; area is its id
+    zone: me ? { id: me.zone, name: (place && place.name) || zoneNames[me.zone] || me.zone, area: place ? place.id : null } : null,
     cooldowns: me ? Object.fromEntries(Object.entries(me.cd).map(([k, until]) => [k, Math.max(0, until - snap.tick) / tickHz])) : {},
     log: log.slice(-50),
     // the sim's rule-derived HUD block (CONTRACTS 10.1): bar, cast, xp, talents, gold, bag, equip, quests, markers

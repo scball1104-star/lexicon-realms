@@ -3,7 +3,7 @@
 // and objects (quest nodes, traps, ground zones) get small code-built looks. Animations follow the snapshot: idle,
 // walk or run, attack, cast, hit, death, sit.
 //
-//   const A = createActors(scene, L, { items, quality })
+//   const A = createActors(scene, L, { items, quality, compile })   compile(obj) -> Promise: shaders ready before it shows
 //   A.sync(prevSnap, snap, alpha, zoneId, now, dt, fx, focus, reach, inView)   create / update / remove bodies, play
 //     animations; inView(pos, h) -> bool hides and freezes bodies outside the view (no draw calls, no skinning)
 //   Bodies are built a few per frame (nearest first, the hero always at once), so entering a busy zone does not stall.
@@ -133,7 +133,7 @@ function objectLook(e) {
   return g;
 }
 
-export function createActors(scene, L, { items = null, quality = {} } = {}) {
+export function createActors(scene, L, { items = null, quality = {}, compile = null } = {}) {
   const layer = new THREE.Group(); layer.name = 'actors'; scene.add(layer);
   const fxLayer = new THREE.Group(); fxLayer.name = 'actor_fx'; scene.add(fxLayer);   // capes, ember trails (world space)
   const actors = new Map();
@@ -203,7 +203,9 @@ export function createActors(scene, L, { items = null, quality = {} } = {}) {
     waiting.delete(a);
     inflight++;
     a.building = sig;
-    buildBody(a, e).then((b) => {
+    // a new body's shaders are compiled (in parallel where the browser can) before it is attached, so the frame that
+    // first draws a new foe family does not also link its programs (walking out of town in the one world meets several)
+    buildBody(a, e).then((b) => (b && compile ? compile(b.type === 'hero' ? b.ch.o : b.type === 'creature' ? b.c.o : b.o).catch(() => null).then(() => b) : b)).then((b) => {
       inflight--;
       if (!actors.has(a.id) || a.building !== sig) { if (b) detach(b); return; }
       a.building = null; a.sig = sig;

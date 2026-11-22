@@ -2,7 +2,8 @@
 //
 // questHarness(): the quest system wired to a minimal world (the Q context CONTRACTS 7.7 describes), so the tests
 // drive accept / kill / loot / nodes / explore / escort / turn-in exactly the way world.js will, without combat.
-import { buildContent, ZONES } from '../../src/data/maps/index.js';
+import { buildContent, ZONES, REGIONS } from '../../src/data/maps/index.js';
+import { WORLD_ID, toWorld } from '../../src/data/maps/layout.js';
 import { createQuests } from '../../src/sim/quests.js';
 import { createRng } from '../../src/sim/rng.js';
 import { rollKill, bagAdd } from '../../src/sim/loot.js';
@@ -14,11 +15,16 @@ export function eq(a, b, msg) { if (a !== b) throw new Error(`${msg || 'not equa
 
 let _content = null;
 export const content = () => _content || (_content = buildContent());
-export { ZONES };
+export { ZONES, REGIONS };
 
 const reachCache = new Map();
-/** Reachable-on-foot mask of a zone from its arrival cell. */
+/** Reachable-on-foot mask of a zone from its arrival cell. One world: an area id (REGIONS) takes that area's own local
+ *  tiles and answers from the world map (reachable on foot from the town arrival), so per-area checks keep their numbers. */
 export function reachable(zoneId) {
+  if (!ZONES[zoneId] && REGIONS[zoneId]) {
+    const inWorld = reachable(WORLD_ID), A = REGIONS[zoneId];
+    return (x, y) => x >= 0 && y >= 0 && x < A.w && y < A.h && inWorld(...toWorld(zoneId, x, y));
+  }
   if (!reachCache.has(zoneId)) { const z = ZONES[zoneId]; reachCache.set(zoneId, reach(z, z.arrival[0], z.arrival[1])); }
   const seen = reachCache.get(zoneId);
   const z = ZONES[zoneId];
@@ -67,7 +73,9 @@ export function questHarness(seed = 7) {
     },
     /** Kill a mob of `template` at `level` for p: the quest hook plus a loot roll into the bag. */
     kill(template, level) {
-      const m = { id: next++, kind: 'mob', template, level, zone: p.zone };
+      // one world: the mob stands where the player does (the test places p on its spawn), so a kill objective that names
+      // an area counts it by that spot (src/sim/quests.js regionOfMob)
+      const m = { id: next++, kind: 'mob', template, level, zone: p.zone, x: p.x, y: p.y };
       QS.onKill(p, m);
       const drop = rollKill({ content: C, rng: Q.rng, questNeeds: QS.needsItem }, m, p);
       for (const it of drop.items) bagAdd(p, it.item, it.qty, it.inst || null, C);

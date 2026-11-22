@@ -36,7 +36,7 @@ export const tests = [
     const pid = w.addPlayer({ name: 'W', cls: 'warden', level: 14 });
     const p = w.get(pid);
     const s = w.state.ents.find((e) => e.template === 'sentinel_long_watch');
-    p.zone = 'moor'; p.x = s.x - 20 * 16; p.y = s.y;
+    p.zone = s.zone; p.x = s.x - 20 * 16; p.y = s.y;
     w.internals.combat.addThreat(s, p, 10);
     let chimes = [];
     for (let i = 0; i < 820; i++) { p.hp = p.hpMax; chimes.push(...ofType(w.step(), 'chime')); }

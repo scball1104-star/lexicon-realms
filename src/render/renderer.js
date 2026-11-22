@@ -85,7 +85,14 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
   const objArt = createObjectArt({ tiles, propsDb, img, book, silhouette });
   const corpses = new Map();                 // mob id -> death time (fx clock), -1 = died before we saw it (no corpse)
   const baked = new Map();
-  const bake = (id) => { if (!baked.has(id)) baked.set(id, bakeZone(zones[id], { tiles, propsDb, img })); return baked.get(id); };
+  const bake = (id) => {
+    if (!baked.has(id)) {
+      // one zone's chunks at a time: leaving a zone frees its canvases (the chunk cache budget is per zone)
+      for (const b of baked.values()) b.release();
+      baked.set(id, bakeZone(zones[id], { tiles, propsDb, img }));
+    }
+    return baked.get(id);
+  };
   const sheetOf = (name) => img(String(name).replace(/\.[^.]+$/, ''));
 
   // shadows: pixel ellipses cached per (width, strength step)
@@ -131,7 +138,8 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
   let fade = { zone: null, t0: -1 };
   let lastNow = null;
   let anchors = new Map();                   // id -> { x, y, h, hand } of the last frame
-  const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null };
+  // dev.map(): chunk cache counters of the zone drawn last (qa/render/world_perf.py)
+  const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null, map: () => (fade.zone && baked.has(fade.zone) ? baked.get(fade.zone).stats() : null) };
 
   function ensureWorldBuffer() {
     if (!world || world.width !== layout.viewW || world.height !== layout.viewH) [world, wctx] = canvas2d(layout.viewW, layout.viewH);
@@ -205,11 +213,11 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
     g.fillStyle = '#0b0a12';
     g.fillRect(0, 0, W, H);
-    // ground
-    const L = map.ground[map.phaseAt(t)];
+    // ground: the map is baked in chunks around the camera (tilemap.js); paint what this view needs first
+    map.prepare(cam, W, H, t);
     const sx = Math.max(0, cam.x), sy = Math.max(0, cam.y);
-    const sw = Math.min(L.width - sx, W), sh = Math.min(L.height - sy, H);
-    if (sw > 0 && sh > 0) g.drawImage(L, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
+    const sw = Math.min(map.pixelW - sx, W), sh = Math.min(map.pixelH - sy, H);
+    if (sw > 0 && sh > 0) map.drawGround(g, cam, W, H, t);
 
     // y-sorted: props and entities
     const list = [];
@@ -337,12 +345,13 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     for (const [p, a] of propFade) if (!covering.has(p)) { const n = a + (1 - a) * fadeStep; if (n > 0.99) propFade.delete(p); else propFade.set(p, n); }
 
     // overhead (roofs, high canopy): when it covers the player, a disc around them fades to 40% (CRITIQUE_1 item 4)
-    const mask = occ.overheadMask(map.overhead);
+    // (tested against the overhead layer's own draws, not a readback of a whole-zone canvas)
+    const ohOps = map.overheadOps.length ? occ.opsNear(map.overheadOps, cam, W, H) : null;
     let meUnder = false;
     for (const w of watched) {
-      if (!mask || !w.pts.length) continue;
+      if (!ohOps || !ohOps.length || !w.pts.length) continue;
       let n = 0;
-      for (const [x, y] of w.pts) if (occ.overheadAt(mask, x, y)) n++;
+      for (const [x, y] of w.pts) if (occ.opsAt(ohOps, x, y, map.pixelW, map.pixelH)) n++;
       if (n / w.pts.length >= 0.15) { w.occluded = true; if (w.role === 'me') meUnder = true; }
     }
     canopyK += ((meUnder ? 1 : 0) - canopyK) * fadeStep;
@@ -353,14 +362,14 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
         if (!fadeBuf || fadeBuf.width !== W || fadeBuf.height !== H) [fadeBuf, fadeCtx] = canvas2d(W, H);
         fadeCtx.globalCompositeOperation = 'source-over'; fadeCtx.globalAlpha = 1;
         fadeCtx.clearRect(0, 0, W, H);
-        fadeCtx.drawImage(map.overhead, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
+        map.drawOverhead(fadeCtx, cam, W, H);
         const R = 40, disc = occ.circle(R);
         fadeCtx.globalCompositeOperation = 'destination-out';
         fadeCtx.globalAlpha = Math.round(canopyK * 0.6 * 20) / 20;
         fadeCtx.drawImage(disc, meW.it.x - cam.x - R, meW.it.y - 12 - cam.y - R);
         fadeCtx.globalCompositeOperation = 'source-over'; fadeCtx.globalAlpha = 1;
         g.drawImage(fadeBuf, 0, 0);
-      } else g.drawImage(map.overhead, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
+      } else map.drawOverhead(g, cam, W, H);
     }
 
     // cloud shadows sliding over the ground (day only)
@@ -541,15 +550,33 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     mistTex = c;
     return c;
   }
+  // The one world (2026-11-21): the moor is a region of zone 'world', not a zone, so its grade follows the camera:
+  // full inside the moor, fading out over GRADE_FADE world px past its edge (no pop at the Downs seam).
+  const GRADE_FADE = 160;
+  function gradeFor(zone, zoneId, W, H) {
+    const own = (zone && zone.grade) || ZONE_GRADE[zoneId];
+    if (own) return [own, 1];
+    const cx = cam.x + W / 2, cy = cam.y + H / 2;
+    let best = null, bestK = 0;
+    for (const r of (zone && zone.regions) || []) {
+      const gr = r.grade || ZONE_GRADE[r.id];
+      if (!gr) continue;
+      const x0 = r.x * 16, y0 = r.y * 16, x1 = (r.x + r.w) * 16, y1 = (r.y + r.h) * 16;
+      const d = Math.hypot(Math.max(0, x0 - cx, cx - x1), Math.max(0, y0 - cy, cy - y1));
+      const k = Math.max(0, 1 - d / GRADE_FADE);
+      if (k > bestK) { best = gr; bestK = k; }
+    }
+    return [best, Math.round(bestK * 20) / 20];     // stepped, so a still camera always gets the same grade
+  }
   function drawZoneGrade(g, zone, zoneId, W, H, now, fxLevel) {
-    const gr = (zone && zone.grade) || ZONE_GRADE[zoneId];
-    if (!gr) return;
-    if (gr.desat) { g.globalCompositeOperation = 'saturation'; g.globalAlpha = gr.desat; g.fillStyle = '#808080'; g.fillRect(0, 0, W, H); }
+    const [gr, k] = gradeFor(zone, zoneId, W, H);
+    if (!gr || k <= 0) return;
+    if (gr.desat) { g.globalCompositeOperation = 'saturation'; g.globalAlpha = gr.desat * k; g.fillStyle = '#808080'; g.fillRect(0, 0, W, H); }
     g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
-    if (gr.tint) { g.fillStyle = gr.tint; g.fillRect(0, 0, W, H); }
+    if (gr.tint) { g.globalAlpha = k; g.fillStyle = gr.tint; g.fillRect(0, 0, W, H); g.globalAlpha = 1; }
     if (gr.mist && fxLevel === 'high') {
       const tex = mistTexture();
-      g.globalAlpha = gr.mist;
+      g.globalAlpha = gr.mist * k;
       const ox = Math.floor(((cam.x * 0.6 + now * 5) % tex.width + tex.width) % tex.width);
       const oy = Math.floor(((cam.y * 0.6) % (tex.height * 2) + tex.height * 2) % (tex.height * 2));
       for (let y = -oy; y < H; y += tex.height * 2) for (let x = -ox; x < W; x += tex.width) g.drawImage(tex, x, y);
@@ -605,6 +632,6 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     get loading() { return lazy.pending; },
     get fxCounts() { return fx.counts; },
     /** Drop the baked layers of a zone (map edits, hot reload). */
-    invalidate(zoneId) { baked.delete(zoneId); },
+    invalidate(zoneId) { const b = baked.get(zoneId); if (b) b.release(); baked.delete(zoneId); },
   };
 }

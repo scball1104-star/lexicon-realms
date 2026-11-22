@@ -6,11 +6,13 @@ import { assert, eq, ZONES, content, reachable, questHarness } from './_harness.
 import { canStep } from '../../tools/maps/kit.mjs';
 import { questGapMult } from '../../src/sim/quests.js';
 import { NAMED_SPAWNS } from '../../src/data/bounties.js';
+import { toWorld } from '../../src/data/maps/layout.js';
 
 function spawnsOf(mob) {
   const out = [];
   for (const z of Object.values(ZONES)) for (const s of z.spawns || []) if (s.mob === mob && !s.night) out.push({ zone: z.id, ...s });
-  for (const s of NAMED_SPAWNS) if (s.mob === mob) out.push({ ...s });     // the bounty boards' named foes
+  // the bounty boards' named foes, authored in their area's tiles
+  for (const s of NAMED_SPAWNS) if (s.mob === mob) { const [x, y] = toWorld(s.zone, s.x, s.y); out.push({ ...s, zone: 'world', region: s.zone, x, y }); }
   return out;
 }
 // one day of the boards, each taken right after the chain quest that leaves its hub (PROGRESSION.md 2.3)
@@ -144,7 +146,7 @@ export const tests = [
             H.place(n.zone, n.x, n.y);
             QS.interact(p, H.npcEnt(o.kind === 'talk' ? o.npc : o.to));
           } else if (o.kind === 'kill') {
-            const sp = spawnsOf(o.mob).find((x) => !o.zone || x.zone === o.zone);   // a camp bounty counts in its own zone
+            const sp = spawnsOf(o.mob).find((x) => (!o.zone || x.zone === o.zone) && (!o.region || x.region === o.region));   // a camp bounty counts in its own area
             H.place(sp.zone, sp.x, sp.y);
             for (let k = 0; k < o.count; k++) H.kill(o.mob, sp.level);
           } else if (o.kind === 'explore') {

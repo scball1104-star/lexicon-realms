@@ -9,6 +9,8 @@
 //
 // One world unit is one metre and one tile (16 px). Repeated models are instanced per 48 m chunk and one-off groups
 // are merged per material per chunk, so the town is a few dozen draw calls and off-screen chunks are culled.
+// The one world (zone.regions, 2026-11-21): area looks go by tile (underAt, regionInfo), deep forest is a cheap canopy,
+// instanced models use 16 m chunks and every mesh sits in a 48 m cell group the renderer switches off by distance (cull).
 // The ground is one plane with a splat shader: per-tile colour and class weights (grass, dirt, stone, sand) from the
 // tile data, tileable detail textures per class, noise-broken edges and large-scale colour patches. The build yields
 // to the frame loop every few milliseconds (yieldFn) so a zone can be built while the player walks.
@@ -18,8 +20,14 @@ import { WINDOW_LIT } from './loader.js';
 import { dyeMaterial } from './hero.js';
 import { canvasTex, groundDetail, radial, waterNormal, woodTex } from './textures.js';
 import { treeDims, edgeCell } from './flora.js';
+import { regionInfo, underAt } from '../data/maps/compose.js';
 
 const CH = 48;   // chunk size (m): the town is one chunk, the big fields a few
+// Instanced models (trees, rocks, grass and the like) in a big zone (the one world, 296 x 196 m) go in 16 m chunks
+// instead: a chunk is drawn whole once any of it is in view (or in the sun's shadow box), and at 48 m the grass and the
+// pines of chunks barely on screen were most of the triangles. More, smaller chunks cost a few more draw calls.
+const CH_INST_BIG = 16;
+const BIG_ZONE = 150 * 150;   // tiles: the old zones (at most 160 x 100) keep their 48 m chunks
 const FLOOR_H = 3.12;
 
 // ground colours per terrain id (linear-ish sRGB hex); unknown ids fall back to the zone's `under`
@@ -179,7 +187,7 @@ function makeProtoCache(L) {
 }
 
 /** Collects instances per (model part, tint, chunk) and one-off meshes per (material, chunk); builds them at the end. */
-function makeBatcher(group, { shadows }) {
+function makeBatcher(group, { shadows, chInst = CH }) {
   const inst = new Map(), merge = new Map(), tinted = new Map();
   const chunk = (x, z) => `${Math.floor(x / CH)},${Math.floor(z / CH)}`;
   const tintMat = (mat, tint) => {
@@ -193,7 +201,7 @@ function makeBatcher(group, { shadows }) {
     /** an instance of a model: world matrix of its root */
     instance(proto, m4, { tint = null, cast = true, tintMatch = null } = {}) {
       pos.setFromMatrixPosition(m4);
-      const c = chunk(pos.x, pos.z);
+      const c = `${Math.floor(pos.x / chInst)},${Math.floor(pos.z / chInst)}`;
       proto.parts.forEach((p, i) => {
         const tm = !tint || !tintMatch || tintMatch.test(p.material.name) ? tint : null;
         const k = `${proto.url}#${i}|${tm}|${c}|${cast}`;
@@ -221,8 +229,20 @@ function makeBatcher(group, { shadows }) {
       g.applyMatrix4(m4);
       merge.get(k).geos.push(g);
     },
+    /** Build the meshes. Each goes into a 48 m cell group by where its bounds sit, so the renderer can switch whole cells
+     *  off by distance (cull): an invisible group is skipped with all its children, which keeps the per-frame scene walk
+     *  (view and shadow passes) to the cells near the hero in the one world. Returns { calls, cells }. */
     async finish(step = null) {
       let calls = 0;
+      const cells = new Map(), sp = new THREE.Sphere();
+      const add = (m) => {
+        if (m.isInstancedMesh) sp.copy(m.boundingSphere); else { if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere(); sp.copy(m.geometry.boundingSphere); }
+        const k = chunk(sp.center.x, sp.center.z);
+        if (!cells.has(k)) { const [i, j] = k.split(',').map(Number); const g = new THREE.Group(); g.name = `cell:${k}`; group.add(g); cells.set(k, { g, x: (i + 0.5) * CH, z: (j + 0.5) * CH, r: 0 }); }
+        const c = cells.get(k);
+        c.r = Math.max(c.r, Math.hypot(sp.center.x - c.x, sp.center.z - c.z) + sp.radius);
+        c.g.add(m);
+      };
       for (const v of inst.values()) seeThrough(v.material);
       for (const v of merge.values()) seeThrough(v.material);
       for (const v of inst.values()) {
@@ -231,7 +251,7 @@ function makeBatcher(group, { shadows }) {
         im.instanceMatrix.needsUpdate = true;
         im.computeBoundingSphere(); im.computeBoundingBox();
         im.castShadow = shadows && v.cast; im.receiveShadow = true;
-        group.add(im); calls++;
+        add(im); calls++;
         if (step) await step();
       }
       for (const v of merge.values()) {
@@ -248,15 +268,48 @@ function makeBatcher(group, { shadows }) {
         }
         let geo = null;
         try { geo = mergeGeometries(v.geos, false); } catch { geo = null; }
-        if (!geo) { for (const g of v.geos) { const m = new THREE.Mesh(g, v.material); m.castShadow = shadows && v.cast; m.receiveShadow = true; group.add(m); calls++; } continue; }
+        if (!geo) { for (const g of v.geos) { const m = new THREE.Mesh(g, v.material); m.castShadow = shadows && v.cast; m.receiveShadow = true; add(m); calls++; } continue; }
         const m = new THREE.Mesh(geo, v.material);
         m.castShadow = shadows && v.cast; m.receiveShadow = true;
-        group.add(m); calls++;
+        add(m); calls++;
         if (step) await step();
       }
-      return calls;
+      return { calls, cells: [...cells.values()] };
     },
   };
+}
+
+// ---------- deep forest ----------
+// The wilds (one world, 2026-11-21) hold about 4000 pines behind the tree lines. As kit pines they were most of the
+// world's triangles (12 million in view outside the town gate, each 48 m chunk drawn whole once any of it was on
+// screen). Decor marked deep: 1 is never walked near, so it is drawn as a canopy instead: four stacked open cones
+// (56 triangles), dark at the base and lighter at the tips, wide enough that neighbours overlap into one mass over a
+// darkened forest floor (paintGround). Tree-line pines (line: 1) stay kit pines, so the edge the hero sees up close is
+// the real thing. Three colour variants keep the mass from reading as one flat green.
+const CANOPY_MAT = new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 0.9, name: 'lr_canopy' });
+const FOREST_FLOOR = new THREE.Color('#1f2a16');
+let canopyProtos = null;
+function canopyProtos3() {
+  if (canopyProtos) return canopyProtos;
+  const TIERS = [[0.14, 0.5, 0.42], [0.3, 0.68, 0.34], [0.48, 0.86, 0.25], [0.66, 1.0, 0.15]];   // [bottom, top, radius] at height 1, a pine's stepped outline
+  const LOOK = [['#1d3a17', '#3c6a2a'], ['#21401a', '#46722e'], ['#1a3416', '#355f28']];   // [base, tip] per variant
+  canopyProtos = LOOK.map(([lo, hi], v) => {
+    const parts = TIERS.map(([y0, y1, r], i) => {
+      const g = new THREE.ConeGeometry(r, y1 - y0, 7, 1, true, v * 0.35 + i * 0.5);
+      g.translate(0, (y0 + y1) / 2, 0);
+      const ps = g.attributes.position, col = new Float32Array(ps.count * 3), c = new THREE.Color();
+      for (let k = 0; k < ps.count; k++) {
+        const t = (ps.getY(k) - y0) / (y1 - y0);                     // 0 at the tier's rim, 1 at its tip
+        c.set(lo).lerp(new THREE.Color(hi), 0.15 + 0.85 * t * (0.6 + 0.4 * i / 3));
+        col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      return g;
+    });
+    const geometry = mergeGeometries(parts, false);
+    return { parts: [{ geometry, material: CANOPY_MAT, matrix: new THREE.Matrix4() }], box: new THREE.Box3(new THREE.Vector3(-0.42, 0, -0.42), new THREE.Vector3(0.42, 1, 0.42)), url: `lr:canopy${v}` };
+  });
+  return canopyProtos;
 }
 
 const M4 = (x, y, z, ry = 0, sx = 1, sy = sx, sz = sx) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new THREE.Vector3(sx, sy, sz));
@@ -270,7 +323,7 @@ const CLASS = {
 };
 const WORN = new THREE.Color('#3e3426');
 /** Per-tile colour and per-tile class weights, one pixel per tile (the shader smooths and breaks the edges). */
-function paintGround(zone, terrainAt, wear = null) {
+function paintGround(zone, terrainAt, wear = null, shade = null) {
   const W = zone.w, H = zone.h;
   const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
   const col = mk(), wts = mk();
@@ -279,9 +332,10 @@ function paintGround(zone, terrainAt, wear = null) {
   const c = new THREE.Color(), srgb = { r: 0, g: 0, b: 0 };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const id = terrainAt(x, y), i = (y * W + x) * 4;
-    c.set(GROUND[id] || GROUND[zone.under] || GROUND.grass);
+    c.set(GROUND[id] || GROUND[underAt(zone, x, y)] || GROUND.grass);
     c.offsetHSL((hashXY(x, y, 3) - 0.5) * 0.02, (hashXY(x, y, 5) - 0.5) * 0.06, (hashXY(x, y, 7) - 0.5) * 0.07);
     if (wear && wear[y * W + x] > 0) c.lerp(WORN, wear[y * W + x] * 0.45);
+    if (shade && shade[y * W + x] > 0) c.lerp(FOREST_FLOOR, shade[y * W + x]);   // under the deep-forest canopy
     c.getRGB(srgb, THREE.SRGBColorSpace);
     ci.data[i] = srgb.r * 255; ci.data[i + 1] = srgb.g * 255; ci.data[i + 2] = srgb.b * 255; ci.data[i + 3] = 255;
     const k = CLASS[id] || 0;
@@ -545,10 +599,12 @@ async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, is
   const hOf = (pr) => Math.max(0.05, pr.box.max.y - pr.box.min.y);
   const put = (pr, x, z, h, ry, tint = null) => { const k = h / hOf(pr); B.instance(pr, M4(x, -pr.box.min.y * k, z, ry, k), { tint, cast: false }); };
   const dense = quality.grass ? 1 : 0.35;     // phones: a third of the dressing
-  const moor = /moor/.test(zone.id) || zone.under === 'x1_moor_turf';
+  // the moor's paler dressing goes by area (one world: zone.regions), so it stops at the moor's edge
+  const moorZone = /moor/.test(zone.id) || zone.under === 'x1_moor_turf';
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       if (busy[y * W + x]) continue;
+      const moor = moorZone || underAt(zone, x, y) === 'x1_moor_turf';
       const r = (s) => hashXY(x, y, 40 + s);
       if (isGrass(x, y)) {
         const edge = isRoad(x - 1, y) || isRoad(x + 1, y) || isRoad(x, y - 1) || isRoad(x, y + 1);
@@ -571,10 +627,12 @@ async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, is
 export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn = null } = {}) {
   const group = new THREE.Group(); group.name = `zone:${zone.id}`;
   const P = makeProtoCache(L);
-  const B = makeBatcher(group, { shadows: !!quality.shadows });
+  const B = makeBatcher(group, { shadows: !!quality.shadows, chInst: zone.w * zone.h > BIG_ZONE ? CH_INST_BIG : CH });
   const lamps = [];
   const buildings = [];            // [{ id, x0, z0, w, d, top }] for the building cutaway
   const town = zone.kind === 'town';
+  // the one world is a 'field' with a town area in it: a building is a town building when its area is (regions[].kind)
+  const townAt = (x, y) => town || (regionInfo(zone, x, y) || {}).kind === 'town';
   const W = zone.w, H = zone.h;
   let waterTex = null;
   const secretCells = new Set();   // passage cells of the zone's secrets (they draw solid; the sim walks them)
@@ -593,7 +651,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     for (let x = 0; x < W; x++) {
       const id = zone.legend[zone.ground[y][x]];
       lr.push(id || null);
-      row.push(id && (isTerrain(id) || GROUND[id]) ? id : zone.under);
+      row.push(id && (isTerrain(id) || GROUND[id]) ? id : underAt(zone, x, y));
     }
     terr.push(row); legendAt.push(lr);
   }
@@ -613,7 +671,13 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       for (let y = y0 - 1; y <= y1 + 1; y++) for (let x = x0 - 1; x <= x1 + 1; x++) if (x >= 0 && y >= 0 && x < W && y < H) wear[y * W + x] = Math.max(wear[y * W + x], (x < x0 || x > x1 || y < y0 || y > y1) ? k : k * 1.2);
     }
   }
-  const gtex = paintGround(zone, terrainAt, wear);
+  // forest floor: the ground under and right around the deep-forest canopy goes dark (no grass shows between crowns)
+  const shade = new Float32Array(W * H);
+  for (const d of zone.decor || []) {
+    if (!d.deep) continue;
+    for (let y = d.y - 1; y <= d.y + 1; y++) for (let x = d.x - 1; x <= d.x + 1; x++) if (x >= 0 && y >= 0 && x < W && y < H) shade[y * W + x] = Math.max(shade[y * W + x], x === d.x && y === d.y ? 0.75 : 0.5);
+  }
+  const gtex = paintGround(zone, terrainAt, wear, shade);
   const gmat = groundMaterial(gtex, W, H);
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), gmat);
   ground.rotation.x = -Math.PI / 2; ground.position.set(W / 2, 0, H / 2); ground.receiveShadow = true;
@@ -714,7 +778,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     if (BUILDING[t]) {
       const def = BUILDING[t];
       const door = meta && meta.doorAt ? meta.doorAt[0] : Math.floor(fw / 2);
-      const o = { town, bld: bldSlot() };
+      const o = { town: townAt(d.x, d.y), bld: bldSlot() };
       const fd2 = def.solidTower ? Math.max(fd, 3) : fd;
       jobs.push(buildHouse(P, B, def, fx0, def.solidTower ? fz0 + fd - fd2 : fz0, fw, fd2, door, d.x * 7 + d.y, o).then((bb) => { buildings.push(bb); }));
     } else if (t === 'town_gate') B.mergeGroup(townGate(fx0, d.y + 0.5, fw));
@@ -722,6 +786,10 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     else if (t === 'well') B.mergeGroup(well(cx, cz));
     else if (t === 'lamp_post') { const lp = lampPost(d.x + 0.5, d.y + 0.5); B.mergeGroup(lp.g); lamps.push({ pos: lp.light, color: '#ffb35c', k: 1 }); }
     // trees (landscape pass, flora.js): inland pines 3.3 to 4.3 m with slim crowns, border pines taller; willows 4.6 to 5.2 m
+    else if (t === 'tree_pine' && d.deep) {
+      const dm = treeDims(t, d.x, d.y, false), k = dm.h * (1.0 + r(4) * 0.25), wk = dm.h * (0.85 + r(5) * 0.2);   // crown radius about 0.4 of the height
+      B.instance(canopyProtos3()[Math.floor(r(1) * 3)], M4(d.x + 0.5, 0, d.y + 0.5, r(3) * 6.28, wk, k, wk));
+    }
     else if (t === 'tree_pine') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel(tree.pine[Math.floor(r(1) * 5)], d.x + 0.5, d.y + 0.6, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28 })); }
     else if (t === 'tree_willow') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel('nature/TwistedTree_1.gltf', cx, d.y + 0.5, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28, tint: '#d8f0b0', tintMatch: /Leaves/ })); }
     else if (t === 'root_column') jobs.push(placeModel('nature/TwistedTree_3.gltf', cx, d.y + 0.5, { h: 5, ry: r(3) * 6.28 }));
@@ -795,7 +863,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   await step();
   await dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain });
   await step();
-  const calls = await B.finish(step);
+  const { calls, cells } = await B.finish(step);
 
   // lamp halos: additive points (one draw call for every lamp, one for every fire), brightened at night by the renderer
   const haloMats = [];
@@ -809,6 +877,12 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const halo = { set opacity(v) { for (const m of haloMats) m.opacity = v; } };
   return {
     group, lamps, halo, calls, buildings, town,
+    /** Show only the cells within r m of (x, z) (ground, water and halos always draw). Returns the cells shown. */
+    cull(x, z, r) {
+      let n = 0;
+      for (const c of cells) { c.g.visible = Math.hypot(x - c.x, z - c.z) - c.r < r; if (c.g.visible) n++; }
+      return n;
+    },
     dispose() {
       for (const bb of buildings) setBuildingFade(bb.id, 0);
       group.traverse((m) => { if (((m.isMesh && !m.isInstancedMesh) || m.isPoints) && m.geometry) m.geometry.dispose(); });

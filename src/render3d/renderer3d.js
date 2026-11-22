@@ -10,9 +10,10 @@
 // 2D renderer, through the same layout), so input, the HUD and every driver keep working unchanged.
 //
 // Camera: the approved action-RPG angle (mockups3d_hero still 3): 40 degrees down, following from the south, at three
-// zoom distances (view.zoom 1, 1.5, 2: 20, 13.3, 10 m; phones 10% further). In a town (zone kind 'town') it looks down
-// steeper (57 degrees) from 1.3 times as far, so the narrow lanes between houses stay in sight; crossing a zone join
-// eases between the two over about half a second (real time). It stays north-up, so screen up is world
+// zoom distances (view.zoom 1, 1.5, 2: 20, 13.3, 10 m; phones 10% further). In a town (zone kind 'town', or in the one
+// world the area under the focus with regions[].kind 'town') it looks down steeper (57 degrees) from 1.3 times as
+// far, so the narrow lanes between houses stay in sight; crossing a zone join or the town's edge eases between the two
+// over about half a second (real time). It stays north-up, so screen up is world
 // north (W walks up the screen as in 2D and on the minimap) and a point h px "above" a 2D anchor maps to the same screen
 // spot as a point h px north on the ground: anchorOf() returns that h, measured each frame by projection. Picking,
 // devToWorld and worldToHud all go through the live camera, so they follow any angle.
@@ -45,6 +46,7 @@ import { buildZone, BLD_CUT, flushBuildingFade, LAMP_GLASS, SEE, setBuildingFade
 import { createActors } from './actors.js';
 import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
+import { regionInfo } from '../data/maps/compose.js';
 
 const PX = 16;
 const PITCH = THREE.MathUtils.degToRad(40);
@@ -69,6 +71,8 @@ const GradeShader = {
       gl_FragColor = vec4(max(c, 0.0), 1.0); }`,
 };
 const ZONE_MOOD = { moor: { desat: 0.25, tint: [0.92, 0.96, 1.06], fog: 0.75 } };
+const NO_MOOD = { desat: 0, tint: [1, 1, 1], fog: 1 };
+const MOOD_EASE = 1.2;        // 1/s: the moor's grey mood fades in and out over a couple of seconds as you cross its edge
 
 export function webglAvailable() {
   try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
@@ -141,7 +145,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
 
   // ---- content
   const L = createLoader('assets3d/');
-  const actors = createActors(scene, L, { items, quality });
+  const actors = createActors(scene, L, { items, quality, compile: (o) => (renderer.compileAsync ? renderer.compileAsync(o, camera, scene) : Promise.resolve()) });
   const fx3 = createFx3d(scene, { abilities, maxParticles: low ? 300 : 700 });
   const font = assets.has && assets.has('font') ? new BitmapFont(assets.json('font'), assets.img('font'), { id: 'r3d' }) : null;
   const fontFrom = (j, im) => (j && im ? new BitmapFont(j, im, { id: 'num' }) : null);
@@ -198,6 +202,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   let fallback = null;
   Object.defineProperty(dev, 'scene', { value: scene, enumerable: false });   // drivers and debugging only
   Object.defineProperty(dev, 'see', { value: SEE, enumerable: false });
+  Object.defineProperty(dev, 'camera', { value: camera, enumerable: false });   // drivers: what the view frustum holds
+  Object.defineProperty(dev, 'programs', { get: () => (renderer.info.programs || []).map((pr) => pr.name), enumerable: false });   // drivers: shaders linked so far
   Object.defineProperty(dev, 'zonesBuilt', { get: () => [...state.zones.keys()], enumerable: false });
   Object.defineProperty(dev, 'building', { get: () => state.building.size, enumerable: false });
   /** Drivers: each building of the shown zone, its footprint (m), its fade now and the box its drawn pieces really fill
@@ -271,9 +277,13 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   // ---- sky and lights
   const C = (h) => new THREE.Color(h);
   const SKY_DAY = C('#9fb4cc'), SKY_NIGHT = C('#0e1424'), SUN_DAY = C('#fff1dc'), SUN_LOW = C('#ff9a5a'), MOON = C('#8fa2ff');
-  function applySky(snap, view, zone, target) {
+  // One world (2026-11-21): lighting and mood come from the area the camera looks at (zone.regions), or the zone itself
+  // for a single zone. The mood is eased (moodK) so walking onto the moor greys the scene over a couple of seconds.
+  let moodK = null;
+  function applySky(snap, view, zone, target, area, rdt) {
     const sky = skyAt(dayFraction(snap, view));
-    if (zone && zone.lighting && zone.lighting.dark) { const d = zone.lighting.dark; sky.amb = sky.amb.map((v) => v * (1 - d)); sky.lum *= 1 - d; sky.lamps = Math.max(sky.lamps, d); }
+    const lit = (area && area.lighting) || (zone && zone.lighting);
+    if (lit && lit.dark) { const d = lit.dark; sky.amb = sky.amb.map((v) => v * (1 - d)); sky.lum *= 1 - d; sky.lamps = Math.max(sky.lamps, d); }
     dev.sky = sky;
     const f = dayFraction(snap, view);
     const dayK = Math.max(0, Math.min(1, (sky.lum - 0.45) / 0.45));
@@ -297,12 +307,20 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       sun.target.position.set(Math.round(target.x / s) * s, 0, Math.round(target.z / s) * s);
       sun.position.x = sun.target.position.x + az * 20; sun.position.z = sun.target.position.z + 10;
     }
-    const mood = ZONE_MOOD[zone && zone.id] || null;
+    const want = ZONE_MOOD[(area && area.id) || (zone && zone.id)] ? 1 : 0;
+    moodK = moodK == null ? want : moodK + (want - moodK) * (1 - Math.exp(-rdt * MOOD_EASE));
+    if (Math.abs(want - moodK) < 0.002) moodK = want;
+    const M = ZONE_MOOD.moor, mk = moodK;
+    const mood = mk > 0 ? { desat: M.desat * mk, tint: M.tint.map((v, i) => NO_MOOD.tint[i] + (v - NO_MOOD.tint[i]) * mk), fog: 1 + (M.fog - 1) * mk } : null;
     const sk = SKY_NIGHT.clone().lerp(SKY_DAY, Math.min(1, sky.lum * 1.1)).multiply(new THREE.Color(1, 0.97 + 0.03 * dayK, 1));
-    if (mood) sk.lerp(C('#8090a8'), 0.25 * sky.lum);
+    if (mood) sk.lerp(C('#8090a8'), 0.25 * sky.lum * mk);
     scene.background.copy(sk); scene.fog.color.copy(sk);
     const dist = camera.position.distanceTo(target);
-    scene.fog.near = dist + (mood ? 2 : 8); scene.fog.far = dist + (mood ? 30 : 48) * (mood ? mood.fog : 1);
+    scene.fog.near = dist + 8 - 6 * mk; scene.fog.far = dist + (48 - 18 * mk) * (mood ? mood.fog : 1);
+    // nothing past the fog's far end can show (it is fog colour, the same as the sky behind it), so the far plane stops
+    // there: frustum culling then drops the world's far chunks instead of drawing them into fog
+    const far = scene.fog.far + 4;
+    if (Math.abs(camera.far - far) > 0.5) { camera.far = far; camera.updateProjectionMatrix(); }
     WINDOW_LIT.emissiveIntensity = 0.15 + 1.5 * sky.lamps;
     LAMP_GLASS.emissiveIntensity = 0.3 + 2.4 * sky.lamps;
     if (shown && shown.halo) shown.halo.opacity = 0.9 * sky.lamps;
@@ -379,7 +397,10 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const target = focus.clone().setY(0.9);
     const tnow = performance.now(), rdt = Math.min(0.1, Math.max(0, (tnow - camT) / 1000));
     camT = tnow;
-    const townWant = zone && zone.kind === 'town' ? 1 : 0;
+    // the area under the camera's focus (one world: zone.regions; null in the wilds or in a single zone)
+    const area = zone ? regionInfo(zone, Math.floor(focus.x), Math.floor(focus.z)) : null;
+    dev.area = area ? area.id : null;
+    const townWant = zone && (zone.kind === 'town' || (area && area.kind === 'town')) ? 1 : 0;
     if (camK == null) camK = townWant;
     else { camK += (townWant - camK) * (1 - Math.exp(-rdt * CAM_EASE)); if (Math.abs(townWant - camK) < 0.002) camK = townWant; }
     const ck = camK * camK * (3 - 2 * camK);
@@ -390,6 +411,10 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     camera.lookAt(target);
     camera.updateMatrixWorld();
     frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+    // distance culling (the one world is far bigger than any view): only the 48 m cells within reach of the focus stay
+    // in the scene walk. The camera far plane ends at the fog's far end, about 70 m from the camera and less from the
+    // focus; 80 m keeps every cell that can show or throw a shadow into the view
+    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, 80);
     actors.sync(prevSnap, snap, alpha, view.zone, now, dt, fx3, focus, (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
@@ -405,7 +430,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     tickWater(now);
     animateLineup(now, dt);
     renderer.info.reset();
-    const sky = applySky(snap, view, zone, target);
+    const sky = applySky(snap, view, zone, target, area, rdt);
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     if (tg && tg.e && !tg.e.dead && tg.kind !== 'object') {
       targetRing.visible = true;
@@ -443,7 +468,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     ctx.drawImage(over, 0, 0, layout.hudW, layout.hudH, layout.ox, layout.oy, layout.hudW * layout.base, layout.hudH * layout.base);
     const ms = performance.now() - t0;
     const s = dev.stats; s.ms = ms; s.n++; s.avg += (ms - s.avg) / Math.min(s.n, 120);
-    dev.info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, actors: actors.list().length, gpu: renderer.userData.gpu };
+    dev.info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, actors: actors.list().length, programs: renderer.info.programs ? renderer.info.programs.length : null, geometries: renderer.info.memory.geometries, gpu: renderer.userData.gpu };
   }
 
   // ---- building cutaway: which buildings cover someone who must stay visible. A ray from the camera to a few points

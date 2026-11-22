@@ -1,6 +1,6 @@
 // UI pure pieces (HUD agent, 2026-11-19): layout math, view model -> HUD model, name validation, save schema,
 // key routing, talent rules, event log lines, joystick directions. No canvas; screenshots are qa/ui/ui_shots.py.
-import { assert, eq, newWorld } from './_helpers.mjs';
+import { assert, eq, newWorld, areaOfSub, areaOfPx } from './_helpers.mjs';
 import { buildViewModel } from '../../src/core/viewmodel.js';
 import { hudLayout, hitPx, trackerRows, talentLayout, bagGrid, menuRect, inRect, designOrigin, W, H } from '../../src/ui/layout.js';
 import { DIALOG_RECT } from '../../src/ui/dialog.js';
@@ -161,11 +161,11 @@ export const tests = [
     fn() {
       const { world } = newWorld(3);
       const pid = world.addPlayer({ name: 'Hud', cls: 'scribe', zone: 'valley', x: 6, y: 33 });
-      const wolf = world.state.ents.find((e) => e.kind === 'mob' && e.zone === 'valley');
+      const wolf = world.state.ents.find((e) => e.kind === 'mob' && areaOfSub(e) === 'valley');
       world.enqueue(pid, { t: 'target', id: wolf.id });
       world.step();
       const snap = world.snapshot();
-      const vm = buildViewModel(snap, pid, { zoneNames: { valley: 'Willowmere Valley' } });
+      const vm = buildViewModel(snap, pid, { zoneNames: { world: 'Willowmere Lands' } });
       const m = buildHudModel(vm, snap, { state: { quests: [{ id: 'q', name: 'Q', objectives: [], state: 'available', giver: 'mael' }] } });
       eq(m.bar.length, 8);
       eq(m.bar[0].ability, 'scribe_inkbolt'); eq(m.bar[1].ability, 'scribe_scrawl'); eq(m.bar[2].ability, null, 'level 3 ability not learned at 1');

@@ -1,6 +1,8 @@
 import { createWorld, restoreWorld, TILE } from '../../src/sim/index.js';
 import { buildContent } from '../../src/data/maps/index.js';
-import { assert, eq, newWorld, scriptedLog, run, boxClear } from './_helpers.mjs';
+import { assert, eq, newWorld, scriptedLog, run, boxClear, walkPath, tilePath, areaOfSub } from './_helpers.mjs';
+import { regionAt } from '../../src/data/maps/compose.js';
+import { toWorld } from '../../src/data/maps/layout.js';
 
 const TICKS = 2000;
 
@@ -69,30 +71,40 @@ export const tests = [
       let lastY = p.y, stuckFor = 0;
       for (let i = 0; i < 200; i++) { world.step(); if (p.y === lastY) stuckFor++; else stuckFor = 0; lastY = p.y; }
       assert(stuckFor > 50, `player should be stopped by a wall (stuck ${stuckFor} ticks)`);
-      const zone = content.zones.willowmere;
+      eq(areaOfSub(p), 'willowmere', 'still in town');
+      const zone = content.zones.world;
       const tx = Math.floor(p.x / TILE), ty = Math.floor((p.y - 6 * 16 - 1) / TILE);
       assert(zone.collision[ty][tx] !== '.', `the cell north of the stopped player is a wall (got "${zone.collision[ty][tx]}" at ${tx},${ty})`);
       assert(boxClear(zone, p), 'player box is clear');
     },
   },
   {
-    name: 'zone transition: walk south out of Willowmere into the valley and back',
+    // One world (Scott 2026-11-21): the town gate opens on Gate Road South, which runs into the valley's west edge. No
+    // join fires, no zone event, the zone stays 'world'; only the area banner changes. Then the same road walks back.
+    name: 'one world: walk out of the Willowmere gate down Gate Road South into the valley and back, no zone change',
     fn() {
-      const { world } = newWorld(1);
+      const { world, content } = newWorld(1);
+      const Z = content.zones.world;
       const pid = world.addPlayer({ name: 'Z' });
       const p = world.get(pid);
-      world.enqueue(pid, { t: 'move', dx: 0, dy: 1 });
-      let zev = null;
-      for (let i = 0; i < 200 && !zev; i++) zev = world.step().find((e) => e.type === 'zone');
-      assert(zev, 'a zone event');
-      eq(zev.from, 'willowmere'); eq(zev.to, 'valley'); eq(p.zone, 'valley');
-      eq(Math.floor(p.x / TILE), 1, 'arrival column'); eq(Math.floor((p.y - 1) / TILE), 52, 'arrival row (the grown valley: Willowmere opens on its south-west, ZONES_QUESTS 2.2)');
-      world.enqueue(pid, { t: 'move', dx: -1, dy: 0 });
-      let back = null;
-      for (let i = 0; i < 100 && !back; i++) back = world.step().find((e) => e.type === 'zone');
-      assert(back && back.to === 'willowmere', 'walked back into Willowmere');
-      eq(p.zone, 'willowmere');
-      eq(p.target, null, 'target dropped on zone change');
+      eq(areaOfSub(p), 'willowmere', 'starts in town');
+      const gate = toWorld('willowmere', 20, 31), road = toWorld('valley', 0, 52);
+      const tile = () => [Math.floor(p.x / TILE), Math.floor((p.y - 1) / TILE)];
+      const out = tilePath(Z, tile(), (x, y) => regionAt(Z, x, y) === 'valley' && x >= road[0] + 3);
+      assert(out, 'a walkable way from the arrival into the valley');
+      assert(out.some(([x, y]) => Math.abs(x - gate[0]) <= 3 && Math.abs(y - gate[1]) <= 1), 'the way runs through the town gate');
+      assert(out.some(([x, y]) => regionAt(Z, x, y) === null), 'and over the wilds (Gate Road South)');
+      const go = walkPath(world, pid, out);
+      assert(go.done, `walked to the valley (stopped at ${tile()})`);
+      assert(!go.events.some((e) => e.type === 'zone'), 'no zone event on the way');
+      eq(p.zone, 'world'); eq(areaOfSub(p), 'valley', 'stands in the valley');
+      assert(go.events.some((e) => e.type === 'area' && e.id === pid && e.area === 'region_valley'), 'the valley banner showed');
+      const home = tilePath(Z, tile(), (x, y) => x === content.start.x && y === content.start.y);
+      assert(home, 'a way back');
+      const back = walkPath(world, pid, home);
+      assert(back.done, `walked back to the arrival (stopped at ${tile()})`);
+      assert(!back.events.some((e) => e.type === 'zone'), 'no zone event on the way back');
+      eq(p.zone, 'world'); eq(areaOfSub(p), 'willowmere', 'back in town');
     },
   },
   {
@@ -115,8 +127,9 @@ export const tests = [
       const { world, content } = newWorld(1);
       const pid = world.addPlayer({ name: 'K' });
       const mael = world.state.ents.find((e) => e.kind === 'npc' && e.template === 'mael');
-      const far = world.state.ents.find((e) => e.kind === 'mob' && e.zone !== 'willowmere');
-      world.enqueue(pid, { t: 'target', id: far.id });           // other zone: rejected
+      const me = world.get(pid);
+      const far = world.state.ents.find((e) => e.kind === 'mob' && Math.hypot(e.x - me.x, e.y - me.y) / 16 > 700);
+      world.enqueue(pid, { t: 'target', id: far.id });           // one world: too far to keep (TARGET_RANGE_PX), rejected
       world.enqueue(pid, { t: 'interact', id: mael.id });        // too far
       world.enqueue(pid, { t: 'cast', slot: 1 });                // Strike: no hostile target
       world.enqueue(pid, { t: 'cast', slot: 9 });                // empty slot
@@ -132,7 +145,7 @@ export const tests = [
       const ev2 = world.step();
       assert(ev2.some((e) => e.type === 'interact' && e.npc === 'mael'), 'interact event');
       eq(p.target, mael.id);
-      assert(content.zones.willowmere, 'content');
+      assert(content.zones.world, 'content');
     },
   },
   {

@@ -1,5 +1,5 @@
 // Client-side pure pieces that run in Node: input -> commands, view model, camera layout.
-import { assert, eq, newWorld } from './_helpers.mjs';
+import { assert, eq, newWorld, areaOfSub, areaOfPx } from './_helpers.mjs';
 import { createInput } from '../../src/input/input.js';
 import { buildViewModel } from '../../src/core/viewmodel.js';
 import { layoutFor, cameraFor } from '../../src/render/camera.js';
@@ -34,7 +34,7 @@ export const tests = [
       cmds = input.poll({ snap, playerId: pid });
       eq(cmds[0].t, 'target');
       const me = snap.entities.find((e) => e.id === pid);
-      const hostile = snap.entities.filter((e) => e.faction === 'hostile' && e.zone === 'valley')
+      const hostile = snap.entities.filter((e) => e.faction === 'hostile' && e.zone === 'world')
         .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
       eq(cmds[0].id, hostile[0].id, 'nearest hostile first');
       keys.fire('keydown', { code: 'Digit3' });
@@ -53,11 +53,11 @@ export const tests = [
     fn() {
       const { world } = newWorld(1);
       const pid = world.addPlayer({ name: 'V', zone: 'valley', x: 6, y: 33 });
-      const wolf = world.state.ents.find((e) => e.kind === 'mob' && e.zone === 'valley');
+      const wolf = world.state.ents.find((e) => e.kind === 'mob' && areaOfSub(e) === 'valley');
       world.enqueue(pid, { t: 'target', id: wolf.id });
       world.step();
-      const vm = buildViewModel(world.snapshot(), pid, { zoneNames: { valley: 'Willowmere Valley' } });
-      eq(vm.player.name, 'V'); eq(vm.target.id, wolf.id); eq(vm.zone.name, 'Willowmere Valley'); eq(vm.target.hpFrac, 1);
+      const vm = buildViewModel(world.snapshot(), pid, { zoneNames: { world: 'Willowmere Lands' } });
+      eq(vm.player.name, 'V'); eq(vm.target.id, wolf.id); eq(vm.zone.name, 'Willowmere Lands'); eq(vm.target.hpFrac, 1);
       assert(Object.isFrozen(vm) && Object.isFrozen(vm.player), 'frozen');
     },
   },

@@ -6,7 +6,7 @@ import { CLASSES } from '../../src/data/classes.js';
 import { TALENTS } from '../../src/data/talents.js';
 import { PROGRESSION } from '../../src/data/progression.js';
 import { PACKS } from '../../src/data/packs.js';
-import { allSpawns, ZONES } from '../../src/data/maps/index.js';
+import { allSpawns, REGIONS } from '../../src/data/maps/index.js';
 import { setAbilityContent, setGameData, resetGameData, abilityTooltip, abilityInfo, abilityNumbers, autoTooltip } from '../../src/ui/gamedata.js';
 import { fight } from './pack.mjs';
 
@@ -51,10 +51,10 @@ export const tests = [
   { name: 'packs: the camp table tags real camps of 2 or 3 at level 3 and up; the first quests\' camps stay single pulls', fn() {
     const { day } = allSpawns();
     const groups = {};
-    for (const s of day) if (s.mob) (groups[`${s.zone}:${s.group}`] = groups[`${s.zone}:${s.group}`] || []).push(s);
+    for (const s of day) if (s.mob) (groups[`${s.region}:${s.group}`] = groups[`${s.region}:${s.group}`] || []).push(s);   // one world: camps are keyed by their area
     let n = 0;
     for (const [zone, camps] of Object.entries(PACKS)) {
-      assert(ZONES[zone], `zone ${zone}`);
+      assert(REGIONS[zone], `area ${zone}`);
       for (const [g, size] of Object.entries(camps)) {
         const list = groups[`${zone}:${g}`];
         assert(list && list.length === size, `${zone}:${g} has ${list && list.length} spawns, table says ${size}`);

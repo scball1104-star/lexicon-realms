@@ -50,6 +50,8 @@
     ent(id) { const e = R.snapshot().entities.find((o) => o.id === id); return e ? { id: e.id, dead: e.dead, hp: e.hp, hpMax: e.hpMax, x: e.x, y: e.y, zone: e.zone, kind: e.kind, aiMode: e.aiMode, aggro: e.aggro, level: e.level } : null; },
     /** Plan a walk to (zone, tx, ty), stopping within `near` tiles. */
     plan(zone, tx, ty, near = 0) {
+      // one world: a spot given in an area's own tiles ('valley', 6, 52) moves onto the world map
+      if (!C.zones[zone] && C.regionAt && C.regionAt[zone]) { const [ox, oy] = C.regionAt[zone]; zone = C.worldId; tx += ox; ty += oy; }
       const p = me(); if (!p) return false;
       const [sx, sy] = tileOf(p);
       plan = { final: [zone, tx, ty, near], path: null, i: 0, joinDir: null, zone: p.zone };

@@ -1,19 +1,22 @@
 // Willowmere, Realms' own town (relayout 2026-11-21, tools/maps/zone_willowmere.mjs): the layout checks from the
 // proposal's check.mjs (D:/LQOnline/willowmere_relayout), and the saved-hero fix (a hero saved on a tile that is now
 // inside a building starts on the nearest walkable tile).
-import { assert, eq, ZONES, content, reachable } from './_harness.mjs';
+import { assert, eq, ZONES, REGIONS, content, reachable } from './_harness.mjs';
+import { toWorld } from '../../src/data/maps/layout.js';
 import { createWorld } from '../../src/sim/world.js';
 import { standTile, spotFree } from '../../src/sim/collision.js';
 import { SUB, TILE } from '../../src/sim/constants.js';
 
 const STEP = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const tileOf = (e) => [Math.floor(e.x / TILE), Math.floor((e.y - 1) / TILE)];
+// one world: the town is checked in its own tiles (REGIONS.willowmere, the generated area); reachable('willowmere')
+// answers those tiles from the world map (on foot from the arrival), and heroes stand on the world (toWorld)
 
 export const tests = [
   {
     name: 'willowmere layout: every npc, door, door front, mark, join, lantern, area and sign reachable on foot from the arrival',
     fn() {
-      const z = ZONES.willowmere;
+      const z = REGIONS.willowmere;
       const ok = reachable('willowmere');
       const walk = (x, y) => x >= 0 && y >= 0 && x < z.w && y < z.h && z.collision[y][x] === '.';
       const bad = [];
@@ -41,11 +44,14 @@ export const tests = [
     },
   },
   {
-    name: 'willowmere layout: no one-tile alleys and no dead-end lanes; the arrival walks north into a wall and south into the valley join',
+    name: 'willowmere layout: no one-tile alleys and no dead-end lanes; the arrival walks north into a wall and south out of the gate onto Gate Road South',
     fn() {
-      const z = ZONES.willowmere;
-      const ok = reachable('willowmere');
-      const walk = (x, y) => x >= 0 && y >= 0 && x < z.w && y < z.h && z.collision[y][x] === '.';
+      const z = REGIONS.willowmere;
+      // town tiles, but the neighbours across the town's edge are the world's (the wilds now touch it): a lane that runs
+      // out of town into the forest is not a dead end
+      const Wz = ZONES.world, inW = reachable('world');
+      const ok = (x, y) => inW(...toWorld('willowmere', x, y));
+      const walk = (x, y) => { const [wx, wy] = toWorld('willowmere', x, y); return wx >= 0 && wy >= 0 && wx < Wz.w && wy < Wz.h && Wz.collision[wy][wx] === '.'; };
       const alley = [];
       for (let y = 1; y < z.h - 1; y++) for (let x = 1; x < z.w - 1; x++) {
         if (!ok(x, y)) continue;
@@ -67,14 +73,17 @@ export const tests = [
       let ny = ay; while (ny - 1 >= 0 && walk(ax, ny - 1)) ny--;
       assert(ay - ny <= 12, `north from the arrival runs ${ay - ny} tiles before a wall`);
       let sy = ay; while (sy + 1 < z.h && walk(ax, sy + 1)) sy++;
-      assert(sy === z.h - 1 && z.joins.some((j) => j.to === 'valley' && ax >= j.x && ax < j.x + j.w), `south from the arrival stops at ${ax},${sy}`);
+      assert(sy === z.h - 1, `south from the arrival stops at ${ax},${sy}`);
+      // and on through the gate: the world tile below the town's last row is walkable road (Gate Road South)
+      const W = ZONES.world, [gx, gy] = toWorld('willowmere', ax, sy + 1);
+      assert(W.collision[gy][gx] === '.' && reachable('world')(gx, gy), `the gate opens onto the road at world ${gx},${gy}`);
     },
   },
   {
     name: 'saved hero: a tile now inside a building restores to the nearest free tile reachable from the arrival; a free tile stays put',
     fn() {
       const C = content();
-      const z = ZONES.willowmere;
+      const z = REGIONS.willowmere;
       const ok = reachable('willowmere');
       // 38,23 was the old back lane where Iris stood (inside the library now); 29,24 is inside the smithy; 44,2 is the lake.
       for (const [x, y] of [[38, 23], [29, 24], [44, 2]]) {
@@ -84,14 +93,15 @@ export const tests = [
         assert(Math.max(Math.abs(sx - x), Math.abs(sy - y)) <= 5, `${x},${y} -> ${sx},${sy} is near`);
         const w = createWorld({ seed: 5, content: C });
         const e = w.get(w.addPlayer({ name: 'Saved', cls: 'warden', zone: 'willowmere', x, y }));
-        eq(tileOf(e).join(','), `${sx},${sy}`, `restored from ${x},${y}`);
-        eq(e.y, (sy + 1) * TILE - SUB, 'standing point');
+        const [wx, wy] = toWorld('willowmere', sx, sy);
+        eq(tileOf(e).join(','), `${wx},${wy}`, `restored from ${x},${y}`);
+        eq(e.y, (wy + 1) * TILE - SUB, 'standing point');
       }
       // a free saved tile is kept exactly (Lantern Square, the arrival)
       for (const [x, y] of [[22, 16], z.arrival]) {
         const w = createWorld({ seed: 5, content: C });
         const e = w.get(w.addPlayer({ name: 'Saved', cls: 'warden', zone: 'willowmere', x, y }));
-        eq(tileOf(e).join(','), `${x},${y}`, 'free tile kept');
+        eq(tileOf(e).join(','), toWorld('willowmere', x, y).join(','), 'free tile kept');
       }
       // a new hero (no saved tile) still starts at content.start
       const w = createWorld({ seed: 5, content: C });

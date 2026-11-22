@@ -4,13 +4,17 @@
 <body style="margin:0;background:#000">
 <script type="module">
 // Bakes one zone with the game's own tilemap baker (src/render/tilemap.js) and draws ground, y-sorted props and the
-// overhead layer to one canvas. tools/maps/render_maps.py drives it headless and saves PNGs.
-//   ?zone=valley            clean render
+// overhead layer to one canvas. tools/maps/render_maps.py drives it headless and saves PNGs. Desktop Chromium only:
+// the world still is 4736 x 3136 px here (the game itself only ever holds the chunks around the camera).
+//   ?zone=valley            clean render (one area in its own tiles)
+//   ?zone=world             the one world (src/data/maps/index.js composes it), painted chunk by chunk
+//   &scale=0.5              draw at half size (a smaller PNG of the world)
 //   &marks=1                plus the sim layer: areas (outlines), lanterns (yellow), spawns (red), npcs (cyan), nodes (green), hooks (magenta), joins (white)
 import { bakeZone } from '../../src/render/tilemap.js';
 const q = new URLSearchParams(location.search);
 const id = q.get('zone');
-const zone = (await import(`../../src/data/maps/${id}.js`)).default;
+const zone = id === 'world' ? (await import('../../src/data/maps/index.js')).WORLD : (await import(`../../src/data/maps/${id}.js`)).default;
+const scale = Math.min(1, Math.max(0.1, +(q.get('scale') || 1)));
 const j = (p) => fetch(p).then((r) => r.json());
 const tiles = await j('../../assets/tiles/tiles.json');
 const props = (await j('../../assets/tiles/props.json')).objects;
@@ -20,12 +24,14 @@ const imgs = {};
 await Promise.all([...names].map((n) => new Promise((res, rej) => { const im = new Image(); im.onload = () => { imgs[n] = im; res(); }; im.onerror = () => rej(new Error('sheet ' + n)); im.src = `../../assets/tiles/${n}.png`; })));
 const baked = bakeZone(zone, { tiles, propsDb: props, img: (n) => imgs[n] });
 const c = document.createElement('canvas');
-c.width = baked.pixelW; c.height = baked.pixelH;
+c.width = Math.round(baked.pixelW * scale); c.height = Math.round(baked.pixelH * scale);
 const g = c.getContext('2d');
-g.imageSmoothingEnabled = false;
-g.drawImage(baked.ground[0], 0, 0);
+g.imageSmoothingEnabled = scale < 1;      // a half-size still reads better averaged; 1x stays pixel-exact
+g.scale(scale, scale);
+baked.drawAll(g, 'ground', 0);
 for (const p of baked.props) g.drawImage(p.img, p.sx, p.sy, p.w, p.h, p.dx, p.dy, p.w, p.h);
-g.drawImage(baked.overhead, 0, 0);
+baked.drawAll(g, 'overhead', 0);
+baked.release();
 if (q.get('marks') === '1') {
   const T = 16;
   g.lineWidth = 2;

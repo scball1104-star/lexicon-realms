@@ -1,7 +1,7 @@
 // Landscape pass 2026-11-20 (docs/design/LANDSCAPE_PASS.md): the secret passages and their caches. Each zone's
 // `secrets` (tools/maps/kit.mjs carveSecret) must be walkable where it looks solid, lead only into its own sealed nook,
 // and its cache gives gold and one rare piece for the hero's class exactly once per hero, kept through a save.
-import { assert, eq, content, ZONES, reachable } from './_harness.mjs';
+import { assert, eq, content, ZONES, REGIONS, reachable } from './_harness.mjs';
 import { createWorld } from '../../src/sim/world.js';
 import { moveAxis } from '../../src/sim/collision.js';
 import { findPath } from '../../src/sim/path.js';
@@ -12,10 +12,12 @@ const tileOf = (e) => [Math.floor(e.x / TILE), Math.floor((e.y - 1) / TILE)];
 const run = (w, n = 1) => { let all = []; for (let i = 0; i < n; i++) all = all.concat(w.step()); return all; };
 function calm(w) { for (const m of w.state.ents) if (m.kind === 'mob') { m.dead = true; m.respawnAt = Infinity; if (m.ai) m.ai.mode = 'dead'; } }
 const all = () => Object.values(ZONES).flatMap((z) => (z.secrets || []).map((s) => ({ z, s })));
+// one world: an area's secrets on the world map (world tiles), by the area they were carved in
+const secretsOf = (area) => ZONES.world.secrets.filter((s) => s.region === area);
 
 export const tests = [
   { name: 'secrets: one or two per field zone, passage cells walkable, chest reachable from the arrival, nook sealed', fn() {
-    for (const id of ['valley', 'downs', 'moor']) { const n = (ZONES[id].secrets || []).length; assert(n >= 1 && n <= 2, `${id}: ${n} secrets`); }
+    for (const id of ['valley', 'downs', 'moor']) { const n = (REGIONS[id].secrets || []).length; assert(n >= 1 && n <= 2, `${id}: ${n} secrets`); eq(secretsOf(id).length, n, `${id}: every secret is on the world map`); }
     for (const { z, s } of all()) {
       const walk = (x, y) => z.collision[y] && z.collision[y][x] === '.';
       for (const [x, y] of s.passage) assert(walk(x, y), `${s.id}: passage ${x},${y} walkable in the sim`);
@@ -66,10 +68,10 @@ export const tests = [
     const w = createWorld({ seed: 7, content: C });
     calm(w);
     for (const [cls, zid] of [['warden', 'valley'], ['scribe', 'downs'], ['mender', 'moor']]) {
-      const s = ZONES[zid].secrets[0];
+      const s = secretsOf(zid)[0];
       const chest = w.state.ents.find((e) => e.kind === 'object' && e.template === s.chest.id);
       assert(chest, `${s.id}: the cache is an object entity`);
-      const id = w.addPlayer({ name: 'Find', cls, zone: zid, x: s.chest.x, y: s.chest.y + (ZONES[zid].collision[s.chest.y + 1][s.chest.x] === '.' ? 1 : 0), level: 6 });
+      const id = w.addPlayer({ name: 'Find', cls, zone: 'world', x: s.chest.x, y: s.chest.y + (ZONES.world.collision[s.chest.y + 1][s.chest.x] === '.' ? 1 : 0), level: 6 });
       const g0 = w.get(id).gold, bag0 = w.get(id).bag.length;
       w.enqueue(id, { t: 'interact', id: chest.id });
       const evs = run(w);
@@ -98,7 +100,7 @@ export const tests = [
       w.enqueue(id2, { t: 'interact', id: chest.id });
       assert(run(w).some((ev) => ev.type === 'interact_fail' && ev.src === id2 && ev.reason === 'used'), 'still found after a relog');
       // another hero finds it fresh, and an old save without nodesUsed loads and can open it
-      const id3 = w.addPlayer({ name: 'Old', cls, zone: zid, x: tileOf(e)[0], y: tileOf(e)[1], level: 6, gold: 5 });
+      const id3 = w.addPlayer({ name: 'Old', cls, zone: 'world', x: tileOf(e)[0], y: tileOf(e)[1], level: 6, gold: 5 });
       delete w.get(id3).nodesUsed;
       w.enqueue(id3, { t: 'interact', id: chest.id });
       assert(run(w).some((ev) => ev.type === 'loot' && ev.id === id3), 'another hero (old save shape) finds it too');
@@ -109,9 +111,9 @@ export const tests = [
   { name: 'secrets: a full bag refuses the cache and keeps it unfound', fn() {
     const w = createWorld({ seed: 9, content: C });
     calm(w);
-    const s = ZONES.valley.secrets[0];
+    const s = secretsOf('valley')[0];
     const chest = w.state.ents.find((e) => e.kind === 'object' && e.template === s.chest.id);
-    const id = w.addPlayer({ name: 'Full', cls: 'warden', zone: 'valley', x: s.chest.x, y: s.chest.y + 1, level: 3 });
+    const id = w.addPlayer({ name: 'Full', cls: 'warden', zone: 'world', x: s.chest.x, y: s.chest.y + 1, level: 3 });
     const p = w.get(id);
     while (w.get(id).bag.length < 60) { const before = p.bag.length; p.bag.push({ item: 'gear_sword', qty: 1, uid: 9000 + before }); }
     w.enqueue(id, { t: 'interact', id: chest.id });

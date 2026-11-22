@@ -4,6 +4,7 @@
 // and determinism.
 import { assert, eq, content } from './_harness.mjs';
 import { createWorld } from '../../src/sim/world.js';
+import { regionAt } from '../../src/data/maps/compose.js';
 import { bagAdd, bagCount } from '../../src/sim/loot.js';
 import { createCharStore, migrate, SAVE_VERSION, SHARED_KEY, loadShared, saveShared } from '../../src/ui/save.js';
 
@@ -28,7 +29,8 @@ export const tests = [
     name: 'storage: a chest stands at the Willowmere inn; interact opens it and the HUD shows both tabs (30 slots each)',
     fn() {
       const { c, run, hud } = atChest();
-      eq(c.zone, 'willowmere', 'chest zone');
+      // one world: the chest is on the world map, inside the Willowmere area
+      eq(c.zone, 'world', 'chest zone'); eq(regionAt(content().zones.world, Math.floor(c.x / TPX), Math.floor((c.y - 1) / TPX)), 'willowmere', 'chest area');
       eq(hud().storage, null, 'no chest block before it is opened');
       const ev = run({ t: 'interact', id: c.id }).find((e) => e.type === 'chest_open');
       assert(ev && ev.id === c.id && ev.place === 'Willowmere Inn', 'chest_open event');

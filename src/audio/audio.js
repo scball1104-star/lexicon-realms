@@ -33,7 +33,7 @@ export function createAudio(opts = {}) {
   const safe = (fn) => (...a) => { try { return eng ? fn(...a) : undefined; } catch (e) { console.warn('[audio]', e); return undefined; } };
   const ready = eng ? Promise.resolve(eng.init(opts.manifest || undefined)).catch((e) => { console.warn('[audio] init:', e); return null; }) : Promise.resolve(null);
 
-  // zone -> ambience bed (Lexicon Quest's ambience loops, copied into assets/audio/ambience)
+  // area -> ambience bed (Lexicon Quest's ambience loops, copied into assets/audio/ambience); one world: keyed by area
   const ZONE_AMBIENCE = { willowmere: 'river_birds', valley: 'river_birds', downs: 'wind_valley', moor: 'moor_wind' };
   const zoneTrack = (zoneId, map) => { const m = map ? map(zoneId) : zoneId; return MUSIC_ALIAS[m] || m || null; };
   const lastKey = new Map();
@@ -52,12 +52,14 @@ export function createAudio(opts = {}) {
     ui: (kind) => { const id = UI_SOUNDS[kind]; if (id) api.sfx(id, { volume: 0.8 }); },
     jingle: safe((id) => eng.jingle(id, { duckMusic: 0.3 })),
     debug: () => (eng ? eng.debugState() : { available: false }),
-    attach(bus, { playerId = () => null, cls = () => null, zoneMusic = null } = {}) {
+    // followPlace: the game picks music by the area you stand in (one world, src/main.js), so zone / respawn events
+    // do not switch it here
+    attach(bus, { playerId = () => null, cls = () => null, zoneMusic = null, followPlace = false } = {}) {
       return bus.on('*', (ev) => {
         try {
           const me = playerId();
           if (me == null) return;
-          if ((ev.type === 'zone' && ev.id === me) || (ev.type === 'respawn' && ev.id === me && ev.zone)) api.zone(ev.to || ev.zone, zoneMusic);
+          if (!followPlace && ((ev.type === 'zone' && ev.id === me) || (ev.type === 'respawn' && ev.id === me && ev.zone))) api.zone(ev.to || ev.zone, zoneMusic);
           for (const s of soundsFor(ev, { me, cls: cls() })) {
             if (s.kind === 'jingle') {
               // one jingle per tick: the bus publishes a whole tick synchronously, so a microtask sees all of it

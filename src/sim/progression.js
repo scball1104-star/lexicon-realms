@@ -416,6 +416,30 @@ export function createProgression(C) {
     if (best) bindLantern(e, best, true);
   }
 
+  // One world (src/data/maps/layout.js): the areas are regions of one zone, so "entering a zone" is now walking into an
+  // area. The area of a world tile, from zone.regions (null: the wilds between areas, or a zone with no regions).
+  function regionOf(zone, tx, ty) {
+    for (const r of (zone && zone.regions) || []) if (tx >= r.x && ty >= r.y && tx < r.x + r.w && ty < r.y + r.h) return r.id;
+    return null;
+  }
+  /** Walking into an area whose lanterns you have not touched binds its lantern nearest you (onZoneEnter, per area). */
+  function onRegionEnter(e) {
+    const z = C.content.zones[e.zone];
+    if (!z || !z.regions) return;
+    const here = regionOf(z, Math.floor(e.x / TILE), Math.floor((e.y - 1) / TILE));
+    if (!here) return;
+    const L = e.lantern;
+    if (L && L.zone === e.zone && regionOf(z, L.x, L.y) === here) return;
+    let best = null, bd = Infinity;
+    for (const l of lanternsOf(e.zone)) {
+      if (regionOf(z, l.x, l.y) !== here) continue;
+      const [lx, ly] = tileToSub(l.x, l.y);
+      const d = distPxXY(e.x, e.y, lx, ly);
+      if (d < bd) { bd = d; best = l; }
+    }
+    if (best) bindLantern(e, best, true);
+  }
+
   function tickPlayer(e) {
     if (e.dead) {
       if (e.respawnAt != null && now() >= e.respawnAt) respawn(e);
@@ -423,10 +447,12 @@ export function createProgression(C) {
     }
     // lantern touch: within lanternTouch px (about 3 tiles), checked every 3 ticks so walking past at full speed binds
     if ((now() + e.id) % 3 === 0) {
+      let touched = false;
       for (const l of lanternsOf(e.zone)) {
         const [lx, ly] = tileToSub(l.x, l.y);
-        if (distPxXY(e.x, e.y, lx, ly) <= P.death.lanternTouch) { bindLantern(e, l); break; }
+        if (distPxXY(e.x, e.y, lx, ly) <= P.death.lanternTouch) { bindLantern(e, l); touched = true; break; }
       }
+      if (!touched) onRegionEnter(e);
     }
     if (e.respecVisit) {
       const n = C.get(e.respecVisit.npc);

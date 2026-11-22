@@ -13,6 +13,7 @@
 import { bagAdd } from './sim/loot.js';
 import { createWorld, TICK_HZ } from './sim/index.js';
 import { buildContent } from './data/maps/index.js';
+import { placeAt } from './data/maps/compose.js';
 import { loadAssets, MANIFEST } from './core/assets.js';
 import { createLoop } from './core/loop.js';
 import { createBus } from './core/bus.js';
@@ -82,7 +83,10 @@ async function boot() {
 
   // ---- audio (CONTRACTS 11): music after the first user input (browser rule), zone themes, event sfx
   const audio = createAudio({ base: 'assets/audio/' });
-  audio.attach(bus, { playerId: () => playerId, cls: () => (world.get(playerId) || {}).cls, zoneMusic: (z) => (content.zones[z] || {}).music });
+  // one world: music and the HUD's place name follow the area you stand in (render() below), not zone events
+  audio.attach(bus, { playerId: () => playerId, cls: () => (world.get(playerId) || {}).cls, zoneMusic: (z) => (content.zones[z] || {}).music, followPlace: true });
+  let place = null;                    // placeAt() of the hero's tile, refreshed each frame (HUD place name)
+  let musicArea = null;                // the area whose music is playing; null: pick on the next frame
   const unlockAudio = () => audio.unlock();
   for (const t of ['pointerdown', 'keydown', 'touchstart']) window.addEventListener(t, unlockAudio, { once: true, capture: true });
 
@@ -137,7 +141,8 @@ async function boot() {
   function specFor(c) {
     const s = c.state;
     if (!s) return { name: c.name, cls: c.cls, look: c.look, ...(c.build ? { build: c.build } : {}) };   // save v2: a migrated hero not yet played
-    const at = s.zone && content.zones[s.zone] && s.tx != null ? { zone: s.zone, x: s.tx, y: s.ty } : {};
+    // an old save names its area ('valley') and that area's tiles: addPlayer moves it onto the world map
+    const at = s.zone && (content.zones[s.zone] || (content.regionAt || {})[s.zone]) && s.tx != null ? { zone: s.zone, x: s.tx, y: s.ty } : {};
     return { name: c.name, cls: c.cls, look: c.look, ...at, level: s.level, xp: s.xp, gold: s.gold, bag: s.bag, bags: s.bags, equip: s.equip,
       known: s.known, bar: s.bar, talents: s.talents, quests: stripEscorts(s.quests), questsDone: s.questsDone, nodesUsed: s.nodesUsed,
       respecs: s.respecs, lantern: s.lantern, build: s.build || c.build,     // build: Builds 2 (save v2, src/data/builds2.js)
@@ -165,7 +170,7 @@ async function boot() {
     playerId = world.addPlayer(spec);
     joins.push([world.tick, spec]);
     renderer.setPlayer(playerId);
-    audio.zone(spec.zone || content.start.zone, (z) => (content.zones[z] || {}).music);
+    musicArea = null;                  // the next frame picks the area's music
     return playerId;
   }
   const devStart = ['paused', 'zone', 'zoom', 'seed', 'skiptitle'].some((k) => q.has(k));
@@ -250,7 +255,17 @@ async function boot() {
     renderer.draw(prev, snap, alpha, view);
     const dpr = window.devicePixelRatio || 1;
     ui.setMetrics({ cssPerHud: renderer.layout.base / dpr });
-    const vm = buildViewModel(snap, playerId, { zoneNames: content.zoneNames, log: ui.logText(), tickHz: TICK_HZ });
+    if (me) {
+      const z = content.zones[me.zone];
+      place = placeAt(z, Math.floor(me.x / TILE), Math.floor((me.y - 1) / TILE));   // snapshot positions are pixels
+      // an area starts its own music; the roads between areas keep the music you came with
+      if (musicArea == null || (place.region && place.region !== musicArea)) {
+        musicArea = place.region || place.id;
+        const track = place.music;
+        audio.zone(musicArea, () => track);
+      }
+    }
+    const vm = buildViewModel(snap, playerId, { zoneNames: content.zoneNames, log: ui.logText(), tickHz: TICK_HZ, place: me ? place : null });
     renderer.drawHud((ctx) => ui.draw(ctx, vm, snap, nowMs / 1000));
   }
   window.addEventListener('keydown', (ev) => {

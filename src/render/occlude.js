@@ -1,6 +1,6 @@
 // Seeing through the scenery (fix wave 2026-11-19, CRITIQUE_1 items 1, 4, 12, 23):
-//   - alpha masks of sprite sheets and of a zone's baked overhead layer (read once, cached), so the renderer can ask
-//     "is this pixel opaque" without a per-frame readback
+//   - alpha masks of sprite sheets (read once, cached), so the renderer can ask "is this pixel opaque" without a
+//     per-frame readback; opsAt() asks it of the overhead layer's own draw list (a big zone has no one overhead canvas)
 //   - opaqueTop(): the first opaque row of a sprite frame (quest marks sit on the head, not on the frame box)
 //   - bodyPoints(): a sparse sample of a frame's opaque pixels (occlusion tests)
 //   - outline(): a cached 1-px outline of a frame in one colour (silhouettes through canopy, night rim, target)
@@ -95,38 +95,24 @@ export function createOcclusion() {
     return c;
   }
 
-  /** Alpha mask of a baked overhead canvas at half resolution (one byte per 2 x 2 px). */
-  function overheadMask(canvas) {
-    if (!canvas) return null;
-    if (alphaCache.has(canvas)) return alphaCache.get(canvas);
-    let rec = null;
-    try {
-      const W = canvas.width, H = canvas.height, w = W >> 1, h = H >> 1;
-      const a = new Uint8Array(w * h);
-      // one readback through a scratch canvas made for it (the baked layer keeps its fast GPU context)
-      const band = 256;
-      const tmp = document.createElement('canvas');
-      tmp.width = W; tmp.height = band;
-      const g = tmp.getContext('2d', { willReadFrequently: true });
-      for (let y0 = 0; y0 < H; y0 += band) {
-        const bh = Math.min(band, H - y0);
-        g.clearRect(0, 0, W, band);
-        g.drawImage(canvas, 0, y0, W, bh, 0, 0, W, bh);
-        const d = g.getImageData(0, 0, W, bh).data;
-        for (let y = 0; y < bh; y += 2) for (let x = 0; x < W; x += 2) if (d[(y * W + x) * 4 + 3] > 24) a[((y0 + y) >> 1) * w + (x >> 1)] = 1;
-      }
-      rec = { w, h, a, half: true };
-    } catch { rec = null; }
-    alphaCache.set(canvas, rec);
-    return rec;
+  /** The overhead draws ({ im, sx, sy, w, h, dx, dy }, world px) that touch a view: the few worth testing this frame. */
+  function opsNear(ops, cam, W, H) {
+    const out = [];
+    for (const o of ops) if (o.dx < cam.x + W && o.dy < cam.y + H && o.dx + o.w > cam.x && o.dy + o.h > cam.y) out.push(o);
+    return out;
   }
 
-  /** Is world pixel (x, y) covered by the overhead mask? */
-  function overheadAt(mask, x, y) {
-    if (!mask) return false;
+  /** Is world pixel (x, y) covered by an overhead draw? Reads the source sheets' alpha (cached), so a big zone needs no
+   *  whole-zone readback. Samples the even pixel of each 2 x 2 block, as the half-resolution mask did. */
+  function opsAt(ops, x, y, zoneW, zoneH) {
     const mx = x >> 1, my = y >> 1;
-    if (mx < 0 || my < 0 || mx >= mask.w || my >= mask.h) return false;
-    return mask.a[my * mask.w + mx] === 1;
+    if (mx < 0 || my < 0 || mx >= zoneW >> 1 || my >= zoneH >> 1) return false;
+    const px = mx << 1, py = my << 1;
+    for (const o of ops) {
+      if (px < o.dx || py < o.dy || px >= o.dx + o.w || py >= o.dy + o.h) continue;
+      if (opaqueAt(o.im, o.sx + px - o.dx, o.sy + py - o.dy)) return true;
+    }
+    return false;
   }
 
   /** Is pixel (px, py) of an image opaque? */
@@ -136,5 +122,5 @@ export function createOcclusion() {
     return A.a[py * A.w + px] === 1;
   }
 
-  return { alphaOf, opaqueTop, bodyPoints, outline, circle, overheadMask, overheadAt, opaqueAt };
+  return { alphaOf, opaqueTop, bodyPoints, outline, circle, opsNear, opsAt, opaqueAt };
 }

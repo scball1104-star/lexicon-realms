@@ -1,7 +1,8 @@
 // Bounty boards (docs/design/BUILDS_2.md 5.6, PROGRESSION.md 2.4; phase 5 "cap 20"): the data resolves, the daily
 // rotation is deterministic from the day index alone, and a bounty runs through the real quest system and the world:
 // posted, accepted, handed in, kept for the day (not finished for good), open again on another day, and saved.
-import { assert, eq, ZONES, content, reachable } from './_harness.mjs';
+import { assert, eq, ZONES, REGIONS, content, reachable } from './_harness.mjs';
+import { toWorld } from '../../src/data/maps/layout.js';
 import { createWorld } from '../../src/sim/index.js';
 import { BOARDS, NAMED_SPAWNS, bountyXp, bountyGold } from '../../src/data/bounties.js';
 
@@ -73,16 +74,18 @@ export const tests = [
       eq(NAMED_SPAWNS.length, 6, 'two named foes per board');
       const route = [[88, 26], [74, 30], [60, 38], [44, 42]];
       for (const s of NAMED_SPAWNS) {
-        const z = ZONES[s.zone];
+        const z = REGIONS[s.zone];                    // named foes are authored in their area's own tiles
         assert(C.mobs[s.mob] && (C.mobs[s.mob].traits || []).includes('tough'), `${s.mob}: a tough named foe`);
         eq(z.collision[s.y][s.x], '.', `${s.mob} walkable`);
         assert(reachable(s.zone)(s.x, s.y), `${s.mob} reachable`);
-        for (const o of [...(z.spawns || []), ...(z.npcs || [])]) assert(Math.hypot(o.x - s.x, o.y - s.y) >= 6, `${s.mob} within 6 tiles of ${o.mob || o.npc} at ${o.x},${o.y}`);
+        // camps and npcs of every area count (one world: a neighbour's camp can stand just across a seam)
+        const [sx, sy] = toWorld(s.zone, s.x, s.y);
+        for (const o of [...ZONES.world.spawns, ...ZONES.world.npcs]) assert(Math.hypot(o.x - sx, o.y - sy) >= 6, `${s.mob} within 6 tiles of ${o.mob || o.npc} at world ${o.x},${o.y}`);
         if (s.zone === 'valley') {
           let r = Infinity; for (let i = 0; i < route.length - 1; i++) r = Math.min(r, seg(s.x, s.y, route[i], route[i + 1]));
           assert(r >= 9, `${s.mob} ${r.toFixed(1)} tiles from Lark's way home`);
         }
-        assert(C.spawns.some((x) => x.mob === s.mob && x.zone === s.zone && x.x === s.x), `${s.mob} is in content.spawns`);
+        assert(C.spawns.some((x) => x.mob === s.mob && x.zone === 'world' && x.region === s.zone && x.x === sx && x.y === sy), `${s.mob} is in content.spawns (world tiles)`);
       }
     },
   },

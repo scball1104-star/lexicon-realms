@@ -1,6 +1,10 @@
 // Zones: everything a quest or a player needs is on a walkable cell and reachable on foot from the zone's arrival;
-// joins connect both ways; the closed hooks are visible, signed and really closed.
-import { assert, eq, ZONES, content, reachable } from './_harness.mjs';
+// one world (Scott 2026-11-21): the areas and the roads between them walk both ways with no join; the closed hooks are
+// visible, signed and really closed.
+import { assert, eq, ZONES, REGIONS, content, reachable } from './_harness.mjs';
+import { toWorld, isRegion } from '../../src/data/maps/layout.js';
+import { regionAt } from '../../src/data/maps/compose.js';
+import { tilePath } from '../tests/_helpers.mjs';
 import { canStep } from '../../tools/maps/kit.mjs';
 
 /** Cells you can walk into from the arrival but never walk out of to the arrival or any join (one-way ledge pockets). */
@@ -58,26 +62,37 @@ export const tests = [
     },
   },
   {
-    name: 'world joins: every join to a loaded zone is reachable, lands walkable and reachable on the other side, and has a way back',
+    // the old joins between areas are seams now (src/data/maps/compose.js drops them): each old join cell and the tile it
+    // used to land on are both on foot from the arrival and joined by a walk BOTH ways; the two new roads (North Road,
+    // Gate Road South) run end to end both ways; every area has a reachable cell; no join to a loaded zone is left
+    name: 'world seams: every old join between areas and both new roads walk both ways on the one map; no join to a loaded zone is left',
     fn() {
-      for (const [id, z] of Object.entries(ZONES)) {
-        const ok = reachable(id);
-        for (const j of z.joins.filter((k) => loaded(k.to))) {
-          let cell = false;
-          for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) if (ok(x, y)) cell = true;
-          assert(cell, `${id} join to ${j.to} cannot be walked into`);
-          const o = ZONES[j.to];
-          eq(o.collision[j.ty][j.tx], '.', `${id} -> ${j.to} lands walkable`);
-          assert(reachable(j.to)(j.tx, j.ty), `${id} -> ${j.to} landing ${j.tx},${j.ty} reachable there`);
-          const back = o.joins.find((k) => k.to === id);
-          assert(back, `${j.to} has no join back to ${id}`);
-          assert(!o.joins.some((k) => j.tx >= k.x && j.tx < k.x + k.w && j.ty >= k.y && j.ty < k.y + k.h), `${id} -> ${j.to} lands inside a join (would bounce)`);
+      const W = ZONES.world, ok = reachable('world');
+      eq(Object.keys(ZONES).join(','), 'world', 'one loaded zone');
+      for (const j of W.joins) assert(!ZONES[j.to] && !isRegion(j.to), `a join to ${j.to} is left on the world`);
+      const both = (a, b, tag) => {
+        assert(ok(...a) && ok(...b), `${tag}: both ends on foot from the arrival (${a} / ${b})`);
+        assert(tilePath(W, a, (x, y) => x === b[0] && y === b[1]), `${tag}: no walk ${a} -> ${b}`);
+        assert(tilePath(W, b, (x, y) => x === a[0] && y === a[1]), `${tag}: no walk back ${b} -> ${a}`);
+      };
+      const firstOk = (area, j) => { for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) { const t = toWorld(area, x, y); if (ok(...t)) return t; } return null; };
+      let seams = 0;
+      for (const [id, z] of Object.entries(REGIONS)) {
+        for (const j of (z.joins || []).filter((k) => isRegion(k.to))) {
+          const from = firstOk(id, j);
+          assert(from, `${id} -> ${j.to}: the old join cells are not on foot`);
+          both(from, toWorld(j.to, j.tx, j.ty), `${id} -> ${j.to} seam`);
+          seams++;
         }
       }
-      // the region graph: from Willowmere every zone is reachable
-      const seen = new Set(['willowmere']), q = ['willowmere'];
-      while (q.length) for (const j of ZONES[q.pop()].joins) if (loaded(j.to) && !seen.has(j.to)) { seen.add(j.to); q.push(j.to); }
-      eq([...seen].sort().join(','), Object.keys(ZONES).sort().join(','), 'every zone reachable from Willowmere');
+      assert(seams >= 6, `${seams} old seams checked`);
+      both(toWorld('downs', 143, 20), toWorld('valley', 0, 18), 'North Road');
+      both(toWorld('willowmere', 20, 31), toWorld('valley', 0, 52), 'Gate Road South');
+      for (const r of W.regions) {
+        let any = false;
+        for (let y = r.y; y < r.y + r.h && !any; y++) for (let x = r.x; x < r.x + r.w; x++) if (ok(x, y)) { any = true; break; }
+        assert(any, `area ${r.id} has no cell on foot from the arrival`);
+      }
     },
   },
   {
@@ -87,24 +102,25 @@ export const tests = [
         const pits = pitsOf(z, reachable(id));
         assert(!pits.length, `${id}: ${pits.length} cells with no way back, e.g. ${pits.slice(0, 6).map((p) => p.join(',')).join(' ')}`);
       }
-      // the one the bot found: the Downs ledge at (114, 52) over rocks
-      assert(reachable('downs')(114, 53) === false || !pitsOf(ZONES.downs, reachable('downs')).some(([x, y]) => x === 114 && y === 53), 'downs (114, 53) is no pit');
+      // the one the bot found: the Downs ledge at (114, 52) over rocks (downs tiles; the world check above covers it too)
+      const [dx, dy] = toWorld('downs', 114, 53);
+      assert(reachable('downs')(114, 53) === false || !pitsOf(ZONES.world, reachable('world')).some(([x, y]) => x === dx && y === dy), 'downs (114, 53) is no pit');
     },
   },
   {
     name: 'world hooks: the closed roads (Q19) are signed and their edges cannot be reached on foot',
     fn() {
       const want = { valley: ['east_road', 'x1_terrace'], downs: ['x1_millrace', 'x1_larchhill'], moor: ['x1_terrace'] };
+      const W = ZONES.world, ok = reachable('world');
       for (const [id, hooks] of Object.entries(want)) {
-        const z = ZONES[id];
-        const ok = reachable(id);
         for (const h of hooks) {
-          assert(z.hooks.some((k) => k.to === h), `${id}: no hook to ${h}`);
-          assert(z.signs.some((s) => s.hook === h && /\S/.test(s.text)), `${id}: hook ${h} has no readable sign`);
+          assert(W.hooks.some((k) => k.to === h && k.region === id), `${id}: no hook to ${h}`);
+          assert(W.signs.some((s) => s.hook === h && s.region === id && /\S/.test(s.text)), `${id}: hook ${h} has no readable sign`);
         }
-        for (const j of z.joins.filter((k) => !loaded(k.to))) {
-          for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) assert(!ok(x, y), `${id}: closed edge to ${j.to} at ${x},${y} is reachable`);
-        }
+      }
+      // the closed edges stay map edges on the one world: none can be walked into
+      for (const j of W.joins.filter((k) => !loaded(k.to))) {
+        for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) assert(!ok(x, y), `${j.region}: closed edge to ${j.to} at world ${x},${y} is reachable`);
       }
     },
   },

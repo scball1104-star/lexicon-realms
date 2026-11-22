@@ -6,10 +6,19 @@ import { createWorld } from '../../src/sim/world.js';
 import { spotFree, boxBlocked } from '../../src/sim/collision.js';
 import { bagCount } from '../../src/sim/loot.js';
 import { createBot } from '../bot/lib/bot.mjs';
+import { REGIONS } from '../../src/data/maps/index.js';
+import { toWorld } from '../../src/data/maps/layout.js';
+import { regionAt } from '../../src/data/maps/compose.js';
+import { NAMED_SPAWNS } from '../../src/data/bounties.js';
+import { tilePath, walkPath } from '../tests/_helpers.mjs';
 
 const C = content();
 const SUB = 16, TILE = 256;
 const tileOf = (e) => [Math.floor(e.x / TILE), Math.floor((e.y - 1) / TILE)];
+// one world (src/data/maps/layout.js): content coords are world tiles in zone 'world'; areaOf names the area an entity
+// stands in, W(area, x, y) turns an area-local tile (the old per-zone numbers these tests were written with) into a world one
+const areaOf = (e) => regionAt(C.zones.world, ...tileOf(e));
+const W = (area, x, y) => toWorld(area, x, y);
 function freeNear(zone, x, y, r = 3) {
   const Z = C.zones[zone];
   for (let d = 0; d <= r; d++) for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) if (spotFree(Z, x + dx, y + dy)) return [x + dx, y + dy];
@@ -85,18 +94,18 @@ export const tests = [
     const w = createWorld({ seed: 23, content: C });
     const id = acceptLark(w);
     const o = C.quests.wm_lark_wanders.objectives[0];
-    const Z = C.zones.valley;
+    const Z = C.zones.world;
     const p = w.get(id);
     for (const [k, a] of o.ambush.entries()) {
       const lark = escorts(w)[0];
-      const [x, y] = freeNear('valley', a.at.x, a.at.y, 2);
+      const [x, y] = freeNear('world', a.at.x, a.at.y, 2);
       lark.x = x * TILE + 128; lark.y = (y + 1) * TILE - SUB;
-      p.zone = 'valley'; p.x = lark.x; p.y = lark.y;          // the player walks with her
+      p.zone = 'world'; p.x = lark.x; p.y = lark.y;          // the player walks with her
       const before = new Set(w.state.ents.map((e) => e.id));
       run(w, 1);
       const adds = w.state.ents.filter((e) => !before.has(e.id) && e.kind === 'mob');
       eq(adds.length, a.mobs.length, `ambush ${k}: ${a.mobs.length} adds`);
-      const ok = reachable('valley');
+      const ok = reachable('world');
       for (const m of adds) {
         const [mx, my] = tileOf(m);
         assert(!boxBlocked(Z, m.x, m.y, 0, 0, -99999, -99999, null), `ambush ${k}: add at ${mx},${my} is not inside a wall`);
@@ -110,9 +119,9 @@ export const tests = [
     const w = createWorld({ seed: 24, content: C });
     calm(w);
     const o = C.quests.wm_lark_wanders.objectives[0];
-    const [sx, sy] = freeNear('valley', o.from.x - 1, o.from.y, 2);
+    const [sx, sy] = freeNear('world', o.from.x - 1, o.from.y, 2);
     // a restored character with the escort active: addPlayer puts Lark back at her start (bug 1's fix)
-    const walker = createBot({ world: w, content: C, cls: 'warden', spec: { name: 'Walker', cls: 'warden', zone: 'valley', x: sx, y: sy, level: 9,
+    const walker = createBot({ world: w, content: C, cls: 'warden', spec: { name: 'Walker', cls: 'warden', zone: 'world', x: sx, y: sy, level: 9,
       questsDone: ['wm_name_twice', 'wm_pilgrim_wolves'], quests: { wm_lark_wanders: { state: 'active', counts: [0] } } }, opts: { noDanger: true } });
     run(w, 2);
     const L = escorts(w).find((e) => e.escort.owner === walker.id);
@@ -120,7 +129,7 @@ export const tests = [
     L.escort.ambushed = [0, 1];                       // this test is about walking, not fighting
     let done = false, maxGap = 0;
     for (let t = 0; t < 20 * 240 && !done; t++) {
-      walker.walkTo('home', 'valley', (x, y) => Math.hypot(x - o.to.x, y - o.to.y) <= 2, [o.to.x, o.to.y]);
+      walker.walkTo('home', 'world', (x, y) => Math.hypot(x - o.to.x, y - o.to.y) <= 2, [o.to.x, o.to.y]);
       const ev = w.step();
       if (ev.some((e) => e.type === 'quest' && e.quest === 'wm_lark_wanders' && e.kind === 'complete')) done = true;
       const l2 = escorts(w)[0];
@@ -135,11 +144,11 @@ export const tests = [
   { name: 'bug 4: loot that does not fit waits as pending loot (loot_take collects it); quest items never take a bag slot (edges bag_full_on_loot_quest_item_vanishes)', fn() {
     const w2sys = [];
     const w = createWorld({ seed: 11, content: C, systems: [{ id: 'killer', tick: (world) => w2sys.forEach((f) => f(world)) }] });
-    const s = freeNear('valley', 41, 10, 3);
+    const s = freeNear('world', ...W('valley', 41, 10), 3);
     const full = ['slime_ink', 'scarab_shell', 'wolf_pelt', 'thorny_pelt', 'blot_residue', 'tangled_wool', 'crow_feather', 'grave_dust', 'mist_pelt', 'boar_hide', 'torn_page', 'ink_wisp', 'slime_ink', 'scarab_shell'].map((item) => ({ item, qty: 20 }));   // 14: a level 8 satchel has grown +2
-    const id = w.addPlayer({ name: 'Full', cls: 'warden', zone: 'valley', x: s[0], y: s[1], level: 8, bag: full, quests: { wm_copied_twice: { state: 'active', counts: [0] } }, questsDone: ['wm_name_twice', 'wm_keeper_marks'] });
+    const id = w.addPlayer({ name: 'Full', cls: 'warden', zone: 'world', x: s[0], y: s[1], level: 8, bag: full, quests: { wm_copied_twice: { state: 'active', counts: [0] } }, questsDone: ['wm_name_twice', 'wm_keeper_marks'] });
     const p = w.get(id);
-    const slimes = w.state.ents.filter((m) => m.kind === 'mob' && m.template === 'ink_slime' && m.zone === 'valley' && m.level >= 3);
+    const slimes = w.state.ents.filter((m) => m.kind === 'mob' && m.template === 'ink_slime' && areaOf(m) === 'valley' && m.level >= 3);
     let pending = 0, pages = 0, events = [];
     // kill inside a step (a system), so the events land in that tick's list
     let next = null;
@@ -226,8 +235,8 @@ export const tests = [
     const w = createWorld({ seed: 27, content: C });
     const id = w.addPlayer({ name: 'Low', cls: 'warden', questsDone: ['wm_name_twice'] });
     eq(w.quests.status(w.get(id), 'wm_pilgrim_wolves'), 'soon', 'shown as coming at level 3');
-    const penny = C.zones.valley.npcs.find((n) => n.npc === 'penny');
-    for (const s of C.zones.valley.spawns) if (s.mob === 'briar_wolf') {
+    const penny = REGIONS.valley.npcs.find((n) => n.npc === 'penny');      // the valley's own tiles (the bridge numbers are local)
+    for (const s of REGIONS.valley.spawns) if (s.mob === 'briar_wolf') {
       assert(Math.hypot(s.x - penny.x, s.y - penny.y) >= 10, `wolf at ${s.x},${s.y} within 10 tiles of Penny`);
       assert(!(s.x >= 42 && s.x < 56 && s.y >= 40 && s.y < 46), `wolf on the bridge ${s.x},${s.y}`);
       assert(s.level >= 3 && s.level <= 4, `pilgrim road wolf level ${s.level}`);
@@ -272,32 +281,34 @@ export const tests = [
   { name: 'bug 12 / critique 17: a lantern binds within 3 tiles while walking past, and a new zone binds its nearest lantern on entry', fn() {
     const w = createWorld({ seed: 31, content: C });
     calm(w);
-    const L = C.zones.valley.lanterns.find((l) => l.id === 'pilgrims_rest');
-    const [x, y] = freeNear('valley', L.x + 3, L.y, 1);
-    const id = w.addPlayer({ name: 'Lamp', cls: 'warden', zone: 'valley', x, y });
+    const L = C.zones.world.lanterns.find((l) => l.id === 'pilgrims_rest');
+    const [x, y] = freeNear('world', L.x + 3, L.y, 1);
+    const id = w.addPlayer({ name: 'Lamp', cls: 'warden', zone: 'world', x, y });
     const p = w.get(id);
-    p.lantern = { zone: 'valley', id: 'south_gate', x: 4, y: 52 };
+    const [gx, gy] = W('valley', 4, 52);
+    p.lantern = { zone: 'world', id: 'south_gate', x: gx, y: gy };
     run(w, 6);
     eq(p.lantern.id, 'pilgrims_rest', 'bound from 3 tiles');
-    // walk from Willowmere into the valley: the arrival lantern binds on entry
-    const s = npcSpot('holt');
+    // one world: walk out of the town gate down Gate Road South into the valley; the valley's nearest lantern binds as
+    // you walk into the area (what entering the valley zone did before the areas became one map)
     const id2 = w.addPlayer({ name: 'Gate', cls: 'warden', zone: 'willowmere', x: 20, y: 30 });
-    void s;
     const q = w.get(id2);
-    eq(q.lantern.zone, 'willowmere', 'starts bound in town');
-    w.enqueue(id2, { t: 'move', dx: 0, dy: 1 });
-    let ev = [];
-    for (let i = 0; i < 60 && q.zone === 'willowmere'; i++) ev = ev.concat(w.step());
-    eq(q.zone, 'valley', 'walked into the valley');
-    eq(q.lantern.zone, 'valley', 'bound a valley lantern on entry');
+    eq(areaOf(q), 'willowmere', 'starts in town');
+    eq(regionAt(C.zones.world, q.lantern.x, q.lantern.y), 'willowmere', 'starts bound in town');
+    const route = tilePath(C.zones.world, tileOf(q), (tx, ty) => regionAt(C.zones.world, tx, ty) === 'valley' && tx >= W('valley', 3, 0)[0]);
+    assert(route, 'a way from the gate into the valley');
+    const { events: ev, done } = walkPath(w, id2, route);
+    assert(done, `walked into the valley (stopped at ${tileOf(q)})`);
+    eq(q.zone, 'world', 'no zone change'); eq(areaOf(q), 'valley', 'walked into the valley');
+    eq(regionAt(C.zones.world, q.lantern.x, q.lantern.y), 'valley', 'bound a valley lantern on entry');
     assert(ev.some((e) => e.type === 'lantern' && e.id === id2 && e.auto), 'lantern event marked auto');
   } },
   // ------------------------------------------------------------------------------------------- bug 13, critique 17
   { name: 'bug 13 / critique 17: a lane from the moor arrival to Odo\'s hut has no aggressive foe above the moor entry level (13 since the cap 20 re-spread, 10 before) within 8 tiles; no sentinel within 12 tiles of the hut or 8 of the elite', fn() {
-    const z = ZONES.moor;
+    const z = REGIONS.moor;                                          // the moor in its own tiles
     const odo = z.npcs.find((n) => n.npc === 'odo');
     eq(z.levels[0], 13, 'the moor opens at 13 (PROGRESSION.zoneRespread)');
-    const named = C.spawns.filter((s) => s.zone === 'moor' && s.group && s.group.startsWith('bounty_'));   // the bounty boards' named foes
+    const named = NAMED_SPAWNS.filter((s) => s.zone === 'moor');      // the bounty boards' named foes (moor tiles too)
     const foes = [...z.spawns, ...named].filter((s) => s.level > z.levels[0] && (C.mobs[s.mob].behavior === 'aggressive' || C.mobs[s.mob].behavior === 'elite'));
     const unsafe = (x, y) => foes.some((s) => Math.hypot(s.x - x, s.y - y) <= 8);
     const ok = reachable('moor');
@@ -324,8 +335,8 @@ export const tests = [
     const w = createWorld({ seed: 32, content: C });
     const id = w.addPlayer({ name: 'Pull', cls: 'warden', zone: 'valley', x: 12, y: 46 });
     const p = w.get(id);
-    const a = w.state.ents.find((m) => m.kind === 'mob' && m.template === 'ink_slime' && m.level <= 2 && m.zone === 'valley');
-    const b = w.state.ents.find((m) => m.kind === 'mob' && m.template === 'ink_slime' && m !== a && m.zone === 'valley');
+    const a = w.state.ents.find((m) => m.kind === 'mob' && m.template === 'ink_slime' && m.level <= 2 && areaOf(m) === 'valley');
+    const b = w.state.ents.find((m) => m.kind === 'mob' && m.template === 'ink_slime' && m !== a && areaOf(m) === 'valley');
     b.x = a.x + 16 * SUB; b.y = a.y;                            // a friend one tile away
     w.internals.ai.engage(a, p);
     assert(b.ai.mode !== 'combat', 'the neighbour stays put');
@@ -352,10 +363,10 @@ export const tests = [
   { name: 'critique 6: a new Warden has Shield Bash in slot 1, and the first fight\'s second press (Strike) works', fn() {
     eq(C.classes.warden.startBar[0], 'warden_shield_bash', 'Bash first');
     const w = createWorld({ seed: 34, content: C });
-    const s = freeNear('valley', 12, 46, 2);
-    const id = w.addPlayer({ name: 'Tank', cls: 'warden', zone: 'valley', x: s[0], y: s[1] });
+    const s = freeNear('world', ...W('valley', 12, 46), 2);
+    const id = w.addPlayer({ name: 'Tank', cls: 'warden', zone: 'world', x: s[0], y: s[1] });
     const p = w.get(id);
-    const m = w.state.ents.filter((e) => e.kind === 'mob' && !e.dead && e.zone === 'valley').sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+    const m = w.state.ents.filter((e) => e.kind === 'mob' && !e.dead && areaOf(e) === 'valley').sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
     m.x = p.x + 20 * SUB; m.y = p.y;
     w.enqueue(id, { t: 'target', id: m.id });
     w.enqueue(id, { t: 'cast', slot: 1 });
@@ -405,8 +416,9 @@ export const tests = [
     const id = w.addPlayer({ name: 'Map', cls: 'warden', zone: s.zone, x: s.x, y: s.y, questsDone: ['wm_name_twice'] });
     w.enqueue(id, { t: 'quest_accept', quest: 'wm_yard_slimes' }); run(w);
     const row = w.snapshot().hud[id].quests[0];
-    eq(row.rows[0].where[0].zone, 'valley', 'tracker row where');
-    eq(row.turnIn.npc, 'oren', 'turn-in npc'); assert(row.turnIn.where[0].zone === 'willowmere', 'turn-in where');
+    // one world: every circle is on the world map; its area rides along as `region`
+    eq(row.rows[0].where[0].zone, 'world', 'tracker row where'); eq(row.rows[0].where[0].region, 'valley', 'tracker row area');
+    eq(row.turnIn.npc, 'oren', 'turn-in npc'); assert(row.turnIn.where[0].zone === 'world' && row.turnIn.where[0].region === 'willowmere', 'turn-in where');
   } },
   // ------------------------------------------------------------------------------------------- critique 10
   { name: 'critique 10: every turn-in text names the giver of the next quest it opens (or the same npc gives it)', fn() {
@@ -469,10 +481,10 @@ export const tests = [
   { name: 'bug 15: the Inkblade Spill heals 8% of health per mark (5% before the combat role pass, 7% before the class identity pass); the Wayfinder Quick Shot Hobbles (30% slow, 3 s)', fn() {
     const w = createWorld({ seed: 41, content: C });
     calm(w);
-    const s = freeNear('valley', 12, 46, 2);
-    const id = w.addPlayer({ name: 'Ink', cls: 'inkblade', zone: 'valley', x: s[0], y: s[1], level: 5 });
+    const s = freeNear('world', ...W('valley', 12, 46), 2);
+    const id = w.addPlayer({ name: 'Ink', cls: 'inkblade', zone: 'world', x: s[0], y: s[1], level: 5 });
     const p = w.get(id);
-    const m = w.state.ents.find((e) => e.kind === 'mob' && e.zone === 'valley' && e.template === 'ink_slime');
+    const m = w.state.ents.find((e) => e.kind === 'mob' && areaOf(e) === 'valley' && e.template === 'ink_slime');
     m.dead = false; m.respawnAt = null; m.ai.mode = 'idle'; m.hp = m.hpMax = 5000; m.x = p.x + 20 * SUB; m.y = p.y;
     p.hp = Math.round(p.hpMax * 0.5);
     p.combo = { target: m.id, n: 3, until: w.tick + 400 };
@@ -482,7 +494,7 @@ export const tests = [
     const h = ev.find((e) => e.type === 'heal' && e.src === id && e.dst === id && e.ability === 'inkblade_spill');
     assert(h, 'Spill healed the Inkblade');
     eq(h.amount, Math.round(0.24 * p.hpMax), '3 marks = 24% of health');
-    const id2 = w.addPlayer({ name: 'Way', cls: 'wayfinder', zone: 'valley', x: s[0], y: s[1], level: 5 });
+    const id2 = w.addPlayer({ name: 'Way', cls: 'wayfinder', zone: 'world', x: s[0], y: s[1], level: 5 });
     w.enqueue(id2, { t: 'target', id: m.id });
     w.enqueue(id2, { t: 'cast', ability: 'wayfinder_quick_shot', target: m.id });
     run(w, 20);
@@ -494,8 +506,8 @@ export const tests = [
   { name: 'critique 12: two melee foes on one hero end up side by side (12 px or more apart), not stacked', fn() {
     const w = createWorld({ seed: 42, content: C });
     calm(w);
-    const s = freeNear('valley', 66, 30, 2);
-    const id = w.addPlayer({ name: 'Bait', cls: 'warden', zone: 'valley', x: s[0], y: s[1], level: 9 });
+    const s = freeNear('world', ...W('valley', 66, 30), 2);
+    const id = w.addPlayer({ name: 'Bait', cls: 'warden', zone: 'world', x: s[0], y: s[1], level: 9 });
     const p = w.get(id);
     p.hp = p.hpMax = 99999;
     const wolves = w.state.ents.filter((e) => e.kind === 'mob' && e.template === 'briar_wolf').slice(0, 2);
@@ -507,10 +519,14 @@ export const tests = [
     for (const m of wolves) assert(Math.hypot(m.x - p.x, m.y - p.y) / SUB <= 40, 'both still in reach');
   } },
   // ------------------------------------------------------------------------------------------- found by the questbot in this pass
-  { name: 'stale threat: a mob that stopped fighting forgets a player who left the zone, so they leave combat (questbot wayfinder seed 2)', fn() {
+  // one world: "left the zone" is now "walked off beyond the leash" (the areas share one zone)
+  { name: 'stale threat: a mob that stopped fighting forgets a player who went far off (beyond its leash), so they leave combat (questbot wayfinder seed 2)', fn() {
     const w = createWorld({ seed: 43, content: C });
-    const id = w.addPlayer({ name: 'Gone', cls: 'wayfinder', zone: 'moor', x: 78, y: 96, level: 7 });
-    const crow = w.state.ents.find((e) => e.kind === 'mob' && e.template === 'gorse_crow' && !e.dead);
+    const id = w.addPlayer({ name: 'Gone', cls: 'wayfinder', zone: 'moor', x: 84, y: 40, level: 7 });   // up the moor, far from the Downs crows
+    const me = w.get(id);
+    const leash = C.progression.mobAi.leashDist;
+    const crow = w.state.ents.find((e) => e.kind === 'mob' && e.template === 'gorse_crow' && !e.dead && Math.hypot(e.x - me.x, e.y - me.y) / SUB > leash + 64);
+    assert(crow, 'a gorse crow well beyond the leash');
     crow.threat[id] = 50; crow.ai.mode = 'idle';                 // the state the bot found: idle, still listing her
     run(w, 4);
     assert(crow.threat[id] == null, 'threat forgotten');

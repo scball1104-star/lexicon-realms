@@ -420,12 +420,33 @@ export default {
 };
 ```
 
-Joins are data: a join whose `to` zone is not in `ZONES` is just the map edge. Loaded joins: Willowmere south gate
-(20..21, 31) <-> valley west edge (0, 52..53); Willowmere west gate, Orchard Lane (0, 16..17) <-> Downs east edge
-(143, 42..43); valley west edge (0, 18..19) <-> Downs east edge (143, 20..21); Downs Ridge gap (74..77, 0) <-> moor south
-edge (74..81, 99). Closed, and walled so the edge cannot be reached: valley east -> `east_road` (the fallen oak), Downs
-south -> `x1_millrace` (Ferrick's chain) and `x1_larchhill` (the shut gate), moor east -> `x1_terrace` (the rooted stile).
-`qa/world/zones.test.mjs` checks every join both ways, reachability and the closed edges.
+Joins are data: a join whose `to` zone is not in `ZONES` is just the map edge.
+
+### 6.1 One world (LIVE, Scott 2026-11-21)
+
+The four area modules above are still generated one by one in their own local tiles (`REGIONS` in
+`src/data/maps/index.js`), but the sim runs ONE zone. `src/data/maps/compose.js` `composeWorld(REGIONS, wilds)` lays
+them out on a 296 x 196 map (`src/data/maps/layout.js` `REGION_AT`: area id -> top-left corner; moor [0, 0], downs
+[0, 100], willowmere [144, 126], valley [200, 102]) with `src/data/maps/wilds.js` between them (generated:
+`tools/maps/zone_wilds.mjs`; the North Road from the Downs (143, 20) to the valley (0, 18), Gate Road South from the
+town gate (20, 31) to the valley (0, 52), forest elsewhere).
+
+- `ZONES = { world }`; the world zone has the section 6 shape with `id: 'world'`, `arrival` = the town arrival, and
+  `regions: [{ id, name, kind, x, y, w, h, levels, music, lighting, under }]` (one per area, world tiles).
+- Every list item (spawns, npcs, nodes, lanterns, areas, signs, hooks, secrets, decor, overlays, overhead) is moved by
+  its area's corner and tagged `region: '<area>'` (wilds decor: `region: null`). Each area also adds an area
+  `region_<id>` covering it (the banner; `safe` for the town). `script.long_watch` spots are moved too.
+- Joins between areas are dropped: you walk across the seam, no `zone` event. Joins to unbuilt zones (`east_road`,
+  `x1_*`) stay as walled edges, tagged with their region.
+- Helpers: `regionAt(zone, tx, ty)` (area id or null for the wilds), `regionInfo`, `underAt`; `toWorld(area, tx, ty)`
+  and `toWorldPx(area, px, py)` turn area-local tiles / pixels into world ones (unknown ids pass through).
+
+Loaded seams (old joins, now walked): Willowmere's south gate and west gate (Orchard Lane), valley west edge <-> Downs
+east edge, Downs Ridge gap <-> moor south edge. Closed, and walled so the edge cannot be reached: valley east ->
+`east_road` (the fallen oak), Downs south -> `x1_millrace` (Ferrick's chain) and `x1_larchhill` (the shut gate), moor
+east -> `x1_terrace` (the rooted stile). `qa/world/zones.test.mjs` walks every old seam and both roads both ways and checks
+reachability, pits and the closed edges; `node tools/maps/build_world.mjs --out <dir> --no-assets` checks the composed
+world too (`BUILD_WORLD_OK`).
 
 ## 7. Data modules (SPEC, the design and content waves fill these)
 
@@ -433,8 +454,20 @@ All are plain ES modules exporting one frozen-able object keyed by id. The sim r
 `createWorld({ seed, content })`:
 
 ```js
-content = { zones, zoneNames, classes, abilities, talents, mobs, items, quests, npcs, spawns, start }
+content = { zones, zoneNames, classes, abilities, talents, mobs, items, quests, npcs, spawns, start, worldId, regionAt }
 ```
+
+One world (6.1): `zones` is `{ world }`, `worldId: 'world'`, `regionAt` is `REGION_AT` (area id -> corner).
+`zoneNames` names the world and each area id. `buildContent()` moves area-authored data onto the world once: spawns,
+named bounty spawns and Lantern Chests (tiles), quest and bounty `where` circles (pixels), escort `from` / `to` and
+ambush `at` (tiles); each converted ref keeps its area as `region`. An objective with an area `zone` becomes
+`{ zone: 'world', region: '<area>' }`: a kill then counts only mobs whose spawn tile is in that area
+(`src/sim/quests.js` regionOfMob). Spawn `pack` tags (`src/data/packs.js`) are keyed by area. `start` is the world
+arrival. `world.addPlayer(spec)` still takes an area spec (`{ zone: 'valley', x, y }` in that area's tiles, and the same
+for `spec.lantern`): it is moved onto the world map first (old saves, links, tests). Quest tracker `where` circles carry
+`region` when known. A `target` / `attack` command on an entity beyond `TARGET_RANGE_PX` is rejected (`bad_target`), as
+another zone's was. Walking into an area whose lanterns you have not bound binds its nearest lantern (auto), as entering
+a zone did.
 
 `src/data/maps/index.js` `buildContent()` builds it today with PLACEHOLDER mobs, NPCs and spawns; when the files
 below exist, `buildContent()` imports them and the placeholders are deleted.

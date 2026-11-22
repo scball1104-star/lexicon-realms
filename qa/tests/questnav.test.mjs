@@ -90,7 +90,7 @@ export const tests = [
     },
   },
   {
-    name: 'quest nav: the HUD model carries the selected quest, its goal and the cross-zone exit (real world)',
+    name: 'quest nav: the HUD model carries the selected quest and its goal; in the one world there is no exit to take (real world)',
     fn() {
       const { world, content } = newWorld(4);
       setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
@@ -104,23 +104,19 @@ export const tests = [
       const m = buildHudModel(vm, snap, ctx);
       eq(m.selectedQuest, 'wm_yard_slimes', 'the first tracked quest by default');
       assert(m.nav && m.nav.goal, 'a goal');
-      const goalZone = m.nav.goal.zone;
-      if (goalZone === 'willowmere') {
-        eq(m.nav.exit, null); eq(m.minimap.goal.zone, 'willowmere');
-      } else {
-        assert(m.nav.exit && m.nav.exit.zone === 'willowmere', `an exit out of Willowmere: ${JSON.stringify(m.nav.exit)}`);
-        assert(/^Go to /.test(m.nav.line), m.nav.line);
-        eq(m.minimap.goal, m.nav.exit, 'the minimap and world arrows point at the exit');
-      }
+      // one world (Scott 2026-11-21): every goal is in the zone you stand in, so no exit and no route line; the arrows
+      // point at the goal itself
+      eq(m.nav.goal.zone, 'world', 'the goal is on the one world map');
+      eq(m.nav.exit, null, 'no exit to take'); eq(m.nav.line, '', 'no route line');
+      eq(m.minimap.goal.zone, 'world');
       assert(/Slay|\d+\/\d+|Speak|Hand/.test(m.nav.goal.label), `label says what to do: ${m.nav.goal.label}`);
       assert(m.minimap.areas.every((a) => a.quest), 'each circle knows its quest (the map dims the others)');
       // picking a quest that is not in the log falls back to the first tracked one
       const m2 = buildHudModel(vm, snap, { ...ctx, state: { navQuest: 'nope' } });
       eq(m2.selectedQuest, 'wm_yard_slimes');
-      // the Downs from Willowmere: a route through the zone joins
-      const r = zoneRoute(content.zones, 'willowmere', 'moor');
-      assert(r && r.length === 2 && r[0].to === 'downs' && r[1].to === 'moor', `willowmere -> downs -> moor: ${r && r.map((s) => s.to)}`);
-      eq(routeLine(zoneRoute(content.zones, 'willowmere', 'downs'), content.zones, content.zoneNames), "Go to Shepherd's Downs (west exit)");
+      // the areas are one map now: no joins between loaded zones, so the route to any area is the empty route
+      eq(JSON.stringify(zoneRoute(content.zones, 'world', 'world')), '[]', 'world -> world: no steps');
+      for (const j of content.zones.world.joins || []) assert(!content.zones[j.to], `a join to a loaded zone is left: ${j.to}`);
     },
   },
   {

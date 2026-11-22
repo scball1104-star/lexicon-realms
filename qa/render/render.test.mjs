@@ -6,7 +6,7 @@ import { fxFor, ABILITIES, SCHOOLS } from '../../src/render/fx_table.js';
 import { charKey, charAnim, mobKey, mobAnim, MOB_ATLASES } from '../../src/render/sprites.js';
 import { objectLook } from '../../src/render/objects.js';
 import { normalizeWeather } from '../../src/render/renderer.js';
-import fs from 'node:fs';
+import { CHUNK, CHUNK_BUDGET } from '../../src/render/tilemap.js';import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -244,6 +244,21 @@ export const tests = [
       eq(normalizeWeather(null, { weather: 'pollen' }).pollen, true);
       eq(normalizeWeather({ rain: 0.4 }).rain, 0.4);
       eq(normalizeWeather(undefined).rain, 0);
+    },
+  },
+  {
+    name: 'world map chunks: the cache fits a phone, water phases line up across animations',
+    fn() {
+      const px = CHUNK * 16;
+      assert((CHUNK_BUDGET * px * px * 4) / 1048576 <= 32, `chunk cache budget ${CHUNK_BUDGET} x ${px} px is over 32 MB`);
+      // a big phone held sideways shows about 844 x 390 world px: its chunks (three water phases each) and the
+      // margin ring must fit the budget, or prefetch can never run ahead
+      const view = (Math.ceil(844 / px) + 1) * (Math.ceil(390 / px) + 1), ring = (Math.ceil(844 / px) + 3) * (Math.ceil(390 / px) + 3) - view;
+      assert(view * 3 + ring <= CHUNK_BUDGET, `view ${view} x 3 + ring ${ring} > ${CHUNK_BUDGET}`);
+      // each chunk keeps its own animation timing but shares the phase index: every animated terrain must use the same frames
+      const tiles = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets/tiles/tiles.json'), 'utf8'));
+      const seqs = new Set(Object.values(tiles.terrains).filter((t) => t.anim).map((t) => t.anim.frames.join()));
+      eq(seqs.size, 1, `animated terrains disagree on frames: ${[...seqs].join(' | ')}`);
     },
   },
 ];

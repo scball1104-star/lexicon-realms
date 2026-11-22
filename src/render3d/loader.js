@@ -37,15 +37,25 @@ export function createLoader(base = 'assets3d/') {
     });
   }
 
+  // At most 8 downloads at once, and one retry: the one world asks for every area's models together, and a burst of
+  // hundreds of requests can run a phone (or a busy PC's network stack) out of sockets (ERR_NO_BUFFER_SPACE).
+  const MAX_LOADS = 8;
+  let loading = 0;
+  const waiting = [];
+  const slot = () => (loading < MAX_LOADS ? (loading++, Promise.resolve()) : new Promise((res) => waiting.push(res)));
+  const free = () => { const next = waiting.shift(); if (next) next(); else loading--; };
+  const fetchOne = (loader, url) => slot().then(() => loader.loadAsync(url)).finally(free);
+  const limited = (loader, url) => fetchOne(loader, url).catch(() => new Promise((res) => setTimeout(res, 400)).then(() => fetchOne(loader, url)));
+
   function gltf(rel, { shareMaterials = !/^(ubc|hair|mco|animals|monsters)\//.test(rel) } = {}) {
     if (!cache.has(rel)) {
-      cache.set(rel, gl.loadAsync(base + rel).then((g) => { if (shareMaterials) share(g.scene); return g; }));
+      cache.set(rel, limited(gl, base + rel).then((g) => { if (shareMaterials) share(g.scene); return g; }));
     }
     return cache.get(rel);
   }
   function tex(rel, srgb = true) {
     if (!texCache.has(rel)) {
-      texCache.set(rel, tl.loadAsync(base + rel).then((t) => { t.flipY = false; if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }));
+      texCache.set(rel, limited(tl, base + rel).then((t) => { t.flipY = false; if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }));
     }
     return texCache.get(rel);
   }

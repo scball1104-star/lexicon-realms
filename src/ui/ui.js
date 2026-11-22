@@ -29,6 +29,7 @@ import { drawDialog, dialogFromInteract, dialogRectFor } from './dialog.js';
 import { drawChest, drawPouch } from './chest.js';
 import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
+import { placeAt } from '../data/maps/compose.js';
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help'];
@@ -293,7 +294,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const full = hooks.saveState ? hooks.saveState(playerId) : null;
     const e = full || (lastSnap && lastSnap.entities.find((o) => o.id === playerId));
     if (!e) return;
-    store.update(st.charId, { level: e.level, xp: e.xp || 0, zone: e.zone, zoneName: zoneNames[e.zone] || e.zone, x: e.tx ?? Math.floor(e.x / 16), y: e.ty ?? Math.floor(e.y / 16),
+    const tx = e.tx ?? Math.floor(e.x / 16), ty = e.ty ?? Math.floor(e.y / 16);
+    const where = zones[e.zone] ? placeAt(zones[e.zone], tx, ty) : null;   // the select screen names the area, not the world
+    store.update(st.charId, { level: e.level, xp: e.xp || 0, zone: e.zone, zoneName: (where && where.name) || zoneNames[e.zone] || e.zone, x: tx, y: ty,
       ...(full ? { state: full } : {}) });
   }
 

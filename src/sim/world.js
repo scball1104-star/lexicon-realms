@@ -83,6 +83,21 @@ function wrap(state, content, rng, systems) {
   let events = [];
   const index = new Map(state.ents.map((e) => [e.id, e]));
   const zoneOf = (e) => content.zones[e.zone];
+  // One world (src/data/maps/layout.js): a spec in an area's own tiles (an old save, a ?zone=valley link, a test) moves
+  // onto the world map. content.regionAt: area id -> its corner [x, y] on the world; zones not listed pass unchanged.
+  const RA = content.regionAt || {};
+  const worldRef = (o) => {
+    if (!o || !RA[o.zone] || content.zones[o.zone]) return o;
+    const [ox, oy] = RA[o.zone];
+    return { ...o, zone: content.worldId, ...(o.x != null ? { x: o.x + ox } : {}), ...(o.y != null ? { y: o.y + oy } : {}) };
+  };
+  const worldSpec = (spec) => {
+    if (!spec) return spec;
+    let out = spec;
+    if (RA[spec.zone] && !content.zones[spec.zone]) out = worldRef(spec);
+    if (spec.lantern && RA[spec.lantern.zone] && !content.zones[spec.lantern.zone]) out = { ...out, lantern: worldRef(spec.lantern) };
+    return out;
+  };
   const emit = (ev) => { events.push({ tick: state.tick, ...ev }); };
   const combatOn = !!(content.classes && content.abilities && content.progression);
 
@@ -255,6 +270,7 @@ function wrap(state, content, rng, systems) {
      */
     addPlayer(spec = {}) {
       const st = content.start;
+      spec = worldSpec(spec);
       const zid = spec.zone || st.zone;
       // a saved tile that is no longer free (the map changed under the save) starts on the nearest walkable tile
       const [px, py] = spec.x != null && spec.y != null && content.zones[zid] ? standTile(content.zones[zid], spec.x, spec.y) : [spec.x ?? st.x, spec.y ?? st.y];
@@ -468,7 +484,8 @@ function wrap(state, content, rng, systems) {
       case 'target': {
         if (cmd.id == null) { if (e.target != null) { e.target = null; e.autoOn = false; emit({ type: 'target', src: id, id: null }); } return; }
         const t = index.get(cmd.id);
-        if (!t || t.zone !== e.zone || t.id === e.id) return reject(id, cmd, 'bad_target');
+        // one world: every foe shares the zone, so "too far to keep" (dropBadTarget) is the reject that "another zone" was
+        if (!t || t.zone !== e.zone || t.id === e.id || distPx(e, t) > TARGET_RANGE_PX) return reject(id, cmd, 'bad_target');
         if (e.target !== t.id) { if (e.combo && e.combo.target !== t.id) e.combo = null; }
         e.target = t.id;
         if (combatOn && !C.combat.isHostile(e, t)) e.autoOn = false;
@@ -503,7 +520,7 @@ function wrap(state, content, rng, systems) {
         if (!combatOn) return;
         if (cmd.stop) { e.autoOn = false; return; }
         const t = index.get(cmd.id ?? e.target);
-        if (!t || t.zone !== e.zone || !C.combat.isHostile(e, t) || t.dead) return reject(id, cmd, 'bad_target');
+        if (!t || t.zone !== e.zone || !C.combat.isHostile(e, t) || t.dead || distPx(e, t) > TARGET_RANGE_PX) return reject(id, cmd, 'bad_target');
         if (e.target !== t.id) { if (e.combo && e.combo.target !== t.id) e.combo = null; e.target = t.id; emit({ type: 'target', src: id, id: t.id }); }
         C.combat.breakStealth(e, 'attack');
         C.combat.startAuto(e, t);

@@ -288,19 +288,15 @@ def quest_nav_desktop(g):
     nav = g.ev(f'({{ open: window.__realms.ui.isOpen("map"), sel: {st}.navQuest, zone: {st}.mapShown, labels: {st}.mapLabels, route: {st}.mapRoute }})')
     log('  tracker click ->', nav)
     assert nav['open'] and nav['sel'] == 'wm_yard_slimes', f'the tracker click opens the map on the quest: {nav}'
-    assert nav['zone'] == 'valley', f'the map opens on the quest zone, not the hero zone: {nav}'
+    assert nav['zone'] == 'world', f'one world: the map shows the whole world: {nav}'
     assert nav['labels'] and nav['labels'][0].startswith('Slay Ink Slimes'), f'the circle says what to do: {nav}'
-    assert nav['route'].startswith('You are in Willowmere. Go to Willowmere Valley'), f'the way there: {nav}'
-    g.shot('05c_map_quest', f'map on the valley: {nav["labels"][0]}; {nav["route"]}')
-    g.click_region(label='map_zone:willowmere', wait=0.4)
-    route = g.ev(f'{st}.mapRoute')
-    assert route.startswith('Go to Willowmere Valley ('), f'Willowmere map: the exit to take: {route}'
-    g.shot('05d_map_exit', f'Willowmere map: {route}, gold arrow at the exit')
+    assert not nav['route'], f'one world: no exit or zone route line: {nav}'
+    g.shot('05c_map_quest', f'world map: {nav["labels"][0]}')
     g.key('KeyM', 0.3)
     assert not g.ev('window.__realms.ui.isOpen("map")'), 'M closes the map'
     g.key('KeyL', 0.3)
     g.click_region(label='Show on map', wait=0.4)
-    assert g.ev('window.__realms.ui.isOpen("map")') and g.ev(f'{st}.mapShown') == 'valley', 'Show on map opens the map on the quest'
+    assert g.ev('window.__realms.ui.isOpen("map")') and g.ev(f'{st}.mapShown') == 'world', 'Show on map opens the map on the quest'
     g.key('KeyM', 0.2)
     assert not g.ev('window.__realms.ui.isOpen("map")') and not g.ev('window.__realms.ui.isOpen("quests")'), 'windows closed'
 
@@ -346,7 +342,7 @@ def run():
         quest_nav_desktop(g)
         log('to the valley')
         g.walk('valley', 12, 48, near=2, timeout=180)
-        g.shot('06_valley', 'arrived in the valley meadow (zone change, valley music)')
+        g.shot('06_valley', 'walked into the valley meadow down Gate Road South (no zone change, valley music)')
         ga = g.ev('window.__realms.ui.state.goalArrow')
         log('  goal arrow in the valley', ga)
         assert ga and ga['mode'] in ('arrow', 'pin', 'none'), f'goal arrow state in the valley: {ga}'

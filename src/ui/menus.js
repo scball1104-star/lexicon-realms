@@ -394,7 +394,7 @@ export function drawMap(ctx, env, m, st, regions, act) {
   // zone tabs
   let tx = r.x + 120;
   const th = Math.max(16, env.L.minHit || 0);
-  for (const z of zones) {
+  for (const z of zones.length > 1 ? zones : []) {     // one world: no tabs
     const w = g.textW(z.name) + 14;
     const on = z.id === cur;
     g.window(ctx, tx, r.y + 4, w, Math.min(th, 18), 'thin', on ? 'ember' : 'slate', 0.95);
@@ -454,7 +454,9 @@ export function drawMap(ctx, env, m, st, regions, act) {
   // place names (the Fork, the North Landing...): quest text names them, so the map does too (CRITIQUE_1 item 9)
   const view = { x: mx, y: my, w: img.width, h: img.height };
   const placed = [];
-  for (const ar of zone.areas || []) {
+  // the big areas first (one world: the High Moor, the Downs, Willowmere, the valley), in gold, so they win any overlap
+  const big = (ar) => /^region_/.test(ar.id);
+  for (const ar of [...(zone.areas || []).filter(big), ...(zone.areas || []).filter((a) => !big(a))]) {
     if (!ar.name || ar.w * ar.h < 30) continue;
     const lw = g.textW(ar.name);
     const lx = Math.round(mx + (ar.x + ar.w / 2) * ppt - lw / 2), lyy = Math.round(my + (ar.y + ar.h / 2) * ppt - 5);
@@ -462,8 +464,8 @@ export function drawMap(ctx, env, m, st, regions, act) {
     if (box.x < mx || box.y < my || box.x + box.w > mx + img.width || box.y + box.h > my + img.height) continue;
     if (placed.some((b) => b.x < box.x + box.w && box.x < b.x + b.w && b.y < box.y + box.h && box.y < b.y + b.h)) continue;
     placed.push(box);
-    g.scrim(ctx, box.x, box.y, box.w, box.h, 110);
-    g.text(ctx, ar.name, lx, lyy - 1, 'cream');
+    g.scrim(ctx, box.x, box.y, box.w, box.h, big(ar) ? 200 : 110);
+    g.text(ctx, ar.name, lx, lyy - 1, big(ar) ? 'gold' : 'cream');
   }
   // objective areas of your quests in this zone: the selected quest's pulse, the others are dimmed
   const areas = ((m.minimap && m.minimap.areas) || []).filter((a) => a.zone === cur);

@@ -175,28 +175,50 @@ export function createAtmos(seed = 7) {
   }
 
   // Map-edge haze: within 4 tiles of the map border the world fades into a pale mist (cached per zone).
-  function drawHaze(g, cam, W, H, map, sky) {
-    if (!map) return;
-    if (!haze || haze.id !== map.id) {
-      const [c, hg] = makeCanvas(map.pixelW, map.pixelH);
-      const img = hg.createImageData(map.pixelW, map.pixelH), d = img.data;
-      const E = 64;
-      for (let y = 0; y < map.pixelH; y++) for (let x = 0; x < map.pixelW; x++) {
-        const e = Math.min(x, y, map.pixelW - 1 - x, map.pixelH - 1 - y);
-        if (e >= E) continue;
-        const dens = Math.pow(1 - e / E, 1.6);
-        const i = (y * map.pixelW + x) * 4;
-        d[i] = 214; d[i + 1] = 222; d[i + 2] = 240; d[i + 3] = Math.round(dens * 255);
+  // The mist depends only on the distance to the nearest edge, so it is cut into a 3 x 3 grid of bands: four corner
+  // squares baked whole, four edge strips baked one pixel thick and stretched (nearest neighbour: the same pixels),
+  // and an empty middle. A whole-map canvas would be about 57 MB on the one world (2026-11-21).
+  const HAZE_E = 64;
+  function hazePieces(PW, PH) {
+    const density = (x, y) => {
+      const e = Math.min(x, y, PW - 1 - x, PH - 1 - y);
+      return e >= HAZE_E ? 0 : Math.round(Math.pow(1 - e / HAZE_E, 1.6) * 255);
+    };
+    const a = Math.min(HAZE_E, PW >> 1), b = Math.min(HAZE_E, PH >> 1);
+    const xs = [[0, a], [a, PW - a], [PW - a, PW]], ys = [[0, b], [b, PH - b], [PH - b, PH]];
+    const out = [];
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) {
+      const [x0, x1] = xs[i], [y0, y1] = ys[j];
+      const w = x1 - x0, h = y1 - y0;
+      if (w <= 0 || h <= 0 || (i === 1 && j === 1 && a === HAZE_E && b === HAZE_E)) continue;   // the middle is clear
+      // a middle band is constant along its long side only when the corner is a full HAZE_E (else it is <= 1 px)
+      const bw = i === 1 && a === HAZE_E ? 1 : w, bh = j === 1 && b === HAZE_E ? 1 : h;
+      const [c, hg] = makeCanvas(bw, bh);
+      const img = hg.createImageData(bw, bh), d = img.data;
+      for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+        const v = density(x0 + x, y0 + y);
+        if (!v) continue;
+        const k = (y * bw + x) * 4;
+        d[k] = 214; d[k + 1] = 222; d[k + 2] = 240; d[k + 3] = v;
       }
       hg.putImageData(img, 0, 0);
-      haze = { id: map.id, c };
+      out.push({ c, x: x0, y: y0, w, h });
     }
+    return out;
+  }
+  function drawHaze(g, cam, W, H, map, sky) {
+    if (!map) return;
+    if (!haze || haze.id !== map.id || haze.w !== map.pixelW || haze.h !== map.pixelH) haze = { id: map.id, w: map.pixelW, h: map.pixelH, pieces: hazePieces(map.pixelW, map.pixelH) };
     const sx = Math.max(0, cam.x), sy = Math.max(0, cam.y);
     const sw = Math.min(map.pixelW - sx, W), sh = Math.min(map.pixelH - sy, H);
     if (sw <= 0 || sh <= 0) return;
     g.save();
+    g.imageSmoothingEnabled = false;
     g.globalAlpha = 0.28 * (0.4 + 0.6 * sky.lum);
-    g.drawImage(haze.c, sx, sy, sw, sh, sx - cam.x, sy - cam.y, sw, sh);
+    for (const p of haze.pieces) {
+      if (p.x >= cam.x + W || p.y >= cam.y + H || p.x + p.w <= cam.x || p.y + p.h <= cam.y) continue;
+      g.drawImage(p.c, p.x - cam.x, p.y - cam.y, p.w, p.h);
+    }
     g.restore();
   }
 

@@ -130,8 +130,8 @@ def run():
         assert moved > 20, 'the joystick walks'
         hob = ph.ev('__drv.npc("hob")')
         # stand beside Hob, not in front of him (a hero one row south is drawn over his body and takes the tap)
-        side = ph.ev('(h) => { const z = window.__realms.content.zones.willowmere; const ok = (x, y) => z.collision[y] && z.collision[y][x] === "."; for (const d of [-2, 2, -3, 3]) if (ok(h.tx + d, h.ty)) return [h.tx + d, h.ty]; return null; }', hob)
-        ph.walk('willowmere', side[0], side[1], near=0) if side else ph.walk('willowmere', hob['tx'], hob['ty'], near=2)
+        side = ph.ev('(h) => { const z = window.__realms.content.zones.world; const ok = (x, y) => z.collision[y] && z.collision[y][x] === "."; for (const d of [-2, 2, -3, 3]) if (ok(h.tx + d, h.ty)) return [h.tx + d, h.ty]; return null; }', hob)
+        ph.walk(hob['zone'], side[0], side[1], near=0) if side else ph.walk(hob['zone'], hob['tx'], hob['ty'], near=2)
         time.sleep(0.3)
         ph.tap(ph.ev(f'__drv.entCss({hob["id"]})'), 0.6)     # tap a person to talk
         d = ph.ev('__drv.dialog()')
@@ -157,7 +157,7 @@ def run():
         ph.walk('valley', 12, 48, near=2, timeout=200)
         mobs = ph.ev('__drv.mobs("ink_slime", 3)')
         m = mobs[0]
-        ph.walk('valley', m['tx'], m['ty'], near=5)
+        ph.walk('world', m['tx'], m['ty'], near=5)
         mobs = ph.ev('__drv.mobs("ink_slime", 3)')
         m = mobs[0]
         ph.tap(ph.ev(f'__drv.entCss({m["id"]})'), 0.4)        # tap a foe: target it

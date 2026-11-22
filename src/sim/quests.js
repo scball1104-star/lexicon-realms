@@ -278,10 +278,20 @@ export function createQuests(Q) {
     for (const id of active(p)) {
       const q = QUESTS[id];
       q.objectives.forEach((o, i) => {
-        if (o.kind === 'kill' && o.mob === mob.template && (!o.zone || o.zone === mob.zone)) setCount(p, id, i, p.quests[id].counts[i] + 1);
+        if (o.kind === 'kill' && o.mob === mob.template && (!o.zone || o.zone === mob.zone) && (!o.region || regionOfMob(mob) === o.region)) setCount(p, id, i, p.quests[id].counts[i] + 1);
       });
       checkReady(p, id);
     }
+  }
+
+  // one world: a kill objective names an area (`region`, src/data/maps/index.js); a mob belongs to the area of its spawn
+  function regionOfMob(m) {
+    const z = C.zones[m.zone];
+    if (!z || !z.regions) return null;
+    const at = m.spawn || m;
+    const tx = Math.floor(at.x / TILE), ty = Math.floor((at.y - 1) / TILE);
+    for (const r of z.regions) if (tx >= r.x && ty >= r.y && tx < r.x + r.w && ty < r.y + r.h) return r.id;
+    return null;
   }
 
   function inArea(e, zoneId, areaId) {
@@ -565,9 +575,10 @@ export function createQuests(Q) {
 
   // ---------------------------------------------------------------- where (objective circles in px)
   const NPC_AT = {};
-  for (const [zid, z] of Object.entries(C.zones || {})) for (const n of z.npcs || []) if (!NPC_AT[n.npc]) NPC_AT[n.npc] = { zone: zid, x: n.x * 16 + 8, y: n.y * 16 + 8, r: 24 };
+  // one world: a circle's zone is 'world'; `region` (when known) names the area it lies in, for labels ("in the valley")
+  for (const [zid, z] of Object.entries(C.zones || {})) for (const n of z.npcs || []) if (!NPC_AT[n.npc]) NPC_AT[n.npc] = { zone: zid, x: n.x * 16 + 8, y: n.y * 16 + 8, r: 24, ...(n.region ? { region: n.region } : {}) };
   function npcWhere(npc) { return NPC_AT[npc] ? [{ ...NPC_AT[npc] }] : []; }
-  function whereOf(o) { return (o.where || []).map((w) => ({ zone: w.zone, x: w.x, y: w.y, r: w.r })); }
+  function whereOf(o) { return (o.where || []).map((w) => ({ zone: w.zone, x: w.x, y: w.y, r: w.r, ...(w.region ? { region: w.region } : {}) })); }
 
   /** The reward choices of a quest as this player would get them (armor and weapon type rolled to the class) and whether
    *  the class can use each (critique 13: the dialog shows plate to a Warden, and greys out what the class cannot wear). */

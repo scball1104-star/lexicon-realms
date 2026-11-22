@@ -1,6 +1,6 @@
 // Integration wave (2026-11-19): input intents that need the sim's content (right-click attack, ground casts, taps),
 // the HUD model built from the sim's HUD block, and the save -> addPlayer restore round trip main.js relies on.
-import { assert, eq, newWorld } from './_helpers.mjs';
+import { assert, eq, newWorld, areaOfSub, areaOfPx } from './_helpers.mjs';
 import { createInput } from '../../src/input/input.js';
 import { buildViewModel } from '../../src/core/viewmodel.js';
 import { buildHudModel } from '../../src/ui/uivm.js';
@@ -23,8 +23,8 @@ export const tests = [
       const { world, content } = newWorld(2);
       const pid = world.addPlayer({ name: 'I', cls: 'warden', zone: 'valley', x: 6, y: 33 });
       const snap = world.snapshot();
-      const foe = snap.entities.find((e) => e.kind === 'mob' && e.zone === 'valley');
-      const npc = snap.entities.find((e) => e.kind === 'npc' && e.zone === 'valley');
+      const foe = snap.entities.find((e) => e.kind === 'mob' && areaOfPx(e) === 'valley');
+      const npc = snap.entities.find((e) => e.kind === 'npc' && areaOfPx(e) === 'valley');
       const input = createInput(fakeTarget(), fakeTarget(), { abilities: content.abilities });
       let pickId = foe.id;
       const pick = () => pickId;

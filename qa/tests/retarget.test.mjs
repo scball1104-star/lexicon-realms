@@ -1,7 +1,7 @@
 // WoW-style retarget (Scott 2026-11-20: "If fighting a group of enemies and I kill the one I'm targeting, apply the same
 // default action as WoW"): the dead foe stays targeted and auto-attack stops, and the next attack skill pressed takes the
 // nearest live foe (the ones on you and in front first). Non-attack skills and a live target are left alone.
-import { assert, eq, newWorld } from './_helpers.mjs';
+import { assert, eq, newWorld, areaOfSub, areaOfPx } from './_helpers.mjs';
 import { createInput } from '../../src/input/input.js';
 import { SUB, TILE } from '../../src/sim/constants.js';
 
@@ -12,7 +12,7 @@ function fight() {
   const { world, content } = newWorld(77);
   const pid = world.addPlayer({ name: 'Pia', cls: 'warden', zone: 'valley', x: 6, y: 33 });
   const p = world.get(pid);
-  const mobs = world.state.ents.filter((m) => m.kind === 'mob' && m.zone === 'valley' && !m.dead).slice(0, 2);
+  const mobs = world.state.ents.filter((m) => m.kind === 'mob' && areaOfSub(m) === 'valley' && !m.dead).slice(0, 2);
   mobs.forEach((m, i) => { m.x = p.x + (i + 1) * TILE * SUB; m.y = p.y; });
   world.enqueue(pid, { t: 'target', id: mobs[0].id });
   world.step();

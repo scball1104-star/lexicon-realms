@@ -8,10 +8,13 @@ Runs the game with ?paused=1 and drives it through window.__realms: the sky cloc
 view.weather, fx level with view.fx, and the effect clock is frozen with renderer.dev.clock so every shot is exact.
 Staged fight: three companions are added with world.addPlayer (QA only) and sim events are fed to renderer.feed().
 Every wait is bounded; the whole run is killed after --timeout seconds.
+The game runs ONE zone, 'world' (2026-11-21): every position below is a world tile, converted from the old area-local
+spot with tw() (the same offsets as toWorld in src/data/maps/layout.js, read from that file).
 """
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -21,6 +24,20 @@ import urllib.request
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 OUT = os.path.join(ROOT, 'qa', 'out', 'render')
 GPU_ARGS = ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-gpu-rasterization']
+with open(os.path.join(ROOT, 'src', 'data', 'maps', 'layout.js'), encoding='utf-8') as _f:
+    REGION_AT = {k: (int(x), int(y)) for k, x, y in re.findall(r'(\w+): Object\.freeze\(\[(\d+), (\d+)\]\)', _f.read())}
+
+
+def tw(region, x, y):
+    """An area's local tile -> world tile (toWorld in layout.js)."""
+    ox, oy = REGION_AT[region]
+    return x + ox, y + oy
+
+
+def at(region, x, y, paused=True):
+    """Query string for a world-tile start, given the old area-local spot."""
+    wx, wy = tw(region, x, y)
+    return f'{"paused=1&" if paused else ""}zone=world&x={wx}&y={wy}'
 
 
 def up(port):
@@ -77,7 +94,8 @@ def sky(page):
     return page.evaluate('(() => { const s = window.__realms.renderer.dev.sky; return { phase: s.phase, lamps: +s.lamps.toFixed(2), lum: +s.lum.toFixed(2), lean: s.sun.lean }; })()')
 
 
-def scenario_time(browser, a, name, tod, query='paused=1&zone=willowmere&x=26&y=20', weather=None, fx='high', settle=0):
+def scenario_time(browser, a, name, tod, query=None, weather=None, fx='high', settle=0):
+    query = query or at('willowmere', 26, 20)
     page, errors = open_game(browser, a.port, query)
     page.evaluate(f"window.__realms.view.tod = {tod}; window.__realms.view.fx = '{fx}'")
     if weather:
@@ -89,17 +107,18 @@ def scenario_time(browser, a, name, tod, query='paused=1&zone=willowmere&x=26&y=
 
 
 def scenario_fight(browser, a):
-    page, errors = open_game(browser, a.port, 'paused=1&zone=valley&x=10&y=32')
+    page, errors = open_game(browser, a.port, at('valley', 10, 32))
+    (mx, my), (sx, sy), (fx_, fy) = tw('valley', 9, 34), tw('valley', 8, 32), tw('valley', 11, 35)
     R = 'window.__realms'
     page.evaluate(f"{R}.view.tod = 0.79; {R}.view.fx = 'high'")
     ids = page.evaluate(f'''(() => {{
         const R = {R}, w = R.world;
-        const mira = w.addPlayer({{ name: 'Mira', cls: 'mender', look: 1, zone: 'valley', x: 9, y: 34 }});
-        const sc = w.addPlayer({{ name: 'Quill', cls: 'scribe', look: 0, zone: 'valley', x: 8, y: 32 }});
-        const wf = w.addPlayer({{ name: 'Fen', cls: 'wayfinder', look: 2, zone: 'valley', x: 11, y: 35 }});
+        const mira = w.addPlayer({{ name: 'Mira', cls: 'mender', look: 1, zone: 'world', x: {mx}, y: {my} }});
+        const sc = w.addPlayer({{ name: 'Quill', cls: 'scribe', look: 0, zone: 'world', x: {sx}, y: {sy} }});
+        const wf = w.addPlayer({{ name: 'Fen', cls: 'wayfinder', look: 2, zone: 'world', x: {fx_}, y: {fy} }});
         R.step(1);
         const me = R.player();
-        const mobs = R.snapshot().entities.filter((e) => e.kind === 'mob' && e.zone === 'valley' && !e.dead)
+        const mobs = R.snapshot().entities.filter((e) => e.kind === 'mob' && e.zone === me.zone && !e.dead)
           .sort((a, b) => Math.hypot(a.x - me.x, a.y - me.y) - Math.hypot(b.x - me.x, b.y - me.y));
         return {{ me: me.id, mira, sc, wf, m1: mobs[0].id, m2: mobs[1].id, m3: mobs[2].id }};
     }})()''')
@@ -161,7 +180,7 @@ def scenario_fight(browser, a):
 
 def scenario_live(browser, a):
     # the real loop (not paused): real key events, the sky from the sim tick, no console errors
-    page, errors = open_game(browser, a.port, 'zone=valley&x=10&y=32')
+    page, errors = open_game(browser, a.port, at('valley', 10, 32, paused=False))
     page.wait_for_timeout(1500)
     before = page.evaluate('window.__realms.player()')
     page.keyboard.down('KeyD'); page.wait_for_timeout(700); page.keyboard.up('KeyD')
@@ -174,7 +193,7 @@ def scenario_live(browser, a):
 
 
 def perf(browser, a, fx, tod, weather, seconds=4.0):
-    page, errors = open_game(browser, a.port, 'zone=willowmere&x=26&y=20')
+    page, errors = open_game(browser, a.port, at('willowmere', 26, 20, paused=False))
     page.evaluate(f"window.__realms.view.tod = {tod}; window.__realms.view.fx = '{fx}'; window.__realms.view.weather = '{weather}'")
     page.wait_for_timeout(800)
     res = page.evaluate(f'''(async () => {{
@@ -217,9 +236,9 @@ def main():
                     ('night', lambda: scenario_time(browser, a, 'night', 0.95)),
                     ('night_low', lambda: scenario_time(browser, a, 'night_fx_low', 0.95, fx='low')),
                     ('dawn', lambda: scenario_time(browser, a, 'dawn', 0.26)),
-                    ('rain', lambda: scenario_time(browser, a, 'rain', 0.45, query='paused=1&zone=valley&x=10&y=32', weather='rain', settle=150)),
-                    ('leaves', lambda: scenario_time(browser, a, 'leaves', 0.62, query='paused=1&zone=valley&x=20&y=20', weather='leaves', settle=300)),
-                    ('valley_night', lambda: scenario_time(browser, a, 'valley_night', 0.92, query='paused=1&zone=valley&x=10&y=32', settle=200)),
+                    ('rain', lambda: scenario_time(browser, a, 'rain', 0.45, query=at('valley', 10, 32), weather='rain', settle=150)),
+                    ('leaves', lambda: scenario_time(browser, a, 'leaves', 0.62, query=at('valley', 20, 20), weather='leaves', settle=300)),
+                    ('valley_night', lambda: scenario_time(browser, a, 'valley_night', 0.92, query=at('valley', 10, 32), settle=200)),
                     ('fight', lambda: scenario_fight(browser, a)),
                     ('live', lambda: scenario_live(browser, a)),
                 ]
