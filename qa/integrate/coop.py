@@ -14,7 +14,10 @@ Checks: host + guest join by room code (real clicks on Host a game / Join a game
 move, input-to-move delay on the guest (and the host, for comparison), a guest kills a foe and both get the kill XP,
 chat, a phone guest joins with touch, a third friend joins by copy-paste codes (4 players: everyone sees 4, 3 party
 frames), a 5th is told the game is full, a guest leaves and its saved hero has the new XP, bandwidth per guest, the
-host drops and the guests get a clear message with their hero saved. Screenshots: qa/out/integrate/coop_*.png.
+host drops and the guests get a clear message with their hero saved. Group play (src/sim/party.js, trade.js): the guest
+opens a trade from the host's target strip, a bound item is refused, both press Ready and the items and gold swap; the
+guest dies, presses Wait for a rez and the host wakes them with lantern-ash from the party frame's Rez button.
+Screenshots: qa/out/integrate/coop_*.png.
 Prints COOP_DONE ok (or COOP_DONE fail: <what>).
 """
 import json, os, sys, time
@@ -267,6 +270,8 @@ def run(browser):
     wait(every, lambda: any('[Party] Gusta: hello from Gusta' in t for t in G1.log_text()), 'guest sees its own line come back')
     check(G1.me()['x'] == x_before, 'typing (w, a, s, d among the letters) did not walk the hero')
 
+    group_checks(every, H, G1)
+
     log('phone guest joins with touch')
     join_by_code(every, G2, code, shot='phone_join')
     wait(every, lambda: len(G2.players()) == 3 and len(H.players()) == 3, 'three heroes')
@@ -345,6 +350,66 @@ def run(browser):
     G3.page.click('#net-msg button')
     G3.press_button('Enter World')
     check(G3.ev('__realms.ui.mode') == 'game' and G3.ev('__realms.net.role') is None, 'Thirda plays solo again')
+
+
+def group_checks(every, H, G1):
+    """Trade and rez between two browsers, through the real buttons (group play basics)."""
+    log('trade: guest opens it from the host target strip, a bound item is refused, both Ready, the swap')
+    ids = H.ev('''() => { const w = __realms.world, R = __realms; const h = w.get(R.playerId), g = w.state.ents.find((e) => e.kind === 'player' && e.name === 'Gusta');
+        g.zone = h.zone; g.x = h.x + 256; g.y = h.y; g.mx = 0; g.my = 0; g.gold = 40;
+        h.bag.push({ item: 'potion', qty: 3, uid: 4101 });
+        h.bag.push({ item: 'reeves_tally_ring', qty: 1, uid: 4102, inst: { ilvl: 12, rarity: 'legendary', affixes: [] } });
+        return { h: h.id, g: g.id, hg: h.gold || 0 }; }''')
+    G1.ev(f'() => __realms.ui.act.send({{ t: "target", id: {ids["h"]} }})')
+    wait(every, lambda: G1.region_xy('grp:trade'), 'the guest sees Trade under the host target frame')
+    G1.press_button('grp:trade')
+    wait(every, lambda: H.ev('!!(__realms.hud().group && __realms.hud().group.trade)') and G1.ev('!!(__realms.ui.model.group && __realms.ui.model.group.trade)'), 'both trade windows open')
+    H.page.wait_for_timeout(200); H.ev('__realms.redraw()')
+    wait(every, lambda: H.region_xy('trade:bag:4102'), 'host sees its bags in the trade window')
+    H.press_button('trade:bag:4102')
+    wait(every, lambda: any('binds when picked up' in t for t in H.log_text()), 'host: the legendary is refused ("binds when picked up")')
+    check(H.ev('__realms.hud().group.trade.mine.items.length') == 0, 'nothing offered')
+    H.press_button('trade:bag:4101')
+    G1.press_button('trade:gold:+10')
+    wait(every, lambda: G1.ev('(__realms.ui.model.group.trade || {}).theirs && __realms.ui.model.group.trade.theirs.items.length === 1')
+         and H.ev('__realms.hud().group.trade.theirs.gold') == 10, 'each sees the other offer')
+    H.shot('trade_host')
+    G1.press_button('trade:ready')
+    wait(every, lambda: H.ev('__realms.hud().group.trade.theirs.ready'), 'host sees the guest Ready')
+    H.press_button('trade:ready')
+    wait(every, lambda: not H.ev('!!(__realms.hud().group && __realms.hud().group.trade)'), 'the trade completes')
+    got = H.ev(f'''() => {{ const w = __realms.world, h = w.get({ids["h"]}), g = w.get({ids["g"]});
+        return {{ hGold: h.gold || 0, gGold: g.gold, gPotions: g.bag.filter((s) => s.item === 'potion').reduce((n, s) => n + s.qty, 0), hHas: h.bag.some((s) => s.uid === 4101), ring: h.bag.some((s) => s.uid === 4102) }}; }}''')
+    results['trade'] = got
+    check(got['hGold'] == ids['hg'] + 10 and got['gGold'] == 30, f'gold moved: host +10, guest 40 -> 30 ({got})')
+    check(got['gPotions'] >= 3 and not got['hHas'] and got['ring'], 'the potions moved; the bound ring stayed')
+    wait(every, lambda: any('Trade with Hosta' in t for t in G1.log_text()), 'guest chat: the trade line')
+
+    log('rez: the guest dies, waits; the host wakes them with lantern-ash from the party frame')
+    H.ev('() => __realms.dev.item("lantern_ash", 2)')
+    H.ev(f'() => {{ const w = __realms.world; w.internals.combat.kill(w.get({ids["g"]}), null); }}')
+    wait(every, lambda: G1.ev('!!(__realms.ui.model.group && __realms.ui.model.group.death)'), 'the guest sees the death panel')
+    G1.ev('__realms.redraw()')
+    G1.shot('death_panel')
+    G1.press_button('grp:wait')
+    wait(every, lambda: H.ev(f'__realms.world.get({ids["g"]}).deathWait.choice') == 'wait', 'the guest chose Wait')
+    time.sleep(4)
+    check(H.ev(f'__realms.world.get({ids["g"]}).dead'), 'still dead after the usual 3 s (waiting for a rez)')
+    H.ev('__realms.redraw()')
+    wait(every, lambda: H.region_xy(f'grp:rez:{ids["g"]}'), 'the host sees Rez on the guest party frame')
+    H.press_button(f'grp:rez:{ids["g"]}')
+    wait(every, lambda: G1.ev('!!(__realms.ui.model.group.death && __realms.ui.model.group.death.rez)'), 'the guest sees the rez coming')
+    G1.shot('rez_incoming')
+    wait(every, lambda: not H.ev(f'__realms.world.get({ids["g"]}).dead'), 'the guest is awake', timeout=20)
+    st = H.ev(f'''() => {{ const w = __realms.world, g = w.get({ids["g"]}), h = w.get({ids["h"]});
+        return {{ hp: g.hp, hpMax: g.hpMax, ash: h.bag.filter((s) => s.item === 'lantern_ash').reduce((n, s) => n + s.qty, 0) }}; }}''')
+    results['rez'] = st
+    check(st['hp'] == round(st['hpMax'] * 0.35), f'woke at 35% health ({st})')
+    check(st['ash'] == 1, 'one lantern-ash used')
+    wait(every, lambda: any('woke you where you fell' in t for t in G1.log_text()), 'guest chat: "Hosta woke you where you fell."')
+    # back to full, so the bandwidth check below is not measuring a mana bar refilling (every point of mana resends the
+    # guest's whole HUD block, about 22 KiB/s while it refills: a frames.js matter, not group play)
+    H.ev(f'() => {{ const g = __realms.world.get({ids["g"]}); g.hp = g.hpMax; if (g.res) g.res.cur = g.res.kind === "resolve" ? 0 : g.res.max; }}')
 
 
 def run_live(browser):

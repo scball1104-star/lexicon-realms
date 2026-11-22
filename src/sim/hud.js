@@ -26,7 +26,9 @@ export function createHud(C) {
     const total = Math.max(1, c.endTick - c.startTick);
     const done = Math.min(total, state.tick - c.startTick);
     return { ability: c.ability, name: ab.name || c.ability, icon: ab.icon || c.ability, kind: c.kind, frac: r2(c.kind === 'channel' ? 1 - done / total : done / total),
-      left: r2(sec(c.endTick - state.tick)), total: r2(sec(total)), target: c.target };
+      left: r2(sec(c.endTick - state.tick)), total: r2(sec(total)), target: c.target,
+      // interruptible (group HUD, GAP B7): any cast unless its ability says `interruptible: false` or the caster is immune
+      interruptible: ab.interruptible !== false && !ab.uninterruptible && !stats.hasFlag(e, 'immune') };
   }
 
   function threatView(m, viewer) {
@@ -139,6 +141,10 @@ export function createHud(C) {
     if (it.stats && Object.keys(it.stats).length) v.stats = { ...it.stats };
     if (slot.inst) v.inst = JSON.parse(JSON.stringify(slot.inst));
     if (slot.uid) v.uid = slot.uid;
+    // binding (src/sim/trade.js): 'pickup' or 'equip', and soulbound once a bind-on-equip piece was worn
+    const bind = C.trade ? C.trade.bindOf(slot) : null;
+    if (bind) v.bind = bind;
+    if (slot.inst && slot.inst.soulbound) v.soulbound = true;
     return v;
   }
   function bagView(e) {
@@ -150,5 +156,5 @@ export function createHud(C) {
     return out;
   }
 
-  return { build, unitView };
+  return { build, unitView, itemView };
 }

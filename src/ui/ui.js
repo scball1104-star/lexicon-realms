@@ -29,6 +29,7 @@ import { eventLines } from './eventlog.js';
 import { drawDialog, dialogFromInteract, dialogRectFor } from './dialog.js';
 import { drawChest, drawPouch } from './chest.js';
 import { drawStoryCard } from './worldlife_ui.js';
+import { deathPanel, readyCheck, shareOffers, tradeWindow, groupEvent } from './group_ui.js';
 import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
@@ -330,6 +331,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (!st.metrics.touch) return 'big';
     if (st.mode !== 'game') return 'win';
     if (st.chest) return 'win';
+    if (lastModel && lastModel.group && lastModel.group.trade) return 'win';     // the trade window is a 640x360 design
     for (const id of st.open) if (CENTER.includes(id) || SIDE.includes(id)) return 'win';
     return 'big';
   }
@@ -373,7 +375,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player && hooks.namePlates) drawNamePlates(ctx, hooks.namePlates());
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
-      regions.push(...hud.draw(ctx, m, L, st, { log, fade, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
+      regions.push(...hud.draw(ctx, m, L, st, { log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
@@ -407,6 +409,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           if (L.touch) drawTalents2(ctx, env, m, st, regions, act);
           else centred(ctx, L, regions, () => drawTalents2(ctx, env, m, st, regions, act), env);
         }
+        if (m.group) drawGroup(ctx, env, m, L, regions);       // group play: trade, ready check, a shared quest, death (group_ui.js)
         hud.menuBar(ctx, L, st, regions);
         if (st.barPick) drawBarPick(ctx, L, regions);
         if (st.slotCard) drawSlotCard(ctx, env, m, L, regions);
@@ -445,6 +448,19 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       g.window(ctx, tx, ty, w, 18, 'thin', 'slate', 0.95);
       g.text(ctx, st.toast.text, tx + Math.floor(w / 2), ty + 3, 'cream', { align: 'center' });
     }
+  }
+
+  // group play (src/ui/group_ui.js): names for its words, and its windows over the HUD
+  const nameOf = {
+    unit: (id) => { const e = lastSnap && lastSnap.entities.find((x) => x.id === id); return e ? e.name : 'Someone'; },
+    item: (id) => (itemInfo(id) || { name: id }).name, quest: (id) => questInfoName(id),
+  };
+  function drawGroup(ctx, env, m, L, regions) {
+    const grp = m.group;
+    if (grp.trade) centred(ctx, L, regions, () => tradeWindow(g, ctx, { ...env, nameOf }, m, grp, st, regions, act), env);
+    if (grp.death) deathPanel(g, ctx, L, grp, regions, act);
+    else if (grp.ready) readyCheck(g, ctx, L, grp, regions, act);
+    else if (grp.shares && grp.shares.length) shareOffers(g, ctx, L, grp, regions, act);
   }
 
   /** The item tooltip for an item on the bar: how many are in the bags, its cooldown, and how to take it off. */
@@ -865,6 +881,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     not_ready: 'That quest is not finished yet.', not_active: 'You do not have that quest.' };
   function onOwnEvent(ev) {
     const me = playerId;
+    const gl = groupEvent(ev, me, nameOf);
+    if (gl) { if (gl.toast) toast(gl.toast, 3); if (gl.say) say(gl.say[0], gl.say[1]); return; }
     switch (ev.type) {
       case 'interact':
         if (ev.src !== me) return;

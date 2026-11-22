@@ -376,6 +376,7 @@ export function createProgression(C) {
       dst.target = null;
       dst.combo = null;
       dst.sitting = 0;
+      if (C.party) C.party.onPlayerDeath(dst);      // in a party: Release or Wait for a rez (src/sim/party.js)
     }
   }
 

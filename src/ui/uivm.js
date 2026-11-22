@@ -191,7 +191,10 @@ function fromSimHud(vm, snap, ctx) {
       usable: s.usable !== false, inRange: s.inRange !== false || !vm.target, gcdLeft: s.offGcd ? 0 : h.gcdLeft || 0, gcdTotal: h.gcdTotal || 1, cost: s.cost || 0, charges: s.charges };
   });
   const c = h.cast;
-  const castBar = c ? { ability: c.ability, name: c.name, frac: c.kind === 'channel' ? 1 - c.frac : c.frac, left: c.left, channel: c.kind === 'channel' } : null;
+  // your own rez cast (src/sim/party.js) uses the cast bar too
+  const rz = h.group && h.group.rezCast;
+  const castBar = c ? { ability: c.ability, name: c.name, frac: c.kind === 'channel' ? 1 - c.frac : c.frac, left: c.left, channel: c.kind === 'channel' }
+    : rz ? { ability: null, name: `${rz.spell}: ${rz.name}`, frac: rz.frac, left: rz.left, channel: false } : null;
   const quests = questRows(h.quests, st.untracked || new Set(), ctx.zoneNames || {}, ctx.zones || {});
   const tracked = quests.filter((q) => q.tracked).slice(0, 5);
   const places = questPlaces(quests, tracked, snap, meE, st.navQuest, ctx.zones, ctx.zoneNames);
@@ -234,5 +237,7 @@ function fromSimHud(vm, snap, ctx) {
     glyphBag: h.glyphBag || [], storage: h.storage || null,
     // Builds 2 (null for a class on today's talents): the sim's points, gold star, open picks, respec cost, and the build itself
     builds2: h.builds2 ? { ...h.builds2, build: (meE && meE.build) || null } : null,
+    // group play (src/ui/group_ui.js): the foe's cast with its interrupt mark, your own buffs, the party block
+    targetCast: tv && tv.cast && vm.target && vm.target.faction === 'hostile' ? tv.cast : null, myAuras: h.auras || [], group: h.group || null,
   };
 }
