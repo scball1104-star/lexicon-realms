@@ -71,6 +71,9 @@ function questPlaces(quests, tracked, snap, meE, pickedId, zones, zoneNames) {
   return { areas, goal: nav ? nav.target : null, nav, selected: sel ? sel.id : null };
 }
 
+/** Party frames (online co-op): the view model's party plus the class name the frame prints. */
+const partyRows = (list) => (list || []).map((u) => (u.clsName ? u : { ...u, clsName: (classInfo(u.cls) || {}).name || u.cls }));
+
 export function buildHudModel(vm, snap, ctx = {}) {
   const st = ctx.state || {};
   if (vm.hud && vm.player) return fromSimHud(vm, snap, ctx);
@@ -156,7 +159,7 @@ export function buildHudModel(vm, snap, ctx = {}) {
     tick: vm.tick,
     player: p ? { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resWord: resourceWord(resKind), resGauge: resourceGauge(resKind),
       xp: p.xp || 0, xpToLevel: xpNeed } : null,
-    target, party: vm.party || [], zone: vm.zone, log: vm.log || [],
+    target, party: partyRows(vm.party), zone: vm.zone, log: vm.log || [],
     bar: bar || [], castBar, quests, tracked, minimap,
     talents, talentPoints: { total, spent, free: Math.max(0, total - spent) },
     bag: vm.bag || st.bag || { size: 16, items: [] },
@@ -219,7 +222,7 @@ function fromSimHud(vm, snap, ctx) {
     player: { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resWord: resourceWord(resKind), resGauge: resourceGauge(resKind),
       xp: xp.cur || 0, xpToLevel: xp.cap ? 0 : xp.need || 0, derived: h.derived, inCombat: h.inCombat, sitting: h.sitting, respawnIn: h.respawnIn,
       rest: h.rest || null },                    // rest XP (src/sim/worldlife.js): { banked, cap, resting, killMult }
-    target, party: vm.party || [], zone: vm.zone, log: vm.log || [],
+    target, party: partyRows(vm.party), zone: vm.zone, log: vm.log || [],
     bar, castBar, quests, tracked, selectedQuest: places.selected, nav: places.nav,
     minimap: meE ? { zone: meE.zone, x: meE.x, y: meE.y, markers, areas: places.areas, goal: places.goal } : null,
     talents: (meE && meE.talents) || {}, talentPoints: { total: h.talents.total, spent: h.talents.spent, free: h.talents.free },

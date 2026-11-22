@@ -103,17 +103,24 @@ export function drawSelect(ctx, env, st, regions, act, t) {
   }
   // preview
   const c = chars.find((o) => o.id === st.selId);
-  const P = { x: 300, y: 36, w: 316, h: 220 };
+  const bh = Math.max(22, env.L.minHit || 0);
+  // three button rows under the preview (play, online co-op, manage); a phone's taller buttons shorten the preview
+  const P = { x: 300, y: 36, w: 316, h: Math.min(220, H - 36 - 8 - 3 * bh - 12 - 6) };
   g.window(ctx, P.x, P.y, P.w, P.h, 'std', 'violet', 0.85);
   stage(ctx, env, c.cls, c.look, P, t);
   const ci = classInfo(c.cls);
   g.text(ctx, c.name, P.x + P.w / 2, P.y + 8, 'cream', { large: true, align: 'center' });
   g.text(ctx, `Level ${c.level} ${ci ? ci.name : ''}  ${ci ? ci.role : ''}`, P.x + P.w / 2, P.y + 26, 'gray', { align: 'center' });
   // buttons
-  const bh = Math.max(22, env.L.minHit || 0);
   const by = P.y + P.h + 8;
   button(ctx, env, regions, { x: P.x, y: by, w: P.w, h: bh }, 'Enter World', () => act.enter(c.id), { scheme: 'forest', large: true });
-  const by2 = by + bh + 6, bw = Math.floor((P.w - 12) / 3);
+  // online co-op (docs/NET.md): host for up to 3 friends, or join a friend's game by its room code
+  const byo = by + bh + 6, hw = Math.floor((P.w - 6) / 2);
+  if (act.host && act.join) {      // online co-op on for everyone (Scott OK'd the public relays 2026-11-22, docs/NET.md)
+    button(ctx, env, regions, { x: P.x, y: byo, w: hw, h: bh }, 'Host a game', () => act.host(c.id), { scheme: 'violet' });
+    button(ctx, env, regions, { x: P.x + hw + 6, y: byo, w: P.w - hw - 6, h: bh }, 'Join a game', () => act.join(c.id), { scheme: 'violet' });
+  }
+  const by2 = byo + bh + 6, bw = Math.floor((P.w - 12) / 3);
   button(ctx, env, regions, { x: P.x, y: by2, w: bw, h: bh }, 'New', () => act.go('create'), { enabled: !act.store.full() });
   const confirm = st.confirm === `delete:${c.id}`;
   button(ctx, env, regions, { x: P.x + bw + 6, y: by2, w: bw, h: bh }, confirm ? 'Press again' : 'Delete', () => {

@@ -353,12 +353,19 @@ export function createProgression(C) {
   function onDeath(dst, killer) {
     if (dst.kind === 'mob') {
       const who = C.get(dst.tagger) || (killer && killer.kind === 'player' ? killer : null);
-      if (who && who.kind === 'player' && !who.dead) {
-        // rest XP doubles kill XP while banked; Night at the Stones adds its bonus (src/sim/worldlife.js)
-        const kx = killXp(who, dst), bonus = C.life ? C.life.killBonus(who, dst, kx) : null;
-        grantXp(who, kx + (bonus ? bonus.xp : 0), 'kill', { mob: dst.id, template: dst.template, ...(bonus ? bonus.extra : {}) });
+      // the tagger, and in online co-op every party member alive and near the foe (world.js killShare), each at their own
+      // level. A group splits the XP with a bonus, WoW style (Scott 2026-11-22): 2 = 60% each, 3 = 45%, 4 = 35%. Rest XP
+      // and Night at the Stones add on top per hero (src/sim/worldlife.js).
+      const share = C.killShare ? C.killShare(dst, who) : (who && who.kind === 'player' ? [who] : []);
+      const SPLIT = [1, 1, 0.6, 0.45, 0.35];
+      const cut = SPLIT[Math.min(share.length, SPLIT.length - 1)] || 0.35;
+      for (const p of share) {
+        if (!p.dead) {
+          const kx = Math.max(1, Math.round(killXp(p, dst) * cut)), bonus = C.life ? C.life.killBonus(p, dst, kx) : null;
+          grantXp(p, kx + (bonus ? bonus.xp : 0), 'kill', { mob: dst.id, template: dst.template, ...(p !== who ? { party: true } : {}), ...(bonus ? bonus.extra : {}) });
+        }
+        if (p.b2) C.b2.onKill(p);     // Builds 2: the first kill opens the level 1 skill pick
       }
-      if (who && who.kind === 'player' && who.b2) C.b2.onKill(who);     // Builds 2: the first kill opens the level 1 skill pick
       // a foe in a dungeon copy never respawns (src/sim/dungeons.js): the copy resets as a whole after 30 minutes empty
       dst.respawnAt = dst.spawn && dst.spawn.noRespawn ? null : now() + respawnTicks(dst);
       dst.threat = {};

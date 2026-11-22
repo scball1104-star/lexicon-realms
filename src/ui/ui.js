@@ -2,7 +2,8 @@
 // touch routing in front of src/input/ (UI events are handled first and stopped, everything else reaches input).
 //
 //   const ui = await createUI({ canvas, font, zones, zoneNames, storage, touch, hooks })
-//   hooks: { enterWorld(char) -> playerId, command(cmd), input (createInput object), setZoom(z), logout(), getLayout() }
+//   hooks: { enterWorld(char) -> playerId, command(cmd), input (createInput object), setZoom(z), logout(), getLayout(),
+//            hostGame(char), joinGame(char), namePlates() -> [{ x, y, name, dead }] (online co-op, docs/NET.md) }
 //   ui.draw(ctx, vm, snap, timeSec)   once per frame, inside renderer.drawHud (the HUD layer)
 //   ui.handleEvents(events)           sim events -> chat / combat log
 //   ui.mode                           'title' | 'select' | 'create' | 'game'
@@ -75,6 +76,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   nameInput.addEventListener('blur', () => { st.nameFocus = false; });
 
   const toast = (text, secs = 2.5) => { st.toast = { text, until: st.now + secs }; };
+  // an HTML panel over the canvas (src/net/netui.js, data-overlay) owns its own keys and clicks
+  const overlayEv = (ev) => !!(ev && ev.target && ev.target.closest && ev.target.closest('[data-overlay]'));
   const say = (ch, text) => { log.push({ ch, text }); if (log.length > 200) log.splice(0, log.length - 200); st.chatScroll = 0; };
   const localOnly = () => !!demoExtra || !(lastSnap && playerId != null && (lastSnap.entities.find((e) => e.id === playerId) || {}).talents);
   const send = (cmd) => { if (hooks.command) hooks.command(cmd); };
@@ -112,6 +115,14 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       nameInput.blur();
       act.enter(r.char.id);
     },
+    /** Online co-op (character select): host a game with this hero (it enters the world first), or join a friend's. */
+    host(id) {
+      const c = store.get(id);
+      if (!c) return;
+      act.enter(id);
+      if (hooks.hostGame) hooks.hostGame(store.get(id));
+    },
+    join(id) { const c = store.get(id); if (c && hooks.joinGame) hooks.joinGame(c); },
     enter(id) {
       const c = store.get(id);
       if (!c) return;
@@ -295,10 +306,16 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const full = hooks.saveState ? hooks.saveState(playerId) : null;
     const e = full || (lastSnap && lastSnap.entities.find((o) => o.id === playerId));
     if (!e) return;
+    saveHero(st.charId, e, !!full);
+  }
+  /** Store a hero's save (or its snapshot entity, full = false) under a stored character: the select-screen summary and
+   *  the full restore. Online co-op calls it with the save a friend's game sent back (src/net/coop.js). */
+  function saveHero(charId, e, full = true) {
+    if (charId == null || !e || !store.get(charId)) return;
     const tx = e.tx ?? Math.floor(e.x / 16), ty = e.ty ?? Math.floor(e.y / 16);
     const where = zones[e.zone] ? placeAt(zones[e.zone], tx, ty) : null;   // the select screen names the area, not the world
-    store.update(st.charId, { level: e.level, xp: e.xp || 0, zone: e.zone, zoneName: (where && where.name) || zoneNames[e.zone] || e.zone, x: tx, y: ty,
-      ...(full ? { state: full } : {}) });
+    store.update(charId, { level: e.level, xp: e.xp || 0, zone: e.zone, zoneName: (where && where.name) || zoneNames[e.zone] || e.zone, x: tx, y: ty,
+      ...(full ? { state: e } : {}) });
   }
 
   // ---------------------------------------------------------------- drawing
@@ -353,6 +370,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       lastModel = m;
       st.openMenu = [...st.open].pop() || null;
       if (m.player && !m.player.dead) drawGoalPointer(ctx, m, L, t);
+      if (m.player && hooks.namePlates) drawNamePlates(ctx, hooks.namePlates());
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
       regions.push(...hud.draw(ctx, m, L, st, { log, fade, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
@@ -520,6 +538,16 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     ctx.globalAlpha = 1;
   }
 
+  /** Friends' names over their heads (online co-op): blue like the party frames, dim when they are down. */
+  function drawNamePlates(ctx, plates) {
+    for (const p of plates || []) {
+      const name = g.clip(p.name, 90), w = g.textW(name);
+      const x = Math.round(p.x - w / 2), y = Math.round(p.y - 13);
+      g.scrim(ctx, x - 2, y, w + 4, 11, 120);
+      g.text(ctx, name, x, y - 1, p.dead ? 'dim' : 'blue');
+    }
+  }
+
   /** Quest marks on npc heads (CRITIQUE_1 item 1): gold ! (a quest to take), gold ? (ready to hand in), grey ! (too
    *  low for you) and grey ? (in progress). marks: [{ x, y (the head, HUD px), mark, id }]. Clicking or tapping a mark
    *  talks to the npc under it (walking there first when it is out of reach). */
@@ -673,6 +701,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   }
 
   const onMouseMove = (ev) => {
+    if (overlayEv(ev)) { st.hover = null; return; }
     const p = toHud(ev.clientX, ev.clientY);
     const lw = (st.layer && st.layer.W) || W, lh = (st.layer && st.layer.H) || H;
     st.hover = p.x >= 0 && p.y >= 0 && p.x < lw && p.y < lh ? p : null;
@@ -681,6 +710,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (d) { d.x = p.x; d.y = p.y; if (!d.active && Math.hypot(p.x - d.x0, p.y - d.y0) > 3) d.active = true; }
   };
   const onMouseDown = (ev) => {
+    if (overlayEv(ev)) return;
     if (ev.pointerType === 'touch' || ev.sourceCapabilities && ev.sourceCapabilities.firesTouchEvents) return;
     const p = toHud(ev.clientX, ev.clientY);
     st.hover = p;
@@ -708,6 +738,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (press(p.x, p.y, ev.button)) { ev.stopPropagation(); ev.preventDefault(); }
   };
   const onMouseUp = (ev) => {
+    if (overlayEv(ev)) { st.drag = null; st.itemDrag = null; return; }
     st.drag = null; st.pressed = null;
     const d = st.itemDrag;
     st.itemDrag = null;
@@ -742,6 +773,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     return p.x >= x0 && p.x < x1 && p.y >= y0 && p.y < y1;
   };
   const onWheel = (ev) => {
+    if (overlayEv(ev)) return;
     const p = toHud(ev.clientX, ev.clientY);
     const r = topRegion(p.x, p.y);
     if (r && r.kind === 'chat') { st.chatScroll += ev.deltaY < 0 ? 1 : -1; ev.preventDefault(); }
@@ -751,10 +783,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   window.addEventListener('mousedown', onMouseDown, true);
   window.addEventListener('mouseup', onMouseUp, true);
   window.addEventListener('wheel', onWheel, { capture: true, passive: false });
-  window.addEventListener('contextmenu', (ev) => ev.preventDefault(), true);
+  window.addEventListener('contextmenu', (ev) => { if (!overlayEv(ev)) ev.preventDefault(); }, true);
 
   // ---------------------------------------------------------------- keyboard
   const onKey = (down) => (ev) => {
+    if (overlayEv(ev)) return;
     if (st.mode !== 'game') {
       if (!down) return;
       if (st.mode === 'create' && st.nameFocus && ev.code !== 'Enter' && ev.code !== 'Escape' && ev.code !== 'Tab') { ev.stopPropagation(); return; }
@@ -1063,6 +1096,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     say,
     logText: () => log.map((l) => l.text),
     saveProgress,
+    saveHero,
     get playerId() { return playerId; },
     /** Dev start / drivers: play an already-added entity (no saved character). */
     attach(id) { playerId = id; st.mode = 'game'; st.open.clear(); nameInput.blur(); },

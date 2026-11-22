@@ -21,7 +21,9 @@ export function buildViewModel(snap, playerId, { zoneNames = {}, log = [], tickH
     tick: snap.tick,
     player: me ? { ...unit(me, snap.tick, tickHz), xp: me.xp || 0, zone: me.zone } : null,
     target: target ? unit(target, snap.tick, tickHz) : null,
-    party: [],                                         // phase 2
+    // online co-op (docs/NET.md): the other heroes of my party, up to 3, in id order (solo: none, no party id)
+    party: me && me.party != null ? snap.entities.filter((e) => e.kind === 'player' && e.id !== me.id && e.party === me.party).slice(0, 3)
+      .map((e) => ({ ...unit(e, snap.tick, tickHz), look: e.look || 0, zone: e.zone })) : [],
     // one world: `place` (src/data/maps/compose.js placeAt) names the area you stand in; area is its id
     zone: me ? { id: me.zone, name: (place && place.name) || zoneNames[me.zone] || me.zone, area: place ? place.id : null } : null,
     cooldowns: me ? Object.fromEntries(Object.entries(me.cd).map(([k, until]) => [k, Math.max(0, until - snap.tick) / tickHz])) : {},
