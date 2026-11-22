@@ -1177,3 +1177,29 @@ Code: `src/sim/storage.js` (rules), `src/data/storage.js` (sizes, prices, where 
   move whole (Ctrl + right-click: one). Phone: a tap pins the item's card (chest: Take, Move to <tab>, Close; bag: Store,
   Store in Shared, Close), a second tap does the main action; the grid and the glyph strips scroll with a drag
   (`scrollDrag` regions, `src/input/touch.js`). A row costs gold: its button asks once ("Again") before buying.
+
+## World life: rares, rest XP, story chains, Night at the Stones (2026-11-22, LIVE)
+
+Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js`, glued by `src/data/worldlife.js`
+`applyWorldLife(content)` (the last step of `buildContent()`). Rules: `src/sim/worldlife.js` (`C.life`). Tests:
+`qa/sim/worldlife.test.mjs`.
+
+- **Rares**: 8 mob templates (`rare: true`, traits `tough` + `rare`; `content.progression.mobTraits.rare` = x1.25 hp, x1.4
+  xp on top of tough). One content spawn each at its first spot; `content.rares[mobId] = { spots: [[x, y]] (world tiles),
+  respawn: [s, s], item }`. On death the respawn is 30 to 60 min of sim time and the next spot another one, from
+  `hashString(seed:template:killCount)` (the world rng is not drawn). Loot on top of `rollKill`: the rare's own item (blue,
+  rolled to the class) plus one random piece for the looter's class, `magic`, or `rare` 1 in 20 (`content.rareRules`).
+  Snapshot: mob entities carry `rare: true`; the HUD target view model carries `rare`.
+- **Rest XP**: player field `restXp` (state). `addPlayer` spec takes `rest: { xp }` (missing = 0) and `offlineSecs` (the
+  client's time away; main.js saves `savedAt` ms in the hero state, outside the sim); time away banks
+  `content.rest.levelsPerHour` x xpToNext(level) per hour while the hero stands in a `safe` area or within
+  `lanternTiles` of a lantern, capped at `capLevels` (1.5) levels; none at the cap. `saveFields` adds `rest: { xp }` when
+  the bank is not empty. Kill XP pays `killMult` (2) while banked; the `xp` event carries `rested` (and `event`,
+  `eventId` for Night at the Stones). HUD block: `hud.rest = { banked, cap, resting, killMult }`. No SAVE_VERSION change.
+- **Story chains**: quests on a chain carry `story: { id, name, step, of, end? }`; `content.storyLater[questId]` = the later
+  steps. `status()` counts a required quest as done when a later step of its chain is done or held. Turning in a last
+  step emits `story { id, quest, chain, title, lines }`.
+- **Night at the Stones**: `content.worldEvents`; six more `night` shades (group `stones_night`) in the ring; kills of the
+  event's groups at night pay `xpBonus` and roll extra gear; `world_event { event, name, on, region, text }` at dusk and
+  dawn (never on a world's first tick). State field `lifeNight`.
+- Events added: `story`, `world_event`, `rest { id, gained, banked, cap }` (on the first step after a rested hero joins).

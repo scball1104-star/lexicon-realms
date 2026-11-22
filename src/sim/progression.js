@@ -353,7 +353,11 @@ export function createProgression(C) {
   function onDeath(dst, killer) {
     if (dst.kind === 'mob') {
       const who = C.get(dst.tagger) || (killer && killer.kind === 'player' ? killer : null);
-      if (who && who.kind === 'player' && !who.dead) grantXp(who, killXp(who, dst), 'kill', { mob: dst.id, template: dst.template });
+      if (who && who.kind === 'player' && !who.dead) {
+        // rest XP doubles kill XP while banked; Night at the Stones adds its bonus (src/sim/worldlife.js)
+        const kx = killXp(who, dst), bonus = C.life ? C.life.killBonus(who, dst, kx) : null;
+        grantXp(who, kx + (bonus ? bonus.xp : 0), 'kill', { mob: dst.id, template: dst.template, ...(bonus ? bonus.extra : {}) });
+      }
       if (who && who.kind === 'player' && who.b2) C.b2.onKill(who);     // Builds 2: the first kill opens the level 1 skill pick
       dst.respawnAt = now() + respawnTicks(dst);
       dst.threat = {};

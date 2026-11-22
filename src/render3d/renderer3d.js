@@ -538,6 +538,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       if (x < -40 || y < -20 || x > layout.hudW + 40 || y > layout.hudH + 20) continue;
       const col = e.faction === 'hostile' ? '#ff8a6a' : e.kind === 'player' ? '#8fe07a' : '#ffd75a';
       if (isTarget || e.kind === 'player') font.draw(octx, e.name || '', x, y - 9, { align: 'center', color: col, outline: '#14101e' });
+      if (isTarget && e.rare) font.draw(octx, 'Rare', x, y - 18, { align: 'center', color: '#d4dce8', outline: '#14101e' });   // a rare named foe (src/data/rares.js)
       if (e.hpMax > 0 && (e.kind === 'mob' || e.kind === 'player')) {
         const w = 26, k = Math.max(0, Math.min(1, e.hp / e.hpMax));
         octx.fillStyle = '#14101e'; octx.fillRect(x - w / 2 - 1, y - 1, w + 2, 4);

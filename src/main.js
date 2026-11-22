@@ -150,7 +150,10 @@ async function boot() {
       qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts,
       bounties: s.bounties,                                                  // the bounty boards: which were handed in today
       chest: s.chest, gbag: s.gbag,                                          // the hero's Lantern Chest tab and glyph pouch (missing = empty)
-      barOff: s.barOff };                                                    // skills the player took off the bar (save v2)
+      barOff: s.barOff,                                                      // skills the player took off the bar (save v2)
+      // rest XP (src/sim/worldlife.js): the bank, and the real time away since the last save (savedAt, ms; this PC's clock,
+      // never inside the sim). A save without them banks nothing new. Optional fields: SAVE_VERSION is unchanged.
+      rest: s.rest, offlineSecs: Number.isFinite(s.savedAt) ? Math.max(0, (Date.now() - s.savedAt) / 1000) : 0 };
   }
   // an escort in progress cannot be restored (its npc is gone): it restarts as a fresh accept would
   const stripEscorts = (qs) => { if (!qs) return qs; const o = {}; for (const [k, v] of Object.entries(qs)) { const { escort, ...rest } = v; void escort; o[k] = rest; } return o; };
@@ -164,7 +167,7 @@ async function boot() {
     return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
       bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: padBar(e.bar), talents: clone(e.talents),
       quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
-      ...(world.saveFields ? clone(world.saveFields(id)) || {} : {}) };
+      ...(world.saveFields ? clone(world.saveFields(id)) || {} : {}), savedAt: Date.now() };   // savedAt: rest XP's time away (specFor)
   }
   function addHero(spec) {
     playerId = world.addPlayer(spec);

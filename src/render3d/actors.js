@@ -151,7 +151,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       return { type: 'hero', ch, spec, local, lights: dressed.lights, anim: makeAnimator(ch), height: 1.82 * (spec.scale || 1), sig: spec.sig };
     }
     if (e.kind === 'mob') {
-      const c = await createCreature(L, e.template, e.sprite, { elite: e.elite, rank: e.rank });
+      const c = await createCreature(L, e.template, e.sprite, { elite: e.elite || !!e.rare, rank: e.rank });   // a rare stands a size up, as an elite does
       if (!quality.shadows) c.o.traverse((m) => { if (m.isMesh) m.castShadow = false; });
       return { type: 'creature', c, lights: c.lights, height: c.height, sig: 'mob' };
     }

@@ -428,6 +428,15 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       g.fillRect(ax - 2, ay - 1, 1, 1); g.fillRect(ax + 2, ay - 1, 1, 1); g.fillRect(ax - 1, ay, 1, 1); g.fillRect(ax + 1, ay, 1, 1); g.fillRect(ax, ay + 1, 1, 1);
       g.fillStyle = col; g.fillRect(ax - 2, ay - 2, 5, 1); g.fillRect(ax - 1, ay - 1, 3, 1); g.fillRect(ax, ay, 1, 1);
     }
+    // a rare named foe (src/data/rares.js): a small silver diamond over its head (above the target arrow when targeted)
+    for (const e of ents) {
+      if (!e.rare || e.dead) continue;
+      const a = anchors.get(e.id);
+      if (!a) continue;
+      const rx = Math.round(a.x - cam.x), ry = Math.round(a.y - a.h - (e.id === view.targetId ? 11 : 5) - cam.y);
+      g.fillStyle = '#14101e'; g.fillRect(rx - 3, ry - 1, 7, 3); g.fillRect(rx - 1, ry - 3, 3, 7);
+      g.fillStyle = '#d4dce8'; g.fillRect(rx - 2, ry, 5, 1); g.fillRect(rx, ry - 2, 1, 5); g.fillRect(rx - 1, ry - 1, 3, 3);
+    }
     for (const [l, x, y] of auraDraws) fx.drawAuraLook(g, l, x, y, cam, now);
     drawSecrets(g, zone, cam, now, W, H);
     fx.drawWorld(g, cam, W, H, now);

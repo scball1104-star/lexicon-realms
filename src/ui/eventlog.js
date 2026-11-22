@@ -48,7 +48,12 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
       return [{ ch: 'heal', text: `${nameOf(ev.src)}'s ${a} heals you for ${amount}.` }];
     }
     case 'death': return ev.id === me ? [{ ch: 'error', text: 'You have died. You wake at the last lantern you touched.' }] : (ev.killer === me ? [{ ch: 'combat', text: `${nameOf(ev.id)} dies.` }] : []);
-    case 'xp': return ev.id === me ? [{ ch: 'xp', text: `You gain ${Math.round(ev.amount).toLocaleString('en-US')} experience.` }] : [];
+    case 'xp': {
+      if (ev.id !== me) return [];
+      // world life (src/sim/worldlife.js): the part of a kill's XP from rest and from Night at the Stones
+      const bits = [ev.rested ? `${Math.round(ev.rested).toLocaleString('en-US')} rested` : '', ev.event ? `${Math.round(ev.event).toLocaleString('en-US')} night bonus` : ''].filter(Boolean);
+      return [{ ch: 'xp', text: `You gain ${Math.round(ev.amount).toLocaleString('en-US')} experience${bits.length ? ` (${bits.join(', ')})` : ''}.` }];
+    }
     case 'level': return ev.id === me ? [{ ch: 'system', text: `You reach level ${ev.level}!` }] : [];
     case 'loot': {
       if (ev.id !== me) return [];
@@ -71,6 +76,10 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
     // a secret cache (landscape pass): its name and its line of story
     case 'secret_found': return ev.id === me ? [{ ch: 'loot', text: `Secret found: ${ev.name || 'a hidden cache'}!` }, ...(ev.text ? [{ ch: 'system', text: ev.text }] : [])] : [];
     case 'lantern': return ev.id === me ? [{ ch: 'system', text: `${ev.name ? `${ev.name}: the` : 'The'} lantern knows your name now. You will wake here.` }] : [];
+    // world life: coming back rested, the Downs at night, the end of a story chain
+    case 'rest': return ev.id === me && ev.gained > 0 ? [{ ch: 'xp', text: `You feel rested. Your next kills give double experience (${Math.round(ev.banked).toLocaleString('en-US')} bonus banked).` }] : [];
+    case 'world_event': return ev.text ? [{ ch: 'system', text: ev.text }] : [];
+    case 'story': return ev.id === me ? [{ ch: 'system', text: `Story complete: ${ev.title}.` }] : [];
     case 'loot_lost': return ev.id === me ? [{ ch: 'error', text: `Your waiting loot was full: ${(itemInfo(ev.item) || {}).name || ev.item} was lost.` }] : [];
     default: return [];
   }
