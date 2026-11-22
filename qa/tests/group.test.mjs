@@ -312,7 +312,7 @@ export const tests = [
     fn() {
       const named = C.dungeons.barrow.drops.barrow_bellwether[0];
       eq(bindOf(C, { item: named, inst: { ilvl: 11, rarity: 'magic', affixes: [] } }), 'pickup', 'a boss piece');
-      eq(bindOf(C, { item: C.dungeons.barrow.legendary, inst: { ilvl: 12, rarity: 'legendary', affixes: [] } }), 'pickup', 'the legendary');
+      eq(bindOf(C, { item: [].concat(C.dungeons.barrow.legendary)[0], inst: { ilvl: 12, rarity: 'legendary', affixes: [] } }), 'pickup', 'the legendary');
       const setPiece = Object.values(C.sets)[0].pieces;
       eq(bindOf(C, { item: Object.values(setPiece)[0][0] }), 'pickup', 'a set piece');
       const qr = Object.values(C.quests).map((q) => (q.rewards || {}).choice || []).flat().map((x) => (typeof x === 'string' ? x : x.item)).find((id) => C.items[id]);
