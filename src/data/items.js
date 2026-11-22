@@ -118,7 +118,7 @@ function gear(id, name, slot, type, ilvl, rarity, stats = {}, extra = {}) {
   } else {
     it.armorType = type;
     it.armor = type === 'class' || Array.isArray(type) ? null : armorValue(type, slot, ilvl);   // null: resolved per class
-    if (type !== 'class') it.classes = [...new Set((Array.isArray(type) ? type : [type]).flatMap((x) => ARMOR_TYPES[x].classes))];
+    if (type !== 'class' && !extra.classes) it.classes = [...new Set((Array.isArray(type) ? type : [type]).flatMap((x) => ARMOR_TYPES[x].classes))];
   }
   add(it);
 }
@@ -212,6 +212,93 @@ const R = [
 for (const [id, name, slot, type, ql, stats, rarity] of R) gear(id, name, slot, type, Q(ql), rarity || 'magic', stats, { reward: true });
 
 // The elite's own drop table (gear, magic 70 / rare 30 from the base set): see MOBS.sentinel_long_watch.loot.
+// ---------------------------------------------------------------- dungeons and caves (src/data/dungeons.js, 2026-11-22)
+// Named drops: `dungeon` names where it drops. Bosses give the killer one piece their class can use (src/sim/dungeons.js):
+// a lesser boss a magic (blue) piece, a last boss a rare (this game's top tier below legendary; gold-coloured, RARITY), and
+// 1 in 10 a legendary (bad-luck boost +0.5% a miss, BUILDS_2 6.8). ilvl = the dungeon's top level.
+const D = [
+  // [id, name, slot, type, ilvl, stats, rarity, dungeon]
+  // the Wethers' Barrow (10 to 12)
+  ['bellwether_clapper', "Bellwether's Clapper", 'main', ['rod', 'quill'], 11, { int: 3, spi: 1 }, 'magic', 'barrow'],
+  ['wether_horn_buckler', 'Wether-Horn Buckler', 'off', 'shield', 11, { sta: 3, str: 1 }, 'magic', 'barrow'],
+  ['notched_tally_knife', 'Notched Tally Knife', 'main', 'dagger', 11, { agi: 2, crit: 1 }, 'magic', 'barrow'],
+  ['barrowfold_bow', 'Barrowfold Bow', 'two', 'bow', 11, { agi: 3, sta: 1 }, 'magic', 'barrow'],
+  ['tally_wifes_hood', "Tally-Wife's Hood", 'head', 'class', 11, { main: 2, sta: 2 }, 'magic', 'barrow'],
+  ['reeves_counting_coat', "Reeve's Counting Coat", 'chest', 'class', 12, { main: 3, sta: 4 }, 'rare', 'barrow'],
+  ['uncounted_ledger', 'Ledger of the Uncounted', 'trinket', null, 12, { main: 3, sta: 3, crit: 1 }, 'rare', 'barrow'],
+  ['reeves_tally_ring', "Reeve's Tally Ring", 'trinket', null, 12, { main: 5, sta: 5, crit: 2 }, 'legendary', 'barrow'],
+  // the Watchtower (18 to 20)
+  ['wickglass_rod', 'Wickglass Rod', 'main', ['rod', 'quill'], 19, { int: 5, spi: 2 }, 'magic', 'watchtower'],
+  ['stair_captains_shield', "Stair Captain's Shield", 'off', 'shield', 19, { sta: 5, str: 2 }, 'magic', 'watchtower'],
+  ['lampblack_knives', 'Lampblack Knives', 'main', 'dagger', 19, { agi: 4, crit: 1 }, 'magic', 'watchtower'],
+  ['sightline_bow', 'Sightline Bow', 'two', 'bow', 19, { agi: 5, sta: 2 }, 'magic', 'watchtower'],
+  ['watchmans_mantle', "Watchman's Mantle", 'legs', 'class', 19, { main: 3, sta: 4 }, 'magic', 'watchtower'],
+  ['long_watch_greathelm', 'Greathelm of the Long Watch', 'head', 'class', 20, { main: 4, sta: 5 }, 'rare', 'watchtower'],
+  ['last_lamp_charm', 'Charm of the Last Lamp', 'trinket', null, 20, { main: 4, sta: 4, crit: 1 }, 'rare', 'watchtower'],
+  ['unsleeping_eye', 'The Unsleeping Eye', 'trinket', null, 20, { main: 7, sta: 7, crit: 2 }, 'legendary', 'watchtower'],
+  // the caves: the named foe drops one of its cave's two (the one your class can use, or either)
+  ['mudges_tusk_charm', "Mudge's Tusk Charm", 'trinket', null, 6, { sta: 2, main: 1 }, 'magic', 'rootcellar'],
+  ['rootcellar_boots', 'Rootcellar Boots', 'feet', 'class', 6, { sta: 2, main: 1 }, 'magic', 'rootcellar'],
+  ['smugglers_lantern_hook', "Smuggler's Lantern Hook", 'trinket', null, 9, { main: 2, sta: 2 }, 'magic', 'smugglers_cut'],
+  ['cutpurse_gloves', 'Cutpurse Gloves', 'hands', 'class', 9, { main: 2, sta: 1 }, 'magic', 'smugglers_cut'],
+  ['tarnwater_band', 'Tarnwater Band', 'trinket', null, 16, { main: 3, sta: 3 }, 'magic', 'tarn_hollow'],
+  ['mistwalker_boots', 'Mistwalker Boots', 'feet', 'class', 16, { main: 3, sta: 3, speed: 3 }, 'magic', 'tarn_hollow'],
+];
+for (const [id, name, slot, type, ilvl, stats, rarity, dungeon] of D) gear(id, name, slot, type, ilvl, rarity, stats, { dungeon });
+
+// The Watchtower sets (BUILDS_2 6.7 and phase 9: sets from dungeon bosses): one per class, three pieces, one from each
+// boss (the Wickwright the head, the Captain of the Stair the legs, the Sentinel the chest). Rarity 'set'. The bonus at 2
+// and 3 pieces leans on one Builds 2 track (`track`; the tooltip names it). src/sim/data.js adds the bonus mods to the
+// hero's talent mods while the pieces are worn (CONTRACTS, Dungeons and caves).
+export const SETS = {
+  set_watch_captain: { id: 'set_watch_captain', name: "Watch-Captain's Plate", cls: 'warden', track: 'oathblade', armor: 'plate',
+    pieces: { head: ['watchcaptain_helm', "Watch-Captain's Helm"], legs: ['watchcaptain_greaves', "Watch-Captain's Greaves"], chest: ['watchcaptain_breastplate', "Watch-Captain's Breastplate"] },
+    bonus: { 2: { text: 'Damage +5%.', mods: [{ stat: 'damageDone', mul: 1.05 }] },
+      3: { text: 'Strike and Shield Bash deal 15% more damage.', mods: [{ stat: 'damageDone', mul: 1.15, ability: ['warden_strike', 'warden_shield_bash'] }] } } },
+  set_lamp_keeper: { id: 'set_lamp_keeper', name: "Lamp-Keeper's Vestments", cls: 'mender', track: 'tide', armor: 'cloth',
+    pieces: { head: ['lampkeeper_hood', "Lamp-Keeper's Hood"], legs: ['lampkeeper_trousers', "Lamp-Keeper's Trousers"], chest: ['lampkeeper_robe', "Lamp-Keeper's Robe"] },
+    bonus: { 2: { text: 'Healing +6%.', mods: [{ stat: 'healingDone', mul: 1.06 }] },
+      3: { text: 'Mend heals 15% more and Kindle deals 10% more damage.', mods: [{ stat: 'healingDone', mul: 1.15, ability: 'mender_mend' }, { stat: 'damageDone', mul: 1.1, ability: 'mender_kindle' }] } } },
+  set_night_clerk: { id: 'set_night_clerk', name: "Night Clerk's Garb", cls: 'scribe', track: 'quill', armor: 'cloth',
+    pieces: { head: ['nightclerk_hood', "Night Clerk's Hood"], legs: ['nightclerk_wraps', "Night Clerk's Wraps"], chest: ['nightclerk_robe', "Night Clerk's Robe"] },
+    bonus: { 2: { text: 'Damage +5%.', mods: [{ stat: 'damageDone', mul: 1.05 }] },
+      3: { text: 'Inkbolt deals 15% more damage.', mods: [{ stat: 'damageDone', mul: 1.15, ability: 'scribe_inkbolt' }] } } },
+  set_ridgewatch: { id: 'set_ridgewatch', name: 'Ridgewatch Mail', cls: 'wayfinder', track: 'longshot', armor: 'mail',
+    pieces: { head: ['ridgewatch_coif', 'Ridgewatch Coif'], legs: ['ridgewatch_chausses', 'Ridgewatch Chausses'], chest: ['ridgewatch_hauberk', 'Ridgewatch Hauberk'] },
+    bonus: { 2: { text: 'Damage +5%.', mods: [{ stat: 'damageDone', mul: 1.05 }] },
+      3: { text: 'Aimed Shot and Quick Shot deal 15% more damage.', mods: [{ stat: 'damageDone', mul: 1.15, ability: ['wayfinder_aimed_shot', 'wayfinder_quick_shot'] }] } } },
+  set_lampblack: { id: 'set_lampblack', name: 'Lampblack Leathers', cls: 'inkblade', track: 'edge', armor: 'leather',
+    pieces: { head: ['lampblack_cap', 'Lampblack Cap'], legs: ['lampblack_breeches', 'Lampblack Breeches'], chest: ['lampblack_jerkin', 'Lampblack Jerkin'] },
+    bonus: { 2: { text: 'Damage +5%.', mods: [{ stat: 'damageDone', mul: 1.05 }] },
+      3: { text: 'Nick and Spill deal 15% more damage.', mods: [{ stat: 'damageDone', mul: 1.15, ability: ['inkblade_nick', 'inkblade_spill'] }] } } },
+};
+for (const s of Object.values(SETS)) {
+  for (const [slot, [id, name]] of Object.entries(s.pieces)) {
+    const chest = slot === 'chest';
+    gear(id, name, slot, s.armor, chest ? 20 : 19, 'set', { main: chest ? 4 : 3, sta: chest ? 5 : 4 }, { dungeon: 'watchtower', set: s.id, classes: [s.cls], forTrack: s.track });
+  }
+}
+
+// Quest rewards for the dungeon and cave quests (src/data/dungeon_quests.js): three that roll to class, ilvl = the band's top
+// (never more than the quest's minimum level + 2, so it can be worn at once)
+const DQ = [
+  ['cobbs_good_gloves', "Cobb's Good Gloves", 'hands', 'class', 6, { sta: 2, main: 1 }],
+  ['sow_hide_leggings', 'Sow-Hide Leggings', 'legs', 'class', 6, { sta: 2, main: 1 }],
+  ['turnip_charm', 'Turnip Charm', 'trinket', null, 6, { sta: 2, spi: 1 }],
+  ['pells_spare_lamp', "Pell's Spare Lamp", 'trinket', null, 9, { main: 2, spi: 2 }],
+  ['oilcloth_hood', 'Oilcloth Hood', 'head', 'class', 9, { sta: 2, main: 2 }],
+  ['wick_trimmers_gloves', "Wick-Trimmer's Gloves", 'hands', 'class', 9, { main: 2, sta: 1 }],
+  ['brindles_second_best_coat', "Brindle's Second-Best Coat", 'chest', 'class', 12, { main: 3, sta: 3 }],
+  ['ring_count_helm', 'Ring-Count Helm', 'head', 'class', 12, { main: 3, sta: 2 }],
+  ['thirteen_stone_charm', 'Thirteen-Stone Charm', 'trinket', null, 12, { main: 2, sta: 3 }],
+  ['sorrels_peat_boots', "Sorrel's Peat Boots", 'feet', 'class', 16, { sta: 3, main: 2, speed: 2 }],
+  ['drowned_shrine_charm', 'Drowned Shrine Charm', 'trinket', null, 16, { main: 3, spi: 2 }],
+  ['reedwoven_mantle', 'Reedwoven Mantle', 'chest', 'class', 16, { main: 3, sta: 4 }],
+  ['odos_chime_cord', "Odo's Chime-Cord", 'trinket', null, 19, { main: 4, sta: 3 }],
+  ['stair_climbers_boots', "Stair-Climber's Boots", 'feet', 'class', 19, { sta: 4, main: 3, speed: 3 }],
+  ['tower_guard_gauntlets', 'Tower Guard Gauntlets', 'hands', 'class', 19, { main: 4, sta: 3 }],
+];
+for (const [id, name, slot, type, ilvl, stats] of DQ) gear(id, name, slot, type, ilvl, 'magic', stats, { reward: true });
 
 // ---------------------------------------------------------------- consumables, bags (PROGRESSION 6.2: price is the vendor's sell price)
 const cons = (id, name, price, use, extra = {}) => add({ id, name, rarity: 'common', kind: 'consumable', slot: null, stack: 20, price, value: Math.max(1, Math.round(price / 4)), level: 1, reqLevel: 1, use, ...extra });
@@ -246,6 +333,10 @@ qi('black_crow_quill', 'Black Crow Quill', 'A long quill from a gorse crow, glos
 qi('barrow_candle', 'Barrow Candle Stub', 'A stub of candle that never quite goes out.');
 qi('mist_wolf_tooth', 'Mist Wolf Tooth', 'Cold to the touch. It fogs a little in the hand.');
 qi('boar_bristle', 'Boar Bristle', 'Stiff as wire. The best brush there is for peat.');
+// dungeons and caves (src/data/dungeon_quests.js)
+qi('cellar_door_key', 'Cellar Door Key', 'A big iron key on a loop of string. Old Mother Mudge wore it like a necklace.');
+qi('stolen_oil_flask', 'Flask of Lantern Oil', "One of Pell's flasks. It smells of the cave, but the oil is good.");
+qi('shrine_bell_shard', 'Shrine Bell Shard', 'A green piece of an old bronze bell. It still hums a little.');
 qi('odos_chime_word', "Odo's Chime Word", 'A note in Odo\'s hand, folded twice, for Elder Mael.');
 
 // ---------------------------------------------------------------- junk (sell to any vendor; value 1 + the dropper's level)

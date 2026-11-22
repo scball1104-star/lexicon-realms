@@ -28,6 +28,8 @@ import { createAtmos } from './atmos.js';
 import { createFx } from './fx.js';
 import { BitmapFont } from '../core/font.js';
 import { createOcclusion } from './occlude.js';
+import { isPlaceZone, doorMouths } from './dungeon_plan.js';
+import { placeLive, drawBrazier, drawFlames, drawDoorMouth, drawTelegraphs2d, drawDoorLabels2d } from './dungeon2d.js';
 
 function canvas2d(w, h) {
   const c = document.createElement('canvas');
@@ -114,6 +116,8 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
 
   const lighting = createLighting();
   const atmos = createAtmos();
+  // dungeons and caves (dungeon2d.js): door labels need the HUD font
+  const labelFont = assets.has && assets.has('font') ? new BitmapFont(assets.json('font'), assets.img('font'), { id: 'r2d' }) : null;
   let numFont = null, bigFont = null;
   const fontFrom = (j, im) => (j && im ? new BitmapFont(j, im, { id: 'num' }) : null);
   const fx = createFx({
@@ -228,6 +232,17 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       if (p.dx + p.w < cam.x - 8 || p.dx > cam.x + W + 8 || p.dy + p.h < cam.y - 8 || p.dy > cam.y + H + 8) continue;
       list.push({ sortY: p.sortY, prop: p });
     }
+    // dungeons and caves: braziers (y-sorted) and the fires' light; the world's doors into them
+    const lv = isPlaceZone(zone) ? placeLive(zone) : null;
+    if (lv) {
+      for (const f of lv.fires) lights.push({ x: f.x, y: f.y, r: f.wall ? 60 : 72, rgb: LIGHT_RGB.lamp, k: 1, lamp: true, flicker: true, glow: 0.3 });
+      for (const b of lv.braziers) if (b.x > cam.x - 16 && b.x < cam.x + W + 16 && b.y > cam.y - 16 && b.y < cam.y + H + 24) list.push({ sortY: b.y, obj: { draw: (gg, c) => drawBrazier(gg, b, c) } });
+    }
+    if (zone && zone.doors) for (const d of doorMouths(zone)) {
+      const dx = d.x * 16, dy = d.y * 16;
+      if (dx < cam.x - 48 || dx > cam.x + W + 48 || dy < cam.y - 48 || dy > cam.y + H + 48) continue;
+      list.push({ sortY: dy + (d.face === 'n' ? -16 : -1), obj: { draw: (gg, c) => drawDoorMouth(gg, d, c) } });
+    }
     const newAnchors = new Map();
     const grounds = [];
     for (const e of ents) {
@@ -251,6 +266,8 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
 
     // ground zones (Scatter Letters, Sanctuary Peal, ink trails...) lie under every actor
     for (const [e, x, y] of grounds) objArt.drawGround(g, e, x, y, cam, now);
+    // red ground warnings for telegraphed casts (bosses), under every actor
+    dev.telegraphs = drawTelegraphs2d(g, snap, abilities, (id) => { const p = pos.get(id); return p || null; }, cam, zoneId);
 
     // shadows (lean with the sun, fainter at night) and the target ring go under every sprite
     const lean = sky.sun.lean;
@@ -389,6 +406,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
 
     // after the light pass: things that glow
     lighting.drawWindows(g, cam, W, H, wins, sky.lamps);
+    if (lv) drawFlames(g, lv, cam, now, W, H);
     if (sky.lamps > 0.3) {
       // the well's hanging lantern: a 3 x 4 warm pixel lamp on the post
       for (const l of lights) if (l.well) { const x = Math.round(l.x - cam.x) + 9, y = Math.round(l.y - cam.y) - 28; g.fillStyle = '#3a2a1e'; g.fillRect(x + 1, y - 2, 1, 2); g.fillStyle = '#ffd67a'; g.fillRect(x, y, 3, 3); g.fillStyle = '#fff7d6'; g.fillRect(x + 1, y + 1, 1, 1); }
@@ -440,6 +458,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       atmos.drawHaze(g, cam, W, H, map, sky);
       atmos.drawVignette(g, W, H, 0.55 + 0.35 * sky.lamps);
     }
+    if (lv) atmos.drawVignette(g, W, H, 1.0);      // underground: a heavy dark edge, low quality too
 
     // zone change: a short fade from black (DESIGN: "else a short fade at zone edges")
     if (fade.zone !== zoneId) { fade = { zone: zoneId, t0: fade.zone == null ? -1 : t }; }
@@ -466,6 +485,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
 
     // floating combat numbers at the base scale (crisp at every zoom)
     octx.clearRect(0, 0, layout.hudW, layout.hudH);
+    if (zone && zone.doors) drawDoorLabels2d(octx, zone, labelFont, worldToHud, { w: layout.hudW, h: layout.hudH });
     fx.drawNumbers(octx, worldToHud, now);
     ctx.drawImage(over, 0, 0, layout.hudW, layout.hudH, layout.ox, layout.oy, layout.hudW * layout.base, layout.hudH * layout.base);
 

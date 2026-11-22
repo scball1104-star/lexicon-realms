@@ -47,6 +47,9 @@ import { createActors } from './actors.js';
 import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
 import { regionInfo } from '../data/maps/compose.js';
+import { zoneBase } from '../data/maps/copies.js';
+import { CUT } from './dungeon3d.js';
+import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 
 const PX = 16;
 const PITCH = THREE.MathUtils.degToRad(40);
@@ -73,6 +76,15 @@ const GradeShader = {
 const ZONE_MOOD = { moor: { desat: 0.25, tint: [0.92, 0.96, 1.06], fog: 0.75 } };
 const NO_MOOD = { desat: 0, tint: [1, 1, 1], fog: 1 };
 const MOOD_EASE = 1.2;        // 1/s: the moor's grey mood fades in and out over a couple of seconds as you cross its edge
+// Dungeons and caves (zone kind 'dungeon' | 'cave', 2026-11-22). A party's copy is the zone id 'barrow#12': scenes are
+// built and kept per place ('barrow'), so the copy reuses the one built while the hero walked up to the door.
+const PREBUILD_R = 45;        // m: a place behind a door on the world is built in the background once the hero is this near
+// Underground: no sky, near-black fog close round the hero, a faint cool fill, the fires make the light (applySky)
+const UNDER = {
+  dungeon: { hemi: '#6a7896', ground: '#2a1e14', hemiK: 0.62, fog: '#050406', near: 1, far: 19, grade: [1.04, 0.98, 0.92], desat: 0.08, vig: 1.35 },
+  cave: { hemi: '#8a9a96', ground: '#3a2a1a', hemiK: 1.0, fog: '#040506', near: 1, far: 18, grade: [1.0, 1.0, 0.95], desat: 0.12, vig: 1.4 },
+};
+const WARM_BUDGET = 90;       // ms: a warm-up frame behind the loading card aims at about this (never near the 250 ms gate)
 
 export function webglAvailable() {
   try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
@@ -145,7 +157,19 @@ export function createRenderer3D(canvas, assets, opts = {}) {
 
   // ---- content
   const L = createLoader('assets3d/');
-  const actors = createActors(scene, L, { items, quality, compile: (o) => (renderer.compileAsync ? renderer.compileAsync(o, camera, scene) : Promise.resolve()) });
+  // Shader precompile. A program depends on where it draws: with the bloom composer the scene draws into a render target
+  // (linear output, no tone mapping), on screen it does not. Compiling with no target set made the screen variant, so
+  // the first real draw of every new material still linked its program (the prototype's 0.8 to 2 s first dungeon frame
+  // was mostly this): compile against the composer's target when the composer is in use.
+  function precompile(o) {
+    if (!renderer.compileAsync) return Promise.resolve();
+    const rt = renderer.getRenderTarget();
+    if (quality.bloom && composer) renderer.setRenderTarget(composer.readBuffer);
+    let p;
+    try { p = renderer.compileAsync(o, camera, scene); } finally { renderer.setRenderTarget(rt); }
+    return p;
+  }
+  const actors = createActors(scene, L, { items, quality, compile: (o) => precompile(o) });
   const fx3 = createFx3d(scene, { abilities, maxParticles: low ? 300 : 700 });
   const font = assets.has && assets.has('font') ? new BitmapFont(assets.json('font'), assets.img('font'), { id: 'r3d' }) : null;
   const fontFrom = (j, im) => (j && im ? new BitmapFont(j, im, { id: 'num' }) : null);
@@ -157,7 +181,9 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     bigFont: () => null,
   });
 
-  const state = { preload: null, ready: false, failed: null, zones: new Map(), building: new Map(), zoneId: null, playerId: null };
+  const state = { preload: null, ready: false, failed: null, zones: new Map(), building: new Map(), buildK: new Map(), zoneId: null, playerId: null };
+  const keyOf = (id) => (id == null ? id : zoneBase(id));
+  const isPlace = (id) => id != null && isPlaceZone(zones[id]);
   // a build slice waits for the next frame (the game keeps drawing between slices)
   const idle = () => new Promise((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 0)));
   // everything in assets3d/manifest.json is used: load it all in the background (one progress number)
@@ -166,20 +192,23 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     .then(() => { state.ready = true; })
     .catch((e) => { state.failed = e; });
 
-  function zoneFor(id) {
+  function zoneFor(zid) {
+    const id = keyOf(zid);
     if (state.zones.has(id)) return state.zones.get(id);
     if (!state.building.has(id) && zones[id] && state.ready) {
-      const p = buildZone(L, zones[id], { tilesDb: assets.json('tiles'), quality, yieldFn: idle })
+      state.buildK.set(id, 0);
+      const p = buildZone(L, zones[id], { tilesDb: assets.json('tiles'), quality, yieldFn: idle, progress: (k) => state.buildK.set(id, k) })
         // compile its shaders before it is shown (parallel compile where the browser has it), so the first frame in
         // the new zone does not stall on program links
-        .then((z) => (renderer.compileAsync ? renderer.compileAsync(z.group, camera, scene).catch(() => null) : null).then(() => z))
+        .then((z) => precompile(z.group).catch(() => null).then(() => z))
         .then((z) => {
-          state.zones.set(id, z); state.building.delete(id);
+          state.zones.set(id, z); state.building.delete(id); state.buildK.delete(id);
           // keep the shown zone and its neighbours (the next walk), drop the rest
-          const keep = new Set([state.zoneId, id, ...((zones[state.zoneId] || {}).joins || []).map((j) => j.to)]);
+          const cur = keyOf(state.zoneId);
+          const keep = new Set([cur, id, ...((zones[cur] || {}).joins || []).map((j) => j.to)]);
           for (const [k, v] of state.zones) if (!keep.has(k)) { v.dispose(); state.zones.delete(k); }
         })
-        .catch((e) => { state.building.delete(id); state.failed = e; });
+        .catch((e) => { state.building.delete(id); state.buildK.delete(id); state.failed = e; });
       state.building.set(id, p);
     }
     return null;
@@ -330,6 +359,22 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       grade.uniforms.tint.value.set(t[0], t[1], t[2]);
       grade.uniforms.vig.value = 0.75 + 0.45 * sky.lamps;
     }
+    // underground (a dungeon or cave): no sky and no sun to speak of. Near-black fog close round the hero, a faint
+    // cool fill, the fires always lit (zone lamps) and a stronger light on the hero; the far plane comes in with the fog
+    const U = zone && isPlaceZone(zone) ? UNDER[zone.kind] : null;
+    if (U) {
+      sky.lamps = 1; sky.lum = 0;
+      hemi.color.set(U.hemi); hemi.groundColor.set(U.ground); hemi.intensity = U.hemiK;
+      scene.environmentIntensity = 0.04;
+      sun.color.set('#8090b0'); sun.intensity = 0;
+      scene.background.set(U.fog); scene.fog.color.set(U.fog);
+      scene.fog.near = dist + U.near; scene.fog.far = dist + U.far;
+      const df = scene.fog.far + 4;
+      if (Math.abs(camera.far - df) > 0.5) { camera.far = df; camera.updateProjectionMatrix(); }
+      WINDOW_LIT.emissiveIntensity = 1.6; LAMP_GLASS.emissiveIntensity = 2.6;
+      if (shown && shown.halo) shown.halo.opacity = 0.9;
+      if (grade) { grade.uniforms.desat.value = U.desat; grade.uniforms.tint.value.set(...U.grade); grade.uniforms.vig.value = U.vig; }
+    }
     return sky;
   }
   function assignLights(sky, target, playerPos) {
@@ -337,7 +382,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (shown) for (const l of shown.lamps) cand.push({ pos: l.pos, color: l.color, k: l.k * sky.lamps * (l.fire ? 1.2 + Math.sin(performance.now() / 90) * 0.1 : 1) });
     for (const l of actors.lights()) cand.push({ pos: l.pos, color: l.color, k: l.k * (l.lantern ? 0.35 + 0.65 * sky.lamps : 0.6 + 0.4 * sky.lamps) });
     for (const l of fx3.lights) cand.push(l);
-    if (playerPos && sky.lamps > 0.05) cand.push({ pos: playerPos.clone().setY(2.6), color: '#ffe2c0', k: 0.55 * sky.lamps });
+    const under = isPlace(state.zoneId);      // below ground the hero carries more light
+    if (playerPos && sky.lamps > 0.05) cand.push({ pos: playerPos.clone().setY(2.6), color: under ? '#ffd2a0' : '#ffe2c0', k: (under ? 0.95 : 0.55) * sky.lamps });
     for (const c of cand) { const d2 = c.pos.distanceToSquared(target); c.score = c.k / (1 + d2 / 60); }
     cand.sort((a, b) => b.score - a.score);
     for (let i = 0; i < pool.length; i++) {
@@ -360,6 +406,145 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     }
   }
 
+  // ---- dungeons and caves: the swap behind the loading card, ground telegraphs, the labels over the doors
+  // A zone change into or out of a place (the local hero's 'zone' event: src/ui/loading.js shows the card on that same
+  // tick, before this draw) is not drawn until the new scene is built and warmed up: the first draw of a fresh scene
+  // uploads its buffers and textures, which froze the prototype for 0.8 to 2 s on this PC's GPU. While the card covers
+  // the screen, the new scene is drawn with a few more of its meshes switched on each frame (frustum culling off, so
+  // each is uploaded once), each frame synced and timed, the batch grown or shrunk to stay near WARM_BUDGET ms. Leaving
+  // back to a scene that has been drawn before is instant (no card, no warm-up).
+  let trans = null;
+  const q2 = new URLSearchParams(location.search);
+  function warmStart(z) {
+    const list = [];
+    z.group.traverse((o) => { if (o.isMesh || o.isPoints) list.push(o); });
+    for (const o of list) { o.userData.lrFC = o.frustumCulled; o.frustumCulled = false; o.visible = false; }
+    trans.warm = { list, i: 0, batch: 4, final: false, finalFrame: false, z };
+  }
+  function warmBefore() {
+    const w = trans.warm;
+    const n = Math.min(w.list.length, w.i + w.batch);
+    w.from = w.i;
+    for (; w.i < n; w.i++) w.list[w.i].visible = true;
+    if (w.i >= w.list.length && !w.final) { for (const o of w.list) o.frustumCulled = o.userData.lrFC !== false; w.final = true; w.finalFrame = true; }
+    trans.k = 0.6 + 0.4 * (w.i / Math.max(1, w.list.length));
+  }
+  const px1 = new Uint8Array(4);
+  function warmAfter(t0) {
+    const g = renderer.getContext();
+    g.readPixels(0, 0, 1, 1, g.RGBA, g.UNSIGNED_BYTE, px1);     // wait for the GPU: the time below is the real cost
+    const ms = performance.now() - t0, w = trans.warm;
+    trans.frames++; trans.maxMs = Math.max(trans.maxMs, ms);
+    (dev.warmLog || (dev.warmLog = [])).push({ ms: +ms.toFixed(1), n: w.i - w.from, final: w.final, what: w.list.slice(w.from, w.i).map((o) => `${o.type}:${(o.material && o.material.name) || ''}:${o.geometry && o.geometry.attributes.position ? o.geometry.attributes.position.count : 0}`).slice(0, 6) });
+    if (dev.warmLog.length > 60) dev.warmLog.shift();
+    if (ms < WARM_BUDGET * 0.5) w.batch = Math.min(256, w.batch * 2); else if (ms > WARM_BUDGET * 1.4) w.batch = Math.max(1, Math.floor(w.batch / 2));
+    // done once a whole normal frame (everything on, culling back) came in under budget
+    if (w.final && !w.finalFrame && ms < WARM_BUDGET * 1.6) {
+      w.z.warmed = true;
+      dev.zoneChange = { ...dev.zoneChange, warmMs: +(performance.now() - trans.t0).toFixed(1), warmFrames: trans.frames, warmMaxMs: +trans.maxMs.toFixed(1), meshes: w.list.length, lastWarmMs: +ms.toFixed(1), doneAt: performance.now() };
+      trans = null;
+    } else w.finalFrame = false;
+  }
+  const tgMat = new THREE.MeshBasicMaterial({ color: '#ff2a1a', transparent: true, opacity: 0.2, depthWrite: false });
+  const tgFill = new THREE.MeshBasicMaterial({ color: '#ff3a20', transparent: true, opacity: 0.34, depthWrite: false });
+  const tgEdge = new THREE.MeshBasicMaterial({ color: '#ff5030', transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending });
+  const tgLine = new THREE.LineBasicMaterial({ color: '#ff5030', transparent: true, opacity: 0.95, depthWrite: false });
+  const tgGeo = {
+    circle: [new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2), new THREE.RingGeometry(0.94, 1.0, 64).rotateX(-Math.PI / 2)],
+    line: [new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5), new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2).translate(0, 0, 0.5))],
+  };
+  const coneGeo = new Map();
+  const coneOf = (deg) => {
+    const k = Math.round(deg);
+    if (!coneGeo.has(k)) {
+      // a wedge around local +z (the facing), as a circle sector laid flat
+      const a = THREE.MathUtils.degToRad(k);
+      const flat = (g) => g.rotateX(-Math.PI / 2).rotateY(-Math.PI / 2);
+      coneGeo.set(k, [flat(new THREE.CircleGeometry(1, 32, -a / 2, a)), flat(new THREE.RingGeometry(0.94, 1, 40, 1, -a / 2, a))]);
+    }
+    return coneGeo.get(k);
+  };
+  const tgPool = [];
+  function telegraphMesh(i) {
+    if (!tgPool[i]) {
+      const g = new THREE.Group();
+      const d = new THREE.Mesh(tgGeo.circle[0], tgMat); g.add(d);
+      const f = new THREE.Mesh(tgGeo.circle[0], tgFill); f.position.y = 0.005; g.add(f);
+      const e = new THREE.Mesh(tgGeo.circle[1], tgEdge); e.position.y = 0.01; g.add(e);
+      const l = new THREE.LineSegments(tgGeo.line[1], tgLine); l.position.y = 0.01; g.add(l);
+      g.children.forEach((m) => { m.renderOrder = 2; }); g.userData = { d, f, e, l }; scene.add(g); tgPool[i] = g;
+    }
+    return tgPool[i];
+  }
+  /** Ground warnings for casts with a telegraph (the sim's cast + the ability's area): a red circle, cone or line that
+   *  fills as the cast runs. 'ground' circles sit where the cast aimed (cast.at), 'self' on the caster, 'target' on the
+   *  target; a cone or a line points from the caster toward its target. */
+  function drawTelegraphs(snap) {
+    let n = 0;
+    const abl = abilities || {};
+    for (const e of snap.entities) {
+      if (!e.cast || e.dead || e.zone !== state.zoneId) continue;
+      const ab = abl[e.cast.ability];
+      if (!ab || !ab.telegraph || !ab.area) continue;
+      const self = actors.at(e.id, 'feet');
+      if (!self) continue;
+      const tgt = e.cast.target != null ? actors.at(e.cast.target, 'feet') : null;
+      let p = self;
+      if (ab.area.at === 'target' && tgt) p = tgt;
+      else if (ab.area.at === 'ground') p = e.cast.at ? new THREE.Vector3(e.cast.at.x / PX, 0, e.cast.at.y / PX) : (tgt || self);
+      const k = Math.max(0, Math.min(1, (snap.tick - e.cast.startTick) / Math.max(1, e.cast.endTick - e.cast.startTick)));
+      const g = telegraphMesh(n++); g.visible = true;
+      const { d, f, e: edge, l } = g.userData;
+      const R = (ab.area.radius || 32) / PX;
+      const shape = ab.telegraph === 'cone' || ab.area.shape === 'cone' ? 'cone' : ab.telegraph === 'line' || ab.area.shape === 'line' ? 'line' : 'circle';
+      const yaw = tgt && shape !== 'circle' ? Math.atan2(tgt.x - self.x, tgt.z - self.z) : 0;
+      g.position.set(p.x, 0.04, p.z); g.rotation.y = shape === 'circle' ? 0 : yaw;
+      if (shape === 'line') {
+        const wd = (ab.area.width || 16) / PX;
+        d.geometry = tgGeo.line[0]; f.geometry = tgGeo.line[0];
+        d.scale.set(wd, 1, R); f.scale.set(wd, 1, Math.max(0.02, k) * R); edge.visible = false; l.visible = true; l.scale.set(wd, 1, R);
+      } else {
+        const [fillG, ringG] = shape === 'cone' ? coneOf(ab.area.angle || 90) : tgGeo.circle;
+        d.geometry = fillG; f.geometry = fillG; edge.geometry = ringG; edge.visible = true; l.visible = false;
+        d.scale.setScalar(R); edge.scale.setScalar(R); f.scale.setScalar(Math.max(0.02, k) * R);
+      }
+    }
+    for (let i = n; i < tgPool.length; i++) tgPool[i].visible = false;
+    dev.telegraphs = n;
+  }
+  const labelCache = new Map();
+  function labelText(text, color) {
+    const k = text + color;
+    if (!labelCache.has(k)) {
+      const w = Math.max(8, font.measure(text) + 4), h = font.lineHeight + 4;
+      const [c, g] = canvas2d(w, h);
+      font.draw(g, text, 2, 2, { color, outline: '#0a0810' });
+      labelCache.set(k, { c, w, h });
+    }
+    return labelCache.get(k);
+  }
+  /** "<name>" over "Dungeon, levels 10 to 12" above each door on the world within reach (HUD layer, under the HUD). */
+  function drawDoorLabels() {
+    const zone = zones[state.zoneId];
+    if (!font || !zone || !zone.doors || !shown) return;
+    for (const d of doorMouths(zone)) {
+      const x = d.x + (d.w || 1) / 2, z = d.y + (d.face === 'n' ? (d.h || 1) : 0);
+      if (Math.hypot(x - focus.x, z - focus.z) > 28) continue;
+      const [dx, dy, dz] = toDev(v3.set(x, 3.1, z));
+      if (dz > 1) continue;
+      const hx = Math.round((dx - layout.ox) / layout.base), hy = Math.round((dy - layout.oy) / layout.base);
+      if (hx < -80 || hy < -30 || hx > layout.hudW + 80 || hy > layout.hudH + 30) continue;
+      const line2 = d.label || `${d.kind === 'cave' ? 'Cave' : 'Dungeon'}, levels ${d.levels[0]} to ${d.levels[1]}`;
+      const t1 = labelText(d.name, 'gold'), t2 = labelText(line2, '#c8c0d8');
+      const bw = Math.max(t1.w, t2.w) + 10, bh = t1.h + t2.h;
+      const bx = Math.round(hx - bw / 2), by = Math.max(2, hy - bh);      // a door near the top edge keeps its label on screen
+      hctx.fillStyle = 'rgba(14,10,22,0.72)'; hctx.fillRect(bx, by, bw, bh);
+      hctx.fillStyle = '#c9a24c'; hctx.fillRect(bx, by, bw, 1); hctx.fillRect(bx, by + bh - 1, bw, 1);
+      hctx.drawImage(t1.c, Math.round(hx - t1.w / 2), by + 1);
+      hctx.drawImage(t2.c, Math.round(hx - t2.w / 2), by + t1.h - 1);
+    }
+  }
+
   function draw(prevSnap, snap, alpha, view) {
     if (fallback) return fallback.draw(prevSnap, snap, alpha, view);
     if (state.failed) { useFallback(state.failed); return; }
@@ -373,7 +558,26 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     lastNow = now;
     if (view.followId != null) { state.playerId = view.followId; fx2.setPlayer(view.followId); }
     const zone = zones[view.zone];
+    // into or out of a dungeon or cave: hold the swap behind the loading card until the new scene is built and warm
+    if (state.zoneId != null && keyOf(view.zone) !== keyOf(state.zoneId) && (isPlace(view.zone) || isPlace(state.zoneId))) {
+      const zt = state.zones.get(keyOf(view.zone));
+      if (trans && trans.warm) for (const o of trans.warm.list) { o.visible = true; o.frustumCulled = o.userData.lrFC !== false; }
+      trans = zt && zt.warmed ? null : { key: keyOf(view.zone), t0: performance.now(), k: 0, warm: null, frames: 0, maxMs: 0 };
+      dev.zoneChange = { to: view.zone, into: isPlace(view.zone), prebuilt: !!zt, warmedBefore: !!(zt && zt.warmed), t0: performance.now() };
+    }
+    if (trans && trans.key !== keyOf(view.zone)) {                  // went somewhere else meanwhile: undo a half warm-up
+      if (trans.warm) for (const o of trans.warm.list) { o.visible = true; o.frustumCulled = o.userData.lrFC !== false; }
+      trans = null;
+    }
     const z = zoneFor(view.zone);
+    if (trans && !z) {
+      // still building (in time slices): the old frame stays on the WebGL canvas under the card; nothing new is drawn
+      trans.k = 0.6 * (state.buildK.get(trans.key) || 0);
+      state.zoneId = view.zone;
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    if (trans && z && !trans.warm && dev.zoneChange && dev.zoneChange.buildMs == null) dev.zoneChange.buildMs = +(performance.now() - trans.t0).toFixed(1);
     if (z !== shown) {
       if (shown) { scene.remove(shown.group); for (const bb of shown.buildings || []) { bb.k = 0; setBuildingFade(bb.id, 0); } }
       shown = z;
@@ -381,6 +585,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       actors.clear(view.followId);     // the hero keeps its body across zones (no rebuild on the step through)
     }
     state.zoneId = view.zone;
+    if (trans && shown && !trans.warm) warmStart(shown);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (!shown) {
@@ -414,14 +619,24 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     // distance culling (the one world is far bigger than any view): only the 48 m cells within reach of the focus stay
     // in the scene walk. The camera far plane ends at the fog's far end, about 70 m from the camera and less from the
     // focus; 80 m keeps every cell that can show or throw a shadow into the view
-    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, 80);
+    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? 1e6 : 80);
     actors.sync(prevSnap, snap, alpha, view.zone, now, dt, fx3, focus, (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
-    // a zone edge finds its neighbour ready
-    if (zone && !state.building.size) {
-      for (const j of zone.joins || []) { if (zones[j.to] && !state.zones.has(j.to)) { zoneFor(j.to); break; } }
+    // a zone edge finds its neighbour ready. A dungeon or cave behind a door on the world only once the hero is near
+    // that door (five small places nobody needs on the road); ?nopre=1 turns this off (drivers: the cold path)
+    if (zone && !state.building.size && !trans && q2.get('nopre') !== '1') {
+      for (const j of zone.joins || []) {
+        if (!zones[j.to] || state.zones.has(keyOf(j.to))) continue;
+        if (isPlace(j.to) && !isPlace(view.zone) && Math.hypot(j.x + (j.w || 1) / 2 - focus.x, j.y + (j.h || 1) / 2 - focus.z) > PREBUILD_R) continue;
+        zoneFor(j.to); break;
+      }
     }
+    // the wall cut (dungeon3d.js): walls south of the hero drop to a lip; shadows are not redrawn underground (no sun)
+    const under = isPlace(view.zone);
+    CUT.uCutOn.value = under ? 1 : 0;
+    CUT.uCutZ.value = (me ? me.root.position.z : focus.z) + 0.35;
+    renderer.shadowMap.autoUpdate = !under;
     const tgA = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     SEE.uCam.value.copy(camera.position);
     SEE.uFocus.value.copy(me ? me.root.position : focus).setY(1.0); SEE.uSeeR.value = me ? 3.2 : 0;
@@ -443,8 +658,14 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const at = (id, w) => actors.at(id, w);
     fx3.update(dt, now, at);
     assignLights(sky, target, me ? me.root.position : null);
+    drawTelegraphs(snap);
+    if (trans && trans.warm) warmBefore();
+    const tr0 = performance.now();
     if (quality.bloom && composer && view.fx !== 'low') composer.render();
     else renderer.render(scene, camera);
+    if (trans && trans.warm) warmAfter(tr0);
+    else if (!shown.warmed) shown.warmed = true;          // a scene drawn whole once is warm (leaving back to it is instant)
+    if (!trans && dev.zoneChange && dev.zoneChange.firstFrameAt == null) { dev.zoneChange.firstFrameAt = performance.now(); dev.zoneChange.firstFrameMs = +(performance.now() - dev.zoneChange.t0).toFixed(1); dev.zoneChange.firstDrawMs = +(performance.now() - t0).toFixed(1); }
 
     // anchors (2D-equivalent): feet px and the north-on-the-ground height that lands on the head
     anchors.clear();
@@ -549,6 +770,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   function drawHud(fn) {
     if (fallback) return fallback.drawHud(fn);
     hctx.clearRect(0, 0, layout.hudW, layout.hudH);
+    if (!trans) drawDoorLabels();
     fn(hctx, layout);
     // loading line (over the title too, so the title never looks frozen while the 3D world loads)
     if (!state.ready || !shown) {
@@ -597,8 +819,17 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     entDev(id) { const a = anchors.get(id); return a ? [a.dev.fx, (a.dev.fy + a.dev.hy) / 2] : null; },
     dev,
     is3d: true,
-    get ready() { return !fallback && state.ready && !!shown && shown === state.zones.get(state.zoneId); },
+    get ready() { return !fallback && state.ready && !trans && !!shown && shown === state.zones.get(keyOf(state.zoneId)); },
     get loading() { return fallback ? fallback.loading : (state.ready && shown ? 0 : 1); },
+    /** The zone swap behind the loading card (src/ui/loading.js): { to, k: 0..1, ready }. */
+    get zoneLoad() {
+      if (fallback) return fallback.zoneLoad;
+      if (trans) return { to: trans.key, k: trans.k, ready: false };
+      const k = keyOf(state.zoneId);
+      return { to: k, k: 1, ready: !!shown && shown === state.zones.get(k) };
+    },
+    /** Is this zone's scene built and drawn before (a step into it needs no card)? */
+    zoneReady(id) { if (fallback) return true; const z = state.zones.get(keyOf(id)); return !!(z && z.warmed); },
     get progress() { return { ...L.progress, ready: state.ready, zone: !!shown, failed: state.failed ? String(state.failed) : null }; },
     get fxCounts() { return fx3.counts; },
     get gpu() { return renderer.userData.gpu; },
@@ -609,7 +840,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const per = (performance.now() - t) / n;
       return { uncappedMs: +per.toFixed(2), uncappedFps: +(1000 / per).toFixed(1), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, size: [gl.width, gl.height], quality };
     },
-    invalidate(zoneId) { const z = state.zones.get(zoneId); if (z) { z.dispose(); state.zones.delete(zoneId); } },
+    invalidate(zoneId) { const z = state.zones.get(keyOf(zoneId)); if (z) { z.dispose(); state.zones.delete(keyOf(zoneId)); } },
   };
   return api;
 }

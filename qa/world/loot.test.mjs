@@ -23,7 +23,8 @@ export const tests = [
         for (const a of m.abilities) assert(C.mobAbilities[a.id], `${id} ability ${a.id}`);
       }
       // the elite: PROGRESSION 9.3 hp and its always-gear rule
-      eq(mobStats('sentinel_long_watch', 19).hp, 2670, 'elite hp (level 19 since the cap 20 re-spread; 1945 at 14 before)');
+      // the Watchtower's last boss since 2026-11-22: level 20, curve x elite 2.5 x armored 1.1 x BOSS_TUNE 0.6 (2670 on the open moor before)
+      eq(mobStats('sentinel_long_watch', 20).hp, 1856, 'elite hp (the Watchtower dungeon, level 20)');
       eq(mobStats('briar_wolf', 15).hp, 835, 'curve L15 hp (the quadratic)');
       eq(mobStats('briar_wolf', 20).hp, 1125, 'curve L20 hp (linear past 15: 835 + 58 x 5, BUILDS_2 5.3)');
       eq(mobStats('ink_slime', 1).hp, 110, 'curve L1 hp (141 x 0.78, lowLevelHp fix pass 1)');

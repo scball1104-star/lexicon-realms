@@ -18,6 +18,8 @@
 // paints from the whole grid, so an autotile at a chunk edge still sees its neighbours; the chunk only clips. Painting
 // a cell range in the same pass order as the one big canvas did gives the same pixels, chunked or not.
 import { a2Quarters, faceQuarters, line16Index, pickVariant, terrainLayers, neighbours, allConnected, QUARTERS, QUARTER_OFFSET } from './autotile.js';
+import { paintPlaceCells } from './dungeon2d.js';
+import { isPlaceZone } from './dungeon_plan.js';
 import { underAt } from '../data/maps/compose.js';
 
 const TILE = 16;
@@ -34,6 +36,7 @@ export const CHUNK_BUDGET = 96;
 const PREFETCH_MS = 2;
 
 export function bakeZone(zone, { tiles: db, propsDb, img }) {
+  const place = isPlaceZone(zone);       // a dungeon or cave: walls and props from dungeon2d.js on top of the ground
   const W = zone.w, H = zone.h;
   const T = db.terrains, WALLS = db.walls || {}, TILES = db.tiles || {}, OBJS = db.objects || {};
   const sheet = (name) => img(String(name).replace(/\.[^.]+$/, ''));
@@ -259,6 +262,7 @@ export function bakeZone(zone, { tiles: db, propsDb, img }) {
       if (ox >= bx1 || oy >= by1 || ox + m.rect[2] <= bx0 || oy + m.rect[3] <= by0) continue;
       paintStatic(g, s, 'base');
     }
+    if (place) paintPlaceCells(g, zone, x0, y0, x1, y1);
     g.restore();
   }
   function paintOverhead(g, cx, cy) {

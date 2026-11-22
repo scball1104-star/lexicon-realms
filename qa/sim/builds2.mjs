@@ -346,6 +346,9 @@ function classFight(build, level, seed, { pack = 1, foe = 'brute', log = null } 
   return { ttk: ((won || p.dead ? world.tick : MAX_TICKS) - (start ?? 0)) / 20, pct: (100 * (hp0 - p.hp)) / hp0, low: (100 * (hp0 - lowest)) / hp0, died: p.dead, won };
 }
 
+// the played-well bots for other harnesses (qa/sim/dungeon_bot.mjs clears dungeons with them)
+export { bot as MENDER_BOT, view2 as botView, prepare as botPrepare };
+
 const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
 export function runBuild(build, level, runs = 20, opts = {}) {
   const rs = [];

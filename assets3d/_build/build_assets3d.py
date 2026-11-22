@@ -26,6 +26,8 @@ PACKS = {
     'ual': ('Universal Animation Library (Quaternius, free tier)', 'Universal Animation Library', 'CC0 1.0'),
     'animals': ('Quaternius Animated Animal Pack via poly.pizza', None, 'CC0 1.0'),
     'monsters': ('Quaternius Ultimate Monsters Bundle via poly.pizza', None, 'CC0 1.0'),
+    'dungeon': ('Fantasy Props MegaKit (Quaternius, free tier): dungeon props', 'Fantasy Props MegaKit', 'CC0 1.0'),
+    'cave': ('Stylized Nature MegaKit (Quaternius, free tier): cave props', 'Stylized Nature MegaKit', 'CC0 1.0'),
 }
 
 INV = {
@@ -47,6 +49,13 @@ INV = {
               + ['TwistedTree_1', 'TwistedTree_3', 'DeadTree_1', 'DeadTree_3', 'Bush_Common', 'Bush_Common_Flowers',
                  'Rock_Medium_1', 'Rock_Medium_2', 'Rock_Medium_3', 'Pebble_Round_1', 'Pebble_Round_3',
                  'Grass_Common_Short', 'Grass_Wispy_Tall', 'Flower_3_Group', 'Flower_4_Group', 'Fern_1'],
+}
+# Dungeons and caves (render lane, 2026-11-22): straight from the itch kits on this PC (CC0), into dungeon/ and cave/.
+# `python assets3d/_build/build_assets3d.py --dungeon` adds only these to the current folder (no full rebuild).
+ITCH_INV = {
+    'dungeon': ('Fantasy Props MegaKit/Exports/glTF', ['Torch_Metal', 'CandleStick_Triple', 'CandleStick_Stand', 'Vase_2', 'Vase_4',
+                                                     'Vase_Rubble_Medium', 'Coin_Pile', 'Coin_Pile_2', 'Chain_Coil', 'Cage_Small', 'Chalice']),
+    'cave': ('Stylized Nature MegaKit/glTF', ['Mushroom_Common', 'Mushroom_Laetiporus']),
 }
 ANIMALS = {'Wolf': 'Animated-Animal-Pack/Wolf_P1gU3Qkr9r.glb', 'Deer': 'Animated-Animal-Pack/Deer_T6Cs7tmMHJ.glb'}
 ANIMAL_PAGES = {'Wolf': 'https://poly.pizza/m/P1gU3Qkr9r', 'Deer': 'https://poly.pizza/m/T6Cs7tmMHJ'}
@@ -120,8 +129,8 @@ def texture_indices(o, acc):
     return acc
 
 
-def copy_gltf(pack, name):
-    sdir = os.path.join(HERO, pack)
+def copy_gltf(pack, name, sdir=None):
+    sdir = sdir or os.path.join(HERO, pack)
     j = json.load(open(os.path.join(sdir, name + '.gltf'), encoding='utf-8'))
     # the kit files list every texture of their set: keep only the images a material points at
     used_tex = texture_indices(j.get('materials', []), set())
@@ -249,7 +258,7 @@ def write_licenses(total):
 
 
 def main():
-    for d in list(INV) + ['ual', 'animals', 'monsters', 'tex']:
+    for d in list(INV) + list(ITCH_INV) + ['ual', 'animals', 'monsters', 'tex']:
         p = os.path.join(OUT, d)
         if os.path.isdir(p):
             shutil.rmtree(p)
@@ -259,6 +268,7 @@ def main():
     # alternate colour maps of the outfit pack: the renderer uses them as dyes (no glTF points at them)
     for t in ('T_Peasant_2_BaseColor.png', 'T_Ranger_3_BaseColor.png'):
         convert_image(os.path.join(HERO, 'mco', t), 'mco')
+    copy_itch()
     build_ual()
     os.makedirs(os.path.join(OUT, 'animals'), exist_ok=True)
     for n, rel in ANIMALS.items():
@@ -270,6 +280,16 @@ def main():
         src = os.path.join(POLY, rel)
         shutil.copyfile(src, os.path.join(OUT, 'monsters', n + '.glb'))
         add_file('monsters/' + n + '.glb', src, 'monsters')
+    write_index()
+
+
+def copy_itch():
+    for pack, (sub, names) in ITCH_INV.items():
+        for n in names:
+            copy_gltf(pack, n, os.path.join(ITCH, sub))
+
+
+def write_index():
     total = sum(os.path.getsize(os.path.join(OUT, f)) for f, _, _ in files)
     man = {'v': 1, 'bytes': total, 'files': sorted(f for f, _, _ in files)}
     with open(os.path.join(OUT, 'manifest.json'), 'w', encoding='utf-8', newline='\n') as f:
@@ -278,5 +298,28 @@ def main():
     print('ASSETS3D_BUILT: files=%d bytes=%d mb=%.1f' % (len(files), total, total / 1048576))
 
 
+def add_dungeon():
+    """Add the dungeon and cave props to the folder as it stands: the files already listed keep their bytes (a texture
+    that is already in tex/ is reused, never re-encoded), then manifest.json and LICENSES.md are rewritten."""
+    by_title = {v[0]: k for k, v in PACKS.items()}
+    for line in open(os.path.join(OUT, 'LICENSES.md'), encoding='utf-8'):
+        if line.startswith('| `') and line.count('|') == 4:
+            rel, title = line.split('|')[1].strip().strip('`'), line.split('|')[2].strip()
+            if '/' in rel and title in by_title and not rel.startswith(tuple(p + '/' for p in ITCH_INV)):
+                add_file(rel, None, by_title[title])
+    for f in os.listdir(os.path.join(OUT, 'tex')):
+        done_tex[os.path.splitext(f)[0]] = ('tex/' + f, 'image/png' if f.endswith('.png') else 'image/jpeg')
+    for d in ITCH_INV:
+        p = os.path.join(OUT, d)
+        if os.path.isdir(p):
+            shutil.rmtree(p)
+    copy_itch()
+    write_index()
+
+
 if __name__ == '__main__':
-    main()
+    import sys
+    if '--dungeon' in sys.argv:
+        add_dungeon()
+    else:
+        main()

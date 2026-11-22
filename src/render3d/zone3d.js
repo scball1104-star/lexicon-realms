@@ -21,6 +21,9 @@ import { dyeMaterial } from './hero.js';
 import { canvasTex, groundDetail, radial, waterNormal, woodTex } from './textures.js';
 import { treeDims, edgeCell } from './flora.js';
 import { regionInfo, underAt } from '../data/maps/compose.js';
+// dungeons and caves (zone kind 'dungeon' | 'cave'): walls, cut, props; the world's doors into them
+import { buildPlaceWalls, buildDoorMouths, cutMat, doorAt, dressPlace } from './dungeon3d.js';
+import { dungeonPlan, isPlaceZone } from '../render/dungeon_plan.js';
 
 const CH = 48;   // chunk size (m): the town is one chunk, the big fields a few
 // Instanced models (trees, rocks, grass and the like) in a big zone (the one world, 296 x 196 m) go in 16 m chunks
@@ -36,6 +39,8 @@ const GROUND = {
   ink: '#241a3a', moss: '#3d5a2a', x1_moor_turf: '#59603a', x1_heath: '#5e4a52', x1_bracken: '#76592c', x1_peat: '#3b2b1f',
   x1_tarn: '#1f2f3a', x1_drystone: '#6a6660', cliff_top: '#4d6a33', cliff_face: '#5a5048', x1_crag_top: '#66604f', x1_crag_face: '#4a4440',
   cliff_stairs_top: '#7a603f', cliff_stairs_mid: '#7a603f', cliff_stairs_bot: '#7a603f', ledge_s_a: '#4d6a33', ledge_s_m: '#4d6a33', ledge_s_b: '#4d6a33',
+  // dungeons and caves: rock under the walls (near black), a dungeon's dressed floor (cobbles cover it), a cave's earth
+  lr_rock: '#0a0908', lr_dfloor: '#4e463e', lr_cave: '#6e5a46',
 };
 const WATER = new Set(['water', 'shallow', 'x1_tarn']);
 
@@ -169,7 +174,7 @@ function makeProtoCache(L) {
         const root = g.scene; root.updateMatrixWorld(true);
         const parts = [];
         // the nature kit keeps wind data in its vertex colours: never draw them as colour
-        const wind = /^nature\//.test(url);
+        const wind = /^(nature|cave)\//.test(url);
         root.traverse((m) => {
           if (!m.isMesh || m.isSkinnedMesh) return;
           let geometry = m.geometry;
@@ -318,7 +323,7 @@ const M4 = (x, y, z, ry = 0, sx = 1, sy = sx, sz = sx) => new THREE.Matrix4().co
 // ground class per terrain id: 0 grass (the default), 1 dirt, 2 stone, 3 sand
 const CLASS = {
   dirt: 1, x1_peat: 1, x1_bracken: 1, cliff_stairs_top: 1, cliff_stairs_mid: 1, cliff_stairs_bot: 1,
-  plaza: 2, x1_drystone: 2, cliff_face: 2, x1_crag_face: 2, x1_crag_top: 2,
+  plaza: 2, x1_drystone: 2, cliff_face: 2, x1_crag_face: 2, x1_crag_top: 2, lr_rock: 2, lr_dfloor: 2, lr_cave: 1,
   sand: 3, water: 3, shallow: 3, x1_tarn: 3, ink: 3,
 };
 const WORN = new THREE.Color('#3e3426');
@@ -624,7 +629,9 @@ async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, is
 }
 
 /** Build one zone. */
-export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn = null } = {}) {
+export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn = null, progress = null } = {}) {
+  const report = (k) => { if (progress) progress(Math.max(0, Math.min(1, k))); };
+  const place = isPlaceZone(zone), plan = place ? dungeonPlan(zone) : null;
   const group = new THREE.Group(); group.name = `zone:${zone.id}`;
   const P = makeProtoCache(L);
   const B = makeBatcher(group, { shadows: !!quality.shadows, chInst: zone.w * zone.h > BIG_ZONE ? CH_INST_BIG : CH });
@@ -656,6 +663,14 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     terr.push(row); legendAt.push(lr);
   }
   for (const o of zone.overlays || []) if (o.y >= 0 && o.y < H && o.x >= 0 && o.x < W && (isTerrain(o.t) || GROUND[o.t])) terr[o.y][o.x] = o.t;
+  // a dungeon or cave: the ground goes by its collision (rock, floor, water), not the tile ids the map borrowed
+  if (place) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = (zone.collision[y] || '')[x];
+      if (c === '~') continue;
+      terr[y][x] = c === '.' ? (zone.kind === 'cave' ? 'lr_cave' : 'lr_dfloor') : 'lr_rock';
+    }
+  }
   const terrainAt = (x, y) => terr[y][x];
 
   // ground plane (map) + a wide apron so the map edge fades into fog
@@ -683,9 +698,10 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   ground.rotation.x = -Math.PI / 2; ground.position.set(W / 2, 0, H / 2); ground.receiveShadow = true;
   group.add(ground);
   const apronMap = groundDetail().grass.clone(); apronMap.repeat.set((W + 160) / 2, (H + 160) / 2); apronMap.needsUpdate = true;
-  const apron = new THREE.Mesh(new THREE.PlaneGeometry(W + 160, H + 160), new THREE.MeshStandardMaterial({ map: apronMap, color: new THREE.Color(GROUND[zone.under] || GROUND.grass).multiplyScalar(1.25), roughness: 1 }));
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(W + 160, H + 160), new THREE.MeshStandardMaterial({ map: apronMap, color: place ? new THREE.Color('#050404') : new THREE.Color(GROUND[zone.under] || GROUND.grass).multiplyScalar(1.25), roughness: 1 }));
   apron.rotation.x = -Math.PI / 2; apron.position.set(W / 2, -0.03, H / 2); apron.receiveShadow = true;
   group.add(apron);
+  report(0.1);
   await step();
 
   // water: one plane over the zone; a per-tile mask (R deep water, G shallows, B ink) with noise-broken edges gives a
@@ -718,11 +734,15 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const cobK = 1 / Math.max(0.01, cob.box.max.x - cob.box.min.x);
   const plank = await P('village/Floor_WoodDark.gltf');
   const plankK = 1 / Math.max(0.01, plank.box.max.x - plank.box.min.x);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (terr[y][x] === 'plaza') B.instance(cob, M4(x + 0.5, 0.0, y + 0.5, Math.floor(hashXY(x, y) * 4) * Math.PI / 2, cobK, 1, cobK), { cast: false });
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (terr[y][x] === 'plaza' || terr[y][x] === 'lr_dfloor') B.instance(cob, M4(x + 0.5, 0.0, y + 0.5, Math.floor(hashXY(x, y) * 4) * Math.PI / 2, cobK, 1, cobK), { cast: false, tint: terr[y][x] === 'lr_dfloor' ? '#8a8078' : null });
   for (const o of zone.overlays || []) {
     if (/^bridge_/.test(o.t) && !/piles|arch/.test(o.t)) B.instance(plank, M4(o.x + 0.5, 0.12, o.y + 0.5, 0, plankK, 1, plankK), { cast: false });
   }
   await step();
+
+  report(0.2);
+  // a dungeon or cave: its walls, corners, rock tops and columns (dungeon3d.js)
+  if (place) { await buildPlaceWalls(L, zone, B, plan); report(0.35); await step(); }
 
   // fences and low walls from the ground layer, cliffs and ledges as rock
   const fence = await P('village/Prop_WoodenFence_Single.gltf');
@@ -782,7 +802,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       const fd2 = def.solidTower ? Math.max(fd, 3) : fd;
       jobs.push(buildHouse(P, B, def, fx0, def.solidTower ? fz0 + fd - fd2 : fz0, fw, fd2, door, d.x * 7 + d.y, o).then((bb) => { buildings.push(bb); }));
     } else if (t === 'town_gate') B.mergeGroup(townGate(fx0, d.y + 0.5, fw));
-    else if (t === 'x1_barrow_door_closed') B.mergeGroup(barrowMound(cx, cz, fw));
+    else if (t === 'x1_barrow_door_closed') { if (!doorAt(zone, fx0, fz0, fw, fd)) B.mergeGroup(barrowMound(cx, cz, fw)); }   // an open door replaces it
     else if (t === 'well') B.mergeGroup(well(cx, cz));
     else if (t === 'lamp_post') { const lp = lampPost(d.x + 0.5, d.y + 0.5); B.mergeGroup(lp.g); lamps.push({ pos: lp.light, color: '#ffb35c', k: 1 }); }
     // trees (landscape pass, flora.js): inland pines 3.3 to 4.3 m with slim crowns, border pines taller; willows 4.6 to 5.2 m
@@ -820,9 +840,14 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     else if (/chain/.test(t)) B.mergeGroup(chainGate(cx, d.y + 0.5, fw));
     else if (t === 'x1_scarecrow') B.mergeGroup(scarecrow(d.x + 0.5, d.y + 0.5));
     else if (t === 'x1_roots_stile') jobs.push(placeModel('nature/TwistedTree_3.gltf', cx, d.y + 0.5, { h: 2.5, ry: 1 }));
-    if (++n % 20 === 0) { await Promise.all(jobs.splice(0)); await step(); }
+    if (++n % 20 === 0) { await Promise.all(jobs.splice(0)); await step(); report(0.35 + 0.3 * n / Math.max(1, (zone.decor || []).length)); }
   }
   await Promise.all(jobs.splice(0));
+  // dungeon and cave props (dungeon_plan.js), and the world's doors into them
+  let glow = null;
+  if (place) { glow = await dressPlace(L, P, B, zone, plan, lamps); if (glow) group.add(glow); await step(); }
+  if (zone.doors && zone.doors.length) { await buildDoorMouths(P, B, zone, lamps); await step(); }
+  report(0.7);
   // secrets: a waterfall curtain across its passage (from the cliff top down to the water), and a twinkle at every hint
   const sparks = [];
   for (const s of zone.secrets || []) {
@@ -861,22 +886,25 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     await Promise.all(jobs.splice(0));
   }
   await step();
-  await dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain });
+  if (!place) await dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain });
+  report(0.8);
   await step();
   const { calls, cells } = await B.finish(step);
+  report(0.95);
 
   // lamp halos: additive points (one draw call for every lamp, one for every fire), brightened at night by the renderer
   const haloMats = [];
-  for (const fire of [false, true]) {
-    const ls = lamps.filter((l) => !!l.fire === fire);
+  for (const [fire, wall] of [[false, false], [true, false], [true, true]]) {
+    const ls = lamps.filter((l) => !!l.fire === fire && !!l.wall === wall);
     if (!ls.length) continue;
     const m = new THREE.PointsMaterial({ map: radial('rgba(255,225,170,1)', 'rgba(255,170,70,0.35)'), color: '#ffb35c', size: fire ? 2.0 : 1.3, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 });
+    if (wall) cutMat(m, 'hide');           // a torch on a wall cut away sinks with it (dungeon3d.js)
     const geo = new THREE.BufferGeometry().setFromPoints(ls.map((l) => l.pos));
     const pts = new THREE.Points(geo, m); pts.renderOrder = 3; group.add(pts); haloMats.push(m);
   }
   const halo = { set opacity(v) { for (const m of haloMats) m.opacity = v; } };
   return {
-    group, lamps, halo, calls, buildings, town,
+    group, lamps, halo, calls, buildings, town, place, kind: zone.kind || null,
     /** Show only the cells within r m of (x, z) (ground, water and halos always draw). Returns the cells shown. */
     cull(x, z, r) {
       let n = 0;

@@ -31,6 +31,7 @@
 // calendar day), never a clock read here. A bounty is a quest with `bounty: { board, kind }`: it never goes to
 // questsDone; a turn-in goes to p.bounties = { day, done: [ids] }, so the same bounty is open again on another day.
 import { bagCount, bagAdd, bagRemove, bagFree, rollGear } from './loot.js';
+import { zoneBase } from './dungeons.js';
 import { moveAxis } from './collision.js';
 import { SUB, TILE } from './constants.js';
 
@@ -54,7 +55,9 @@ export function createQuests(Q) {
   const CHAIN = C.questOrder || Object.keys(QUESTS);
   const BOARDS = (C.bounties && C.bounties.boards) || [];
   const BOUNTY_IDS = [...new Set(BOARDS.flatMap((b) => b.pools.flat()))].filter((id) => QUESTS[id] && !CHAIN.includes(id));
-  const ORDER = [...CHAIN, ...BOUNTY_IDS];                 // the chain first, then every bounty (posted or not)
+  // dungeons build: side quests (content.sideQuests, src/data/dungeon_quests.js) come after the bounties
+  const SIDE = (C.sideQuests || []).filter((id) => QUESTS[id] && !CHAIN.includes(id) && !BOUNTY_IDS.includes(id));
+  const ORDER = [...CHAIN, ...BOUNTY_IDS, ...SIDE];        // the chain first, then every bounty (posted or not), then side quests
   const today = () => (Q.state.day | 0);
   function bountiesToday(day = today()) {
     const out = [];
@@ -297,7 +300,7 @@ export function createQuests(Q) {
   function inArea(e, zoneId, areaId) {
     const z = C.zones[zoneId];
     const a = z && (z.areas || []).find((x) => x.id === areaId);
-    if (!a || e.zone !== zoneId) return false;
+    if (!a || (e.zone !== zoneId && zoneBase(e.zone) !== zoneId)) return false;     // a dungeon copy is its place's zone
     const [tx, ty] = feet(e);
     return tx >= a.x && ty >= a.y && tx < a.x + a.w && ty < a.y + a.h;
   }

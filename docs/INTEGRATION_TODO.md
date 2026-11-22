@@ -51,3 +51,29 @@ From art polish (2026-11-19):
 15. src/data/npcs.js sprite keys: sloe -> npc_sloe, sorrel -> npc_sorrel, penny -> npc_penny, quill -> npc_quill.
 16. UI: load assets/portraits/npc_heads.json (frames head_<npc id>) and npc_portraits.json (frames <npc id>_32) in uiassets.js; gfx.head() and gfx.portrait() try these first, keyed by npc.id (lark_escort -> lark via the json `npcs` map).
 17. Phone: remove black bars at 844x390 (integer scale only today); fit by adapting the internal width/height to the screen aspect on touch devices, keeping integer pixel scale.
+
+## Dungeons (render lane, 2026-11-22)
+
+What the renderers read from the dungeon data (all guarded: a missing field never breaks a draw).
+
+18. NEED (map lane): one line of flavour per place for the loading card, as `zone.dungeon.flavour` (a string, plain
+    words, no em dashes). The card reads `dungeon.flavour`, then `dungeon.line`, then `zone.flavour`, then the zone event's
+    `flavour`; today none exists, so the card shows name and "Dungeon, levels 10 to 12" only.
+19. AGREE (map lane): authored dungeon decor ids, in `zone.decor` as `{ t, x, y, face?, r? }`. When a place has ANY dg_*
+    piece the renderers draw only the authored ones; with none they dress the place themselves from its collision and
+    areas (src/render/dungeon_plan.js), the same in 2D and 3D. Known ids (src/render/dungeon_plan.js DG_KNOWN):
+    - on a wall cell, `face` 's' (back wall, default), 'e' or 'w' (side wall): dg_torch, dg_niche, dg_banner, dg_roots
+    - on a floor cell: dg_brazier, dg_bier, dg_bones, dg_skulls, dg_urn, dg_rubble, dg_candles, dg_coins, dg_chain,
+      dg_cage, dg_mushrooms
+    - on a SOLID cell (make the collision '#'): dg_column, dg_stalagmite
+    Any other dg_* id draws as a little rubble (never a crash). Tall floor pieces (dg_brazier, dg_bier, dg_cage) block
+    nothing in the sim today: authored ones should sit on solid cells or out of the walking line. The auto dressing only
+    puts braziers in room corners for that reason.
+20. USED (no change needed): `zone.kind` 'dungeon' | 'cave', `zone.dungeon.{name,label,levels}`, `zone.areas`, spawns'
+    `boss`, `lanterns[].post`, the world's `doors` (doors.js) and the joins' `dir` (which way a door's mouth faces), the
+    'zone' event's `kind/name/levels/label`, copy ids `<place>#<key>` (renderers key built scenes by the place).
+21. NOTE (sim lane): telegraphs draw from the snapshot cast (`cast.at` for 'ground', the caster for 'self', the target
+    for 'target'; cones and lines point at `cast.target`). A boss cast with a telegraph but no `area` draws nothing.
+22. NOTE: qa/world loot.test.mjs "elite hp" failed at 2934 vs 2670 during this wave (data lane, not render).
+23. LATER (art): no CC0 undead or armoured-undead model on disk: the Reeve and the Tally-Wife draw as the barrow shade
+    (Ghost Skull), the wethers as pale see-through rams; no dungeon music or ambience (the Downs theme plays).

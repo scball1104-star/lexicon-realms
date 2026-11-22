@@ -355,7 +355,8 @@ export function createProgression(C) {
       const who = C.get(dst.tagger) || (killer && killer.kind === 'player' ? killer : null);
       if (who && who.kind === 'player' && !who.dead) grantXp(who, killXp(who, dst), 'kill', { mob: dst.id, template: dst.template });
       if (who && who.kind === 'player' && who.b2) C.b2.onKill(who);     // Builds 2: the first kill opens the level 1 skill pick
-      dst.respawnAt = now() + respawnTicks(dst);
+      // a foe in a dungeon copy never respawns (src/sim/dungeons.js): the copy resets as a whole after 30 minutes empty
+      dst.respawnAt = dst.spawn && dst.spawn.noRespawn ? null : now() + respawnTicks(dst);
       dst.threat = {};
       if (dst.ai) { dst.ai.mode = 'dead'; dst.ai.vx = 0; dst.ai.vy = 0; }
       dst.target = null;

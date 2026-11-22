@@ -16,6 +16,7 @@ export function familyOf(template = '', sprite = '') {
   if (/thornback/.test(k)) return { f: 'wolf', tint: '#3a2a24', thorns: true, eyes: '#ff7a2a' };
   if (/mist_wolf/.test(k)) return { f: 'wolf', tint: '#b8c4d4', eyes: '#9fe0ff', ghost: 0.75 };
   if (/wolf/.test(k)) return { f: 'wolf', tint: '#6a5a3e', eyes: '#ffb347' };
+  if (/^barrow_(wether|bellwether)/.test(template)) return { f: 'ram', tint: '#a8b4c8', ghost: 0.7 };   // the Barrow's dead sheep (family spirit): pale, see-through
   if (/ram/.test(k)) return { f: 'ram', tint: '#d8d0bc' };
   if (/boar/.test(k)) return { f: 'boar', tint: '#4a3426' };
   if (/scarab/.test(k)) return { f: 'scarab', tint: /moor/.test(k) ? '#5a6a3a' : '#3f6a34' };

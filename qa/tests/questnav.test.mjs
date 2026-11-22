@@ -116,7 +116,8 @@ export const tests = [
       eq(m2.selectedQuest, 'wm_yard_slimes');
       // the areas are one map now: no joins between loaded zones, so the route to any area is the empty route
       eq(JSON.stringify(zoneRoute(content.zones, 'world', 'world')), '[]', 'world -> world: no steps');
-      for (const j of content.zones.world.joins || []) assert(!content.zones[j.to], `a join to a loaded zone is left: ${j.to}`);
+      // dungeon and cave doors (2026-11-22) are the only joins to loaded zones: each names its door
+      for (const j of content.zones.world.joins || []) assert(!content.zones[j.to] || (j.door === j.to && content.zones[j.to].kind !== 'field'), `a join to a loaded zone is left: ${j.to}`);
     },
   },
   {

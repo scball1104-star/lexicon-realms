@@ -10,11 +10,20 @@ import valley from './valley.js';
 import downs from './downs.js';
 import moor from './moor.js';
 import wilds from './wilds.js';
+import barrow from './barrow.js';
+import watchtower from './watchtower.js';
+import rootcellar from './rootcellar.js';
+import smugglersCut from './smugglers_cut.js';
+import tarnHollow from './tarn_hollow.js';
 import { composeWorld } from './compose.js';
+import { withDoors } from './doors.js';
+import { withCopies, zoneBase } from './copies.js';
+import { DUNGEONS, DUNGEON_RULES } from '../dungeons.js';
+import { DUNGEON_QUESTS, DUNGEON_QUEST_ORDER } from '../dungeon_quests.js';
 import { REGION_AT, WORLD_ID, isRegion, toWorld, toWorldPx } from './layout.js';
 import { MOBS, MOB_ABILITIES as WORLD_MOB_ABILITIES, MOB_SPRITES, mobSprite } from '../mobs.js';
 import { NPCS } from '../npcs.js';
-import { ITEMS, RARITY, AFFIXES, DROP_RULES, WEAPON_TYPES, ARMOR_TYPES, CLASS_GEAR } from '../items.js';
+import { ITEMS, RARITY, AFFIXES, DROP_RULES, WEAPON_TYPES, ARMOR_TYPES, CLASS_GEAR, SETS } from '../items.js';
 import { QUESTS, QUEST_ORDER, COMING_LATER } from '../quests.js';
 import { CLASSES } from '../classes.js';
 import { ABILITIES, MOB_ABILITIES } from '../abilities.js';
@@ -27,12 +36,21 @@ import { STORAGE, LANTERN_CHESTS } from '../storage.js';
 
 // The four areas as generated (their own local tiles): tools, tests and the quest data's authoring helpers read these.
 export const REGIONS = { willowmere, valley, downs, moor };
-// One world (Scott 2026-11-21, layout.js): the sim runs ONE zone, the areas laid out on it with the wilds between.
-export const WORLD = composeWorld(REGIONS, wilds);
-export const ZONES = { [WORLD_ID]: WORLD };
+// Dungeons and caves (2026-11-22, src/data/dungeons.js): each its own zone (kind 'dungeon' | 'cave'), entered by a door on
+// the world. A party's copy is the zone under the id `<place>#<key>` (copies.js): ZONES resolves it to the place's data.
+export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow };
+// the loading card's one line of flavour (src/ui/loading.js reads zone.flavour)
+for (const [id, z] of Object.entries(PLACES)) if (DUNGEONS[id] && DUNGEONS[id].flavour) PLACES[id] = { ...z, flavour: DUNGEONS[id].flavour };
+// One world (Scott 2026-11-21, layout.js): the sim runs ONE zone, the areas laid out on it with the wilds between; the
+// dungeon and cave doors are joins on it (doors.js).
+export const WORLD = withDoors(composeWorld(REGIONS, wilds), DUNGEONS, PLACES);
+export const ZONES = withCopies({ [WORLD_ID]: WORLD, ...PLACES });
+export { zoneBase };
+/** Is this zone id a dungeon or a cave (or a copy of one)? */
+export const isPlace = (id) => !!PLACES[zoneBase(id)];
 
 // Display names: the world, and each area (the HUD names the area you stand in; quests keep their area as `zone`).
-export const ZONE_NAMES = Object.fromEntries([[WORLD.id, WORLD.name], ...Object.values(REGIONS).map((z) => [z.id, z.name])]);
+export const ZONE_NAMES = Object.fromEntries([[WORLD.id, WORLD.name], ...Object.values(REGIONS).map((z) => [z.id, z.name]), ...Object.values(PLACES).map((z) => [z.id, z.name])]);
 
 // ---------------------------------------------------------------- area-local data -> the world
 // Everything authored as { zone: <area>, x, y } in TILES (named spawns, chests, the escort's from/to) or as a where
@@ -62,6 +80,7 @@ const worldQuests = (all) => Object.fromEntries(Object.entries(all).map(([id, q]
 export function allSpawns() {
   const day = [], night = [];
   for (const z of Object.values(ZONES)) {
+    if (z.kind === 'dungeon' || z.kind === 'cave') continue;     // a dungeon's foes spawn per copy (src/sim/dungeons.js)
     for (const s of z.spawns || []) {
       const pack = packOf(s.region || z.id, s.group);      // src/data/packs.js: camps that pull as one fight (by area)
       (s.night ? night : day).push({ zone: z.id, sprite: mobSprite(s.mob, s.level), ...s, ...(pack ? { pack } : {}) });
@@ -80,7 +99,7 @@ export function buildContent() {
   return {
     zones: ZONES,
     worldId: WORLD_ID, regionAt: REGION_AT,      // old area-local specs (saves, links, tests) -> world tiles (sim/world.js)
-    zoneNames: ZONE_NAMES,
+    zoneNames: withCopies(ZONE_NAMES),           // a copy ('barrow#12') reads its place's name (the log, the HUD)
     classes: CLASSES, abilities: ABILITIES, talents: TALENTS, progression: PROGRESSION,
     // Builds 2 data (off for players: progression.builds2.enabled is false)
     builds2: { rules: BUILDS2_RULES, classes: BUILDS2, skillPicks: SKILL_PICKS, abilities: B2_ABILITIES },
@@ -88,7 +107,10 @@ export function buildContent() {
     mobs: MOBS, mobSprites: MOB_SPRITES, npcs: NPCS,
     items: ITEMS, rarity: RARITY, affixes: AFFIXES, dropRules: DROP_RULES, weaponTypes: WEAPON_TYPES, armorTypes: ARMOR_TYPES, classGear: CLASS_GEAR,
     // the chain (questOrder) plus the bounty boards' quests (BUILDS_2 5.6); boards: which npc posts which pools
-    quests: worldQuests({ ...QUESTS, ...BOUNTIES }), questOrder: QUEST_ORDER, comingLater: COMING_LATER, bounties: { boards: BOARDS },
+    quests: worldQuests({ ...QUESTS, ...BOUNTIES, ...DUNGEON_QUESTS }), questOrder: QUEST_ORDER, comingLater: COMING_LATER, bounties: { boards: BOARDS },
+    sideQuests: DUNGEON_QUEST_ORDER,           // offered after the chain and the bounties (src/data/dungeon_quests.js)
+    // dungeons and caves (src/data/dungeons.js, src/sim/dungeons.js): copies, bosses, loot, the daily chest; the sets
+    dungeons: DUNGEONS, dungeonRules: DUNGEON_RULES, sets: SETS,
     spawns: day, nightSpawns: night,
     // the Lantern Chests (src/data/storage.js): where they stand, tab sizes and row prices
     storage: STORAGE, lanternChests: LANTERN_CHESTS.map(tileRef).filter((c) => ZONES[c.zone]),

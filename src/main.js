@@ -149,6 +149,7 @@ async function boot() {
       // fix pass 1: the sim-owned part (health, resource, cooldowns, lasting buffs, quest bag, loot waiting, escorts)
       qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts,
       bounties: s.bounties,                                                  // the bounty boards: which were handed in today
+      dungeons: s.dungeons,                                                  // dungeons: today's first clears, the legendary bad-luck count
       chest: s.chest, gbag: s.gbag,                                          // the hero's Lantern Chest tab and glyph pouch (missing = empty)
       barOff: s.barOff };                                                    // skills the player took off the bar (save v2)
   }
@@ -190,6 +191,19 @@ async function boot() {
     if (ev.shared) saveShared(storage, world.shared());
     ui.saveProgress();
   });
+  // ---- BEGIN dungeon loading card (render lane, 2026-11-22; src/ui/loading.js) ----
+  // The hero's own step into (or, when the renderer must rebuild, out of) a dungeon or cave shows the card on this tick,
+  // before the frame that would draw the new place; it is drawn over everything after the HUD until the renderer says
+  // the place is ready (3D: built and warmed behind it). Drivers: renderer.loadingCard.
+  {
+    const { createLoadingCard } = await import('./ui/loading.js');
+    const card = createLoadingCard({ font });
+    bus.on('zone', (ev) => { if (ev.id === playerId) card.onZone(ev, { zones: content.zones, renderer }); });
+    const drawHud0 = renderer.drawHud;
+    renderer.drawHud = (fn) => { drawHud0(fn); card.draw(canvas.getContext('2d'), renderer, performance.now()); };
+    renderer.loadingCard = card;
+  }
+  // ---- END dungeon loading card ----
 
   /** Quest marks over npc heads, in HUD px (the sim's npcMarkers + where the renderer drew each npc). */
   function worldMarks() {

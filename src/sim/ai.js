@@ -156,6 +156,7 @@ export function createAi(C) {
     m.target = null;
     emit({ type: 'threat', mob: m.id, top: null });
     emit({ type: 'evade', id: m.id });
+    if (C.dungeons) C.dungeons.bossReset(m);       // a boss's script and its adds start over (src/sim/dungeons.js)
   }
 
   function speedOf(m, mode) {
@@ -258,7 +259,9 @@ export function createAi(C) {
       const ab = data.abilities[entry.id];
       if (!ab || ab.passive || ab.trigger) continue;
       if ((m.cd[ab.id] || 0) > now()) continue;
-      if (ab === casterBolt(m)) continue;
+      // a cast-time enemy ability with reach is the caster's bolt (cast below, not here); a boss or a named foe
+      // (dungeons) uses its telegraphed moves (a Stair Rush, a charge) from here like any other ability
+      if (ab === casterBolt(m) && !(template(m).boss || template(m).rare)) continue;
       let target = t;
       if (ab.target === 'ally') {
         const hurt = K().unitsNear(m.x, m.y, m.zone, ab.range ? ab.range.max : 160, (u) => u.kind === 'mob' && K().isFriendly(m, u) && u.hp < u.hpMax * 0.9)
@@ -298,6 +301,7 @@ export function createAi(C) {
 
   function combat(m) {
     scriptTick(m);
+    if (C.dungeons) C.dungeons.bossTick(m);        // boss phases (adds by health) and the frenzy timer (mobs.js `fight`)
     if (K().cannotAct(m)) { stop(m); return; }
     const t = pickTarget(m);
     if (t === 'lost') { stop(m); m.ai.reachTick = now(); return; }      // the foe looks for a hero it cannot see

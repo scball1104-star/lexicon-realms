@@ -31,7 +31,8 @@ import { createBuilds2 } from './builds2.js';
 import { createHud } from './hud.js';
 import { createQuests } from './quests.js';
 import { createStorage } from './storage.js';
-import { rollKill, bagAdd, bagRemove, bagFree, resolveItem, ensureUids, migrateQuestItems, bagFindUid } from './loot.js';
+import { rollKill, rollGear, bagAdd, bagRemove, bagFree, resolveItem, ensureUids, migrateQuestItems, bagFindUid } from './loot.js';
+import { createDungeons, withCopies } from './dungeons.js';
 import { dayFraction, isNight } from './clock.js';
 
 export { distPx };
@@ -78,7 +79,10 @@ export function restoreWorld(json, content, systems = []) {
   return wrap(state, content, rng, systems);
 }
 
-function wrap(state, content, rng, systems) {
+function wrap(state, content0, rng, systems) {
+  // dungeon copies (src/sim/dungeons.js): zones['barrow#12'] reads the Barrow's zone data, so every module below can look a
+  // copy's zone up like any other
+  const content = { ...content0, zones: withCopies(content0.zones) };
   const queue = [];                // [{ id, cmd }] for the next step
   let events = [];
   const index = new Map(state.ents.map((e) => [e.id, e]));
@@ -136,12 +140,22 @@ function wrap(state, content, rng, systems) {
     bagIndex: (e, cmd) => bagIndex(e, cmd), onBag: (e) => { if (QS) QS.onBag(e); },
   }) : null;
   if (combatOn) C.storage = ST;
+  // ---- dungeons and caves (src/sim/dungeons.js): copies per party, bosses, their loot and the daily chest
+  const DG = Object.values(content.zones).some((z) => z && (z.kind === 'dungeon' || z.kind === 'cave')) ? createDungeons({
+    state, content, emit, rng, get: (id) => index.get(id) || null, add, remove, spawnMob: (spec) => spawnMob(spec), nextId: () => state.nextId++, tileToSub,
+    rollGear, bagAdd, onBag: (e) => { if (QS) QS.onBag(e); },
+    grantXp: (e, amount, reason, extra) => (combatOn ? C.prog.grantXp(e, amount, reason, extra) : 0),
+    killXp: (L) => (content.progression ? content.progression.killXp.base + content.progression.killXp.perLevel * L : 20 + 4 * L),
+    combat: () => C.combat, ai: () => C.ai, stats: combatOn ? () => C.stats : null,
+  }) : null;
+  C.dungeons = DG;
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
     if (QS) QS.onKill(p, mob);
     if (!content.items) return;
     const drop = rollKill({ content, rng, questNeeds: QS ? QS.needsItem : () => false }, mob, p);
+    if (DG) DG.onKill(mob, p, drop);                 // a boss's named piece, set piece, rare, legendary roll; the daily chest
     const got = [], pending = [];
     for (const it of drop.items) {
       const n = bagAdd(p, it.item, it.qty, it.inst || null, content);
@@ -271,6 +285,7 @@ function wrap(state, content, rng, systems) {
     addPlayer(spec = {}) {
       const st = content.start;
       spec = worldSpec(spec);
+      if (DG) spec = DG.loadSpec(spec);                   // saved inside a dungeon or cave: wake at its door outside
       const zid = spec.zone || st.zone;
       // a saved tile that is no longer free (the map changed under the save) starts on the nearest walkable tile
       const [px, py] = spec.x != null && spec.y != null && content.zones[zid] ? standTile(content.zones[zid], spec.x, spec.y) : [spec.x ?? st.x, spec.y ?? st.y];
@@ -295,7 +310,7 @@ function wrap(state, content, rng, systems) {
         if (spec.level && spec.level > 1) C.prog.setLevel(e, spec.level);
         C.prog.bindStart(e);
         // restore a saved character (CONTRACTS 3): any of these may come from the save
-        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot', 'bounties']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));
+        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot', 'bounties', 'dungeons']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));
         migrateQuestItems(e, content);
         ensureUids(e);
         if (spec.equip) e.equip = JSON.parse(JSON.stringify(spec.equip));
@@ -328,7 +343,8 @@ function wrap(state, content, rng, systems) {
       const e = index.get(id);
       if (!e || e.kind !== 'player') return null;
       const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
-      const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []), ...(e.bounties ? { bounties: clone(e.bounties) } : {}) };
+      const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []), ...(e.bounties ? { bounties: clone(e.bounties) } : {}),
+        ...(e.dungeons ? { dungeons: clone(e.dungeons) } : {}) };     // dungeons: the daily first clears and the legendary bad-luck count
       if (!combatOn) return out;
       out.hp = e.dead ? e.hpMax : e.hp;
       out.res = e.res ? { kind: e.res.kind, cur: Math.round(e.res.cur * 100) / 100 } : null;
@@ -420,6 +436,7 @@ function wrap(state, content, rng, systems) {
       // 3) world: projectiles, traps and zones, combat state
       if (combatOn) C.combat.tickWorld();
       if (QS) QS.tick();
+      if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
       // 4) systems (quests): read this tick's events, may call grantXp / emit
       for (const s of systems) if (s && s.tick) s.tick(w, events);
       state.rng = rng.state;
@@ -433,11 +450,18 @@ function wrap(state, content, rng, systems) {
         v: STATE_VERSION, tick: state.tick, dayTime: dayFraction(state.tick), night: isNight(state.tick),
         entities: state.ents.map((e) => publicEntity(e)),
       };
+      // dungeons and caves: the copies heroes stand in (kind, name, levels: the loading card and the banner)
+      if (DG) {
+        snap.places = {};
+        for (const e of state.ents) if (e.kind === 'player' && !snap.places[e.zone]) { const inf = DG.info(e.zone); if (inf) snap.places[e.zone] = inf; }
+      }
       if (combatOn) {
         snap.projectiles = (state.proj || []).map((p) => ({ id: p.id, src: p.src, dst: p.dst, ability: p.ability, zone: p.zone, x: p.x / SUB, y: p.y / SUB }));
         snap.hud = {};
         for (const e of state.ents) if (e.kind === 'player') {
           const h = C.hud.build(e);
+          const zz = content.zones[e.zone] || {};
+          h.zone = (DG && DG.info(e.zone)) || { id: e.zone, base: e.zone, kind: zz.kind || 'field', name: zz.name || '', levels: zz.levels ? [...zz.levels] : null };
           if (QS) {
             h.quests = QS.tracker(e);
             h.npcMarkers = {};
@@ -562,6 +586,7 @@ function wrap(state, content, rng, systems) {
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');
         if (t.kind === 'object' && t.node) {
           if (distPx(e, t) > INTERACT_RANGE_PX) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
+          if (t.dchest) { if (DG) DG.openChest(e, t); return; }      // a dungeon or cave chest (src/sim/dungeons.js)
           if (QS) QS.interact(e, t);
           return;
         }
@@ -878,12 +903,16 @@ function wrap(state, content, rng, systems) {
     const j = inJoin(zone, tx, ty);
     if (!j || !content.zones[j.to]) return;          // a join to a zone that is not loaded: just the map edge
     const from = e.zone;
+    // a door into a dungeon or cave goes into the hero's party's own copy (made here, or reset after 30 minutes empty)
+    const to = DG && DG.isPlace(j.to) && !DG.isPlace(from) ? DG.enter(e, j.to) : j.to;
     const [x, y] = tileToSub(j.tx, j.ty);
-    e.zone = j.to; e.x = x; e.y = y;
+    e.zone = to; e.x = x; e.y = y;
     if (j.dir && DIRS.includes(j.dir)) e.dir = j.dir;
     e.target = null;
     if (combatOn) { e.autoOn = false; e.combo = null; e.forced = null; if (e.cast) C.combat.cancelCast(e, 'move'); }
-    emit({ type: 'zone', id: e.id, from, to: j.to, x: j.tx, y: j.ty });
+    if (DG && DG.isPlace(from) && !DG.isPlace(to)) DG.leave(e, from);
+    const inf = DG ? DG.info(to) : null;
+    emit({ type: 'zone', id: e.id, from, to, x: j.tx, y: j.ty, ...(inf ? { kind: inf.kind, base: inf.base, name: inf.name, levels: inf.levels, label: inf.label } : {}) });
     if (combatOn) C.prog.onZoneEnter(e);
   }
 
@@ -925,7 +954,9 @@ function wrap(state, content, rng, systems) {
     if (e.kind === 'object' && e.node) {
       o.node = { item: e.node.item, channel: e.node.channel || 0 };
       // a secret cache: which heroes have opened it (each client draws it open for its own hero)
-      if (e.node.secret) { o.node.secret = true; o.node.openedBy = state.ents.filter((p) => p.kind === 'player' && (p.nodesUsed || []).includes(e.template)).map((p) => p.id); }
+      if (e.node.secret) { o.node.secret = true; o.node.openedBy = e.dchest ? [...e.dchest.opened] : state.ents.filter((p) => p.kind === 'player' && (p.nodesUsed || []).includes(e.template)).map((p) => p.id); }
+      // a dungeon or cave chest: a copy's cache (once per hero) or the first-clear-of-the-day chest (its hero only)
+      if (e.dchest) o.node.chest = { kind: e.dchest.kind, place: e.dchest.place, for: e.dchest.for ?? null };
     }
     else if (e.kind === 'object' && e.chest) { o.chest = { id: e.chest.id, place: e.chest.place || null }; }
     else if (e.kind === 'object') {

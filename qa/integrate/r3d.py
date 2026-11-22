@@ -1,7 +1,7 @@
 """3D renderer check (?r=3d) with REAL input (Playwright, GPU on). Modeled on qa/integrate/phone.py.
 
     python qa/integrate/r3d.py            all sessions
-    python qa/integrate/r3d.py g h        only the sessions named (letters a..h; e always runs last when named)
+    python qa/integrate/r3d.py g h        only the sessions named (letters a..i; e always runs last when named)
 
 Starts its own static server on a free 127.0.0.1 port (and stops it at the end), then runs four sessions:
   A desktop 1600x900: title (3D loading behind it) -> create a Warden -> walk with WASD -> right-click Hob to talk
@@ -18,6 +18,10 @@ Starts its own static server on a free 127.0.0.1 port (and stops it at the end),
   H wide desktop 1915x920 (Scott 2026-11-21, "room around the border"): the HUD layer fills the window at the same
     scale (957x460 HUD px at 2x), every HUD box anchored to its own edge, none overlapping; then Character + Bags open,
     centred as their 640x360 design (hud_wide_3d.png, hud_wide_3d_windows.png)
+  I dungeon (2026-11-22): a Warden walks up to the Barrow's door on the Downs (the place builds in the background near
+    the door; the door's label shows), steps in with the real W key: the loading card is up from the zone event, every
+    frame after it is under 250 ms, the hall draws underground (the wall cut on, fog dark); then walks out with S:
+    no card, the first world frame straight away (qa/render/dungeon_shots.py has the stills and the full numbers)
 One world (2026-11-21): every session runs on zone 'world'; area-local spots go through W() (layout.js REGION_AT).
 Frame rate on desktop and phone (rAF window plus the uncapped probe). Screenshots in qa/out/r3d/.
 Prints R3D_DONE: ok=<bool> errors=<n> (machine-read sentinel).
@@ -487,6 +491,64 @@ def session_h(b):
     page.close()
 
 
+def session_i(b):
+    log('I: dungeon door, loading card, warm-up, leaving')
+    page = b.new_page(viewport={'width': 1280, 'height': 720})
+    hook(page)
+    g = Game(page, 'i')
+    g.boot('r=3d&dev=1&zone=world&x=28&y=110&cls=warden&name=Ash&tod=0.5')
+    g.ev('window.__realms.dev.level(12)')
+    t0 = time.time()
+    while 'barrow' not in g.ev('window.__realms.renderer.dev.zonesBuilt') and time.time() - t0 < 60:
+        time.sleep(0.25)
+    assert 'barrow' in g.ev('window.__realms.renderer.dev.zonesBuilt'), 'the Barrow is built in the background near its door'
+    g.shot('01_barrow_door', 'the Barrow door on the Downs with its label')
+    frames = """() => { window.__ifr = []; const R = window.__realms; let last = performance.now(); const f = (t) => { const c = R.renderer.loadingCard; window.__ifr.push([t - last, (R.player() || {}).zone, c && c.active ? 1 : 0]); last = t; if (window.__ifr.length < 3000) requestAnimationFrame(f); }; requestAnimationFrame(f); }"""
+    g.ev(frames)
+    page.keyboard.down('KeyW')
+    t0 = time.time()
+    while time.time() - t0 < 8 and not str(g.ev('(window.__realms.player() || {}).zone')).startswith('barrow'):
+        time.sleep(0.02)
+    page.keyboard.up('KeyW')
+    assert str(g.ev('(window.__realms.player() || {}).zone')).startswith('barrow'), 'walked into the Barrow'
+    t0 = time.time()
+    while g.ev('window.__realms.renderer.loadingCard.active') and time.time() - t0 < 25:
+        time.sleep(0.05)
+    time.sleep(1.0)
+    fr = g.ev('window.__ifr')
+    first = next((i for i, f in enumerate(fr) if f[2]), None)
+    assert first is not None, 'the loading card showed'
+    zone_at = next(i for i, f in enumerate(fr) if str(f[1]).startswith('barrow'))
+    assert fr[zone_at][2] or first < zone_at, f'the card is up on the first frame in the new zone (card {first}, zone {zone_at})'
+    worst = max(f[0] for f in fr[first + 1:])
+    zc = g.ev('window.__realms.renderer.dev.zoneChange')
+    metrics['dungeon_enter'] = {'maxFrameAfterCardMs': round(worst, 1), 'zoneChange': zc}
+    log('  enter', json.dumps(metrics['dungeon_enter']))
+    assert worst < 250, f'no frame over 250 ms after the card appears: {worst:.0f} ms'
+    assert g.ev('window.__realms.renderer.ready'), 'the Barrow is drawn'
+    assert g.ev('window.__realms.renderer.dev.cam') is not None
+    g.ev('() => window.__realms.dev.hp(99999)')
+    g.shot('02_barrow_inside', 'inside the Barrow: torch-lit hall, the wall cut south of the hero')
+    metrics['dungeon_fps'] = g.fps('barrow entry')
+    # out again with S: no card, first frame at once
+    g.ev("""() => { const R = window.__realms; const e = R.world.get(R.playerId); e.x = 41 * 256 + 128; e.y = 55 * 256 + 200; }""")
+    time.sleep(0.6)
+    page.keyboard.down('KeyS')
+    t0 = time.time()
+    while time.time() - t0 < 8 and g.ev('(window.__realms.player() || {}).zone') != 'world':
+        time.sleep(0.02)
+    page.keyboard.up('KeyS')
+    assert g.ev('(window.__realms.player() || {}).zone') == 'world', 'walked out to the world'
+    time.sleep(0.5)
+    zc = g.ev('window.__realms.renderer.dev.zoneChange')
+    log('  leave', json.dumps(zc))
+    assert zc['to'] == 'world' and zc.get('warmedBefore'), f'leaving: the world was warm: {zc}'
+    assert zc.get('firstFrameMs', 999) < 100, f'leaving is instant: {zc}'
+    assert not g.ev('window.__realms.renderer.loadingCard.active'), 'no card on the way out'
+    metrics['dungeon_leave'] = zc
+    page.close()
+
+
 def session_e(pw):
     log('E: no WebGL -> the 2D renderer with a console warning')
     b = pw.chromium.launch(args=['--disable-webgl', '--disable-webgl2', '--disable-3d-apis'])
@@ -521,7 +583,7 @@ def run():
         with sync_playwright() as pw:
             b = pw.chromium.launch(args=GPU)
             try:
-                for s in (session_a, session_b, session_c, session_d, session_f, session_g, session_h):
+                for s in (session_a, session_b, session_c, session_d, session_f, session_g, session_h, session_i):
                     if not ONLY or s.__name__[-1] in ONLY:
                         s(b)
             finally:

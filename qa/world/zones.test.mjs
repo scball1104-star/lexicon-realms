@@ -68,8 +68,9 @@ export const tests = [
     name: 'world seams: every old join between areas and both new roads walk both ways on the one map; no join to a loaded zone is left',
     fn() {
       const W = ZONES.world, ok = reachable('world');
-      eq(Object.keys(ZONES).join(','), 'world', 'one loaded zone');
-      for (const j of W.joins) assert(!ZONES[j.to] && !isRegion(j.to), `a join to ${j.to} is left on the world`);
+      // one world, plus the dungeons and caves (2026-11-22), each entered only by its door join
+      eq(Object.keys(ZONES).filter((k) => ZONES[k].kind !== 'dungeon' && ZONES[k].kind !== 'cave').join(','), 'world', 'one loaded open zone');
+      for (const j of W.joins) assert((!ZONES[j.to] || j.door === j.to) && !isRegion(j.to), `a join to ${j.to} is left on the world`);
       const both = (a, b, tag) => {
         assert(ok(...a) && ok(...b), `${tag}: both ends on foot from the arrival (${a} / ${b})`);
         assert(tilePath(W, a, (x, y) => x === b[0] && y === b[1]), `${tag}: no walk ${a} -> ${b}`);

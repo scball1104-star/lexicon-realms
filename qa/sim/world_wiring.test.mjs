@@ -35,14 +35,17 @@ export const tests = [
     const w = createWorld({ seed: 5, content: buildContent() });
     const pid = w.addPlayer({ name: 'W', cls: 'warden', level: 14 });
     const p = w.get(pid);
-    const s = w.state.ents.find((e) => e.template === 'sentinel_long_watch');
+    // the Sentinel lives in the Watchtower dungeon since 2026-11-22: step into the hero's own copy first
+    const zid = w.internals.dungeons.enter(p, 'watchtower'); p.zone = zid;
+    const s = w.state.ents.find((e) => e.template === 'sentinel_long_watch' && e.zone === zid);
+    for (const m of w.state.ents) if (m.kind === 'mob' && m.zone === zid && m !== s) { m.dead = true; m.respawnAt = null; }
     p.zone = s.zone; p.x = s.x - 20 * 16; p.y = s.y;
     w.internals.combat.addThreat(s, p, 10);
     let chimes = [];
     for (let i = 0; i < 820; i++) { p.hp = p.hpMax; chimes.push(...ofType(w.step(), 'chime')); }
     eq(chimes.length, 2, 'two chimes in 41 s');
     eq(chimes[1].tick - chimes[0].tick, 400, '20 s apart');
-    eq(s.rank === undefined ? w.snapshot().entities.find((e) => e.id === s.id).rank : s.rank, 'elite', 'elite rank');
+    eq(s.rank === undefined ? w.snapshot().entities.find((e) => e.id === s.id).rank : s.rank, 'boss', 'a boss now (the Watchtower dungeon)');
   } },
   { name: 'wiring: a 4,000-tick random session with all five classes on the real map never throws and is deterministic', fn() {
     const run = () => {

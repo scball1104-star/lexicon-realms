@@ -23,13 +23,15 @@ three.js r170 (MIT) is vendored separately in `src/vendor/three/` with its licen
 | `ual/` | Universal Animation Library (Quaternius, free tier) | CC0 1.0 | `D:\LQOnline\vendor_itch\x\Universal Animation Library` |
 | `animals/` | Quaternius Animated Animal Pack via poly.pizza | CC0 1.0 | `D:\LQOnline\mockups3d_b\vendor\quaternius_polypizza` |
 | `monsters/` | Quaternius Ultimate Monsters Bundle via poly.pizza | CC0 1.0 | `D:\LQOnline\mockups3d_b\vendor\quaternius_polypizza` |
+| `dungeon/` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 | `D:\LQOnline\vendor_itch\x\Fantasy Props MegaKit` |
+| `cave/` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 | `D:\LQOnline\vendor_itch\x\Stylized Nature MegaKit` |
 | `tex/` | textures of the packs above (each row below names its pack) | CC0 1.0 | as its pack |
 
 The two animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf https://poly.pizza/m/P1gU3Qkr9r, Deer https://poly.pizza/m/T6Cs7tmMHJ.
 
 The Ghost Skull (the barrow shade) is a Quaternius model published on poly.pizza as CC0 1.0: https://poly.pizza/m/TX8r9WBXpe. The other foes are built in code (src/render3d/creatures.js).
 
-Total size: 22.4 MB in 273 files.
+Total size: 23.4 MB in 300 files.
 
 ## Files
 
@@ -37,6 +39,32 @@ Total size: 22.4 MB in 273 files.
 |---|---|---|
 | `animals/Deer.glb` | Quaternius Animated Animal Pack via poly.pizza | CC0 1.0 |
 | `animals/Wolf.glb` | Quaternius Animated Animal Pack via poly.pizza | CC0 1.0 |
+| `cave/Mushroom_Common.bin` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 |
+| `cave/Mushroom_Common.gltf` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 |
+| `cave/Mushroom_Laetiporus.bin` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 |
+| `cave/Mushroom_Laetiporus.gltf` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 |
+| `dungeon/Cage_Small.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Cage_Small.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/CandleStick_Stand.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/CandleStick_Stand.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/CandleStick_Triple.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/CandleStick_Triple.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Chain_Coil.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Chain_Coil.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Chalice.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Chalice.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Coin_Pile.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Coin_Pile.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Coin_Pile_2.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Coin_Pile_2.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Torch_Metal.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Torch_Metal.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Vase_2.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Vase_2.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Vase_4.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Vase_4.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Vase_Rubble_Medium.bin` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
+| `dungeon/Vase_Rubble_Medium.gltf` | Fantasy Props MegaKit (Quaternius, free tier): dungeon props | CC0 1.0 |
 | `hair/Hair_Beard.bin` | Universal Base Characters (Quaternius, free tier): hair | CC0 1.0 |
 | `hair/Hair_Beard.gltf` | Universal Base Characters (Quaternius, free tier): hair | CC0 1.0 |
 | `hair/Hair_Buns.bin` | Universal Base Characters (Quaternius, free tier): hair | CC0 1.0 |
@@ -184,6 +212,7 @@ Total size: 22.4 MB in 273 files.
 | `tex/Leaves.png` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `tex/Leaves_NormalTree_C.png` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `tex/Leaves_TwistedTree_C.png` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 |
+| `tex/Mushrooms.jpg` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 |
 | `tex/PathRocks_Diffuse.jpg` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `tex/Rocks_Diffuse.jpg` | Stylized Nature MegaKit (Quaternius, free tier) | CC0 1.0 |
 | `tex/T_Brick_BaseColor.jpg` | Medieval Village MegaKit (Quaternius, free tier) | CC0 1.0 |

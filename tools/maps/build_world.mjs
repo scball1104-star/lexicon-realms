@@ -16,6 +16,8 @@ import { LQ, loadLqDb, bakeCollision, usedIds, reach, nearestWalk, writeModule, 
 import { PROGRESSION } from '../../src/data/progression.js';
 import { build as buildWilds } from './zone_wilds.mjs';
 import { composeWorld } from '../../src/data/maps/compose.js';
+import { withDoors } from '../../src/data/maps/doors.js';
+import { DUNGEONS } from '../../src/data/dungeons.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // --out <dir> writes the zone modules elsewhere (diffing a change); --no-assets skips assets/tiles (the map lane only
@@ -174,6 +176,68 @@ const world = composeWorld(byId, wilds);
   console.log(`world: ${z.w}x${z.h}  walkable ${walk}, reachable ${reached} (${(100 * reached / walk).toFixed(1)}%)  spawns ${z.spawns.length} npcs ${z.npcs.length} decor ${z.decor.length}`);
 }
 
+// ---------------------------------------------------------------- dungeons and caves (src/data/dungeons.js, tools/maps/dungeon_kit.mjs)
+// Each place is carved by its zone_<id>.mjs. Checks: the door on the world is walkable and reachable from the town on
+// foot, its `out` tile too (and not on the door); inside, from the entry every boss, spawn, chest and the lantern is
+// reachable, the exit join is reachable, the exit lands on the door's `out`, and there are no pits.
+const places = [];
+for (const d of Object.values(DUNGEONS)) {
+  const file = path.join(path.dirname(fileURLToPath(import.meta.url)), `zone_${d.id}.mjs`);
+  if (!fs.existsSync(file)) { problems.push(`dungeon ${d.id}: no zone_${d.id}.mjs`); continue; }
+  const z = (await import(`./zone_${d.id}.mjs`)).build();
+  z.source = `tools/maps/zone_${d.id}.mjs`;
+  const [ax, ay] = z.arrival;
+  const seen = reach(z, ax, ay);
+  const ok = (x, y) => x >= 0 && y >= 0 && x < z.w && y < z.h && seen[y * z.w + x] === 1;
+  if (!ok(ax, ay)) problems.push(`${z.id}: arrival ${ax},${ay} not walkable`);
+  for (const s of z.spawns) if (!ok(s.x, s.y)) problems.push(`${z.id}: ${s.boss ? 'boss' : 'spawn'} ${s.mob} at ${s.x},${s.y} is not reachable from the entry`);
+  for (const c of z.dungeon.chests) if (!ok(c.x, c.y)) problems.push(`${z.id}: chest ${c.id} at ${c.x},${c.y} is not reachable from the entry`);
+  for (const l of z.lanterns) if (!ok(l.x, l.y)) problems.push(`${z.id}: lantern ${l.id} is not reachable`);
+  for (const b of d.bosses) if (!z.spawns.some((s) => s.mob === b && ok(s.x, s.y))) problems.push(`${z.id}: boss ${b} is not placed reachably`);
+  for (const j of z.joins) {
+    let any = false;
+    for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) if (ok(x, y)) any = true;
+    if (!any) problems.push(`${z.id}: exit join at ${j.x},${j.y} is not reachable`);
+  }
+  const back = new Uint8Array(z.w * z.h), bq = [[ax, ay]];
+  back[ay * z.w + ax] = 1;
+  while (bq.length) {
+    const [x, y] = bq.pop();
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const px = x - dx, py = y - dy;
+      if (!ok(px, py) || back[py * z.w + px]) continue;
+      if (canStep(z, px, py, dx, dy)) { back[py * z.w + px] = 1; bq.push([px, py]); }
+    }
+  }
+  let pits = 0, walk = 0;
+  for (let y = 0; y < z.h; y++) for (let x = 0; x < z.w; x++) { if (z.collision[y][x] === '.') walk++; if (ok(x, y) && !back[y * z.w + x]) pits++; }
+  if (pits) problems.push(`${z.id}: ${pits} cells with no way back`);
+  console.log(`${z.id}: ${z.kind} ${z.w}x${z.h}  walkable ${walk}  spawns ${z.spawns.length} bosses ${d.bosses.length} chests ${z.dungeon.chests.length}`);
+  places.push(z);
+}
+{
+  const placeById = Object.fromEntries(places.map((z) => [z.id, z]));
+  const W2 = withDoors(world, DUNGEONS, placeById);
+  const [ax, ay] = W2.arrival;
+  const seen = reach(W2, ax, ay);
+  const ok = (x, y) => seen[y * W2.w + x] === 1;
+  for (const dr of W2.doors) {
+    for (let y = dr.y; y < dr.y + dr.h; y++) for (let x = dr.x; x < dr.x + dr.w; x++) {
+      if (W2.collision[y][x] !== '.') problems.push(`door ${dr.id}: world ${x},${y} is '${W2.collision[y][x]}', not walkable`);
+      else if (!ok(x, y)) problems.push(`door ${dr.id}: world ${x},${y} is not reachable from the town`);
+    }
+    const [ox, oy] = dr.out;
+    if (W2.collision[oy][ox] !== '.' || !ok(ox, oy)) problems.push(`door ${dr.id}: out ${ox},${oy} is not a walkable, reachable cell`);
+    if (ox >= dr.x && oy >= dr.y && ox < dr.x + dr.w && oy < dr.y + dr.h) problems.push(`door ${dr.id}: out ${ox},${oy} is on the door`);
+    const z = placeById[dr.id];
+    const ex = z.joins[0];
+    if (ex.tx !== ox || ex.ty !== oy) problems.push(`door ${dr.id}: the exit lands on ${ex.tx},${ex.ty}, not the door's out ${ox},${oy}`);
+    const near = W2.spawns.filter((s) => Math.hypot(s.x - dr.x, s.y - dr.y) < 4);
+    if (near.length) warn(`door ${dr.id}: ${near.length} spawns within 4 tiles (${near.map((s) => s.mob).join(', ')})`);
+    console.log(`door ${dr.id}: world ${dr.x},${dr.y} (${dr.region || 'wilds'}), out ${ox},${oy}  "${dr.name}" ${dr.label}`);
+  }
+}
+
 if (problems.length) {
   console.log('BUILD_WORLD_FAIL\n  ' + problems.join('\n  '));
   process.exitCode = 1;
@@ -184,6 +248,11 @@ const ids = new Set();
 for (const z of zones) {
   usedIds(z, ids);
   const header = `// GENERATED by tools/maps/build_world.mjs from tools/maps/zone_${z.id}.mjs. Do not hand-edit: change the generator and re-run.\n// Zone shape: docs/CONTRACTS.md section 6.`;
+  writeModule(path.join(OUT, `${z.id}.js`), header, z);
+}
+for (const z of places) {
+  usedIds(z, ids);
+  const header = `// GENERATED by tools/maps/build_world.mjs from tools/maps/zone_${z.id}.mjs (tools/maps/dungeon_kit.mjs). Do not hand-edit: change the generator and re-run.\n// Zone shape: docs/CONTRACTS.md section 6 (kind '${z.kind}': "Dungeons and caves").`;
   writeModule(path.join(OUT, `${z.id}.js`), header, z);
 }
 usedIds(wilds, ids);

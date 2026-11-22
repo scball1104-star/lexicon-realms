@@ -324,7 +324,8 @@ export const tests = [
       }
     }
     assert(found, 'a safe lane to Odo exists');
-    const elite = z.spawns.find((s) => s.mob === 'sentinel_long_watch');
+    // the elite moved into the Watchtower dungeon (2026-11-22); its old spot at the tower's foot is now the door
+    const elite = z.spawns.find((s) => s.mob === 'sentinel_long_watch') || { x: 118, y: 8 };
     for (const s of z.spawns.filter((k) => k.mob === 'tower_sentinel')) {
       assert(Math.hypot(s.x - odo.x, s.y - odo.y) >= 12 + (s.wander ?? 3) - 3, `sentinel at ${s.x},${s.y} too near Odo`);
       assert(Math.hypot(s.x - elite.x, s.y - elite.y) > 8, `sentinel at ${s.x},${s.y} beside the elite`);
@@ -408,6 +409,14 @@ export const tests = [
         } else if (o.kind === 'talk' || o.kind === 'deliver') hit = Object.entries(C.zones).some(([zid, z]) => (z.npcs || []).some((n) => n.npc === (o.npc || o.to) && inside(zid, n.x, n.y)));
         else if (o.kind === 'explore') { const a = C.zones[o.zone].areas.find((x) => x.id === o.area); hit = inside(o.zone, a.x + Math.floor(a.w / 2), a.y + Math.floor(a.h / 2)); }
         else if (o.kind === 'escort') hit = inside(o.from.zone, o.from.x, o.from.y) && inside(o.to.zone, o.to.x, o.to.y);
+        // a target inside a dungeon or cave (2026-11-22): the where circle holds that place's door on the world
+        if (!hit && (o.kind === 'kill' || o.kind === 'collect' || o.kind === 'explore')) {
+          const wants = (s) => s.mob === o.mob || (o.kind === 'collect' && (C.mobs[s.mob].loot.table || []).some((e) => e.item === o.item));
+          for (const dr of C.zones.world.doors || []) {
+            const z = C.zones[dr.id];
+            if ((o.kind === 'explore' ? o.zone === dr.id : (z.spawns || []).some(wants)) && inside('world', dr.x, dr.y)) hit = true;
+          }
+        }
         assert(hit, `${tag} (${o.kind}) where holds its target`);
       });
     }

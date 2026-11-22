@@ -24,7 +24,8 @@ export function createData(content) {
 
   function talentKey(e) {
     const t = e.talents || {};
-    const key = Object.keys(t).sort().map((k) => `${k}:${t[k]}`).join(',');
+    let key = Object.keys(t).sort().map((k) => `${k}:${t[k]}`).join(',');
+    if (e.sets) key += `|sets|${Object.keys(e.sets).sort().map((k) => `${k}:${e.sets[k]}`).join(',')}`;   // set bonuses (dungeons)
     if (!e.b2 || !e.build) return key;
     const r = e.build.ranks || {};
     return `${key}|b2|${Object.keys(r).sort().map((k) => `${k}:${r[k]}`).join(',')}`;
@@ -63,6 +64,16 @@ export function createData(content) {
     if (base) {
       for (const m of base.mods || []) c.mods.push({ ...m, src: 'b2_baseline' });
       for (const p of base.procs || []) c.procs.push({ ...p, src: 'b2_baseline' });
+    }
+    // set bonuses (src/data/items.js SETS, from the Watchtower's bosses): every threshold met adds its mods and procs
+    for (const [sid, n] of Object.entries(e.sets || {})) {
+      const s = (content.sets || {})[sid];
+      if (!s) continue;
+      for (const [need, fx] of Object.entries(s.bonus || {})) {
+        if (n < Number(need)) continue;
+        for (const m of fx.mods || []) c.mods.push({ ...m, src: `${sid}_${need}` });
+        for (const p of fx.procs || []) c.procs.push({ ...p, src: `${sid}_${need}` });
+      }
     }
     cache.set(e.id, c);
     return c;

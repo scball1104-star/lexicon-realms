@@ -164,6 +164,10 @@ export function createStats(C) {
       main = weaponFor(cls.weapons[0], gearLevel);
       if (cls.auto.offHand) off = weaponFor(cls.weapons[1], gearLevel);
     } else {
+      // set pieces worn (src/data/items.js SETS): e.sets = { setId: pieces }; src/sim/data.js adds the bonuses
+      const sets = {};
+      for (const entry of Object.values(e.equip || {})) { const d = entry && items[typeof entry === 'string' ? entry : entry.item]; if (d && d.set) sets[d.set] = (sets[d.set] || 0) + 1; }
+      if (Object.keys(sets).length) e.sets = sets; else if (e.sets) delete e.sets;
       for (const [slot, entry] of Object.entries(e.equip || {})) {
         if (!entry) continue;
         const it = items[typeof entry === 'string' ? entry : entry.item] ? resolveItem(C.content, entry, e.cls) : null;
@@ -211,6 +215,9 @@ export function createStats(C) {
     // a camp that pulls as a pack (PROGRESSION packs, combat role pass): each member is lighter, the pack is about 1.6 to 2 foes
     const pk = e.spawn && e.spawn.pack && P.packs ? P.packs[e.spawn.pack] : null;
     if (pk) { hpM *= pk.hp; dmgM *= pk.damage; }
+    // a dungeon boss's own tuning (mobs.js hpMult / dmgMult, the clear bot's knobs)
+    hpM *= t.hpMult || 1; dmgM *= t.dmgMult || 1;
+    if (e.spawn && e.spawn.tune) { hpM *= e.spawn.tune.hp || 1; dmgM *= e.spawn.tune.dmg || 1; }   // a dungeon's trash (src/data/dungeons.js)
     // foe traits (class identity pass, PROGRESSION mobTraits): the template's `traits`, plus the trait its kind carries
     const traits = [...new Set([...(t.traits || []), ...kinds.filter((k) => k === 'armored' || k === 'caster')])].sort();
     let swingM = 1, speedM = 1, plating = 0, unblockable = false, drain = null, snareMult = null;

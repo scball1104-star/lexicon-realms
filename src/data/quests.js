@@ -437,12 +437,13 @@ export const QUESTS = {
     requires: { quests: ['mo_ninth_chime'], cls: null, level: 17 },
     chain: { id: 'moor', step: 6 },
     objectives: [
-      { kind: 'kill', mob: 'sentinel_long_watch', count: 1, where: [at('moor', 118, 8, 3)], label: 'Sentinel of the Long Watch defeated' },
+      // the dungeons build (2026-11-22): the Sentinel moved inside the tower; `where` is the Watchtower's door on the moor
+      { kind: 'kill', mob: 'sentinel_long_watch', count: 1, where: [at('moor', 117.5, 7, 2)], label: 'Sentinel of the Long Watch defeated (the Watchtower, top floor)' },
     ],
     rewards: { xp: 7430, gold: 183, items: [], choice: ['long_watch_blade', 'lampglass_knives', 'watchtower_bow', 'lantern_rod', 'last_order_quill'] },
     rewardRarity: 'rare',
     text: {
-      offer: "Something stands at the foot of the tower that the watchers obey. It was there before my grandmother. Its lamps were never put out. It does not leave and it does not sleep. I will ring the eighth chime when you go in. It hates the sound. Use that.",
+      offer: "Something keeps the top of the tower that the watchers obey. It was there before my grandmother. Its lamps were never put out. It does not leave and it does not sleep. Go in at the tower door and climb. I will ring the eighth chime while you go up. It hates the sound. Use that.",
       progress: "I will ring the eighth when you go in. Listen for it. Odo, stand by your post.",
       complete: "It's still. The lamps are dark. I can see the stars from my door for the first time in my life.",
     },

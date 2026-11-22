@@ -182,9 +182,8 @@ export function build(db) {
   camp('tower_sentinel', [13, 14, 13], [[98, 4], [112, 3], [130, 13]], 'wt_sentinels_a');
   camp('tower_sentinel', [14, 13, 14], [[136, 8], [92, 4], [134, 3]], 'wt_sentinels_b');
   camp('ink_wraith', 13, [[88, 6], [140, 13]], 'wt_wraiths');
-  spawns.push({ mob: 'sentinel_long_watch', level: 14, x: 118, y: 8, wander: 0, respawn: 360, group: 'wt_elite', leash: 16 });
-  spawns.push({ mob: 'watch_lamp', level: 13, x: 114, y: 8, wander: 0, respawn: 360, group: 'wt_elite' });
-  spawns.push({ mob: 'watch_lamp', level: 13, x: 122, y: 8, wander: 0, respawn: 360, group: 'wt_elite' });
+  // the Sentinel of the Long Watch and its two lamps moved inside the tower (the Watchtower dungeon, tools/maps/zone_watchtower.mjs,
+  // 2026-11-22); the door is at the tower's foot (117..118, 7)
 
   const npcs = [
     { npc: 'odo', x: 106, y: 21, dir: 'down' },
@@ -217,8 +216,8 @@ export function build(db) {
     { x: 74, y: 99, w: 8, h: 1, to: 'downs', tx: 75, ty: 1, dir: 'down' },
     { x: 159, y: 14, w: 1, h: 3, to: 'x1_terrace', tx: 1, ty: 10, dir: 'right' },
   ];
-  // the elite's ring (Odo rings the eighth post): the fight script reads these spots
-  const script = { long_watch: { elite: [118, 8], odo_post: POSTS[7], adds_from: [118, 5], lamps: [[114, 8], [122, 8]], leash: 16 } };
+  // the elite's ring moved into the Watchtower dungeon (its own `script`); Odo still rings the eighth post
+  const script = null;
 
   return {
     map: {
@@ -230,6 +229,6 @@ export function build(db) {
       overhead: [{ t: 'x1_far_dome', x: 148, y: -2 }],
       solids: [],
     },
-    realm: { levels: [10, 15], arrival: [78, 96], areas, lanterns: LANTERNS, spawns, npcs, nodes, signs, hooks, joins, script, secrets: SECRETS.map(secretEntry) },
+    realm: { levels: [10, 15], arrival: [78, 96], areas, lanterns: LANTERNS, spawns, npcs, nodes, signs, hooks, joins, ...(script ? { script } : {}), secrets: SECRETS.map(secretEntry) },
   };
 }
