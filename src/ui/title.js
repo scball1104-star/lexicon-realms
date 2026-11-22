@@ -2,6 +2,7 @@
 // (title_backdrop.png, Willowmere at night, shown at an integer 2x) and the Lexicon Realms logo (logo_realms.png).
 import { classInfo, classOrder, abilityInfo } from './gamedata.js';
 import { validateName, MAX_CHARS, LOOKS, NAME_MAX } from './save.js';
+import { START_REALMS } from '../data/rootbound.js';   // big world: a class's start realm (the choice on creation)
 
 const W = 640, H = 360;
 const DIRS = ['down', 'left', 'up', 'right'];
@@ -251,6 +252,21 @@ export function drawCreate(ctx, env, st, regions, act, t) {
   // buttons
   const bh = Math.max(22, mh), bw = Math.floor((D.w - 24) / 2);
   const by = D.y + D.h - bh - 8;
+  // big world: where to start. A class with a start realm (the Scribe: the Rootbound) starts there unless the player picks
+  // Willowmere; the others start in Willowmere as before
+  const realm = START_REALMS[st.cls] || null;
+  const sy = by - Math.max(18, Math.round(mh * 0.8)) - 4;
+  if (realm) {
+    const want = st.start === 'willowmere' ? 'willowmere' : 'realm';
+    g.text(ctx, 'Start in', D.x + 9, sy + 3, 'gold');
+    const ow = Math.floor((D.w - 18 - 50 - 4) / 2), oh = Math.max(16, Math.round(mh * 0.8));
+    [['realm', realm.name], ['willowmere', 'Willowmere']].forEach(([id, label], i) => {
+      const x = D.x + 9 + 50 + i * (ow + 4), on = want === id;
+      g.window(ctx, x, sy, ow, oh, 'thin', on ? 'ember' : 'slate', 0.95);
+      g.text(ctx, g.clip(label, ow - 6), x + ow / 2, sy + Math.floor(oh / 2) - 6, on ? 'cream' : 'gray', { align: 'center' });
+      regions.push({ rect: { x, y: sy, w: ow, h: oh }, kind: 'button', label: `start:${id}`, tip: { title: label, sub: id === 'realm' ? realm.line : 'The river town, where every calling meets.' }, on: () => { st.start = id; } });
+    });
+  } else g.text(ctx, 'You will start in Willowmere.', D.x + 9, sy + 3, 'dim');
   button(ctx, env, regions, { x: D.x + 9, y: by, w: bw, h: bh }, 'Back', () => act.go(act.store.list().length ? 'select' : 'title'));
   button(ctx, env, regions, { x: D.x + 15 + bw, y: by, w: bw, h: bh }, 'Create', () => act.create(), { scheme: 'forest', large: true, enabled: v.ok && !act.store.full() });
 }

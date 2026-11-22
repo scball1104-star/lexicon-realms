@@ -204,13 +204,13 @@ function makeBatcher(group, { shadows, chInst = CH }) {
   const tmp = new THREE.Matrix4(), pos = new THREE.Vector3();
   return {
     /** an instance of a model: world matrix of its root */
-    instance(proto, m4, { tint = null, cast = true, tintMatch = null } = {}) {
+    instance(proto, m4, { tint = null, cast = true, tintMatch = null, small = false } = {}) {
       pos.setFromMatrixPosition(m4);
       const c = `${Math.floor(pos.x / chInst)},${Math.floor(pos.z / chInst)}`;
       proto.parts.forEach((p, i) => {
         const tm = !tint || !tintMatch || tintMatch.test(p.material.name) ? tint : null;
-        const k = `${proto.url}#${i}|${tm}|${c}|${cast}`;
-        if (!inst.has(k)) inst.set(k, { geometry: p.geometry, material: tintMat(p.material, tm), list: [], cast });
+        const k = `${proto.url}#${i}|${tm}|${c}|${cast}|${small}`;
+        if (!inst.has(k)) inst.set(k, { geometry: p.geometry, material: tintMat(p.material, tm), list: [], cast, small });
         inst.get(k).list.push(tmp.multiplyMatrices(m4, p.matrix).clone());
       });
     },
@@ -243,10 +243,11 @@ function makeBatcher(group, { shadows, chInst = CH }) {
       const add = (m) => {
         if (m.isInstancedMesh) sp.copy(m.boundingSphere); else { if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere(); sp.copy(m.geometry.boundingSphere); }
         const k = chunk(sp.center.x, sp.center.z);
-        if (!cells.has(k)) { const [i, j] = k.split(',').map(Number); const g = new THREE.Group(); g.name = `cell:${k}`; group.add(g); cells.set(k, { g, x: (i + 0.5) * CH, z: (j + 0.5) * CH, r: 0 }); }
+        if (!cells.has(k)) { const [i, j] = k.split(',').map(Number); const g = new THREE.Group(); g.name = `cell:${k}`; group.add(g); cells.set(k, { g, key: k, x: (i + 0.5) * CH, z: (j + 0.5) * CH, r: 0, small: [], smallOn: true }); }
         const c = cells.get(k);
         c.r = Math.max(c.r, Math.hypot(sp.center.x - c.x, sp.center.z - c.z) + sp.radius);
         c.g.add(m);
+        if (m.userData.small) c.small.push(m);
       };
       for (const v of inst.values()) seeThrough(v.material);
       for (const v of merge.values()) seeThrough(v.material);
@@ -256,6 +257,7 @@ function makeBatcher(group, { shadows, chInst = CH }) {
         im.instanceMatrix.needsUpdate = true;
         im.computeBoundingSphere(); im.computeBoundingBox();
         im.castShadow = shadows && v.cast; im.receiveShadow = true;
+        if (v.small) im.userData.small = true;          // grass, pebbles, ferns, flowers: off past SMALL_R (far detail)
         add(im); calls++;
         if (step) await step();
       }
@@ -384,14 +386,14 @@ function groundMaterial({ color, weights }, W, H) {
 }
 
 /** The zone's water surface: colour per kind from the mask, alpha fading at the shore, a foam line, scrolling ripples. */
-function waterMaterial(mask, W, H) {
+function waterMaterial(mask, W, H, inkGlow = 0) {
   const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.1, metalness: 0.1, transparent: true, depthWrite: false, normalMap: RIPPLE, normalScale: new THREE.Vector2(0.5, 0.5) });
-  const U = { tWM: { value: mask }, tJit: { value: groundDetail().macro }, uSize: { value: new THREE.Vector2(W, H) } };
+  const U = { tWM: { value: mask }, tJit: { value: groundDetail().macro }, uSize: { value: new THREE.Vector2(W, H) }, uInkGlow: { value: inkGlow } };
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 lrWorld; varying vec2 vWM; varying vec2 vWW;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWM = uv; vWW = lrWorld;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tWM, tJit; uniform vec2 uSize; varying vec2 vWM; varying vec2 vWW;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tWM, tJit; uniform vec2 uSize; uniform float uInkGlow; varying vec2 vWM; varying vec2 vWW; float lrInk = 0.0;')
       .replace('#include <color_fragment>', `#include <color_fragment>
       {
         vec4 j = texture2D(tJit, vWW * 0.17 + vec2(0.13, 0.61));
@@ -404,9 +406,11 @@ function waterMaterial(mask, W, H) {
         diffuseColor.rgb = mix(c, vec3(0.78, 0.84, 0.82), foam * 0.6);
         diffuseColor.a = edge * mix(0.84, 0.6, m.g / max(0.001, a));
         if (diffuseColor.a < 0.01) discard;
-      }`);
+        lrInk = m.b * edge * (0.75 + 0.25 * j.g);
+      }`).replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      totalEmissiveRadiance += lrInk * uInkGlow * vec3(0.05, 0.11, 0.34);   // a cavern's ink glows (zone.cavern)`);
   };
-  mat.customProgramCacheKey = () => 'lr_water2';
+  mat.customProgramCacheKey = () => 'lr_water3';
   return mat;
 }
 
@@ -592,23 +596,27 @@ function barrowMound(x, z, w) {
 
 /** Ground dressing from the tile data: grass clumps on open grass, pebbles, ferns and small stones along road edges.
  *  All of it is small and low (never reads as a blocker) and keeps off decor footprints, water, cliffs and fences. */
-async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain }) {
-  const busy = new Uint8Array(W * H);
+async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain, inPart = null, busy0 = null }) {
+  // busy0: the same mask from an earlier part of this zone's build (big zones build near the hero first, buildZone)
+  const busy = busy0 || new Uint8Array(W * H);
   const mark = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) busy[y * W + x] = 1; };
-  for (const d of zone.decor || []) for (let dy = -1; dy <= 2; dy++) for (let dx = -1; dx <= 3; dx++) mark(d.x + dx, d.y + dy);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const id = legendAt[y][x]; if (id && !isTerrain(id)) mark(x, y); }   // fences, walls
-  for (const o of zone.overlays || []) if (!isTerrain(o.t) && !/^(tuft|pebbles|flowers)/.test(o.t)) mark(o.x, o.y);
+  if (!busy0) {
+    for (const d of zone.decor || []) for (let dy = -1; dy <= 2; dy++) for (let dx = -1; dx <= 3; dx++) mark(d.x + dx, d.y + dy);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const id = legendAt[y][x]; if (id && !isTerrain(id)) mark(x, y); }   // fences, walls
+    for (const o of zone.overlays || []) if (!isTerrain(o.t) && !/^(tuft|pebbles|flowers)/.test(o.t)) mark(o.x, o.y);
+  }
   const isGrass = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !CLASS[terr[y][x]] && !WATER.has(terr[y][x]) && !/cliff|ledge/.test(terr[y][x]);
   const isRoad = (x, y) => x >= 0 && y >= 0 && x < W && y < H && CLASS[terr[y][x]] === 1;
   const [grass, wisp, peb1, peb3, fern, rock] = await Promise.all(['nature/Grass_Common_Short.gltf', 'nature/Grass_Wispy_Tall.gltf', 'nature/Pebble_Round_1.gltf', 'nature/Pebble_Round_3.gltf', 'nature/Fern_1.gltf', 'nature/Rock_Medium_2.gltf'].map((u) => P(u)));
   const hOf = (pr) => Math.max(0.05, pr.box.max.y - pr.box.min.y);
-  const put = (pr, x, z, h, ry, tint = null) => { const k = h / hOf(pr); B.instance(pr, M4(x, -pr.box.min.y * k, z, ry, k), { tint, cast: false }); };
+  const put = (pr, x, z, h, ry, tint = null) => { const k = h / hOf(pr); B.instance(pr, M4(x, -pr.box.min.y * k, z, ry, k), { tint, cast: false, small: true }); };
   const dense = quality.grass ? 1 : 0.35;     // phones: a third of the dressing
   // the moor's paler dressing goes by area (one world: zone.regions), so it stops at the moor's edge
   const moorZone = /moor/.test(zone.id) || zone.under === 'x1_moor_turf';
   for (let y = 0; y < H; y++) {
+    if (inPart && !inPart.row(y)) continue;
     for (let x = 0; x < W; x++) {
-      if (busy[y * W + x]) continue;
+      if (busy[y * W + x] || (inPart && !inPart(x, y))) continue;
       const moor = moorZone || underAt(zone, x, y) === 'x1_moor_turf';
       const r = (s) => hashXY(x, y, 40 + s);
       if (isGrass(x, y)) {
@@ -626,29 +634,97 @@ async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, is
     }
     await step();
   }
+  return busy;
 }
 
-/** Build one zone. */
-export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn = null, progress = null } = {}) {
+// ---------- big zones: near the hero first, a far version for long views (big world piece 1, 2026-11-22) ----------
+// A zone bigger than BIG_ZONE builds in parts by distance from a focus (the hero's landing spot): everything within
+// PART_R[0] m first (the zone is shown then), the rest ring by ring behind it while the hero walks (z.more). A small
+// zone is one part, built exactly as before.
+// Far detail: each 48 m cell also gets one cheap merged mesh (a cone per tree, a box per building, vertex colours, no
+// shadow): the renderer shows it for cells past the full-detail reach (cull(x, z, r, farR)) when the view reaches that far
+// (a long view, flight). Small instanced props (grass, pebbles, ferns, flowers) are switched off past SMALL_R in any cell.
+export const PART_R = [100, 200, Infinity];
+export const SMALL_R = 70;
+// the Rootbound's ink bridges: thin tiles of pale written light over the ink
+const INK_BRIDGE_MAT = new THREE.MeshStandardMaterial({ color: '#6a80b0', emissive: '#2a4ab0', emissiveIntensity: 0.22, roughness: 0.5, name: 'lr_inkbridge' });
+const INK_TILE = new THREE.BoxGeometry(1.02, 0.06, 1.02);
+const FAR_MAT = new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 1, flatShading: true, name: 'lr_far' });
+const FAR_CONE = (() => { const g = new THREE.ConeGeometry(0.42, 1, 6, 1, true).toNonIndexed(); g.translate(0, 0.5, 0); return g; })();
+const FAR_BOX = (() => { const g = new THREE.BoxGeometry(1, 1, 1).toNonIndexed(); g.translate(0, 0.5, 0); return g; })();
+const FAR_ROOF = (() => { const g = new THREE.ConeGeometry(Math.SQRT1_2, 1, 4, 1).toNonIndexed(); g.rotateY(Math.PI / 4); g.translate(0, 0.5, 0); return g; })();
+// the canopy as roots (zone.canopy 'roots': the Rootbound): dark bark brown at the base, a mossy tip
+const ROOT_LOOK = [['#2a1c12', '#4a3a22'], ['#24180f', '#3c4424'], ['#2e2014', '#52422a']];
+let rootProtos = null;
+function rootCanopyProtos() {
+  if (rootProtos) return rootProtos;
+  rootProtos = ROOT_LOOK.map(([lo, hi], v) => {
+    // a twisted root mass: three leaning trunks fused at the base, narrow at the top
+    const parts = [0, 1, 2].map((i) => {
+      const g = new THREE.CylinderGeometry(0.06 + 0.04 * i, 0.32 - 0.05 * i, 1, 6, 3, true);
+      const a = (i / 3) * Math.PI * 2 + v;
+      const lean = new THREE.Matrix4().makeRotationAxis(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)), 0.18 + 0.08 * i);
+      g.translate(0, 0.5, 0); g.applyMatrix4(lean); g.translate(Math.sin(a) * 0.12, 0, -Math.cos(a) * 0.12);
+      const ps = g.attributes.position, col = new Float32Array(ps.count * 3), c = new THREE.Color();
+      for (let k = 0; k < ps.count; k++) { c.set(lo).lerp(new THREE.Color(hi), Math.max(0, Math.min(1, ps.getY(k)))); col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      return g;
+    });
+    const geometry = mergeGeometries(parts, false);
+    return { parts: [{ geometry, material: CANOPY_MAT, matrix: new THREE.Matrix4() }], box: new THREE.Box3(new THREE.Vector3(-0.42, 0, -0.42), new THREE.Vector3(0.42, 1, 0.42)), url: `lr:rootmass${v}` };
+  });
+  return rootProtos;
+}
+// a library bookcase (zone.style 'library': the map's x1_blank_slab is a shelf there), code-built so it merges
+const BOOK_COLS = ['#7a2a22', '#2a4a6a', '#3a5a2a', '#8a6a2a', '#5a2a5a', '#2a2a3a', '#a08050'];
+function bookcase(x, z, seed) {
+  const g = new THREE.Group();
+  const wood = MAT.darkWood;
+  const side = (dx) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.08, 2.4, 0.5), wood); m.position.set(x + dx, 1.2, z); g.add(m); };
+  side(-0.46); side(0.46);
+  for (let i = 0; i < 5; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.5), wood); m.position.set(x, 0.05 + i * 0.58, z); g.add(m); }
+  const back = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.4, 0.04), wood); back.position.set(x, 1.2, z - 0.23); g.add(back);
+  for (let s = 0; s < 4; s++) {
+    let bx = -0.4;
+    for (let b = 0; b < 9 && bx < 0.38; b++) {
+      const w = 0.05 + hashXY(seed + s, b, 81) * 0.05, h = 0.32 + hashXY(seed + s, b, 82) * 0.18;
+      const col = BOOK_COLS[Math.floor(hashXY(seed + s, b, 83) * BOOK_COLS.length)];
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.36), bookMat(col));
+      m.position.set(x + bx + w / 2, 0.08 + s * 0.58 + h / 2, z + 0.02); g.add(m);
+      bx += w + 0.012;
+    }
+  }
+  return g;
+}
+const bookMats = new Map();
+const bookMat = (c) => { if (!bookMats.has(c)) bookMats.set(c, new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, name: `lr_book_${c}` })); return bookMats.get(c); };
+
+/** Build one zone. near: { x, y } tiles, where the hero will land (big zones build out from there; default its arrival).
+ *  Returns once the first part is built; z.more resolves when the whole zone is. */
+export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn = null, progress = null, near = null } = {}) {
   const report = (k) => { if (progress) progress(Math.max(0, Math.min(1, k))); };
   const place = isPlaceZone(zone), plan = place ? dungeonPlan(zone) : null;
   const group = new THREE.Group(); group.name = `zone:${zone.id}`;
   const P = makeProtoCache(L);
-  const B = makeBatcher(group, { shadows: !!quality.shadows, chInst: zone.w * zone.h > BIG_ZONE ? CH_INST_BIG : CH });
+  const chInst = zone.w * zone.h > BIG_ZONE ? CH_INST_BIG : CH;
   const lamps = [];
   const buildings = [];            // [{ id, x0, z0, w, d, top }] for the building cutaway
   const town = zone.kind === 'town';
   // the one world is a 'field' with a town area in it: a building is a town building when its area is (regions[].kind)
   const townAt = (x, y) => town || (regionInfo(zone, x, y) || {}).kind === 'town';
   const W = zone.w, H = zone.h;
+  const roots = zone.canopy === 'roots', library = zone.style === 'library';
   let waterTex = null;
   const secretCells = new Set();   // passage cells of the zone's secrets (they draw solid; the sim walks them)
   const fallSide = new Map();      // face cells beside a waterfall: their rock is smaller and leans away (x shift), so the fall shows
   for (const s of zone.secrets || []) for (const [x, y] of s.passage) secretCells.add(`${x},${y}`);
   for (const s of zone.secrets || []) if (s.kind === 'waterfall') for (const [x, y] of s.passage) for (const dx of [-1, 1]) if (!secretCells.has(`${x + dx},${y}`)) fallSide.set(`${x + dx},${y}`, dx * 0.22);
   // yield to the frame loop whenever this build has held the thread for a few milliseconds (no hitch while walking)
-  let slice = performance.now();
-  const step = async () => { if (yieldFn && performance.now() - slice > 5) { await yieldFn(); slice = performance.now(); } };
+  let slice = performance.now(), cancelled = false;
+  const step = async () => {
+    if (cancelled) throw new Error('lr: zone build cancelled');
+    if (yieldFn && performance.now() - slice > 5) { await yieldFn(); slice = performance.now(); }
+  };
 
   // terrain per tile (legend + terrain overlays)
   const terr = [], legendAt = [];
@@ -690,7 +766,8 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const shade = new Float32Array(W * H);
   for (const d of zone.decor || []) {
     if (!d.deep) continue;
-    for (let y = d.y - 1; y <= d.y + 1; y++) for (let x = d.x - 1; x <= d.x + 1; x++) if (x >= 0 && y >= 0 && x < W && y < H) shade[y * W + x] = Math.max(shade[y * W + x], x === d.x && y === d.y ? 0.75 : 0.5);
+    const rr = d.deep > 1 ? d.deep + 1 : 1;
+    for (let y = d.y - rr; y <= d.y + rr; y++) for (let x = d.x - rr; x <= d.x + rr; x++) if (x >= 0 && y >= 0 && x < W && y < H) shade[y * W + x] = Math.max(shade[y * W + x], x === d.x && y === d.y ? 0.75 : 0.5);
   }
   const gtex = paintGround(zone, terrainAt, wear, shade);
   const gmat = groundMaterial(gtex, W, H);
@@ -698,7 +775,8 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   ground.rotation.x = -Math.PI / 2; ground.position.set(W / 2, 0, H / 2); ground.receiveShadow = true;
   group.add(ground);
   const apronMap = groundDetail().grass.clone(); apronMap.repeat.set((W + 160) / 2, (H + 160) / 2); apronMap.needsUpdate = true;
-  const apron = new THREE.Mesh(new THREE.PlaneGeometry(W + 160, H + 160), new THREE.MeshStandardMaterial({ map: apronMap, color: place ? new THREE.Color('#050404') : new THREE.Color(GROUND[zone.under] || GROUND.grass).multiplyScalar(1.25), roughness: 1 }));
+  const apronCol = place ? new THREE.Color('#050404') : roots ? new THREE.Color('#14100c') : new THREE.Color(GROUND[zone.under] || GROUND.grass).multiplyScalar(1.25);
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(W + 160, H + 160), new THREE.MeshStandardMaterial({ map: apronMap, color: apronCol, roughness: 1 }));
   apron.rotation.x = -Math.PI / 2; apron.position.set(W / 2, -0.03, H / 2); apron.receiveShadow = true;
   group.add(apron);
   report(0.1);
@@ -718,7 +796,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   if (wet) {
     wmg.putImageData(wmi, 0, 0);
     const mt = new THREE.CanvasTexture(wm); mt.wrapS = mt.wrapT = THREE.ClampToEdgeWrapping;
-    const wmat = waterMaterial(mt, W, H);
+    const wmat = waterMaterial(mt, W, H, zone.cavern ? 1 : 0);
     const wgeo = new THREE.PlaneGeometry(W, H); wgeo.rotateX(-Math.PI / 2); wgeo.translate(W / 2, 0.035, H / 2);
     const uv2 = wgeo.attributes.uv, ps2 = wgeo.attributes.position;
     // uv: the mask lookup; lrWorld (world metres) breaks the shore edge
@@ -729,192 +807,296 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   }
   await step();
 
-  // cobbles on the plaza, planks on bridges
-  const cob = await P('village/Floor_UnevenBrick.gltf');
-  const cobK = 1 / Math.max(0.01, cob.box.max.x - cob.box.min.x);
-  const plank = await P('village/Floor_WoodDark.gltf');
-  const plankK = 1 / Math.max(0.01, plank.box.max.x - plank.box.min.x);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (terr[y][x] === 'plaza' || terr[y][x] === 'lr_dfloor') B.instance(cob, M4(x + 0.5, 0.0, y + 0.5, Math.floor(hashXY(x, y) * 4) * Math.PI / 2, cobK, 1, cobK), { cast: false, tint: terr[y][x] === 'lr_dfloor' ? '#8a8078' : null });
-  for (const o of zone.overlays || []) {
-    if (/^bridge_/.test(o.t) && !/piles|arch/.test(o.t)) B.instance(plank, M4(o.x + 0.5, 0.12, o.y + 0.5, 0, plankK, 1, plankK), { cast: false });
-  }
-  await step();
-
-  report(0.2);
-  // a dungeon or cave: its walls, corners, rock tops and columns (dungeon3d.js)
-  if (place) { await buildPlaceWalls(L, zone, B, plan); report(0.35); await step(); }
-
-  // fences and low walls from the ground layer, cliffs and ledges as rock
-  const fence = await P('village/Prop_WoodenFence_Single.gltf');
-  const fb = fence.box, fLen = Math.max(fb.max.x - fb.min.x, fb.max.z - fb.min.z), fAlongX = (fb.max.x - fb.min.x) >= (fb.max.z - fb.min.z);
-  const rocks = await Promise.all([1, 2, 3].map((i) => P(`nature/Rock_Medium_${i}.gltf`)));
-  const rockH = rocks.map((r) => Math.max(0.1, r.box.max.y - r.box.min.y));
-  const isF = (x, y) => x >= 0 && y >= 0 && x < W && y < H && legendAt[y][x] === 'fence_wood';
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const id = legendAt[y][x];
-    if (id === 'fence_wood') {
-      const horiz = isF(x - 1, y) || isF(x + 1, y) || !(isF(x, y - 1) || isF(x, y + 1));
-      const ry = (horiz ? 0 : Math.PI / 2) + (fAlongX ? 0 : Math.PI / 2);
-      B.instance(fence, M4(x + 0.5, 0, y + 0.5, ry, 1 / fLen, 1, 1 / fLen));
-    } else if (id === 'wall_low') {
-      const s = new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.5), MAT.stone); s.position.set(x + 0.5, 0.3, y + 0.5); s.updateMatrixWorld(); B.mergeGeo(s.geometry, MAT.stone, s.matrixWorld);
-    } else if (id && /_face$/.test(id)) {
-      const i = Math.floor(hashXY(x, y, 3) * 3);
-      const h = 1.8 + hashXY(x, y, 5) * 0.8;
-      // a false rock face (secret passage): the same rock, a little paler and split, so a sharp eye can tell
-      const fake = secretCells.has(`${x},${y}`), side = fallSide.get(`${x},${y}`) || 0;
-      const sxz = fake ? 1.35 : side ? 1.05 : 1.5;
-      B.instance(rocks[i], M4(x + 0.5 + side, -0.2, y + 0.5, hashXY(x, y, 9) * 6.28 + (fake ? 0.4 : 0), sxz, h / rockH[i], sxz), { tint: fake ? '#b4a890' : '#9a9286' });
-    } else if (id && /^ledge_/.test(id)) {
-      const i = Math.floor(hashXY(x, y, 3) * 3);
-      B.instance(rocks[i], M4(x + 0.5, -0.1, y + 0.7, hashXY(x, y, 9) * 6.28, 1.1, 0.5 / rockH[i], 0.7), { tint: '#9a9286' });
-    }
-  }
-  await step();
-
-  // decor
+  // ---- the parts: distance rings round the focus (big zones), or the whole zone at once
+  const big = W * H > BIG_ZONE && !place;
+  const fc = near || { x: (zone.arrival || [W / 2, H / 2])[0], y: (zone.arrival || [W / 2, H / 2])[1] };
+  const radii = big ? PART_R : [Infinity];
+  const partOf = (x, y) => { const d = Math.hypot(x - fc.x, y - fc.y); for (let i = 0; i < radii.length; i++) if (d < radii[i]) return i; return radii.length - 1; };
+  const cells = [], fars = [];
+  const haloMats = [];
+  let busy = null;
   const tiles = (tilesDb && tilesDb.objects) || {};
   const tree = { pine: [1, 2, 3, 4, 5].map((i) => `nature/Pine_${i}.gltf`), common: [1, 2, 3, 4, 5].map((i) => `nature/CommonTree_${i}.gltf`) };
-  const placeModel = async (url, x, z, { h = null, s = 1, ry = 0, tint = null, tintMatch = null, merge = false, cast = true, y = 0, sy = null, xz = 1 } = {}) => {
-    const pr = await P(url);
-    const bh = Math.max(0.05, pr.box.max.y - pr.box.min.y);
-    const k = h ? h / bh : s;
-    const m = M4(x, y - pr.box.min.y * k, z, ry, k * xz, sy != null ? sy * k : k, k * xz);
-    if (merge) B.mergeModel(pr, m, { tint }); else B.instance(pr, m, { tint, tintMatch, cast });
-  };
-  const jobs = [];
-  let n = 0;
-  for (const d of zone.decor || []) {
-    const t = d.t;
-    const meta = tiles[t] || null;
-    const r = (s) => hashXY(d.x, d.y, s);
-    // footprint box in tiles
-    let fx0 = d.x, fz0 = d.y, fw = 1, fd = 1;
-    if (meta && Array.isArray(meta.footprint) && Array.isArray(meta.footprint[0])) {
-      const xs = meta.footprint.map((p) => p[0]), ys = meta.footprint.map((p) => p[1]);
-      fx0 = d.x + Math.min(...xs); fz0 = d.y + Math.min(...ys); fw = Math.max(...xs) - Math.min(...xs) + 1; fd = Math.max(...ys) - Math.min(...ys) + 1;
-    } else if (/bench|anvil|tree_willow/.test(t)) fw = 2; else if (/crates_barrels|hedge_flowers/.test(t)) fw = 3;
-    const cx = fx0 + fw / 2, cz = fz0 + fd / 2;
-    if (BUILDING[t]) {
-      const def = BUILDING[t];
-      const door = meta && meta.doorAt ? meta.doorAt[0] : Math.floor(fw / 2);
-      const o = { town: townAt(d.x, d.y), bld: bldSlot() };
-      const fd2 = def.solidTower ? Math.max(fd, 3) : fd;
-      jobs.push(buildHouse(P, B, def, fx0, def.solidTower ? fz0 + fd - fd2 : fz0, fw, fd2, door, d.x * 7 + d.y, o).then((bb) => { buildings.push(bb); }));
-    } else if (t === 'town_gate') B.mergeGroup(townGate(fx0, d.y + 0.5, fw));
-    else if (t === 'x1_barrow_door_closed') { if (!doorAt(zone, fx0, fz0, fw, fd)) B.mergeGroup(barrowMound(cx, cz, fw)); }   // an open door replaces it
-    else if (t === 'well') B.mergeGroup(well(cx, cz));
-    else if (t === 'lamp_post') { const lp = lampPost(d.x + 0.5, d.y + 0.5); B.mergeGroup(lp.g); lamps.push({ pos: lp.light, color: '#ffb35c', k: 1 }); }
-    // trees (landscape pass, flora.js): inland pines 3.3 to 4.3 m with slim crowns, border pines taller; willows 4.6 to 5.2 m
-    else if (t === 'tree_pine' && d.deep) {
-      const dm = treeDims(t, d.x, d.y, false), k = dm.h * (1.0 + r(4) * 0.25), wk = dm.h * (0.85 + r(5) * 0.2);   // crown radius about 0.4 of the height
-      B.instance(canopyProtos3()[Math.floor(r(1) * 3)], M4(d.x + 0.5, 0, d.y + 0.5, r(3) * 6.28, wk, k, wk));
+  const stats = { parts: 0, partMs: [] };
+
+  async function buildPart(pi) {
+    const t0 = performance.now();
+    const inPart = (x, y) => partOf(x, y) === pi;
+    // rows a part can touch (cheap reject for whole rows outside a ring)
+    inPart.row = (y) => Math.abs(y - fc.y) < radii[pi] + 1;
+    const B = makeBatcher(group, { shadows: !!quality.shadows, chInst });
+    const farGeo = new Map();          // 48 m cell -> [geometries] for its far version
+    const farAdd = (geo, color, x, z, sx, sy, sz, ry = 0, y0 = 0) => {
+      const k = `${Math.floor(x / CH)},${Math.floor(z / CH)}`;
+      const g = geo.clone(); g.applyMatrix4(M4(x, y0, z, ry, sx, sy, sz));
+      const c = new THREE.Color(color), col = new Float32Array(g.attributes.position.count * 3);
+      for (let i = 0; i < g.attributes.position.count; i++) { const y = g.attributes.position.getY(i); const kk = 0.7 + 0.3 * Math.min(1, y / Math.max(0.1, sy)); col[i * 3] = c.r * kk; col[i * 3 + 1] = c.g * kk; col[i * 3 + 2] = c.b * kk; }
+      g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      for (const n of Object.keys(g.attributes)) if (!['position', 'normal', 'color'].includes(n)) g.deleteAttribute(n);
+      if (!farGeo.has(k)) farGeo.set(k, []);
+      farGeo.get(k).push(g);
+    };
+    const myLamps = [];
+    const lamp = (l) => { lamps.push(l); myLamps.push(l); };
+
+    // cobbles on the plaza, planks on bridges
+    const cob = await P('village/Floor_UnevenBrick.gltf');
+    const cobK = 1 / Math.max(0.01, cob.box.max.x - cob.box.min.x);
+    const plank = await P('village/Floor_WoodDark.gltf');
+    const plankK = 1 / Math.max(0.01, plank.box.max.x - plank.box.min.x);
+    for (let y = 0; y < H; y++) {
+      if (!inPart.row(y)) continue;
+      for (let x = 0; x < W; x++) if ((terr[y][x] === 'plaza' || terr[y][x] === 'lr_dfloor') && inPart(x, y)) B.instance(cob, M4(x + 0.5, 0.0, y + 0.5, Math.floor(hashXY(x, y) * 4) * Math.PI / 2, cobK, 1, cobK), { cast: false, tint: terr[y][x] === 'lr_dfloor' ? '#8a8078' : roots ? '#b0a890' : null });
     }
-    else if (t === 'tree_pine') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel(tree.pine[Math.floor(r(1) * 5)], d.x + 0.5, d.y + 0.6, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28 })); }
-    else if (t === 'tree_willow') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel('nature/TwistedTree_1.gltf', cx, d.y + 0.5, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28, tint: '#d8f0b0', tintMatch: /Leaves/ })); }
-    else if (t === 'root_column') jobs.push(placeModel('nature/TwistedTree_3.gltf', cx, d.y + 0.5, { h: 5, ry: r(3) * 6.28 }));
-    else if (t === 'bush') jobs.push(placeModel(r(1) < 0.25 ? 'nature/Bush_Common_Flowers.gltf' : 'nature/Bush_Common.gltf', d.x + 0.5, d.y + 0.5, { h: 0.9 + r(2) * 0.5, ry: r(3) * 6.28 }));
-    else if (/^x1_gorse/.test(t)) jobs.push(placeModel('nature/Bush_Common_Flowers.gltf', cx, d.y + 0.5, { h: 0.8 + r(2) * 0.4, ry: r(3) * 6.28, tint: '#c8b060' }));
-    else if (t === 'hedge_flowers') for (let i = 0; i < 3; i++) jobs.push(placeModel('nature/Bush_Common_Flowers.gltf', d.x + 0.5 + i, d.y + 0.5, { h: 0.9, ry: r(i) * 6.28 }));
-    else if (t === 'x1_boulder_a') { const i = Math.floor(r(1) * 3); jobs.push(placeModel(`nature/Rock_Medium_${i + 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: 0.6 + r(2) * 0.6, ry: r(3) * 6.28, tint: '#7a746a' })); }
-    else if (/^x1_menhir|x1_blank_slab|prop_milestone/.test(t)) { const i = Math.floor(r(1) * 3); jobs.push(placeModel(`nature/Rock_Medium_${i + 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: t === 'prop_milestone' ? 0.8 : 2.3, s: 1, ry: r(3) * 6.28, tint: '#7a766e' })); }
-    else if (t === 'x1_cairn_moor') { for (let i = 0; i < 3; i++) jobs.push(placeModel(`nature/Pebble_Round_${i % 2 ? 3 : 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: 0.4 - i * 0.08, y: i * 0.32, ry: i * 2, tint: '#8a8680' })); }
-    else if (t === 'x1_fallen_oak') {
-      const pr = await P('nature/DeadTree_1.gltf');
-      const bh = pr.box.max.y - pr.box.min.y, k = (fw + 0.5) / bh;
-      B.instance(pr, new THREE.Matrix4().compose(new THREE.Vector3(fx0 + 0.2, 0.3, d.y + 0.5), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -Math.PI / 2)), new THREE.Vector3(k, k, k)));
-    }
-    else if (t === 'bench') jobs.push(placeModel('props/Bench.gltf', cx, d.y + 0.5, { s: 1, ry: 0, merge: true }));
-    else if (t === 'anvil') jobs.push(placeModel('props/Anvil.gltf', cx, d.y + 0.5, { h: 0.8, merge: true }));
-    else if (t === 'barrel') jobs.push(placeModel('props/Barrel.gltf', d.x + 0.5, d.y + 0.5, { h: 1.0, ry: r(3) * 6, merge: true }));
-    else if (t === 'crate') jobs.push(placeModel('props/Crate_Wooden.gltf', d.x + 0.5, d.y + 0.5, { h: 0.8, ry: r(3), merge: true }));
-    else if (t === 'crates_barrels') { jobs.push(placeModel('props/Barrel.gltf', d.x + 0.5, d.y + 0.5, { h: 1.0, merge: true })); jobs.push(placeModel('props/Crate_Wooden.gltf', d.x + 1.5, d.y + 0.5, { h: 0.8, ry: 0.4, merge: true })); jobs.push(placeModel('props/Barrel_Apples.gltf', d.x + 2.5, d.y + 0.5, { h: 1.0, merge: true })); }
-    else if (t === 'x1_sack_stack') jobs.push(placeModel('props/Bag.gltf', d.x + 0.5, d.y + 0.5, { h: 0.7, ry: r(2) * 6, merge: true }));
-    else if (/^market_stall/.test(t)) jobs.push(placeModel(t === 'market_stall_fruit' ? 'props/Stall_Cart_Empty.gltf' : 'props/Stall_Empty.gltf', cx, d.y + 0.5, { h: 2.4, merge: true }));
-    else if (/^signboard|^signpost/.test(t)) B.mergeGroup(post(d.x + 0.5, d.y + 0.5, 1.6, true));
-    else if (t === 'x1_haybale') B.mergeGroup(hay(d.x + 0.5, d.y + 0.5, 'bale'));
-    else if (/^x1_haystack/.test(t)) B.mergeGroup(hay(cx, d.y + 0.5, 'stack'));
-    else if (/^x1_trough/.test(t)) B.mergeGroup(trough(cx, d.y + 0.5, t === 'x1_trough'));
-    else if (t === 'x1_hearth') { B.mergeGroup(hearth(cx, d.y + 0.5)); lamps.push({ pos: new THREE.Vector3(cx, 0.8, d.y + 0.5), color: '#ff9a40', k: 1.3, fire: true }); }
-    else if (/^x1_chimepost/.test(t)) B.mergeGroup(chimePost(d.x + 0.5, d.y + 0.5));
-    else if (/chain/.test(t)) B.mergeGroup(chainGate(cx, d.y + 0.5, fw));
-    else if (t === 'x1_scarecrow') B.mergeGroup(scarecrow(d.x + 0.5, d.y + 0.5));
-    else if (t === 'x1_roots_stile') jobs.push(placeModel('nature/TwistedTree_3.gltf', cx, d.y + 0.5, { h: 2.5, ry: 1 }));
-    if (++n % 20 === 0) { await Promise.all(jobs.splice(0)); await step(); report(0.35 + 0.3 * n / Math.max(1, (zone.decor || []).length)); }
-  }
-  await Promise.all(jobs.splice(0));
-  // dungeon and cave props (dungeon_plan.js), and the world's doors into them
-  let glow = null;
-  if (place) { glow = await dressPlace(L, P, B, zone, plan, lamps); if (glow) group.add(glow); await step(); }
-  if (zone.doors && zone.doors.length) { await buildDoorMouths(P, B, zone, lamps); await step(); }
-  report(0.7);
-  // secrets: a waterfall curtain across its passage (from the cliff top down to the water), and a twinkle at every hint
-  const sparks = [];
-  for (const s of zone.secrets || []) {
-    if (s.kind === 'waterfall') {
-      const xs = s.passage.map((p) => p[0]), ys = s.passage.map((p) => p[1]);
-      const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
-      const w = x1 - x0 - 0.1, hgt = 2.7;
-      for (const [z, k] of [[y1 + 0.05, 1], [(y0 + y1) / 2, 0.8]]) {
-        const geo = new THREE.PlaneGeometry(w, hgt, 1, 1);
-        geo.translate((x0 + x1) / 2, hgt / 2 - 0.05, z);
-        const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w * 0.5, uv.getY(i) * k);
-        const m = new THREE.Mesh(geo, FALL_MAT); m.renderOrder = 2; group.add(m);
-      }
-      sparks.push(new THREE.Vector3((x0 + x1) / 2, 0.25, y1 + 0.3));   // the spray at its foot
-    }
-    if (s.hint) sparks.push(new THREE.Vector3(s.hint[0] + 0.5, 0.9, s.hint[1] + 0.35));
-  }
-  if (sparks.length) { const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints(sparks), SPARK); pts.renderOrder = 3; group.add(pts); }
-  // lantern posts (the respawn lanterns) are lamp posts too
-  for (const ln of zone.lanterns || []) {
-    if (!ln.post) continue;
-    const lp = lampPost(ln.post[0] + 0.5, ln.post[1] + 0.5); B.mergeGroup(lp.g); lamps.push({ pos: lp.light, color: '#ffc46b', k: 1.2 });
-  }
-  // small ground dressing: flowers, tufts, tall grass (desktop quality only)
-  if (quality.grass) {
     for (const o of zone.overlays || []) {
-      if (/^(flowers|hydrangea)/.test(o.t)) jobs.push(placeModel(hashXY(o.x, o.y) < 0.5 ? 'nature/Flower_3_Group.gltf' : 'nature/Flower_4_Group.gltf', o.x + 0.5, o.y + 0.5, { h: 0.35, ry: hashXY(o.x, o.y, 2) * 6, cast: false }));
-      else if (/^tuft|^pebbles/.test(o.t)) jobs.push(placeModel(/^tuft/.test(o.t) ? 'nature/Grass_Common_Short.gltf' : 'nature/Pebble_Round_3.gltf', o.x + 0.5, o.y + 0.5, { h: /^tuft/.test(o.t) ? 0.35 : 0.12, ry: hashXY(o.x, o.y, 2) * 6, cast: false }));
+      if (!inPart(o.x, o.y)) continue;
+      if (/^bridge_/.test(o.t) && !/piles|arch/.test(o.t)) B.instance(plank, M4(o.x + 0.5, 0.12, o.y + 0.5, 0, plankK, 1, plankK), { cast: false });
+      else if (/^ink_bridge_/.test(o.t)) B.mergeGeo(INK_TILE, INK_BRIDGE_MAT, M4(o.x + 0.5, 0.06, o.y + 0.5), false);   // a bridge written in light
     }
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const t = terr[y][x];
-      if (!(t === 'tallgrass' || t === 'x1_heath' || t === 'x1_bracken') || hashXY(x, y, 11) < 0.35) continue;
-      const tint = t === 'x1_heath' ? '#b090a0' : t === 'x1_bracken' ? '#c09050' : null;
-      jobs.push(placeModel('nature/Grass_Wispy_Tall.gltf', x + hashXY(x, y, 12), y + hashXY(x, y, 13), { h: 0.5 + hashXY(x, y, 14) * 0.3, ry: hashXY(x, y, 15) * 6, tint, cast: false }));
+    await step();
+
+    report(0.2);
+    // a dungeon or cave: its walls, corners, rock tops and columns (dungeon3d.js)
+    if (place) { await buildPlaceWalls(L, zone, B, plan); report(0.35); await step(); }
+
+    // fences and low walls from the ground layer, cliffs and ledges as rock
+    const fence = await P('village/Prop_WoodenFence_Single.gltf');
+    const fb = fence.box, fLen = Math.max(fb.max.x - fb.min.x, fb.max.z - fb.min.z), fAlongX = (fb.max.x - fb.min.x) >= (fb.max.z - fb.min.z);
+    const rocks = await Promise.all([1, 2, 3].map((i) => P(`nature/Rock_Medium_${i}.gltf`)));
+    const rockH = rocks.map((r) => Math.max(0.1, r.box.max.y - r.box.min.y));
+    const isF = (x, y) => x >= 0 && y >= 0 && x < W && y < H && legendAt[y][x] === 'fence_wood';
+    for (let y = 0; y < H; y++) {
+      if (!inPart.row(y)) continue;
+      for (let x = 0; x < W; x++) {
+        const id = legendAt[y][x];
+        if (!id || !inPart(x, y)) continue;
+        if (id === 'fence_wood') {
+          const horiz = isF(x - 1, y) || isF(x + 1, y) || !(isF(x, y - 1) || isF(x, y + 1));
+          const ry = (horiz ? 0 : Math.PI / 2) + (fAlongX ? 0 : Math.PI / 2);
+          B.instance(fence, M4(x + 0.5, 0, y + 0.5, ry, 1 / fLen, 1, 1 / fLen));
+        } else if (id === 'wall_low') {
+          const s = new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.5), MAT.stone); s.position.set(x + 0.5, 0.3, y + 0.5); s.updateMatrixWorld(); B.mergeGeo(s.geometry, MAT.stone, s.matrixWorld);
+        } else if (/_face$/.test(id)) {
+          const i = Math.floor(hashXY(x, y, 3) * 3);
+          const h = 1.8 + hashXY(x, y, 5) * 0.8;
+          // a false rock face (secret passage): the same rock, a little paler and split, so a sharp eye can tell
+          const fake = secretCells.has(`${x},${y}`), side = fallSide.get(`${x},${y}`) || 0;
+          const sxz = fake ? 1.35 : side ? 1.05 : 1.5;
+          B.instance(rocks[i], M4(x + 0.5 + side, -0.2, y + 0.5, hashXY(x, y, 9) * 6.28 + (fake ? 0.4 : 0), sxz, h / rockH[i], sxz), { tint: fake ? '#b4a890' : '#9a9286' });
+          farAdd(FAR_BOX, '#7a746a', x + 0.5, y + 0.5, 1.2, h, 1.2);
+        } else if (/^ledge_/.test(id)) {
+          const i = Math.floor(hashXY(x, y, 3) * 3);
+          B.instance(rocks[i], M4(x + 0.5, -0.1, y + 0.7, hashXY(x, y, 9) * 6.28, 1.1, 0.5 / rockH[i], 0.7), { tint: '#9a9286' });
+        }
+      }
+    }
+    await step();
+
+    // decor
+    const placeModel = async (url, x, z, { h = null, s = 1, ry = 0, tint = null, tintMatch = null, merge = false, cast = true, y = 0, sy = null, xz = 1, small = false } = {}) => {
+      const pr = await P(url);
+      const bh = Math.max(0.05, pr.box.max.y - pr.box.min.y);
+      const k = h ? h / bh : s;
+      const m = M4(x, y - pr.box.min.y * k, z, ry, k * xz, sy != null ? sy * k : k, k * xz);
+      if (merge) B.mergeModel(pr, m, { tint }); else B.instance(pr, m, { tint, tintMatch, cast, small });
+    };
+    const jobs = [];
+    let n = 0;
+    const decorN = (zone.decor || []).length;
+    for (const d of zone.decor || []) {
+      if (!inPart(d.x, d.y)) continue;
+      const t = d.t;
+      const meta = tiles[t] || null;
+      const r = (s) => hashXY(d.x, d.y, s);
+      // footprint box in tiles
+      let fx0 = d.x, fz0 = d.y, fw = 1, fd = 1;
+      if (meta && Array.isArray(meta.footprint) && Array.isArray(meta.footprint[0])) {
+        const xs = meta.footprint.map((p) => p[0]), ys = meta.footprint.map((p) => p[1]);
+        fx0 = d.x + Math.min(...xs); fz0 = d.y + Math.min(...ys); fw = Math.max(...xs) - Math.min(...xs) + 1; fd = Math.max(...ys) - Math.min(...ys) + 1;
+      } else if (/bench|anvil|tree_willow/.test(t)) fw = 2; else if (/crates_barrels|hedge_flowers/.test(t)) fw = 3;
+      const cx = fx0 + fw / 2, cz = fz0 + fd / 2;
+      if (BUILDING[t]) {
+        const def = BUILDING[t];
+        const door = meta && meta.doorAt ? meta.doorAt[0] : Math.floor(fw / 2);
+        const o = { town: townAt(d.x, d.y), bld: bldSlot() };
+        const fd2 = def.solidTower ? Math.max(fd, 3) : fd;
+        jobs.push(buildHouse(P, B, def, fx0, def.solidTower ? fz0 + fd - fd2 : fz0, fw, fd2, door, d.x * 7 + d.y, o).then((bb) => { buildings.push(bb); }));
+        const hh = (def.floors || 1) * 2.6 * (o.town ? 0.85 : 1);
+        farAdd(FAR_BOX, def.style === 'brick' ? '#8a6a58' : '#c8b898', cx, cz, fw, hh, fd2);
+        farAdd(FAR_ROOF, '#8a3a26', cx, cz, fw + 0.4, Math.min(fw, fd2) * 0.55, fd2 + 0.4, 0, hh);   // the roof
+      } else if (t === 'town_gate') B.mergeGroup(townGate(fx0, d.y + 0.5, fw));
+      else if (t === 'x1_barrow_door_closed') { if (!doorAt(zone, fx0, fz0, fw, fd)) B.mergeGroup(barrowMound(cx, cz, fw)); }   // an open door replaces it
+      else if (t === 'well') B.mergeGroup(well(cx, cz));
+      else if (t === 'lamp_post') { const lp = lampPost(d.x + 0.5, d.y + 0.5); B.mergeGroup(lp.g); lamp({ pos: lp.light, color: roots ? '#9fc4ff' : '#ffb35c', k: 1 }); }
+      // trees (landscape pass, flora.js): inland pines 3.3 to 4.3 m with slim crowns, border pines taller; willows 4.6 to 5.2 m
+      else if (t === 'tree_pine' && d.deep) {
+        // deep: n: one crown standing for n x n trees (the sparse canopy of a big zone)
+        const dk = d.deep > 1 ? d.deep : 1;
+        const dm = treeDims(t, d.x, d.y, false), k = dm.h * (1.0 + r(4) * 0.25) * (dk > 1 ? 1.35 : 1), wk = dm.h * (0.85 + r(5) * 0.2) * dk;   // crown radius about 0.4 of the height
+        const pr = roots ? rootCanopyProtos()[Math.floor(r(1) * 3)] : canopyProtos3()[Math.floor(r(1) * 3)];
+        B.instance(pr, M4(d.x + 0.5, 0, d.y + 0.5, r(3) * 6.28, wk, roots ? k * 1.6 : k, wk));
+        farAdd(FAR_CONE, roots ? '#3a2a1a' : '#2a4a20', d.x + 0.5, d.y + 0.5, wk * 0.9, roots ? k * 1.6 : k, wk * 0.9);
+      }
+      else if (t === 'tree_pine') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel(tree.pine[Math.floor(r(1) * 5)], d.x + 0.5, d.y + 0.6, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28 })); farAdd(FAR_CONE, '#2e5222', d.x + 0.5, d.y + 0.6, dm.h * 0.8, dm.h, dm.h * 0.8); }
+      else if (t === 'tree_willow') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel('nature/TwistedTree_1.gltf', cx, d.y + 0.5, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28, tint: '#d8f0b0', tintMatch: /Leaves/ })); farAdd(FAR_CONE, '#4a6a2a', cx, d.y + 0.5, dm.h * 1.1, dm.h, dm.h * 1.1); }
+      else if (t === 'root_column' && d.line && roots) {
+        // the root walls' tree line: the cheap code-built root mass (a twisted kit tree is about 1,400 triangles a piece)
+        const hh = 5 + r(2) * 3, wk = 3.2 + r(5) * 1.6;
+        B.instance(rootCanopyProtos()[Math.floor(r(1) * 3)], M4(cx, 0, d.y + 0.5, r(3) * 6.28, wk, hh, wk));
+        farAdd(FAR_CONE, '#3a2a1a', cx, d.y + 0.5, wk * 0.8, hh, wk * 0.8);
+      }
+      else if (t === 'root_column') { const hh = roots ? 5.5 + r(2) * 2.5 : 5; jobs.push(placeModel('nature/TwistedTree_3.gltf', cx, d.y + 0.5, { h: hh, ry: r(3) * 6.28, ...(roots ? { tint: '#8a7a60' } : {}) })); farAdd(FAR_CONE, '#3a2a1a', cx, d.y + 0.5, 2.4, hh, 2.4); }
+      else if (t === 'bush') jobs.push(placeModel(r(1) < 0.25 ? 'nature/Bush_Common_Flowers.gltf' : 'nature/Bush_Common.gltf', d.x + 0.5, d.y + 0.5, { h: 0.9 + r(2) * 0.5, ry: r(3) * 6.28 }));
+      else if (/^x1_gorse/.test(t)) jobs.push(placeModel('nature/Bush_Common_Flowers.gltf', cx, d.y + 0.5, { h: 0.8 + r(2) * 0.4, ry: r(3) * 6.28, tint: '#c8b060' }));
+      else if (t === 'hedge_flowers') for (let i = 0; i < 3; i++) jobs.push(placeModel('nature/Bush_Common_Flowers.gltf', d.x + 0.5 + i, d.y + 0.5, { h: 0.9, ry: r(i) * 6.28 }));
+      else if (t === 'x1_boulder_a') { const i = Math.floor(r(1) * 3); jobs.push(placeModel(`nature/Rock_Medium_${i + 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: 0.6 + r(2) * 0.6, ry: r(3) * 6.28, tint: roots ? '#5a5048' : '#7a746a' })); }
+      else if (t === 'x1_blank_slab' && library) B.mergeGroup(bookcase(d.x + 0.5, d.y + 0.5, d.x * 31 + d.y));
+      else if (/^x1_menhir|x1_blank_slab|prop_milestone/.test(t)) { const i = Math.floor(r(1) * 3); jobs.push(placeModel(`nature/Rock_Medium_${i + 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: t === 'prop_milestone' ? 0.8 : 2.3, s: 1, ry: r(3) * 6.28, tint: '#7a766e' })); }
+      else if (t === 'x1_cairn_moor') { for (let i = 0; i < 3; i++) jobs.push(placeModel(`nature/Pebble_Round_${i % 2 ? 3 : 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: 0.4 - i * 0.08, y: i * 0.32, ry: i * 2, tint: '#8a8680' })); }
+      else if (t === 'x1_fallen_oak') {
+        const pr = await P('nature/DeadTree_1.gltf');
+        const bh = pr.box.max.y - pr.box.min.y, k = (fw + 0.5) / bh;
+        B.instance(pr, new THREE.Matrix4().compose(new THREE.Vector3(fx0 + 0.2, 0.3, d.y + 0.5), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, -Math.PI / 2)), new THREE.Vector3(k, k, k)));
+      }
+      else if (t === 'bench') jobs.push(placeModel('props/Bench.gltf', cx, d.y + 0.5, { s: 1, ry: 0, merge: true }));
+      else if (t === 'anvil') jobs.push(placeModel('props/Anvil.gltf', cx, d.y + 0.5, { h: 0.8, merge: true }));
+      else if (t === 'barrel') jobs.push(placeModel('props/Barrel.gltf', d.x + 0.5, d.y + 0.5, { h: 1.0, ry: r(3) * 6, merge: true }));
+      else if (t === 'crate') jobs.push(placeModel('props/Crate_Wooden.gltf', d.x + 0.5, d.y + 0.5, { h: 0.8, ry: r(3), merge: true }));
+      else if (t === 'crates_barrels') { jobs.push(placeModel('props/Barrel.gltf', d.x + 0.5, d.y + 0.5, { h: 1.0, merge: true })); jobs.push(placeModel('props/Crate_Wooden.gltf', d.x + 1.5, d.y + 0.5, { h: 0.8, ry: 0.4, merge: true })); jobs.push(placeModel('props/Barrel_Apples.gltf', d.x + 2.5, d.y + 0.5, { h: 1.0, merge: true })); }
+      else if (t === 'x1_sack_stack') jobs.push(placeModel('props/Bag.gltf', d.x + 0.5, d.y + 0.5, { h: 0.7, ry: r(2) * 6, merge: true }));
+      else if (/^market_stall/.test(t)) jobs.push(placeModel(t === 'market_stall_fruit' ? 'props/Stall_Cart_Empty.gltf' : 'props/Stall_Empty.gltf', cx, d.y + 0.5, { h: 2.4, merge: true }));
+      else if (/^signboard|^signpost/.test(t)) B.mergeGroup(post(d.x + 0.5, d.y + 0.5, 1.6, true));
+      else if (t === 'x1_haybale') B.mergeGroup(hay(d.x + 0.5, d.y + 0.5, 'bale'));
+      else if (/^x1_haystack/.test(t)) B.mergeGroup(hay(cx, d.y + 0.5, 'stack'));
+      else if (/^x1_trough/.test(t)) B.mergeGroup(trough(cx, d.y + 0.5, t === 'x1_trough'));
+      else if (t === 'x1_hearth') { B.mergeGroup(hearth(cx, d.y + 0.5)); lamp({ pos: new THREE.Vector3(cx, 0.8, d.y + 0.5), color: '#ff9a40', k: 1.3, fire: true }); }
+      else if (/^x1_chimepost/.test(t)) B.mergeGroup(chimePost(d.x + 0.5, d.y + 0.5));
+      else if (/chain/.test(t)) B.mergeGroup(chainGate(cx, d.y + 0.5, fw));
+      else if (t === 'x1_scarecrow') B.mergeGroup(scarecrow(d.x + 0.5, d.y + 0.5));
+      else if (t === 'x1_roots_stile') jobs.push(placeModel('nature/TwistedTree_3.gltf', cx, d.y + 0.5, { h: 2.5, ry: 1 }));
+      if (++n % 20 === 0) { await Promise.all(jobs.splice(0)); await step(); if (pi === 0) report(0.35 + 0.3 * n / Math.max(1, decorN)); }
     }
     await Promise.all(jobs.splice(0));
+    // dungeon and cave props (dungeon_plan.js), and the world's doors into them (the first part: few, and by the roads)
+    if (pi === 0) {
+      if (place) { const glow = await dressPlace(L, P, B, zone, plan, myLamps); for (const l of myLamps) if (!lamps.includes(l)) lamps.push(l); if (glow) group.add(glow); await step(); }
+      if (zone.doors && zone.doors.length) { const dl = []; await buildDoorMouths(P, B, zone, dl); for (const l of dl) lamp(l); await step(); }
+      report(0.7);
+      // secrets: a waterfall curtain across its passage (from the cliff top down to the water), and a twinkle at every hint
+      const sparks = [];
+      for (const s of zone.secrets || []) {
+        if (s.kind === 'waterfall') {
+          const xs = s.passage.map((p) => p[0]), ys = s.passage.map((p) => p[1]);
+          const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
+          const w = x1 - x0 - 0.1, hgt = 2.7;
+          for (const [z, k] of [[y1 + 0.05, 1], [(y0 + y1) / 2, 0.8]]) {
+            const geo = new THREE.PlaneGeometry(w, hgt, 1, 1);
+            geo.translate((x0 + x1) / 2, hgt / 2 - 0.05, z);
+            const uv = geo.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * w * 0.5, uv.getY(i) * k);
+            const m = new THREE.Mesh(geo, FALL_MAT); m.renderOrder = 2; group.add(m);
+          }
+          sparks.push(new THREE.Vector3((x0 + x1) / 2, 0.25, y1 + 0.3));   // the spray at its foot
+        }
+        if (s.hint) sparks.push(new THREE.Vector3(s.hint[0] + 0.5, 0.9, s.hint[1] + 0.35));
+      }
+      if (sparks.length) { const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints(sparks), SPARK); pts.renderOrder = 3; group.add(pts); }
+    }
+    // lantern posts (the respawn lanterns) are lamp posts too
+    for (const ln of zone.lanterns || []) {
+      if (!ln.post || !inPart(ln.post[0], ln.post[1])) continue;
+      const lp = lampPost(ln.post[0] + 0.5, ln.post[1] + 0.5); B.mergeGroup(lp.g); lamp({ pos: lp.light, color: roots ? '#bcd8ff' : '#ffc46b', k: 1.2 });
+    }
+    // small ground dressing: flowers, tufts, tall grass (desktop quality only)
+    if (quality.grass) {
+      for (const o of zone.overlays || []) {
+        if (!inPart(o.x, o.y)) continue;
+        if (/^(flowers|hydrangea)/.test(o.t)) jobs.push(placeModel(hashXY(o.x, o.y) < 0.5 ? 'nature/Flower_3_Group.gltf' : 'nature/Flower_4_Group.gltf', o.x + 0.5, o.y + 0.5, { h: 0.35, ry: hashXY(o.x, o.y, 2) * 6, cast: false, small: true }));
+        else if (/^tuft|^pebbles/.test(o.t)) jobs.push(placeModel(/^tuft/.test(o.t) ? 'nature/Grass_Common_Short.gltf' : 'nature/Pebble_Round_3.gltf', o.x + 0.5, o.y + 0.5, { h: /^tuft/.test(o.t) ? 0.35 : 0.12, ry: hashXY(o.x, o.y, 2) * 6, cast: false, small: true }));
+      }
+      for (let y = 0; y < H; y++) {
+        if (!inPart.row(y)) continue;
+        for (let x = 0; x < W; x++) {
+          const t = terr[y][x];
+          if (!(t === 'tallgrass' || t === 'x1_heath' || t === 'x1_bracken') || hashXY(x, y, 11) < 0.35 || !inPart(x, y)) continue;
+          const tint = t === 'x1_heath' ? '#b090a0' : t === 'x1_bracken' ? '#c09050' : roots ? '#90b0a0' : null;
+          jobs.push(placeModel('nature/Grass_Wispy_Tall.gltf', x + hashXY(x, y, 12), y + hashXY(x, y, 13), { h: 0.5 + hashXY(x, y, 14) * 0.3, ry: hashXY(x, y, 15) * 6, tint, cast: false, small: true }));
+        }
+        if (jobs.length > 400) { await Promise.all(jobs.splice(0)); await step(); }
+      }
+      await Promise.all(jobs.splice(0));
+    }
+    await step();
+    if (!place) busy = await dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain, inPart: big ? inPart : null, busy0: busy });
+    if (pi === 0) report(0.8);
+    await step();
+    const fin = await B.finish(step);
+    for (const c of fin.cells) cells.push(c);
+    // the far version of each cell this part touched: one merged mesh, no shadow
+    for (const [k, geos] of farGeo) {
+      let geo = null;
+      try { geo = mergeGeometries(geos, false); } catch { geo = null; }
+      for (const g of geos) g.dispose();
+      if (!geo) continue;
+      geo.computeBoundingSphere();
+      const m = new THREE.Mesh(geo, FAR_MAT); m.name = `far:${k}`; m.visible = false; m.castShadow = false; m.receiveShadow = false;
+      group.add(m);
+      const [i, j] = k.split(',').map(Number);
+      fars.push({ m, key: k, x: (i + 0.5) * CH, z: (j + 0.5) * CH, r: geo.boundingSphere.radius + Math.hypot(geo.boundingSphere.center.x - (i + 0.5) * CH, geo.boundingSphere.center.z - (j + 0.5) * CH) });
+      if (fars.length % 8 === 0) await step();
+    }
+    // lamp halos: additive points (one draw call for every lamp, one for every fire), brightened at night by the renderer
+    for (const [fire, wall] of [[false, false], [true, false], [true, true]]) {
+      const ls = myLamps.filter((l) => !!l.fire === fire && !!l.wall === wall);
+      if (!ls.length) continue;
+      const m = new THREE.PointsMaterial({ map: radial('rgba(255,225,170,1)', 'rgba(255,170,70,0.35)'), color: roots ? '#a8c8ff' : '#ffb35c', size: fire ? 2.0 : 1.3, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: haloMats.length ? haloMats[0].opacity : 0 });
+      if (wall) cutMat(m, 'hide');           // a torch on a wall cut away sinks with it (dungeon3d.js)
+      const geo = new THREE.BufferGeometry().setFromPoints(ls.map((l) => l.pos));
+      const pts = new THREE.Points(geo, m); pts.renderOrder = 3; group.add(pts); haloMats.push(m);
+    }
+    stats.parts++; stats.partMs.push(Math.round(performance.now() - t0));
+    return fin.calls;
   }
-  await step();
-  if (!place) await dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain });
-  report(0.8);
-  await step();
-  const { calls, cells } = await B.finish(step);
-  report(0.95);
 
-  // lamp halos: additive points (one draw call for every lamp, one for every fire), brightened at night by the renderer
-  const haloMats = [];
-  for (const [fire, wall] of [[false, false], [true, false], [true, true]]) {
-    const ls = lamps.filter((l) => !!l.fire === fire && !!l.wall === wall);
-    if (!ls.length) continue;
-    const m = new THREE.PointsMaterial({ map: radial('rgba(255,225,170,1)', 'rgba(255,170,70,0.35)'), color: '#ffb35c', size: fire ? 2.0 : 1.3, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 });
-    if (wall) cutMat(m, 'hide');           // a torch on a wall cut away sinks with it (dungeon3d.js)
-    const geo = new THREE.BufferGeometry().setFromPoints(ls.map((l) => l.pos));
-    const pts = new THREE.Points(geo, m); pts.renderOrder = 3; group.add(pts); haloMats.push(m);
-  }
+  let calls = await buildPart(0);
+  report(0.95);
   const halo = { set opacity(v) { for (const m of haloMats) m.opacity = v; } };
-  return {
-    group, lamps, halo, calls, buildings, town, place, kind: zone.kind || null,
-    /** Show only the cells within r m of (x, z) (ground, water and halos always draw). Returns the cells shown. */
-    cull(x, z, r) {
-      let n = 0;
-      for (const c of cells) { c.g.visible = Math.hypot(x - c.x, z - c.z) - c.r < r; if (c.g.visible) n++; }
+  let lastCull = null;
+  const z = {
+    group, lamps, halo, calls, buildings, town, place, kind: zone.kind || null, stats, done: radii.length === 1, more: null,
+    /** Show only the cells within r m of (x, z) (ground, water and halos always draw); past r and within farR, the
+     *  cell's far version. Small props are off past SMALL_R. Returns the full cells shown. */
+    cull(x, zz, r, farR = 0) {
+      let n = 0, nf = 0;
+      for (const c of cells) {
+        const d = Math.hypot(x - c.x, zz - c.z);
+        c.g.visible = d - c.r < r;
+        if (!c.g.visible) continue;
+        n++;
+        const sm = d - 24 < SMALL_R;
+        if (sm !== c.smallOn) { c.smallOn = sm; for (const m of c.small) m.visible = sm; }
+      }
+      for (const f of fars) {
+        const d = Math.hypot(x - f.x, zz - f.z);
+        f.m.visible = farR > r && d - f.r >= r - 8 && d - f.r < farR;
+        if (f.m.visible) nf++;
+      }
+      lastCull = { cells: n, far: nf };
       return n;
     },
+    get lastCull() { return lastCull; },
     dispose() {
+      cancelled = true;
       for (const bb of buildings) setBuildingFade(bb.id, 0);
       group.traverse((m) => { if (((m.isMesh && !m.isInstancedMesh) || m.isPoints) && m.geometry) m.geometry.dispose(); });
       gtex.color.dispose(); gtex.weights.dispose(); apronMap.dispose(); if (waterTex) waterTex.dispose();
     },
   };
+  if (radii.length > 1) {
+    z.more = (async () => {
+      for (let pi = 1; pi < radii.length; pi++) z.calls = (calls += await buildPart(pi));
+      z.done = true;
+      return z;
+    })().catch((e) => { if (!cancelled) throw e; return z; });
+  }
+  return z;
 }

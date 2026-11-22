@@ -117,7 +117,8 @@ export const tests = [
       // the areas are one map now: no joins between loaded zones, so the route to any area is the empty route
       eq(JSON.stringify(zoneRoute(content.zones, 'world', 'world')), '[]', 'world -> world: no steps');
       // dungeon and cave doors (2026-11-22) are the only joins to loaded zones: each names its door
-      for (const j of content.zones.world.joins || []) assert(!content.zones[j.to] || (j.door === j.to && content.zones[j.to].kind !== 'field'), `a join to a loaded zone is left: ${j.to}`);
+      // ...and the passes to outdoor zones of their own (big world, 2026-11-22: the Root Stair to the Rootbound)
+      for (const j of content.zones.world.joins || []) assert(!content.zones[j.to] || (j.door === j.to && content.zones[j.to].kind !== 'field') || j.to === 'rootbound', `a join to a loaded zone is left: ${j.to}`);
     },
   },
   {

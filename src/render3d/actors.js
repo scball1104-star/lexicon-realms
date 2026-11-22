@@ -221,6 +221,8 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     waiting.delete(a);
   }
 
+  const FLY_H = 14;
+  const smooth01 = (k) => { const t = Math.max(0, Math.min(1, k || 0)); return t * t * (3 - 2 * t); };
   function heroAnim(a, e, st) {
     const b = a.body, an = b.anim, now = st.t, cls = e.cls;
     const h = st.hints || {};
@@ -228,6 +230,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     if (e.dead) { if (an.name !== 'Death01') an.play('Death01', { clamp: true, now, fade: 0.12 }); return; }
     if (an.name === 'Death01') an.endOne();
     const stealth = (e.auras || []).some((x) => /stealth|fade/.test(String(x.id)));
+    if (e.flight) { an.endOne(); an.play('Sitting_Idle_Loop', { now }); return; }   // big world: riding the Lantern Kite
     if (st.moving) {
       an.endOne();
       if (stealth) an.play('Crouch_Fwd_Loop', { ts: Math.max(0.7, st.speed / 2.2) });
@@ -280,7 +283,8 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       const tickV = same ? Math.hypot(e.x - p.x, e.y - p.y) * 20 / PX : 0;   // m/s over the last tick
       a.speed = a.speed == null ? tickV : a.speed + (tickV - a.speed) * Math.min(1, dt * 10);
       const moving = !e.dead && (e.moving || tickV > 0.2);
-      a.root.position.set(nx, 0, nz);
+      // big world: a hero on a Lantern Kite flies FLY_H m up (eased at take-off and landing, snapshot flight.up)
+      a.root.position.set(nx, e.flight ? FLY_H * smooth01(e.flight.up) : 0, nz);
       // facing: the way it moves, else its target while fighting or casting, else the snapshot's direction
       let want = a.yaw;
       if (moving && Math.hypot(mvx, mvz) > 1e-4) want = Math.atan2(mvx, mvz);

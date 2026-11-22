@@ -1,12 +1,15 @@
 // Menu windows on Lexicon Quest window art: character sheet (C), bags (B), quest log (L), world map (M), options
 // (Esc). The talents window is talents.js. Each draw function pushes hit regions { rect, kind, on(button), tip }.
 // `act` is the controller's action surface (commands to the sim, local state, close, toast).
+import { FLIGHT } from '../data/travel.js';   // big world: flight points on the world map
 import { menuRect, bagGrid } from './layout.js';
 import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, abilityTooltip, resourceLabel, liveStats } from './gamedata.js';
 import { drawMarkers } from './minimap.js';
 import { drawAreas, drawTooltip, drawGoalArrow } from './hud.js';
 import { whereLabel } from './questnav.js';
 import { ACTIONS, effectiveBinds, keyLabel } from './keymap.js';
+
+const FLIGHT_POINTS = Object.values(FLIGHT.points);
 
 const SLOT_ICON = { head: 'icon_helm', chest: 'icon_armor', legs: 'icon_mantle', feet: 'icon_boots', main: 'icon_sword', off: 'icon_shield', hands: 'icon_charm', trinket: 'icon_star' };
 const SLOT_NAME = { head: 'Head', chest: 'Chest', legs: 'Legs', feet: 'Feet', main: 'Main hand', off: 'Off hand', hands: 'Hands', trinket: 'Trinket' };
@@ -466,6 +469,14 @@ export function drawMap(ctx, env, m, st, regions, act) {
     placed.push(box);
     g.scrim(ctx, box.x, box.y, box.w, box.h, big(ar) ? 200 : 110);
     g.text(ctx, ar.name, lx, lyy - 1, big(ar) ? 'gold' : 'cream');
+  }
+  // big world: the flight points in this zone (src/data/travel.js), lit when the hero has been to them
+  for (const p of FLIGHT_POINTS.filter((q) => q.zone === cur)) {
+    const known = (env.flights || []).includes(p.id);
+    const px = mx + (p.x + 0.5) * ppt, py = my + (p.y + 0.5) * ppt;
+    g.rect(ctx, Math.round(px - 8), Math.round(py - 8), 16, 16, known ? 'rgba(60,40,10,0.85)' : 'rgba(20,16,30,0.7)');
+    g.iconIn(ctx, 'icon_feather', Math.round(px - 7), Math.round(py - 7), 14, 14, known ? 1 : 0.4);
+    regions.push({ rect: { x: Math.round(px - 7), y: Math.round(py - 7), w: 14, h: 14 }, kind: 'map_flight', tip: { title: p.name, sub: known ? 'Flight point: you can fly here from any kitemaster.' : 'Flight point: talk to the kitemaster here to unlock it.' } });
   }
   // objective areas of your quests in this zone: the selected quest's pulse, the others are dimmed
   const areas = ((m.minimap && m.minimap.areas) || []).filter((a) => a.zone === cur);

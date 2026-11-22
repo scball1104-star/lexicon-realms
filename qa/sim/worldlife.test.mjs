@@ -36,7 +36,8 @@ export const tests = [
       for (const r of RARES) per[r.region || 'willowmere'] = (per[r.region || 'willowmere'] || 0) + 1;
       eq(JSON.stringify(per), JSON.stringify({ willowmere: 2, valley: 2, downs: 2, moor: 2 }), 'two per area (Willowmere: the roads out of town)');
       const seen = reach(Z, Z.arrival[0], Z.arrival[1]);
-      const others = [...Z.spawns, ...Z.npcs, ...Z.lanterns, ...C.spawns.filter((s) => s.mob && !C.mobs[s.mob].rare)];
+      // (the world's own: the big world's other outdoor zones, the Rootbound, have their own tiles)
+      const others = [...Z.spawns, ...Z.npcs, ...Z.lanterns, ...C.spawns.filter((s) => s.mob && !C.mobs[s.mob].rare && s.zone === Z.id)];
       const safe = Z.areas.filter((a) => a.safe && !a.id.startsWith('region_'));
       const names = new Set(), items = new Set();
       for (const r of RARES) {

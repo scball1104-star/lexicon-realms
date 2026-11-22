@@ -36,6 +36,7 @@ import { rollKill, rollGear, bagAdd, bagRemove, bagFree, resolveItem, ensureUids
 import { createDungeons, withCopies } from './dungeons.js';
 import { dayFraction, isNight } from './clock.js';
 import { createWorldLife } from './worldlife.js';
+import { createTravel } from './travel.js';
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -167,6 +168,8 @@ function wrap(state, content0, rng, systems) {
     combat: () => C.combat, ai: () => C.ai, stats: combatOn ? () => C.stats : null,
   }) : null;
   C.dungeons = DG;
+  // ---- travel (big world, src/sim/travel.js): the Lantern Stone, inn homes, flight (content.travel)
+  const TR = combatOn && content.travel ? createTravel(C) : null;
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -250,6 +253,22 @@ function wrap(state, content0, rng, systems) {
     Object.assign(e, { name: t.name, level: t.level || 1, faction: 'friendly', sprite: t.sprite, template: sp.npc,
       hp: t.hp || 100, hpMax: t.hp || 100, dir: sp.dir || 'down', spawn: { zone: sp.zone, x: e.x, y: e.y } });
     return add(e);
+  }
+
+  /** Every hero carries a Lantern Stone (src/data/travel.js): one in the bags, the chest or waiting loot, else one is
+   *  added (to the waiting loot when the bags are full). A brand-new hero also gets it on the last bar slot. */
+  function ensureStone(e, fresh) {
+    const id = content.travel.stone.item;
+    if (!content.items || !content.items[id]) return;
+    const has = (list) => (list || []).some((s) => s && s.item === id);
+    const inChest = e.chest && Object.values(e.chest).some((v) => Array.isArray(v) ? has(v) : v && Array.isArray(v.items) && has(v.items));
+    if (!has(e.bag) && !has(e.pendingLoot) && !inChest) {
+      if (!bagAdd(e, id, 1, null, content)) { e.pendingLoot = e.pendingLoot || []; e.pendingLoot.push({ item: id, qty: 1, from: null, at: state.tick }); }
+    }
+    if (fresh && Array.isArray(e.bar) && !e.bar.includes(`item:${id}`)) {
+      while (e.bar.length < 8) e.bar.push(null);
+      if (e.bar[7] == null) e.bar[7] = `item:${id}`;
+    }
   }
 
   /** hp, resource, cooldowns and lasting buffs from a save (saveFields); anything missing keeps the fresh value. */
@@ -350,6 +369,7 @@ function wrap(state, content0, rng, systems) {
         restoreVitals(e, spec);
         C.life.restore(e, spec);                   // the rest XP bank (save `rest`, missing = 0) plus the time away
         if (ST) ST.restore(e, spec);               // the hero's chest tab and glyph pouch (missing = empty)
+        if (TR) { TR.restore(e, spec); if (spec.lanternStone) ensureStone(e, !!spec.newHero); }   // home, flight points; the Lantern Stone (main.js asks)
       }
       add(e);
       emit({ type: 'join', id: e.id, name: e.name });
@@ -357,6 +377,8 @@ function wrap(state, content0, rng, systems) {
       return e.id;
     },
 
+    /** The travel module (src/sim/travel.js) for tests and drivers; null without content.travel. */
+    get travel() { return TR; },
     /**
      * The sim-owned fields of a character save (CONTRACTS 2.4). main.js merges them into its save and passes the whole
      * save back to addPlayer. hp and resource are kept (quit and return is no free heal); cooldowns as ticks LEFT (a new
@@ -383,6 +405,7 @@ function wrap(state, content0, rng, systems) {
       if (e.gbag && e.gbag.length) out.gbag = clone(e.gbag);   // the glyph pouch
       if (e.barOff && e.barOff.length) out.barOff = [...e.barOff];   // skills taken off the bar (bar_set null on a skill)
       const rest = C.life.saveOf(e); if (rest) out.rest = rest;      // rest XP banked (missing = none)
+      if (TR) Object.assign(out, TR.saveOf(e));                       // travel: home (inn id), flights (known points); missing = none
       return out;
     },
     get(id) { return index.get(id) || null; },
@@ -461,11 +484,13 @@ function wrap(state, content0, rng, systems) {
         if (combatOn && e.kind === 'mob' && e.spawn.night && !isNight(state.tick) && e.ai.mode !== 'combat' && (state.tick + e.id) % 20 === 0) { hideNightMob(e); continue; }
         if (e.kind === 'player' || e.kind === 'mob') {
           const z0 = e.zone;
-          moveEntity(e);
+          if (TR && e.kind === 'player' && TR.flying(e)) TR.tickPlayer(e);    // on a kite: the route moves the hero, not the keys
+          else moveEntity(e);
           if (QS && e.kind === 'player' && (e.moving || e.zone !== z0)) QS.onMove(e);
         }
         if (combatOn && (e.kind === 'player' || e.kind === 'mob')) C.combat.tickUnit(e);
         if (combatOn && e.kind === 'player') C.prog.tickPlayer(e);
+        if (TR && e.kind === 'player' && !TR.flying(e)) TR.tickPlayer(e);  // the Lantern Stone's cast
         if (e.target != null) dropBadTarget(e);
       }
       // 3) world: projectiles, traps and zones, combat state
@@ -539,6 +564,8 @@ function wrap(state, content0, rng, systems) {
     if (!e || e.kind !== 'player') return reject(id, cmd, 'no_actor');
     if (!cmd || typeof cmd.t !== 'string') return reject(id, cmd, 'bad_command');
     if (e.dead && cmd.t !== 'target') return reject(id, cmd, 'dead');
+    // on a Lantern Kite the hero cannot act (src/sim/travel.js); held keys are ignored quietly
+    if (TR && TR.flying(e)) { if (cmd.t !== 'move' && cmd.t !== 'stop') reject(id, cmd, 'flying'); return; }
     switch (cmd.t) {
       case 'move': e.mx = clampUnit(cmd.dx | 0); e.my = clampUnit(cmd.dy | 0); if (e.mx || e.my) e.sitting = 0; return;
       case 'stop': e.mx = 0; e.my = 0; return;
@@ -618,6 +645,7 @@ function wrap(state, content0, rng, systems) {
       case 'b2_auto': if (combatOn) C.b2.setAuto(e, cmd); return;
       case 'b2_suggest': if (combatOn) C.b2.spendSuggested(e); return;
       case 'chest_store': case 'chest_take': case 'chest_move': case 'chest_row': case 'chest_sort': if (ST) ST.command(e, cmd); return;
+      case 'set_home': case 'fly': if (TR) TR.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
       case 'interact': {
         const t = index.get(cmd.id);
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');
@@ -640,6 +668,7 @@ function wrap(state, content0, rng, systems) {
           const vdef = vendorDef(t);
           if (vdef && content.items) ev.vendor = { npc: t.template, items: vdef.items.map((_, i) => stockView(e, vdef, i)).filter(Boolean) };
         }
+        if (TR) TR.onInteract(e, t, ev);           // an innkeeper (ev.inn), a flight master (ev.flight; talking unlocks the point)
         emit(ev);
         if (QS && !t.escort) QS.interact(e, t);
         return;
@@ -837,6 +866,7 @@ function wrap(state, content0, rng, systems) {
     if ((def.reqLevel || 1) > e.level) return invFail(e, cmd, 'level');
     const key = `item:${u.group || def.id}`;
     if ((e.cd[key] || 0) > state.tick) return invFail(e, cmd, 'cooldown');
+    if (u.kind === 'hearth') return TR ? TR.useStone(e, def) : invFail(e, cmd, 'not_usable');   // the Lantern Stone (never used up)
     if (u.kind === 'heal_pct') { if (e.hp >= e.hpMax) return invFail(e, cmd, 'full'); C.combat.heal(e, e, u.amount * e.hpMax, { ability: def.id, canCrit: false, noThreat: true }); }
     else if (u.kind === 'mana_pct') { if (!e.res || e.res.kind !== 'mana') return invFail(e, cmd, 'no_mana'); C.combat.gainRes(e, 'mana', u.amount * e.res.max); }
     else if (u.kind === 'rest_food') { if (e.inCombat) return invFail(e, cmd, 'combat'); e.restFood = u.amount || 0.1; e.mx = 0; e.my = 0; e.sitting = state.tick; emit({ type: 'sit', id: e.id, food: def.id }); }
@@ -980,6 +1010,7 @@ function wrap(state, content0, rng, systems) {
           qbag: JSON.parse(JSON.stringify(e.qbag || [])), pendingLoot: JSON.parse(JSON.stringify(e.pendingLoot || [])), bags: e.bags ? [...e.bags] : ['starter_satchel'],
           quests: JSON.parse(JSON.stringify(e.quests || {})), questsDone: [...(e.questsDone || [])],
           b2: !!e.b2, build: e.build ? JSON.parse(JSON.stringify(e.build)) : null });
+        if (TR) Object.assign(o, TR.publicOf(e));                            // travel: home, flights, hearth, flight
       }
     }
     if (e.kind === 'mob' && combatOn) {

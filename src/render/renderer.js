@@ -28,6 +28,7 @@ import { createAtmos } from './atmos.js';
 import { createFx } from './fx.js';
 import { BitmapFont } from '../core/font.js';
 import { createOcclusion } from './occlude.js';
+import { flyLift, drawKite2d, KITE_LIFT_PX } from './kite2d.js';
 import { isPlaceZone, doorMouths } from './dungeon_plan.js';
 import { placeLive, drawBrazier, drawFlames, drawDoorMouth, drawTelegraphs2d, drawDoorLabels2d } from './dungeon2d.js';
 
@@ -254,7 +255,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
         newAnchors.set(e.id, { x: Math.round(x), y: Math.round(y), h: 12, hand: null });
         continue;
       }
-      const it = { sortY: Math.round(y), ent: e, x: Math.round(x), y: Math.round(y), corpse: e.dead && e.kind === 'mob' };
+      const it = { sortY: e.flight ? 1e9 : Math.round(y), ent: e, x: Math.round(x), y: Math.round(y), corpse: e.dead && e.kind === 'mob' };   // a hero on a kite draws over everything
       it.f = book.frameFor(e, t, fx.state(e.id, now));
       // h: from the feet to the first opaque row of the frame (the head), so quest marks and arrows sit on the head
       const top = it.f ? occ.opaqueTop(it.f.img, it.f.sx, it.f.sy, it.f.w, it.f.h) : 0;
@@ -344,7 +345,9 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       }
       const looks = fx.auraLooks(it.ent);
       const stealth = looks.some((l) => l.look === 'stealth');
-      const dx = it.x - f.ox - cam.x, dy = it.y - f.oy - cam.y;
+      const lift = flyLift(it.ent);                     // big world: a hero on the Lantern Kite (src/render/kite2d.js)
+      if (lift) drawKite2d(g, it.x - cam.x, it.y - cam.y - lift + 2, now, Math.min(1, lift / KITE_LIFT_PX));
+      const dx = it.x - f.ox - cam.x, dy = it.y - f.oy - cam.y - lift;
       if (stealth) g.globalAlpha = 0.45;
       blit(g, f, f.img, dx, dy);
       g.globalAlpha = 1;

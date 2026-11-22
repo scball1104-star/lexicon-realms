@@ -6,6 +6,7 @@ import { toWorld, isRegion } from '../../src/data/maps/layout.js';
 import { regionAt } from '../../src/data/maps/compose.js';
 import { tilePath } from '../tests/_helpers.mjs';
 import { canStep } from '../../tools/maps/kit.mjs';
+import { OUTDOOR } from '../../src/data/maps/index.js';
 
 /** Cells you can walk into from the arrival but never walk out of to the arrival or any join (one-way ledge pockets). */
 export function pitsOf(z, ok) {
@@ -69,8 +70,9 @@ export const tests = [
     fn() {
       const W = ZONES.world, ok = reachable('world');
       // one world, plus the dungeons and caves (2026-11-22), each entered only by its door join
-      eq(Object.keys(ZONES).filter((k) => ZONES[k].kind !== 'dungeon' && ZONES[k].kind !== 'cave').join(','), 'world', 'one loaded open zone');
-      for (const j of W.joins) assert((!ZONES[j.to] || j.door === j.to) && !isRegion(j.to), `a join to ${j.to} is left on the world`);
+      // ...and the outdoor zones of their own (big world, 2026-11-22), each joined at a pass (src/data/maps/index.js OUTDOOR)
+      eq(Object.keys(ZONES).filter((k) => ZONES[k].kind !== 'dungeon' && ZONES[k].kind !== 'cave' && !OUTDOOR[k]).join(','), 'world', 'one loaded open zone');
+      for (const j of W.joins) assert((!ZONES[j.to] || j.door === j.to || OUTDOOR[j.to]) && !isRegion(j.to), `a join to ${j.to} is left on the world`);
       const both = (a, b, tag) => {
         assert(ok(...a) && ok(...b), `${tag}: both ends on foot from the arrival (${a} / ${b})`);
         assert(tilePath(W, a, (x, y) => x === b[0] && y === b[1]), `${tag}: no walk ${a} -> ${b}`);

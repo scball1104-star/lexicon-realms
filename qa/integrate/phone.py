@@ -112,6 +112,8 @@ def run():
         ph.tap_region(kind='name_field', wait=0.3)
         page.keyboard.type('Wren')
         ph.tap_region(kind='class', id='scribe', wait=0.3)
+        # big world (2026-11-22): a Scribe starts in the Rootbound unless the player picks Willowmere; this run walks Willowmere
+        ph.tap_region(label='start:willowmere', wait=0.2)
         ph.shot('phone_02_create', 'creating a Scribe with the phone keyboard')
         ph.tap_region(label='Create', wait=1.5)
         assert ph.ev('__drv.mode()') == 'game', 'in the world'

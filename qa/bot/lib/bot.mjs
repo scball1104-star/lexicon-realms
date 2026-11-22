@@ -691,14 +691,17 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     // the level band: zones by level
     const zonePick = p.level >= 9 ? 'moor' : p.level >= 6 ? 'downs' : 'valley';
     const pool = new Set();
-    for (const s of C.zones[zonePick].spawns || []) if (s.level >= p.level - 2 && s.level <= p.level + 1) pool.add(s.mob);
+    // (one world: the area ids are not zones; big world: a start realm is its own zone) the zone the hero stands in then
+    const Zg = C.zones[zonePick] || C.zones[p.zone];
+    for (const s of Zg.spawns || []) if (s.level >= p.level - 2 && s.level <= p.level + 1) pool.add(s.mob);
     const tpls = [...pool];
     if (!tpls.length) return;
-    if (p.zone === zonePick) {
-      const m = pickMob(tpls, zonePick, p.level - 2, 1);
+    const zg = C.zones[zonePick] ? zonePick : p.zone;
+    if (p.zone === zg) {
+      const m = pickMob(tpls, zg, p.level - 2, 1);
       if (m && dpx(m, p) < 300) { fight(m); return; }
     }
-    hunt({ key: 'grind', mobs: tpls, zone: zonePick, minLevel: p.level - 2, spotIdx: g.spotIdx, spotUntil: g.spotUntil });
+    hunt({ key: 'grind', mobs: tpls, zone: zg, minLevel: p.level - 2, spotIdx: g.spotIdx, spotUntil: g.spotUntil });
   }
 
   // ---------------------------------------------------------------- watchers

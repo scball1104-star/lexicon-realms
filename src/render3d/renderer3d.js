@@ -49,6 +49,7 @@ import { createFx3d } from './fx3d.js';
 import { regionInfo } from '../data/maps/compose.js';
 import { zoneBase } from '../data/maps/copies.js';
 import { CUT } from './dungeon3d.js';
+import { makeBird, tickBird } from './bird.js';   // big world: the Lantern Kite
 import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 
 const PX = 16;
@@ -85,6 +86,12 @@ const UNDER = {
   cave: { hemi: '#8a9a96', ground: '#3a2a1a', hemiK: 1.0, fog: '#040506', near: 1, far: 18, grade: [1.0, 1.0, 0.95], desat: 0.12, vig: 1.4 },
 };
 const WARM_BUDGET = 90;       // ms: a warm-up frame behind the loading card aims at about this (never near the 250 ms gate)
+// Big world (piece 1, 2026-11-22): an outdoor zone of its own behind a pass (the Rootbound) is built in the background
+// once the hero is this near the pass, from the spot the pass lands on (zone3d.js builds a big zone near that spot first)
+const PASS_PREBUILD_R = 60;
+// a cavern (zone.cavern: the Rootbound under the Great Willow): no sun or sky, a cool dark fog with a long reach, the
+// lamps always lit (applySky)
+const CAVERN = { hemi: '#a8b8e0', ground: '#4a3c2c', hemiK: 1.7, env: 0.14, fog: '#121826', near: 6, far: 56, grade: [0.98, 1.0, 1.06], desat: 0.05, vig: 1.0 };
 
 export function webglAvailable() {
   try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch { return false; }
@@ -192,17 +199,23 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     .then(() => { state.ready = true; })
     .catch((e) => { state.failed = e; });
 
-  function zoneFor(zid) {
+  function zoneFor(zid, near = null) {
     const id = keyOf(zid);
     if (state.zones.has(id)) return state.zones.get(id);
     if (!state.building.has(id) && zones[id] && state.ready) {
       state.buildK.set(id, 0);
-      const p = buildZone(L, zones[id], { tilesDb: assets.json('tiles'), quality, yieldFn: idle, progress: (k) => state.buildK.set(id, k) })
+      const t0 = performance.now();
+      // near: where the hero lands (a big zone builds out from there and is shown once that part is done; the rest
+      // follows in the background, z.more)
+      const p = buildZone(L, zones[id], { tilesDb: assets.json('tiles'), quality, yieldFn: idle, near, progress: (k) => state.buildK.set(id, k) })
         // compile its shaders before it is shown (parallel compile where the browser has it), so the first frame in
         // the new zone does not stall on program links
         .then((z) => precompile(z.group).catch(() => null).then(() => z))
         .then((z) => {
           state.zones.set(id, z); state.building.delete(id); state.buildK.delete(id);
+          (dev.builds || (dev.builds = [])).push({ id, nearMs: +(performance.now() - t0).toFixed(0), parts: z.stats ? z.stats.partMs.slice() : null });
+          // the rest of a big zone: compile any new shaders once it is in, so a far corner does not stall on first sight
+          if (z.more) z.more.then(() => { const b = (dev.builds || []).find((o) => o.id === id && o.allMs == null); if (b) { b.allMs = +(performance.now() - t0).toFixed(0); b.parts = z.stats.partMs.slice(); } return precompile(z.group); }).catch(() => null);
           // keep the shown zone and its neighbours (the next walk), drop the rest
           const cur = keyOf(state.zoneId);
           const keep = new Set([cur, id, ...((zones[cur] || {}).joins || []).map((j) => j.to)]);
@@ -214,6 +227,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     return null;
   }
   let shown = null;
+  let flightView = null;          // big world: the flight camera's reach while the hero rides the Lantern Kite (M3)
 
   // ---- 2D layers
   const canvas2d = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d'); g.imageSmoothingEnabled = false; return [c, g]; };
@@ -361,11 +375,11 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     }
     // underground (a dungeon or cave): no sky and no sun to speak of. Near-black fog close round the hero, a faint
     // cool fill, the fires always lit (zone lamps) and a stronger light on the hero; the far plane comes in with the fog
-    const U = zone && isPlaceZone(zone) ? UNDER[zone.kind] : null;
+    const U = zone && isPlaceZone(zone) ? UNDER[zone.kind] : zone && zone.cavern ? CAVERN : null;
     if (U) {
       sky.lamps = 1; sky.lum = 0;
       hemi.color.set(U.hemi); hemi.groundColor.set(U.ground); hemi.intensity = U.hemiK;
-      scene.environmentIntensity = 0.04;
+      scene.environmentIntensity = U.env || 0.04;
       sun.color.set('#8090b0'); sun.intensity = 0;
       scene.background.set(U.fog); scene.fog.color.set(U.fog);
       scene.fog.near = dist + U.near; scene.fog.far = dist + U.far;
@@ -375,6 +389,12 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       if (shown && shown.halo) shown.halo.opacity = 0.9;
       if (grade) { grade.uniforms.desat.value = U.desat; grade.uniforms.tint.value.set(...U.grade); grade.uniforms.vig.value = U.vig; }
     }
+    // a long view (flight, drivers' dev.fogFar): the fog and the far plane pushed back
+    const ff = dev.fogFar || (flightView && flightView.fogFar);
+    if (ff) {
+      scene.fog.near = Math.max(scene.fog.near, ff * 0.4); scene.fog.far = ff;
+      if (Math.abs(camera.far - (ff + 4)) > 0.5) { camera.far = ff + 4; camera.updateProjectionMatrix(); }
+    }
     return sky;
   }
   function assignLights(sky, target, playerPos) {
@@ -382,7 +402,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (shown) for (const l of shown.lamps) cand.push({ pos: l.pos, color: l.color, k: l.k * sky.lamps * (l.fire ? 1.2 + Math.sin(performance.now() / 90) * 0.1 : 1) });
     for (const l of actors.lights()) cand.push({ pos: l.pos, color: l.color, k: l.k * (l.lantern ? 0.35 + 0.65 * sky.lamps : 0.6 + 0.4 * sky.lamps) });
     for (const l of fx3.lights) cand.push(l);
-    const under = isPlace(state.zoneId);      // below ground the hero carries more light
+    const under = isPlace(state.zoneId) || !!(zones[state.zoneId] && zones[state.zoneId].cavern);      // below ground the hero carries more light
     if (playerPos && sky.lamps > 0.05) cand.push({ pos: playerPos.clone().setY(2.6), color: under ? '#ffd2a0' : '#ffe2c0', k: (under ? 0.95 : 0.55) * sky.lamps });
     for (const c of cand) { const d2 = c.pos.distanceToSquared(target); c.score = c.k / (1 + d2 / 60); }
     cand.sort((a, b) => b.score - a.score);
@@ -406,6 +426,44 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     }
   }
 
+  // ---- big world: the Lantern Kite under every flying hero, and the flight camera for the one this view follows
+  // The sim moves a flying hero along the route (src/sim/travel.js); actors.js lifts the body FLY_H m and seats it; here
+  // the bird is hung under it, faces the way it flies and beats its wings. The camera then sits behind and above the
+  // bird looking the way it flies (flightView: lower pitch, further out, the fog pushed back and the far-detail pass on).
+  const kites = new Map();          // entity id -> bird group
+  function rideKites(snap, view, now, rdt) {
+    const flying = new Set();
+    for (const e of snap.entities) {
+      if (e.kind !== 'player' || !e.flight || e.zone !== view.zone) continue;
+      const a = actors.get(e.id);
+      if (!a) continue;
+      flying.add(e.id);
+      let b = kites.get(e.id);
+      if (!b) { b = makeBird(); kites.set(e.id, b); precompile(b).catch(() => null); }
+      if (b.parent !== a.root) a.root.add(b);
+      const k = Math.max(0, Math.min(1, e.flight.up));
+      tickBird(b, now, k);
+      b.position.set(0, -2.05 + (b.userData.bob || 0), 0.05);    // the saddle (about 2.1 m up the bird) under the seated hero
+      b.visible = a.root.visible;
+    }
+    for (const [id, b] of kites) if (!flying.has(id)) { if (b.parent) b.parent.remove(b); kites.delete(id); }
+    // the flight camera for the followed hero
+    const me = snap.entities.find((e) => e.id === view.followId);
+    if (me && me.flight && me.zone === view.zone) {
+      const a = actors.get(me.id);
+      const yaw = a ? a.yaw : 0;
+      const want = [-Math.sin(yaw), -Math.cos(yaw)];               // behind the bird (actors face +z at yaw 0)
+      const up = Math.max(0, Math.min(1, me.flight.up)), k = up * up * (3 - 2 * up);
+      if (!flightView) flightView = { back: [0, 1], k: 0 };
+      const ease = 1 - Math.exp(-rdt * 1.6);
+      flightView.back = [flightView.back[0] + (want[0] - flightView.back[0]) * ease, flightView.back[1] + (want[1] - flightView.back[1]) * ease];
+      const L = Math.hypot(...flightView.back) || 1; flightView.back = [flightView.back[0] / L, flightView.back[1] / L];
+      Object.assign(flightView, { k, pitch: THREE.MathUtils.degToRad(40 - 14 * k), dist: 20 + 16 * k, fov: FOV + 12 * k, lift: 14 * k,
+        fogFar: 70 + 150 * k, cullR: 80 + 10 * k, farR: k > 0.2 ? 240 : 0 });
+    } else flightView = null;
+    dev.flight = flightView ? { k: +flightView.k.toFixed(2), kites: kites.size } : (kites.size ? { k: 0, kites: kites.size } : null);
+  }
+
   // ---- dungeons and caves: the swap behind the loading card, ground telegraphs, the labels over the doors
   // A zone change into or out of a place (the local hero's 'zone' event: src/ui/loading.js shows the card on that same
   // tick, before this draw) is not drawn until the new scene is built and warmed up: the first draw of a fresh scene
@@ -417,7 +475,14 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   const q2 = new URLSearchParams(location.search);
   function warmStart(z) {
     const list = [];
-    z.group.traverse((o) => { if (o.isMesh || o.isPoints) list.push(o); });
+    // a big zone (z.more: built near the hero first): only the cells the play camera can reach from the landing spot;
+    // the rest uploads as it comes into view, a few at a time
+    const near = (o) => {
+      if (!z.more) return true;
+      const p = o.parent && o.parent.name && o.parent.name.startsWith('cell:') ? o.parent.name.slice(5).split(',').map(Number) : null;
+      return !p || Math.hypot((p[0] + 0.5) * 48 - focus.x, (p[1] + 0.5) * 48 - focus.z) < 100;
+    };
+    z.group.traverse((o) => { if ((o.isMesh || o.isPoints) && !(o.name && o.name.startsWith('far:')) && near(o)) list.push(o); });
     for (const o of list) { o.userData.lrFC = o.frustumCulled; o.frustumCulled = false; o.visible = false; }
     trans.warm = { list, i: 0, batch: 4, final: false, finalFrame: false, z };
   }
@@ -559,17 +624,19 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (view.followId != null) { state.playerId = view.followId; fx2.setPlayer(view.followId); }
     const zone = zones[view.zone];
     // into or out of a dungeon or cave: hold the swap behind the loading card until the new scene is built and warm
-    if (state.zoneId != null && keyOf(view.zone) !== keyOf(state.zoneId) && (isPlace(view.zone) || isPlace(state.zoneId))) {
+    // (big world, 2026-11-22: any zone change now, so a pass between two outdoor zones holds behind the card too)
+    if (state.zoneId != null && keyOf(view.zone) !== keyOf(state.zoneId)) {
       const zt = state.zones.get(keyOf(view.zone));
       if (trans && trans.warm) for (const o of trans.warm.list) { o.visible = true; o.frustumCulled = o.userData.lrFC !== false; }
       trans = zt && zt.warmed ? null : { key: keyOf(view.zone), t0: performance.now(), k: 0, warm: null, frames: 0, maxMs: 0 };
-      dev.zoneChange = { to: view.zone, into: isPlace(view.zone), prebuilt: !!zt, warmedBefore: !!(zt && zt.warmed), t0: performance.now() };
+      dev.zoneChange = { to: view.zone, from: state.zoneId, into: isPlace(view.zone), prebuilt: !!zt, warmedBefore: !!(zt && zt.warmed), t0: performance.now() };
     }
     if (trans && trans.key !== keyOf(view.zone)) {                  // went somewhere else meanwhile: undo a half warm-up
       if (trans.warm) for (const o of trans.warm.list) { o.visible = true; o.frustumCulled = o.userData.lrFC !== false; }
       trans = null;
     }
-    const z = zoneFor(view.zone);
+    const meE0 = view.followId != null ? snap.entities.find((e) => e.id === view.followId) : null;
+    const z = zoneFor(view.zone, meE0 && meE0.zone === view.zone ? { x: Math.floor(meE0.x / PX), y: Math.floor(meE0.y / PX) } : null);
     if (trans && !z) {
       // still building (in time slices): the old frame stays on the WebGL canvas under the card; nothing new is drawn
       trans.k = 0.6 * (state.buildK.get(trans.key) || 0);
@@ -611,32 +678,52 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const ck = camK * camK * (3 - 2 * camK);
     const pitch = PITCH + (TOWN_PITCH - PITCH) * ck, distK = 1 + (TOWN_DIST - 1) * ck;
     dev.cam = { pitch: +THREE.MathUtils.radToDeg(pitch).toFixed(1), distK: +distK.toFixed(3) };
-    const dist = dev.camDist || (DIST * distK * (layout.touch ? PHONE_DIST : 1)) / (view.zoom || 1);
-    camera.position.set(target.x, target.y + dist * Math.sin(pitch), target.z + dist * Math.cos(pitch));
+    let dist = dev.camDist || (DIST * distK * (layout.touch ? PHONE_DIST : 1)) / (view.zoom || 1);
+    // big world: the flight camera (behind the bird, lower and further out, facing the way it flies) and the drivers'
+    // long view (dev.camPitch / camDist / fov / camLift). Otherwise the approved north-up play camera, unchanged.
+    let pitchC = pitch, bx = 0, bz = 1;
+    const fv = flightView;
+    if (fv) { pitchC = fv.pitch; dist = dev.camDist || fv.dist; bx = fv.back[0]; bz = fv.back[1]; target.y += fv.lift; }
+    if (dev.camPitch != null) pitchC = THREE.MathUtils.degToRad(dev.camPitch);
+    if (dev.camLift != null) target.y += dev.camLift;
+    const fov = dev.fov || (fv ? fv.fov : FOV);
+    if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    const hz = dist * Math.cos(pitchC);
+    camera.position.set(target.x + bx * hz, target.y + dist * Math.sin(pitchC), target.z + bz * hz);
     camera.lookAt(target);
     camera.updateMatrixWorld();
     frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     // distance culling (the one world is far bigger than any view): only the 48 m cells within reach of the focus stay
     // in the scene walk. The camera far plane ends at the fog's far end, about 70 m from the camera and less from the
     // focus; 80 m keeps every cell that can show or throw a shadow into the view
-    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? 1e6 : 80);
+    // big world: past that reach a cell may show its cheap far version instead (zone3d.js), out to farR when the view
+    // reaches that far (dev.farR: drivers' long views; flight sets its own, below)
+    const farR = dev.farR != null ? dev.farR : (flightView ? flightView.farR : 0);
+    // (a warm-up behind the card draws everything it uploads: the whole small place, or a big zone's first part)
+    const warmR = shown.more ? 170 : 1e6;
+    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? warmR : (dev.cullR || (flightView ? flightView.cullR : 80)), farR);
+    dev.far = shown.lastCull ? shown.lastCull.far : 0;
     actors.sync(prevSnap, snap, alpha, view.zone, now, dt, fx3, focus, (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
+    rideKites(snap, view, now, rdt);
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
     // a zone edge finds its neighbour ready. A dungeon or cave behind a door on the world only once the hero is near
     // that door (five small places nobody needs on the road); ?nopre=1 turns this off (drivers: the cold path)
     if (zone && !state.building.size && !trans && q2.get('nopre') !== '1') {
       for (const j of zone.joins || []) {
         if (!zones[j.to] || state.zones.has(keyOf(j.to))) continue;
-        if (isPlace(j.to) && !isPlace(view.zone) && Math.hypot(j.x + (j.w || 1) / 2 - focus.x, j.y + (j.h || 1) / 2 - focus.z) > PREBUILD_R) continue;
-        zoneFor(j.to); break;
+        const dj = Math.hypot(j.x + (j.w || 1) / 2 - focus.x, j.y + (j.h || 1) / 2 - focus.z);
+        if (isPlace(j.to) && !isPlace(view.zone) && dj > PREBUILD_R) continue;
+        // an outdoor zone of its own behind a pass: only once the hero is near the pass, built out from where it lands
+        if (!isPlace(j.to) && !isPlace(view.zone) && dj > PASS_PREBUILD_R) continue;
+        zoneFor(j.to, { x: j.tx, y: j.ty }); break;
       }
     }
     // the wall cut (dungeon3d.js): walls south of the hero drop to a lip; shadows are not redrawn underground (no sun)
     const under = isPlace(view.zone);
     CUT.uCutOn.value = under ? 1 : 0;
     CUT.uCutZ.value = (me ? me.root.position.z : focus.z) + 0.35;
-    renderer.shadowMap.autoUpdate = !under;
+    renderer.shadowMap.autoUpdate = !under && !(zone && zone.cavern);
     const tgA = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     SEE.uCam.value.copy(camera.position);
     SEE.uFocus.value.copy(me ? me.root.position : focus).setY(1.0); SEE.uSeeR.value = me ? 3.2 : 0;

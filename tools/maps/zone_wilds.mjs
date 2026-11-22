@@ -3,11 +3,13 @@
 //
 //   North Road       the Downs signpost exit (downs 143,20) east to the valley's north west exit (valley 0,18)
 //   Gate Road South  the town gate (willowmere 20,31) south, along the wall, east into the valley (valley 0,52)
+//   the Root Stair   a spur north off the North Road to the pass down into the Rootbound (its own zone): `joins`
 //
 // Forest: every wilds cell that is not road or verge is solid. Trees stand on a jittered grid. A tree within 3 tiles of
 // a walkable cell is a tree-line tree (`line: 1`, the 3D view builds it as a real tree); the rest is deep forest
 // (`deep: 1`, the 3D view draws it as cheap canopy). Deterministic.
 import { REGION_AT, WORLD_W as W, WORLD_H as H, toWorld } from '../../src/data/maps/layout.js';
+import { WORLD_STAIR, STAIR as ROOTBOUND_STAIR } from './zone_rootbound.mjs';
 
 export function build(regions) {
   const own = Array.from({ length: H }, () => new Uint8Array(W));   // 1 = an area's cell
@@ -96,11 +98,45 @@ export function build(regions) {
   const FL = ['flowers_white', 'flowers_yellow', 'flowers_violet', 'tuft_0', 'tuft_1', 'pebbles_0'];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (kind[y][x] === 2 && coll[y][x] === '.' && rnd() < 0.12) overlays.push({ t: FL[Math.floor(rnd() * FL.length)], x, y });
 
+  // The Root Stair (big world piece 1, 2026-11-22): a spur north off the North Road through the forest to the pass down
+  // into the Rootbound (its own zone, tools/maps/zone_rootbound.mjs). Cut last, so every other wilds cell keeps its tree.
+  const joins = [];
+  {
+    const S = WORLD_STAIR;
+    const cells = [];
+    for (const [fx, fy] of curve([[183, 118], [183, 111], [185, 102], [186, 93], [186, 85], [186, S.y + 2], [186, S.y]])) {
+      const cx = Math.floor(fx), cy = Math.floor(fy);
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) if (free(cx + dx, cy + dy)) cells.push([cx + dx, cy + dy]);
+    }
+    const spur = new Set();
+    for (const [x, y] of cells) { if (kind[y][x] !== 1) { kind[y][x] = 3; ground[y][x] = '='; coll[y][x] = '.'; } spur.add(`${x},${y}`); }
+    for (const [x, y] of cells) for (let dy = -2; dy <= 3; dy++) for (let dx = -2; dx <= 3; dx++) {
+      const X = x + dx, Y = y + dy;
+      if (!free(X, Y) || kind[Y][X] || Y < S.y) continue;
+      kind[Y][X] = 4; ground[Y][X] = ','; coll[Y][X] = '.'; spur.add(`${X},${Y}`);
+    }
+    // the pass: the join cells at the top, walkable; the rock jaws either side
+    for (let x = S.x; x < S.x + S.w; x++) { ground[S.y][x] = '='; coll[S.y][x] = '.'; spur.add(`${x},${S.y}`); kind[S.y][x] = 3; }
+    for (let i = decor.length - 1; i >= 0; i--) if (spur.has(`${decor[i].x},${decor[i].y}`) || spur.has(`${decor[i].x + 1},${decor[i].y}`)) decor.splice(i, 1);
+    for (let i = overlays.length - 1; i >= 0; i--) if (spur.has(`${overlays[i].x},${overlays[i].y}`)) overlays.splice(i, 1);
+    // trees beside the new road are tree-line trees (the 3D view draws them in full)
+    const nearSpur = (x, y) => { for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (spur.has(`${x + dx},${y + dy}`)) return true; return false; };
+    for (const d of decor) if (d.deep && nearSpur(d.x, d.y)) { delete d.deep; d.line = 1; }
+    const sh = (x, y, s) => { let h = (Math.imul(x, 73856093) ^ Math.imul(y, 19349663) ^ Math.imul(s, 83492791)) >>> 0; h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    for (const key of spur) { const [x, y] = key.split(',').map(Number); if (kind[y][x] === 4 && sh(x, y, 5) < 0.12) overlays.push({ t: FL[Math.floor(sh(x, y, 6) * FL.length)], x, y }); }
+    const stand = (t, x, y, state) => { decor.push({ t, x, y, ...(state ? { state } : {}) }); coll[y][x] = '#'; };
+    stand('x1_menhir_a', S.x - 1, S.y + 1); stand('x1_menhir_b', S.x + S.w, S.y + 1);
+    stand('signpost_arrow', 186, 114);
+    stand('lamp_post', 189, 96, 1);
+    stand('lamp_post', 184, S.y + 5, 1);
+    joins.push({ x: S.x, y: S.y, w: S.w, h: S.h, to: 'rootbound', tx: ROOTBOUND_STAIR.arrive[0], ty: ROOTBOUND_STAIR.arrive[1], dir: 'down' });
+  }
+
   return {
     id: 'wilds', name: 'The Wilds', w: W, h: H, under: 'grass',
     legend: { '.': 'grass', ',': 'tallgrass', '=': 'dirt' },
     ground: ground.map((r) => r.join('')), collision: coll.map((r) => r.join('')),
-    overlays, decor,
+    overlays, decor, joins,
   };
 }
 

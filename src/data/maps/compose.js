@@ -83,6 +83,8 @@ export function composeWorld(regions, wilds) {
     }
   }
   for (const a of WILDS_AREAS) out.areas.push({ ...a, region: null });
+  // the wilds' own joins: passes to outdoor zones of their own (big world, 2026-11-22: the Root Stair to the Rootbound)
+  for (const j of wilds.joins || []) out.joins.push({ ...j, region: null });
   const home = regions.willowmere;
   const [hx, hy] = REGION_AT.willowmere;
   return {

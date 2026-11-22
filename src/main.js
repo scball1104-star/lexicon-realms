@@ -58,6 +58,11 @@ async function boot() {
 
   const assets = await loadAssets(MANIFEST);
   const content = buildContent();
+  // DEV ONLY (big world piece 1 measurements): ?dev=1&devzone=<id> adds the QA test zone qa/out/bigworld/<id>.js
+  // (qa/integrate/make_bigtest.mjs, never shipped) before any hero is made
+  if (q.get('dev') === '1' && /^[a-z0-9_]+$/.test(q.get('devzone') || '')) {
+    try { const m = await import(`../qa/out/bigworld/${q.get('devzone')}.js`); content.zones[m.default.id] = m.default; } catch (e) { console.warn('devzone', e); }
+  }
   const seed = Number(q.get('seed')) || 20261119;
   // the bounty boards' day (BUILDS_2 5.6): this PC's local calendar day, so the boards repost at local midnight; ?day=n pins it
   const bountyDay = () => (q.has('day') ? Number(q.get('day')) | 0 : Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000));
@@ -155,7 +160,8 @@ async function boot() {
   /** addPlayer spec for a stored character: a new hero, or the full restore (CONTRACTS 2.4). */
   function specFor(c) {
     const s = c.state;
-    if (!s) return { name: c.name, cls: c.cls, look: c.look, ...(c.build ? { build: c.build } : {}) };   // save v2: a migrated hero not yet played
+    // big world: every hero carries a Lantern Stone (a new one also gets it on the bar); travel fields from the save
+    if (!s) return { name: c.name, cls: c.cls, look: c.look, ...(c.build ? { build: c.build } : {}), lanternStone: true, newHero: true, ...startSpot(c) };   // save v2: a migrated hero not yet played
     // an old save names its area ('valley') and that area's tiles: addPlayer moves it onto the world map
     const at = s.zone && (content.zones[s.zone] || (content.regionAt || {})[s.zone]) && s.tx != null ? { zone: s.zone, x: s.tx, y: s.ty } : {};
     return { name: c.name, cls: c.cls, look: c.look, ...at, level: s.level, xp: s.xp, gold: s.gold, bag: s.bag, bags: s.bags, equip: s.equip,
@@ -169,7 +175,14 @@ async function boot() {
       barOff: s.barOff,                                                      // skills the player took off the bar (save v2)
       // rest XP (src/sim/worldlife.js): the bank, and the real time away since the last save (savedAt, ms; this PC's clock,
       // never inside the sim). A save without them banks nothing new. Optional fields: SAVE_VERSION is unchanged.
-      rest: s.rest, offlineSecs: Number.isFinite(s.savedAt) ? Math.max(0, (Date.now() - s.savedAt) / 1000) : 0 };
+      rest: s.rest, offlineSecs: Number.isFinite(s.savedAt) ? Math.max(0, (Date.now() - s.savedAt) / 1000) : 0,
+      home: s.home, flights: s.flights, lanternStone: true };                // big world travel (src/sim/travel.js); optional fields
+  }
+  /** Where a brand-new hero starts: its class's start realm (chosen on creation, the default) or Willowmere ({}). */
+  function startSpot(c) {
+    const R = (content.startRealms || {})[c.cls];
+    if (!R || c.start !== 'realm') return {};       // Willowmere (and every hero made before the choice existed)
+    return { zone: R.zone, x: R.x, y: R.y, lantern: { ...R.lantern }, home: { inn: R.home } };
   }
   // an escort in progress cannot be restored (its npc is gone): it restarts as a fresh accept would
   const stripEscorts = (qs) => { if (!qs) return qs; const o = {}; for (const [k, v] of Object.entries(qs)) { const { escort, ...rest } = v; void escort; o[k] = rest; } return o; };
@@ -179,7 +192,10 @@ async function boot() {
     if (!e || e.kind !== 'player') return null;
     const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
     // a dead hero saves at the lantern they will wake at
-    const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : { zone: e.zone, tx: Math.floor(e.x / (TILE * 16)), ty: Math.floor((e.y - 1) / (TILE * 16)) };   // SUB -> tiles
+    // a hero on a Lantern Kite saves where the kite lands (big world, src/sim/travel.js)
+    const fl = e.flight && content.travel ? content.travel.flight.points[e.flight.to] : null;
+    const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : fl ? { zone: fl.zone, tx: fl.land[0], ty: fl.land[1] }
+      : { zone: e.zone, tx: Math.floor(e.x / (TILE * 16)), ty: Math.floor((e.y - 1) / (TILE * 16)) };   // SUB -> tiles
     return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
       bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: padBar(e.bar), talents: clone(e.talents),
       quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
@@ -195,7 +211,7 @@ async function boot() {
   const devStart = ['paused', 'zone', 'zoom', 'seed', 'skiptitle'].some((k) => q.has(k));
   if (devStart) {
     addHero({
-      name: q.get('name') || 'Scott', cls: q.get('cls') || 'warden', look: Number(q.get('look')) || 0,
+      name: q.get('name') || 'Scott', cls: q.get('cls') || 'warden', look: Number(q.get('look')) || 0, lanternStone: true, newHero: true,
       ...(q.get('zone') ? { zone: q.get('zone'), x: Number(q.get('x')), y: Number(q.get('y')) } : {}),
     });
     ui.attach(playerId);
@@ -222,6 +238,14 @@ async function boot() {
     renderer.loadingCard = card;
   }
   // ---- END dungeon loading card ----
+  // ---- big world travel (src/ui/travelui.js): the Lantern Stone's cast bar and the flight bar over the HUD, the toasts
+  {
+    const { createTravelUi } = await import('./ui/travelui.js');
+    const tv = createTravelUi({ font, content });
+    bus.on('*', (ev) => { const t = tv.message(ev, playerId); if (t) ui.notify(t, 4); });
+    const drawHud1 = renderer.drawHud;
+    renderer.drawHud = (fn) => { drawHud1((c, l) => { fn(c, l); }); if (!renderer.loadingCard || !renderer.loadingCard.active) tv.draw(canvas.getContext('2d'), renderer, snap, playerId); };
+  }
 
   /** Quest marks over npc heads, in HUD px (the sim's npcMarkers + where the renderer drew each npc). */
   function worldMarks() {
