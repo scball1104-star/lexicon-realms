@@ -7,6 +7,8 @@ import { MOB_ABILITIES as WORLD_MOB_ABILITIES } from '../../src/data/mobs.js';
 import { TALENTS } from '../../src/data/talents.js';
 import { PROGRESSION, WEAPON_TYPES } from '../../src/data/progression.js';
 import { BUILDS2, RULES as BUILDS2_RULES, SKILL_PICKS, B2_ABILITIES } from '../../src/data/builds2.js';
+import { HIT_CONTENT } from '../../src/data/hittable.js';
+import { RESIST_CONTENT } from '../../src/data/resist.js';
 
 export function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
 export function eq(a, b, msg) { if (a !== b) throw new Error(`${msg || 'not equal'}: ${JSON.stringify(a)} !== ${JSON.stringify(b)}`); }
@@ -71,7 +73,7 @@ export const FIXTURE_NPCS = {
 };
 
 /** builds2: true turns Builds 2 on for this content (the live data keeps it off). */
-export function fixtureContent({ spawns = [], items = null, builds2 = false } = {}) {
+export function fixtureContent({ spawns = [], items = null, builds2 = false, hitTable = false } = {}) {
   const arena = arenaZone();
   return {
     zones: { arena }, zoneNames: { arena: 'Test Arena' },
@@ -81,12 +83,15 @@ export function fixtureContent({ spawns = [], items = null, builds2 = false } = 
     // the fixtures pick Builds 2 per test (default off, so today's talent tests keep testing today's talents for every class)
     progression: { ...PROGRESSION, builds2: { ...PROGRESSION.builds2, enabled: !!builds2 } },
     builds2: { rules: BUILDS2_RULES, classes: BUILDS2, skillPicks: SKILL_PICKS, abilities: B2_ABILITIES },
+    // the hit table and resistances (src/data/hittable.js, resist.js): off by default, so the formula tests keep exact numbers;
+    // the balance harness (qa/sim/builds2.mjs) and the hit table tests turn it on
+    ...(hitTable ? { hitTable: HIT_CONTENT, resist: RESIST_CONTENT } : {}),
   };
 }
 
 /** A world with one player of `cls` at `level` (design gear), standing at (x, y) tiles, knowing every ability. */
-export function duelWorld({ seed = 1, cls = 'warden', level = 1, x = 10, y = 15, talents = null, spawns = [], learnAll = true, builds2 = false, build = null } = {}) {
-  const content = fixtureContent({ spawns, builds2 });
+export function duelWorld({ seed = 1, cls = 'warden', level = 1, x = 10, y = 15, talents = null, spawns = [], learnAll = true, builds2 = false, build = null, hitTable = false } = {}) {
+  const content = fixtureContent({ spawns, builds2, hitTable });
   const world = createWorld({ seed, content });
   const pid = world.addPlayer({ name: 'Tester', cls, zone: 'arena', x, y, level, gearMode: 'design', ...(build ? { build } : {}) });
   if (learnAll) world.learnAll(pid);

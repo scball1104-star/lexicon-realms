@@ -10,8 +10,8 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
 import { addCape, dyeMaterial } from './hero.js';
 import { radial, woodTex, leatherTex, woolTex, seeded } from './textures.js';
 
-const RAR_GLOW = { magic: '#6f8cff', rare: '#ffb050', legendary: '#ff8a2a', set: '#3cdc6a' };
-const RANK = { common: 0, magic: 1, rare: 2, legendary: 3, set: 3 };
+const RAR_GLOW = { magic: '#6f8cff', rare: '#ffb050', epic: '#a335ee', legendary: '#ff8a2a', set: '#3cdc6a' };
+const RANK = { common: 0, magic: 1, rare: 2, epic: 2, legendary: 3, set: 3 };      // epic (purple, 2026-11-22): a rare's look, its own glow
 
 // ---------- the five classes, three looks each (the art lane's look notes: assets/sprites/chars/<cls>.json) ----------
 const SKIN = { light: '#fff0e4', medium: '#d8a283', dark: '#8f5d45' };

@@ -10,11 +10,14 @@
 // armorType, weaponType } }; base gear (gear_*) always drops or sells with one.
 
 import { glyphItems } from './storage.js';
+import { LEGENDARY_POWERS } from './legendary_powers.js';
 
 export const RARITY = {
   common: { id: 'common', name: 'Common', color: '#e8e8e8', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 1.0 },
   magic: { id: 'magic', name: 'Magic', color: '#6f8cff', affixes: [1, 2], prefixMax: 1, suffixMax: 1, sellMult: 1.6 },
   rare: { id: 'rare', name: 'Rare', color: '#ffd34d', affixes: [3, 4], prefixMax: 2, suffixMax: 2, sellMult: 2.5 },
+  // epic (GAP B4, 2026-11-22): purple, between rare (gold) and legendary; the dungeons' last bosses and the world rares' 1 in 20
+  epic: { id: 'epic', name: 'Epic', color: '#a335ee', affixes: [4, 5], prefixMax: 3, suffixMax: 2, sellMult: 3.2 },
   legendary: { id: 'legendary', name: 'Legendary', color: '#ff8a2a', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 4.0, placedOnly: true },
   set: { id: 'set', name: 'Set', color: '#3cdc6a', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 4.0, placedOnly: true },
 };
@@ -25,13 +28,23 @@ export const DROP_RULES = {
   caster: { gearChance: 0.06, weights: { common: 70, magic: 25, rare: 5 } },
   armored: { gearChance: 0.06, weights: { common: 70, magic: 25, rare: 5 } },
   weak: { gearChance: 0.02, weights: { common: 70, magic: 25, rare: 5 } },
-  elite: { gearChance: 1.0, weights: { magic: 70, rare: 30 } },
+  elite: { gearChance: 1.0, weights: { magic: 70, rare: 28, epic: 2 } },
   chest_wood: { gearChance: 0.3, weights: { common: 70, magic: 30 } },
   chest_iron: { gearChance: 0.6, weights: { magic: 70, rare: 30 } },
   chest_gold: { gearChance: 1.0, weights: { rare: 100 } },
   junkChance: 0.35,
   classBias: 0.6,
   slotWeights: { weapon: 26, chest: 12, legs: 12, head: 12, feet: 10, hands: 10, off: 8, trinket: 10 },
+  // BUILDS_2 6.8 drop pacing by the dropper's level (src/sim/loot.js rollKill): [upToLevel, { gearChance, weights }] for
+  // normal (and caster / armored) kills and for elites (and the named rares and cave bosses). The first band is today's.
+  // Epic: a small chance from elites from level 1, from normal kills from level 20 (BUILDS_2 6.8's legendary column is
+  // not built: legendaries stay placed, the dungeons' last bosses roll them).
+  bands: {
+    normal: [[9, { gearChance: 0.06, weights: { common: 70, magic: 25, rare: 5 } }], [19, { gearChance: 0.07, weights: { common: 55, magic: 35, rare: 10 } }],
+      [34, { gearChance: 0.08, weights: { common: 40, magic: 42, rare: 17, epic: 1 } }], [50, { gearChance: 0.08, weights: { common: 30, magic: 45, rare: 23, epic: 2 } }]],
+    elite: [[9, { gearChance: 1.0, weights: { magic: 70, rare: 28, epic: 2 } }], [19, { gearChance: 1.0, weights: { magic: 62, rare: 34, epic: 4 } }],
+      [34, { gearChance: 1.0, weights: { magic: 50, rare: 42, epic: 8 } }], [50, { gearChance: 1.0, weights: { magic: 40, rare: 48, epic: 12 } }]],
+  },
 };
 
 export const WEAPON_TYPES = {
@@ -77,6 +90,11 @@ export const AFFIXES = {
   of_mending: { kind: 'suffix', name: 'of Mending', stat: 'sp', slots: ['main', 'off', 'trinket'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]] },
   of_leeching: { kind: 'suffix', name: 'of Leeching', stat: 'leech', slots: ['main', 'two'], values: [[2, 2], [3, 3], [4, 4], [5, 5], [6, 6]] },
   of_embers: { kind: 'suffix', name: 'of Embers', stat: 'fireOnHit', slots: ['main', 'two'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]] },
+  // resistances (src/data/resist.js): percentage points of that school's damage shrugged off on average
+  of_inkward: { kind: 'suffix', name: 'of Inkward', stat: 'resInk', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8]] },
+  of_shadeward: { kind: 'suffix', name: 'of Shadeward', stat: 'resShadow', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8]] },
+  of_lampward: { kind: 'suffix', name: 'of Lampward', stat: 'resLight', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8]] },
+  of_warding: { kind: 'suffix', name: 'of Warding', stat: 'resAll', slots: ['chest', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 2], [2, 3], [3, 4]] },
 };
 export const affixTier = (ilvl) => Math.max(1, Math.min(5, Math.ceil(ilvl / 3)));
 
@@ -214,8 +232,9 @@ for (const [id, name, slot, type, ql, stats, rarity] of R) gear(id, name, slot, 
 // The elite's own drop table (gear, magic 70 / rare 30 from the base set): see MOBS.sentinel_long_watch.loot.
 // ---------------------------------------------------------------- dungeons and caves (src/data/dungeons.js, 2026-11-22)
 // Named drops: `dungeon` names where it drops. Bosses give the killer one piece their class can use (src/sim/dungeons.js):
-// a lesser boss a magic (blue) piece, a last boss a rare (this game's top tier below legendary; gold-coloured, RARITY), and
-// 1 in 10 a legendary (bad-luck boost +0.5% a miss, BUILDS_2 6.8). ilvl = the dungeon's top level.
+// a lesser boss a magic (blue) piece, a last boss an epic (purple, RARITY; was a gold rare before 2026-11-22), and
+// 1 in 10 a legendary (bad-luck boost +0.5% a miss, BUILDS_2 6.8). ilvl = the dungeon's top level. A legendary carries a
+// power (src/data/legendary_powers.js): `power` on the item, its tooltip line in `text`.
 const D = [
   // [id, name, slot, type, ilvl, stats, rarity, dungeon]
   // the Wethers' Barrow (10 to 12)
@@ -224,18 +243,20 @@ const D = [
   ['notched_tally_knife', 'Notched Tally Knife', 'main', 'dagger', 11, { agi: 2, crit: 1 }, 'magic', 'barrow'],
   ['barrowfold_bow', 'Barrowfold Bow', 'two', 'bow', 11, { agi: 3, sta: 1 }, 'magic', 'barrow'],
   ['tally_wifes_hood', "Tally-Wife's Hood", 'head', 'class', 11, { main: 2, sta: 2 }, 'magic', 'barrow'],
-  ['reeves_counting_coat', "Reeve's Counting Coat", 'chest', 'class', 12, { main: 3, sta: 4 }, 'rare', 'barrow'],
-  ['uncounted_ledger', 'Ledger of the Uncounted', 'trinket', null, 12, { main: 3, sta: 3, crit: 1 }, 'rare', 'barrow'],
-  ['reeves_tally_ring', "Reeve's Tally Ring", 'trinket', null, 12, { main: 5, sta: 5, crit: 2 }, 'legendary', 'barrow'],
+  ['reeves_counting_coat', "Reeve's Counting Coat", 'chest', 'class', 12, { main: 3, sta: 4 }, 'epic', 'barrow'],
+  ['uncounted_ledger', 'Ledger of the Uncounted', 'trinket', null, 12, { main: 3, sta: 3, crit: 1 }, 'epic', 'barrow'],
+  ['reeves_tally_ring', "Reeve's Tally Ring", 'trinket', null, 12, { main: 5, sta: 5, crit: 2 }, 'legendary', 'barrow', 'reeves_count'],
+  ['bellwethers_last_toll', "Bellwether's Last Toll", 'head', 'class', 12, { main: 5, sta: 5 }, 'legendary', 'barrow', 'last_toll'],
   // the Watchtower (18 to 20)
   ['wickglass_rod', 'Wickglass Rod', 'main', ['rod', 'quill'], 19, { int: 5, spi: 2 }, 'magic', 'watchtower'],
   ['stair_captains_shield', "Stair Captain's Shield", 'off', 'shield', 19, { sta: 5, str: 2 }, 'magic', 'watchtower'],
   ['lampblack_knives', 'Lampblack Knives', 'main', 'dagger', 19, { agi: 4, crit: 1 }, 'magic', 'watchtower'],
   ['sightline_bow', 'Sightline Bow', 'two', 'bow', 19, { agi: 5, sta: 2 }, 'magic', 'watchtower'],
   ['watchmans_mantle', "Watchman's Mantle", 'legs', 'class', 19, { main: 3, sta: 4 }, 'magic', 'watchtower'],
-  ['long_watch_greathelm', 'Greathelm of the Long Watch', 'head', 'class', 20, { main: 4, sta: 5 }, 'rare', 'watchtower'],
-  ['last_lamp_charm', 'Charm of the Last Lamp', 'trinket', null, 20, { main: 4, sta: 4, crit: 1 }, 'rare', 'watchtower'],
-  ['unsleeping_eye', 'The Unsleeping Eye', 'trinket', null, 20, { main: 7, sta: 7, crit: 2 }, 'legendary', 'watchtower'],
+  ['long_watch_greathelm', 'Greathelm of the Long Watch', 'head', 'class', 20, { main: 4, sta: 5 }, 'epic', 'watchtower'],
+  ['last_lamp_charm', 'Charm of the Last Lamp', 'trinket', null, 20, { main: 4, sta: 4, crit: 1 }, 'epic', 'watchtower'],
+  ['unsleeping_eye', 'The Unsleeping Eye', 'trinket', null, 20, { main: 7, sta: 7, crit: 2 }, 'legendary', 'watchtower', 'never_blinks'],
+  ['last_wick_mantle', 'Mantle of the Last Wick', 'legs', 'class', 20, { main: 7, sta: 7 }, 'legendary', 'watchtower', 'last_wick'],
   // the caves: the named foe drops one of its cave's two (the one your class can use, or either)
   ['mudges_tusk_charm', "Mudge's Tusk Charm", 'trinket', null, 6, { sta: 2, main: 1 }, 'magic', 'rootcellar'],
   ['rootcellar_boots', 'Rootcellar Boots', 'feet', 'class', 6, { sta: 2, main: 1 }, 'magic', 'rootcellar'],
@@ -243,8 +264,10 @@ const D = [
   ['cutpurse_gloves', 'Cutpurse Gloves', 'hands', 'class', 9, { main: 2, sta: 1 }, 'magic', 'smugglers_cut'],
   ['tarnwater_band', 'Tarnwater Band', 'trinket', null, 16, { main: 3, sta: 3 }, 'magic', 'tarn_hollow'],
   ['mistwalker_boots', 'Mistwalker Boots', 'feet', 'class', 16, { main: 3, sta: 3, speed: 3 }, 'magic', 'tarn_hollow'],
+  ['hollowfangs_mistwalkers', "Hollowfang's Mistwalkers", 'feet', 'class', 16, { main: 6, sta: 6, speed: 4 }, 'legendary', 'tarn_hollow', 'mistwalk'],
 ];
-for (const [id, name, slot, type, ilvl, stats, rarity, dungeon] of D) gear(id, name, slot, type, ilvl, rarity, stats, { dungeon });
+const withPower = (pid) => (pid && LEGENDARY_POWERS[pid] ? { power: LEGENDARY_POWERS[pid], text: LEGENDARY_POWERS[pid].text } : {});
+for (const [id, name, slot, type, ilvl, stats, rarity, dungeon, power] of D) gear(id, name, slot, type, ilvl, rarity, stats, { dungeon, ...withPower(power) });
 
 // The Watchtower sets (BUILDS_2 6.7 and phase 9: sets from dungeon bosses): one per class, three pieces, one from each
 // boss (the Wickwright the head, the Captain of the Stair the legs, the Sentinel the chest). Rarity 'set'. The bonus at 2

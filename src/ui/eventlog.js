@@ -8,8 +8,9 @@ const FAIL = {
   cooldown: 'That is not ready yet.', range: 'Out of range.', los: 'You cannot see your target.',
   requires: 'You cannot do that now.', silenced: 'You cannot speak right now.', moving: 'You must stand still for that.',
   target: 'You need a target for that.', combo: 'Not enough Ink Marks on that target.', stunned: 'You are stunned.', busy: 'You are busy.',
-  combat: 'Not while in combat.',
+  combat: 'Not while in combat.', locked: 'That school of magic is locked out for now.',
 };
+const SCHOOL_WORD = { ink: 'ink', light: 'light', shadow: 'shadow', fire: 'fire', nature: 'nature', spell: 'spell' };
 
 export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, resourceKind = 'mana' }) {
   const resWord = resourceWord(typeof resourceKind === 'function' ? resourceKind() : resourceKind);
@@ -31,12 +32,22 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
       if (ev.src !== me && ev.dst !== me) return [];
       const a = abil(ev.ability);
       const ch = ev.src === me ? 'damage_out' : 'damage_in';
-      if (ev.result && ev.result !== 'hit') {
-        const verb = { miss: 'misses', dodge: 'is dodged by', parry: 'is parried by', block: 'is blocked by', immune: 'fails against' }[ev.result] || 'misses';
-        return [{ ch, text: `${ev.src === me ? `Your ${a || 'attack'}` : `${nameOf(ev.src)}'s ${a || 'attack'}`} ${verb} ${who(ev.dst)}.` }];
+      // results the sim produces (src/sim/combat.js, the hit table src/data/hittable.js): miss, dodge, parry, resist and
+      // immune land nothing; block, glancing and a partial resist land part of the blow
+      const yours = `Your ${a || 'attack'}`, theirs = `${nameOf(ev.src)}'s ${a || 'attack'}`;
+      if (ev.result === 'immune') return [{ ch, text: `${ev.src === me ? yours : theirs} fails against ${who(ev.dst)}.` }];
+      if (ev.result === 'miss' || ev.result === 'dodge' || ev.result === 'parry' || ev.result === 'resist') {
+        if (ev.src === me) {
+          const verb = { miss: 'misses', dodge: 'is dodged by', parry: 'is parried by', resist: 'is resisted by' }[ev.result];
+          return [{ ch, text: `${yours} ${verb} ${who(ev.dst)}.` }];
+        }
+        const text = { miss: `${theirs} misses you.`, dodge: `You dodge ${theirs}.`, parry: `You parry ${theirs}.`, resist: `You resist ${theirs}.` }[ev.result];
+        return [{ ch, text }];
       }
       const amount = Math.round(ev.amount).toLocaleString('en-US');
-      const tail = `${ev.crit ? ' (critical)' : ''}${ev.absorbed ? ` (${ev.absorbed} absorbed)` : ''}.`;
+      const bits = [ev.crit ? 'critical' : '', ev.glancing ? 'glancing' : '', ev.result === 'block' && ev.blocked ? `${ev.blocked} blocked` : '',
+        ev.resisted ? `${ev.resisted} resisted` : '', ev.absorbed ? `${ev.absorbed} absorbed` : ''].filter(Boolean);
+      const tail = `${bits.map((b) => ` (${b})`).join('')}.`;
       if (ev.src === me) return [{ ch, text: `Your ${a || 'attack'} ${ev.periodic ? 'burns' : 'hits'} ${who(ev.dst)} for ${amount}${tail}` }];
       return [{ ch, text: `${Who(ev.src)}${a ? `'s ${a}` : ''} hits you for ${amount}${tail}` }];
     }
@@ -47,6 +58,10 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
       if (ev.src === me) return [{ ch: 'heal', text: `Your ${a} heals ${ev.dst === me ? 'you' : nameOf(ev.dst)} for ${amount}${ev.crit ? ' (critical)' : ''}.` }];
       return [{ ch: 'heal', text: `${nameOf(ev.src)}'s ${a} heals you for ${amount}.` }];
     }
+    // an interrupt locks the whole school of the spell it broke
+    case 'school_lock':
+      if (ev.id !== me) return [];
+      return [{ ch: 'error', text: `Your ${SCHOOL_WORD[ev.school] || ev.school} spells are locked for a moment.` }];
     case 'death': return ev.id === me ? [{ ch: 'error', text: 'You have died. You wake at the last lantern you touched.' }] : (ev.killer === me ? [{ ch: 'combat', text: `${nameOf(ev.id)} dies.` }] : []);
     case 'xp': {
       if (ev.id !== me) return [];

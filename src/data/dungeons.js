@@ -7,7 +7,8 @@
 // on `door.out`. A party (today: one hero) gets its own copy; see CONTRACTS "Dungeons and caves".
 //
 // Loot per place: `drops[boss]` = the named pool that boss draws from for the killer (pieces the killer's class can use);
-// the last boss draws a rare from `rare` and rolls `legendary` (legend.chance, +legend.step per miss, saved on the hero).
+// the last boss draws an epic from `rare` (the pool's items are epic since 2026-11-22) and rolls `legendary` (one id, or a
+// list: one the killer can use is picked; legend.chance, +legend.step per miss, saved on the hero).
 // The Watchtower's bosses also drop their set piece (`setSlot`, src/data/items.js SETS). `daily`: the first clear of each
 // real day (the bounty boards' day, world.setDay) leaves a bonus chest by the last boss: gold, glyphs, a gear roll and
 // bonus XP worth `xpMinutes` of questing at the hero's level (4 kill XP a minute, BUILDS_2 5.2).
@@ -29,7 +30,7 @@ export const DUNGEONS = {
       barrow_tallywife: ['bellwether_clapper', 'wether_horn_buckler', 'notched_tally_knife', 'barrowfold_bow', 'tally_wifes_hood'],
     },
     rare: ['reeves_counting_coat', 'uncounted_ledger'],
-    legendary: 'reeves_tally_ring', legend: { chance: 0.1, step: 0.005 },
+    legendary: ['reeves_tally_ring', 'bellwethers_last_toll'], legend: { chance: 0.1, step: 0.005 },
     chest: { gold: [18, 30], rarity: 'magic', ilvl: 11 },
     daily: { gold: [45, 70], glyphs: 3, rarity: 'rare', ilvl: 12, xpMinutes: 54 },   // + the clear's ~1,500 kill XP = an hour at 11
   },
@@ -44,7 +45,7 @@ export const DUNGEONS = {
       watch_stair_captain: ['wickglass_rod', 'stair_captains_shield', 'lampblack_knives', 'sightline_bow', 'watchmans_mantle'],
     },
     rare: ['long_watch_greathelm', 'last_lamp_charm'],
-    legendary: 'unsleeping_eye', legend: { chance: 0.1, step: 0.005 },
+    legendary: ['unsleeping_eye', 'last_wick_mantle'], legend: { chance: 0.1, step: 0.005 },
     setSlot: { watch_wickwright: 'head', watch_stair_captain: 'legs', sentinel_long_watch: 'chest' },
     chest: { gold: [40, 60], rarity: 'magic', ilvl: 19 },
     daily: { gold: [110, 160], glyphs: 4, rarity: 'rare', ilvl: 20, xpMinutes: 55 },   // + ~1,900 kill XP = an hour at 19
@@ -71,6 +72,7 @@ export const DUNGEONS = {
     door: { area: 'moor', x: 42, y: 47, w: 1, h: 1, out: [42, 48], dir: 'up' },     // the tarn's south shore, High Moor
     bosses: ['hollowfang'], last: 'hollowfang',
     drops: { hollowfang: ['tarnwater_band', 'mistwalker_boots'] },
+    legendary: 'hollowfangs_mistwalkers', legend: { chance: 0.1, step: 0.005 },     // combat core 2026-11-22: a third place rolls one
     chest: { gold: [30, 45], rarity: 'magic', ilvl: 16 },
   },
 };

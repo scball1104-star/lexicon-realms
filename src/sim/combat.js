@@ -234,6 +234,8 @@ export function createCombat(C) {
     if (e.dead) return fail(e, ab, 'dead');
     if (cannotAct(e)) return fail(e, ab, 'stunned');
     if (ab.school !== 'physical' && stats.hasFlag(e, 'silence')) return fail(e, ab, 'silenced');
+    // an interrupt locks the whole school of the spell it broke (combat core 2026-11-22, GAP 2.1)
+    if (e.schoolLock && ab.school && ab.school !== 'physical' && (e.schoolLock[ab.school] || 0) > now()) return fail(e, ab, 'locked');
     if (e.cast) return fail(e, ab, 'busy');
     // a toggled stance or aura: casting it again switches it off
     if (ab.toggle) {
@@ -299,6 +301,7 @@ export function createCombat(C) {
       return true;
     }
     if (cost) pay(e, cost, plan);
+    if (cost && plan && plan.res) ctx.paid = { kind: cost.kind, amount: plan.res };      // the hit table's refund (a skill that missed)
     if (special && special.after) special.after();
     else startCd(e, ab);
     S().paid(e, ab);
@@ -326,9 +329,10 @@ export function createCombat(C) {
         return;
       }
       pay(e, c.cost, plan);
+      if (plan.res) c.paid = { kind: c.cost.kind, amount: plan.res };
     }
     startCd(e, ab);
-    fire(e, ab, t, c.at, { opener: c.opener, ...(c.mult ? { mult: c.mult } : {}) });
+    fire(e, ab, t, c.at, { opener: c.opener, ...(c.mult ? { mult: c.mult } : {}), ...(c.paid ? { paid: c.paid } : {}) });
     emit({ type: 'cast_stop', src: e.id, ability: c.ability, target: c.target, reason: 'done' });
   }
 
@@ -355,9 +359,30 @@ export function createCombat(C) {
     const id = t.cast.ability;
     const castTarget = t.cast.target;
     cancelCast(t, 'interrupt');
-    t.cd[id] = Math.max(t.cd[id] || 0, now() + T(lockout || PC.interruptLock));
+    const until = now() + T(lockout || PC.interruptLock);
+    t.cd[id] = Math.max(t.cd[id] || 0, until);
+    // WoW's rule: a spell's whole school is locked, not one ability (a boss with two shadow spells cannot just cast the
+    // other). Physical casts (a charge's wind-up) lock only themselves. Every known ability of the school shows the lock as
+    // its cooldown; the lock itself (e.schoolLock) also stops charge abilities.
+    const ab = data.ability(t, id);
+    const school = ab && ab.school;
+    if (school && school !== 'physical') {
+      t.schoolLock = { ...(t.schoolLock || {}), [school]: until };
+      for (const other of schoolAbilities(t)) {
+        const o = data.ability(t, other);
+        if (o && o.school === school && !o.charges) t.cd[other] = Math.max(t.cd[other] || 0, until);
+      }
+      emit({ type: 'school_lock', id: t.id, school, ability: id, until, by: src ? src.id : null });
+    }
     // Builds 2: Silence, Spellthief, Unwritten, Spellbreaker react to an interrupt the hero made
     if (src && src.kind === 'player') S().interrupted(src, t, id, castTarget);
+  }
+
+  /** Every ability id `e` can cast: a hero's known list; a foe's template abilities and its bolt. */
+  function schoolAbilities(e) {
+    if (e.kind === 'player') return e.known || [];
+    const t = (C.content.mobs || {})[e.template] || {};
+    return [...new Set([...(t.abilities || []).map((x) => (typeof x === 'string' ? x : x.id)), t.bolt || 'mob_bolt'])];
   }
 
   // ------------------------------------------------------------------------------------------------ fire
@@ -419,7 +444,7 @@ export function createCombat(C) {
     state.proj = state.proj || [];
     const p = { id: state.nextId++, src: e.id, dst: t.id, ability: ab.id, zone: e.zone, x: e.x, y: e.y - 6 * SUB,
       speed: Math.max(1, Math.round((ab.projectile.speed * SUB) / TICK_HZ)), opener: !!ctx.opener, combo: ctx.combo || 0,
-      mult: ctx.mult || 1, auto: !!ctx.auto, hand: ctx.hand || null, born: now(), forceCrit: !!ctx.forceCrit };
+      mult: ctx.mult || 1, auto: !!ctx.auto, hand: ctx.hand || null, born: now(), forceCrit: !!ctx.forceCrit, ...(ctx.paid ? { paid: ctx.paid } : {}) };
     state.proj.push(p);
     emit({ type: 'projectile', id: p.id, src: e.id, dst: t.id, ability: ab.id, speed: ab.projectile.speed });
   }
@@ -436,7 +461,7 @@ export function createCombat(C) {
         if (p.auto) autoLand(src, t, p);
         else {
           const ab = data.ability(src, p.ability);
-          if (ab) runEffects(src, ab.effects, { ab, abId: ab.id, target: t, caster: src, opener: p.opener, combo: p.combo, mult: p.mult, projectile: true, forceCrit: !!p.forceCrit });
+          if (ab) runEffects(src, ab.effects, { ab, abId: ab.id, target: t, caster: src, opener: p.opener, combo: p.combo, mult: p.mult, projectile: true, forceCrit: !!p.forceCrit, ...(p.paid && !p.hits ? { paid: p.paid } : {}) });
           // Builds 2 Gatewheel: the shield bounces on to the nearest foe it has not hit yet
           if (ab && ab.bounce) {
             const hit = [...(p.hits || []), t.id];
@@ -520,18 +545,31 @@ export function createCombat(C) {
     }
   }
 
+  // the hit table (src/data/hittable.js): a target that avoided this ability's blow (miss, dodge, parry, resist) also
+  // escapes its riders named in hitTable.ridersOnAvoid (a dodged Shield Bash does not stun)
+  const riderKind = (fx) => (fx.type === 'aura' ? (fx.aura && fx.aura.kind === 'debuff' ? 'debuff' : null) : fx.type);
   function runEffects(src, effects, ctx) {
     if (!effects) return;
-    let hits = 0;
+    let hits = 0, avoided = null;
+    const riders = (C.content.hitTable && C.content.hitTable.ridersOnAvoid) || [];
     for (const fx of effects) {
       if (!fx || fx.type === 'none') continue;
       if (fx.chance != null && !rng.chance(fx.chance)) continue;
       if (fx.if && !stats.cond(src, fx.if, ctx)) continue;
       const list = recipients(src, fx, ctx);
+      const skip = avoided && riders.includes(riderKind(fx));
       for (const r of list) {
         if (!r) continue;
+        if (skip && avoided.has(r.id)) continue;
+        lastResult = null;
         const n = applyOne(src, r, fx, { ...ctx, hitCount: hits });
         if (fx.type === 'damage' && n) hits++;
+        if (fx.type === 'damage' && !n && lastResult) {
+          (avoided = avoided || new Set()).add(r.id);
+          // WoW's refund: a skill whose blow on its own target did not land gives back most of its Resolve or Focus
+          const RF = C.content.hitTable && C.content.hitTable.refundOnAvoid;
+          if (RF && ctx.paid && !ctx.refunded && r === ctx.target && RF.kinds.includes(ctx.paid.kind)) { ctx.refunded = true; gainRes(src, ctx.paid.kind, RF.share * ctx.paid.amount); }
+        }
       }
       if (fx.type === 'damage') ctx.hitCount = hits;
     }
@@ -565,7 +603,9 @@ export function createCombat(C) {
         const res = dealDamage(src, r, raw, { ability: fx.ability || ctx.abId, school: fx.school || (ctx.ab && ctx.ab.school) || 'physical',
           canCrit: fx.canCrit !== false, periodic: !!(ctx.periodic || fx.periodic), noArmor: !!fx.noArmor, opener: ctx.opener,
           melee: !!(ctx.ab && ctx.ab.range && ctx.ab.range.max <= 40 && !ctx.periodic), threatMult: ctx.ab ? ctx.ab.threatMult : 1, auraSrc: ctx.aura || null,
-          forceCrit: !!ctx.forceCrit, copied: !!ctx.copied });
+          forceCrit: !!ctx.forceCrit, copied: !!ctx.copied, area: !!ctx.area,
+          // on the hit table: an ability's own direct, single-target blow (not a proc, a tick, an area, a copy)
+          avoidable: !!(ctx.ab && ctx.ab.id && !ctx.area && !ctx.aura && !ctx.periodic && !fx.periodic && !ctx.copied && !fx.cannotMiss) });
         if (res) ctx.damage = res.amount + (res.absorbed || 0);
         return res ? 1 : 0;
       }
@@ -589,10 +629,12 @@ export function createCombat(C) {
         else if (r.kind === 'mob') addThreat(r, src, fx.amount || 0, 1);
         return 1;
       case 'resource': {
-        let amt = (fx.amount || 0) + (fx.pctOfMax && r.res && r.res.kind === fx.kind ? fx.pctOfMax * r.res.max : 0);
+        const kind = fx.kind === 'any' ? (r.res ? r.res.kind : null) : fx.kind;       // 'any': the holder's own resource (legendary powers)
+        if (fx.kind === 'any' && !kind) return 0;
+        let amt = (fx.amount || 0) + (fx.pctOfMax && r.res && r.res.kind === kind ? fx.pctOfMax * r.res.max : 0);
         // Builds 2 Reclaim: part of the cost of the spell that crit comes back
         if (fx.pctOfCost && ctx.procAbility) { const pab = data.ability(src, ctx.procAbility); const c = pab && costOf(src, pab, null); if (c) amt += fx.pctOfCost * c.amount; }
-        gainRes(r, fx.kind, amt);
+        gainRes(r, kind, amt);
         return 1;
       }
       case 'combo': comboEffect(src, r, fx, ctx); return 1;
@@ -629,6 +671,100 @@ export function createCombat(C) {
     return { amount, absorbed: 0, crit: false, blocked: false, before: o.hp + amount };
   }
 
+  // ------------------------------------------------------------------------------------------------ the hit table
+  // src/data/hittable.js (content.hitTable; content without it fights by the old rules). lastResult: the result of the
+  // last dealDamage that did not land ('miss', 'dodge', 'parry', 'resist'), read by runEffects for the riders rule.
+  let lastResult = null;
+  // the table rolls on its own stream, forked from the sim's seed and saved in the state (state.hitRng), so adding it does
+  // not reshuffle every other roll (loot, procs, the AI's choices); deterministic and restored with the world
+  let hitRng = null;
+  function hitNext() {
+    if (!hitRng) { hitRng = rng.fork ? rng.fork('hit') : rng; if (state.hitRng != null && hitRng !== rng) hitRng.state = state.hitRng; }
+    const v = hitRng.next();
+    if (hitRng !== rng) state.hitRng = hitRng.state;
+    return v;
+  }
+  /** 'melee' | 'ranged' | 'spell' for an attack (the school before Pure Light or Storm Arrows turned a blow to magic). */
+  function attackKind(info, ability) {
+    const school0 = info.school || 'physical';
+    if (ability === 'auto' || school0 === 'physical') return info.melee ? 'melee' : 'ranged';
+    return 'spell';
+  }
+  function missChance(HT, gap, foe, kind) {
+    const M = (foe && HT.foeMiss) || (kind === 'spell' && HT.spellMiss) || HT.miss;
+    const v = gap > 0 ? M.base + M.perUp * Math.min(gap, M.steepFrom) + M.steepUp * Math.max(0, gap - M.steepFrom) : Math.max(M.floor, M.base + M.perDown * gap);
+    return Math.max(0, Math.min(M.cap, v));
+  }
+  /** { miss, dodge, parry } for `src` attacking `dst` with an attack of `kind` at level gap `gap` (dst - src). */
+  function avoidTable(HT, src, dst, kind, gap) {
+    let dodge = 0, parry = 0;
+    if (kind !== 'spell' && !cannotAct(dst)) {
+      const front = inFront(dst, src);
+      const up = Math.max(0, gap);
+      if (dst.kind === 'mob') {
+        dodge = HT.mobDodge.base + HT.mobDodge.perUp * up;                     // a foe dodges from any side
+        if (kind === 'melee' && dst.mob && dst.mob.armed && front) parry = HT.mobParry.base + HT.mobParry.perUp * up;
+      } else if (dst.kind === 'player' && front) {
+        dodge = HT.heroDodge.base + HT.heroDodge.perAgi * ((dst.stats && dst.stats.agi) || 0) + stats.mod(dst, 'dodge', { attacker: src }).add;
+        if (kind === 'melee') parry = ((HT.heroParry || {})[dst.cls] || 0) + stats.mod(dst, 'parry', { attacker: src }).add;
+      }
+      dodge = Math.max(0, dodge); parry = Math.max(0, parry);
+      const cap = HT.avoidCap || 0.6;
+      if (dodge + parry > cap) { const k = cap / (dodge + parry); dodge *= k; parry *= k; }
+    }
+    return { miss: missChance(HT, gap, src.kind === 'mob', kind), dodge, parry };
+  }
+  /**
+   * One roll on the table for a direct, single-target attack. Returns { result } when it does not land, else
+   * { glance, pay }: the glancing cut (0 = none) and the hero's equal-level pay (HIT_TABLE.equalLevelPay).
+   */
+  function hitRoll(HT, src, dst, info, ability) {
+    const kind = attackKind(info, ability);
+    const gap = Math.max(-10, Math.min(10, (dst.level || 1) - (src.level || 1)));
+    const t = avoidTable(HT, src, dst, kind, gap);
+    // dual wield (the Inkblade): her auto-attack blows miss more often (WoW's rule), and the pay below does not cover it
+    if (HT.dualWieldMiss && src.kind === 'player' && ability === 'auto' && kind === 'melee' && ((data.classes[src.cls] || {}).auto || {}).offHand) t.miss = Math.min(HT.miss.cap, t.miss + HT.dualWieldMiss);
+    let glance = 0, glanceCut = 0;
+    if (src.kind === 'player' && ability === 'auto' && kind === 'melee' && gap > 0 && HT.glancing) {
+      const G = HT.glancing;
+      glance = Math.min(G.cap, G.perLevel * gap);
+      glanceCut = Math.min(G.reduceCap, G.reduceBase + G.reducePerLevel * gap);
+    }
+    const r = hitNext();
+    let acc = t.miss;
+    if (r < acc) return { result: kind === 'spell' ? 'resist' : 'miss' };
+    if (r < (acc += t.dodge)) return { result: 'dodge' };
+    if (r < (acc += t.parry)) return { result: 'parry' };
+    const glancing = r < acc + glance;
+    let pay = 1;
+    if (src.kind === 'player' && HT.equalLevelPay && (HT.equalLevelPay === true || HT.equalLevelPay.includes(kind))) {
+      const t0 = avoidTable(HT, src, dst, kind, 0);
+      // weapon skill: the pay grows in with the hero's level (none to payLevels[0], all from payLevels[1])
+      const [l0, l1] = HT.payLevels || [0, 0];
+      const k = l1 > l0 ? Math.max(0, Math.min(1, ((src.level || 1) - l0) / (l1 - l0))) : 1;
+      pay = 1 / Math.max(0.4, 1 - k * ((HT.payMiss === false ? 0 : t0.miss) + t0.dodge + t0.parry));
+    }
+    return { glance: glancing ? glanceCut : 0, pay };
+  }
+  /** The average share of `school` damage `dst` shrugs off (src/data/resist.js), 0 to the cap. */
+  function resistOf(dst, school) {
+    const RZ = C.content.resist;
+    if (!RZ || school === 'physical') return 0;
+    let v = 0;
+    if (dst.kind === 'mob' && dst.mob && dst.mob.resist) v = dst.mob.resist[school] || 0;
+    else if (dst.kind === 'player') {
+      const r = (dst.derived && dst.derived.resist) || {};
+      v = (r[school] || 0) + (r.all || 0) + stats.mod(dst, 'resist', { school }).add;
+    }
+    return Math.max(0, Math.min(RZ.cap || 0.75, v));
+  }
+  /** A partial resist: the band (0, 25, 50 or 75%) rolled between the two either side of the average `m`. */
+  function resistBand(m) {
+    if (!(m > 0)) return 0;
+    const x = m / 0.25, lo = Math.floor(x);
+    return Math.min(0.75, (hitNext() < x - lo ? lo + 1 : lo) * 0.25);
+  }
+
   function dealDamage(src, dst, raw, info = {}) {
     if (!dst || dst.dead) return null;
     if (dst.kind === 'object') return hitObject(src, dst, raw, info);
@@ -641,6 +777,12 @@ export function createCombat(C) {
     const base = { type: 'damage', src: src.id, dst: dst.id, ability, school, amount: 0, crit: false, result: 'hit', absorbed: 0, blocked: 0, overkill: 0, periodic: !!info.periodic };
     if (dst.kind === 'mob' && dst.ai && dst.ai.mode === 'reset') { emit({ ...base, result: 'immune' }); return null; }
     if (stats.hasFlag(dst, 'immune') || stats.hasFlag(dst, 'untargetable')) { emit({ ...base, result: 'immune' }); return null; }
+    const HT = C.content.hitTable;
+    let roll0 = null;
+    if (HT && info.avoidable && !info.periodic && (src.kind === 'player' || src.kind === 'mob') && isHostile(src, dst)) {
+      roll0 = hitRoll(HT, src, dst, info, ability);
+      if (roll0.result) { avoided(src, dst, base, roll0.result, info); return null; }
+    } else
     // Builds 2 dodge (Slippery, Shadowskin, Ink Cloak, Sand Cloak): base dodge is 0; a dodged hit does nothing
     if (dst.kind === 'player' && !info.periodic && src.kind !== 'player' && isHostile(src, dst)) {
       const dg = Math.min(PC.dodgeCap || 0.6, stats.mod(dst, 'dodge', { attacker: src }).add);
@@ -656,8 +798,12 @@ export function createCombat(C) {
     mul *= 1 - PC.levelGapStep * gap;
     if (info.opener) mul *= 1 + openerBonus(src);
     mul *= S().damageMul(src, dst, info);
+    if (roll0) mul *= roll0.pay * (1 - roll0.glance);
     let critChance = 0;
     if (info.canCrit !== false && src.kind === 'player') critChance = (src.derived.crit || 0) + stats.mod(src, 'crit', ctx).add;
+    // foes crit too (B12): on the table only, never an area attack; a glancing blow never crits
+    else if (roll0 && info.canCrit !== false && src.kind === 'mob' && src.mob) critChance = src.mob.boss ? HT.mobCrit.boss : src.mob.elite ? HT.mobCrit.elite : HT.mobCrit.normal;
+    if (roll0 && roll0.glance) critChance = 0;
     let blockChance = 0;
     // the heavy trait (class identity pass): its blows cannot be blocked
     // Builds 2 Moving Wall: the shield also covers the sides and back
@@ -681,6 +827,12 @@ export function createCombat(C) {
       // Builds 2 Runed Plate: armor works on spells at part of its strength
       const k = stats.mod(dst, 'spellArmor').add;
       if (k > 0) amount *= 1 - armorOf() * Math.min(1, k);
+    }
+    // resistances (src/data/resist.js): a partial resist of 0, 25, 50 or 75% of a magic school's damage
+    let resisted = 0;
+    if (school !== 'physical') {
+      const frac = resistBand(resistOf(dst, school));
+      if (frac > 0) { resisted = amount * frac; amount -= resisted; }
     }
     // the armored trait's plating (class identity pass): a flat cut off every weapon hit, never off damage over time
     if (school === 'physical' && !info.noArmor && dst.mob && dst.mob.plating && !info.periodic && !stats.findAura(dst, 'b2_redacted')) {
@@ -720,13 +872,33 @@ export function createCombat(C) {
     dst.hp -= amount;
     const overkill = dst.hp < 0 ? -dst.hp : 0;
     const res = { ...base, amount: amount, crit, result: blocked ? 'block' : 'hit', absorbed, blocked: blockedAmt, overkill };
+    if (roll0 && roll0.glance) res.glancing = true;
+    if (resisted > 0) res.resisted = Math.max(1, Math.round(resisted));
     emit(res);
     afterDamage(src, dst, amount, absorbed, res, info, ctx);
     if (dst.hp <= 0) {
       if (!S().cheatDeath(dst, src)) kill(dst, src);
     }
     if (src.kind === 'player' && !info.periodic && !info.cleave && !info.copied) splash(src, dst, raw, info);
-    return { amount, absorbed, crit, blocked, before };
+    return { amount, absorbed, crit, blocked, before, ...(res.glancing ? { glancing: true } : {}), ...(res.resisted ? { resisted: res.resisted } : {}),
+      ...(roll0 && roll0.pay !== 1 ? { pay: roll0.pay } : {}) };
+  }
+
+  /** A blow that did not land (the hit table): the event, the threat it still makes, the defender's procs. */
+  function avoided(src, dst, base, result, info) {
+    emit({ ...base, result });
+    const t = now();
+    if (src.kind === 'player') src.lastCombat = t;
+    if (dst.kind === 'player') dst.lastCombat = t;
+    // a swing that missed still starts the fight: the foe turns on whoever swung (it was not a hidden attack)
+    if (dst.kind === 'mob' && src.kind === 'player') { addThreat(dst, src, 1, 1); if (!dst.tagger) dst.tagger = src.id; }
+    if (dst.kind === 'player') {
+      if (result === 'dodge' || result === 'parry') procs(dst, result, { attacker: src, target: src });
+      // the Warden still steels herself on a blow she turned (HIT_TABLE.resolveOnAvoid)
+      const r = (data.classes[dst.cls] || {}).resource;
+      if (C.content.hitTable.resolveOnAvoid && r && r.onHitTaken && !info.periodic) gainRes(dst, r.kind, r.onHitTaken + stats.mod(dst, 'hitResolve').add);
+    }
+    lastResult = result;          // last: the procs above may run effects of their own (runEffects reads it after this blow)
   }
 
   /**
@@ -1367,14 +1539,17 @@ export function createCombat(C) {
       raw += stats.mod(e, 'autoSp').add * ((e.derived && e.derived.sp) || 0) * (p.mult || 1);     // Builds 2 Bell and Rod
       raw *= stats.mod(e, 'autoWeaponMul').mul;                                                 // Builds 2 Heavy Knife
     }
-    const res = dealDamage(e, t, raw, { ability: 'auto', school: 'physical', canCrit: true, melee: cls.auto.range <= 40, threatMult: 1, opener: p.opener });
-    if (res && cls.resource.kind === 'resolve') gainRes(e, 'resolve', cls.resource.onHitDealt + stats.mod(e, 'autoResolve').add);
+    const res = dealDamage(e, t, raw, { ability: 'auto', school: 'physical', canCrit: true, melee: cls.auto.range <= 40, threatMult: 1, opener: p.opener, avoidable: true });
+    // a swing that missed gives no Resolve; a landed one carries the equal-level pay (src/data/hittable.js), so the Warden's
+    // Resolve over a fight holds
+    if (res && cls.resource.kind === 'resolve') gainRes(e, 'resolve', (cls.resource.onHitDealt + stats.mod(e, 'autoResolve').add) * (res.pay || 1));
   }
 
   // ------------------------------------------------------------------------------------------------ mob melee
   function mobAttack(m, t) {
     const raw = mobSwing(m);
-    return dealDamage(m, t, raw, { ability: 'auto', school: m.mob.school, canCrit: false, melee: true, threatMult: 1 });
+    // the hit table (B12): a foe's swing can miss, be dodged or parried, and crit (canCrit only counts with content.hitTable)
+    return dealDamage(m, t, raw, { ability: 'auto', school: m.mob.school, canCrit: true, melee: true, threatMult: 1, avoidable: true });
   }
 
   // ------------------------------------------------------------------------------------------------ per-unit tick
@@ -1472,9 +1647,16 @@ export function createCombat(C) {
   }
 
   // ------------------------------------------------------------------------------------------------ procs
+  /** The procs of the legendary powers `e` wears (src/data/legendary_powers.js), tagged with the power id. */
+  function powerProcs(e) {
+    const out = [];
+    for (const pw of stats.powersOf(e)) for (const p of pw.procs || []) out.push({ ...p, src: `power_${pw.id}` });
+    return out;
+  }
   function procs(e, on, pctx = {}) {
     if (!e || e.kind !== 'player' || e.dead) return;
-    const list = data.talentInfo(e).procs;
+    const tl = data.talentInfo(e).procs;
+    const list = e.powers ? [...tl, ...powerProcs(e)] : tl;
     for (const p of list) {
       if (p.on !== on) continue;
       if (p.ability && !abMatch(p.ability, pctx.ability)) continue;
@@ -1482,7 +1664,7 @@ export function createCombat(C) {
       if (p.school && (p.school === 'spell' ? !pctx.school || pctx.school === 'physical' : p.school !== pctx.school)) continue;
       if (p.direct && pctx.cleave) continue;
       if (p.when && !stats.cond(e, p.when, pctx)) continue;
-      const key = `${p.src}:${on}`;
+      const key = `${p.src}:${p.icdKey || on}`;
       e.icd = e.icd || {};
       if (p.icd && (e.icd[key] || 0) > now()) continue;
       if (p.chance != null && p.chance < 1 && !rng.chance(p.chance)) continue;
