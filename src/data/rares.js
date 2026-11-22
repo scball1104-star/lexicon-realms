@@ -32,6 +32,7 @@ export const RARES = [
   r({ id: 'rare_gutterlick', name: 'Gutterlick', family: 'ink_slime', level: 3, region: null, where: 'Gate Road South',
     flavour: 'A slime that lived in the town drains for a year and came out smug.',
     kind: 'normal', traits: [], abilities: [], junk: 'slime_ink', speed: 44,
+    behavior: 'passive',     // it sits by the start road: it fights only when attacked, so level 1 heroes can walk past
     spots: [[169, 164], [191, 164], [180, 167]],
     item: { id: 'gutter_wader_boots', name: 'Gutter-Wader Boots', slot: 'feet', type: 'class', stats: { sta: 1, main: 1 } } }),
   r({ id: 'rare_old_mossback', name: 'Old Mossback', family: 'moss_scarab', level: 5, region: null, where: 'the North Road',
@@ -119,7 +120,7 @@ for (const x of RARES) {
   const s = rareStats([x.kind], x.level);
   RARE_MOBS[x.id] = Object.freeze({
     id: x.id, name: x.name, level: [x.level, x.level], family: x.family, kind: x.kind, traits: [...x.traits, 'tough', 'rare'],
-    behavior: 'aggressive', aggroRadius: 80, speed: x.speed, wander: 2, flee: null, social: false, ...(x.flying ? { flying: true } : {}),
+    behavior: x.behavior || 'aggressive', aggroRadius: x.aggroRadius || 80, speed: x.speed, wander: 2, flee: null, social: false, ...(x.flying ? { flying: true } : {}),
     abilities: x.abilities, rare: true, flavour: x.flavour, rareItem: x.item.id,
     sprite: mobSprite(x.family, x.level), spriteLq: fam.lq, faction: 'hostile', school: 'physical', elite: false, leash: 640, xp: null,
     hp: s.hp, damage: s.damage, attackSpeed: MOB_CURVE.attackSpeed, armor: 0, respawn: RARE_RULES.respawn[0],
