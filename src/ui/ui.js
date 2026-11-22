@@ -34,6 +34,7 @@ import { createProfUI } from './prof_ui.js';
 import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
+import { START_REALMS } from '../data/rootbound.js';   // big world: the welcome line of a hero who starts in a realm
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof'];
@@ -89,7 +90,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     store, toast,
     go(mode) {
       st.mode = mode; st.confirm = null; st.err = null;
-      if (mode === 'create') { st.name = ''; nameInput.value = ''; st.cls = null; st.look = 0; if (!st.metrics.touch) act.focusName(); }
+      if (mode === 'create') { st.name = ''; nameInput.value = ''; st.cls = null; st.look = 0; st.start = null; if (!st.metrics.touch) act.focusName(); }
       else { nameInput.blur(); st.nameFocus = false; }
     },
     /** Phone full screen: the Fullscreen API where the browser has it (Android, iPad); an iPhone browser has none, so
@@ -112,7 +113,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     },
     focusName() { nameInput.value = st.name || ''; nameInput.focus({ preventScroll: true }); st.nameFocus = true; },
     create() {
-      const r = store.add({ name: st.name, cls: st.cls, look: st.look });
+      const r = store.add({ name: st.name, cls: st.cls, look: st.look, start: st.start === 'willowmere' ? 'willowmere' : 'realm' });
       if (!r.ok) { st.err = r.reason; return; }
       nameInput.blur();
       act.enter(r.char.id);
@@ -136,7 +137,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       log.length = 0;
       if (!c.state) {
         // a brand-new hero: a short welcome and, once per hero, the controls card
-        say('system', `Welcome to Willowmere, ${c.name}. Hob the innkeeper has a word for you: look for the gold ! over his head.`);
+        if (c.start === 'realm' && START_REALMS[c.cls]) say('system', `Welcome to ${START_REALMS[c.cls].name}, ${c.name}. Ottilie the Head Archivist has a word for you: look for the gold ! over her head.`);
+        else say('system', `Welcome to Willowmere, ${c.name}. Hob the innkeeper has a word for you: look for the gold ! over his head.`);
       } else say('system', `Welcome back, ${c.name}.`);
       if (!c.hinted) { st.hint = { t0: st.now }; store.update(id, { hinted: true }); }
     },
@@ -365,7 +367,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     lastSnap = snap;
     const L = layoutNow();
     st.layer = { W: L.W, H: L.H };
-    const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList };
+    // big world: the hero's known flight points (the world map lights them, menus.js drawMap)
+    const meS = snap && playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
+    const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, flights: (meS && meS.flights) || [] };
     const regions = [];
     ctx.imageSmoothingEnabled = false;
     if (st.mode !== 'game' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
@@ -895,7 +899,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     switch (ev.type) {
       case 'interact':
         if (ev.src !== me) return;
-        if (st.dialog && st.dialog.ent === ev.id) Object.assign(st.dialog, { trainer: ev.trainer || null, vendor: ev.vendor || null, line: st.dialog.line + 1 });
+        if (st.dialog && st.dialog.ent === ev.id) Object.assign(st.dialog, { trainer: ev.trainer || null, vendor: ev.vendor || null, inn: ev.inn || null, flight: ev.flight || null, line: st.dialog.line + 1 });
         else { st.dialog = dialogFromInteract(ev); st.dialog.line = Math.floor(st.now * 7); if (st.metrics.touch) st.open.clear(); }
         return;
       case 'chest_open':

@@ -708,11 +708,12 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     }
     const tpls = [...pool].filter((t) => !(C.mobs[t] && (C.mobs[t].elite || C.mobs[t].boss)));
     if (!tpls.length) return;
-    if (p.zone === zonePick) {
-      const m = pickMob(tpls, zonePick, p.level - 2, 1);
+    const zg = C.zones[zonePick] ? zonePick : p.zone;
+    if (p.zone === zg) {
+      const m = pickMob(tpls, zg, p.level - 2, 1);
       if (m && dpx(m, p) < 300) { fight(m); return; }
     }
-    hunt({ key: 'grind', mobs: tpls, zone: zonePick, minLevel: p.level - 2, spotIdx: g.spotIdx, spotUntil: g.spotUntil });
+    hunt({ key: 'grind', mobs: tpls, zone: zg, minLevel: p.level - 2, spotIdx: g.spotIdx, spotUntil: g.spotUntil });
   }
 
   // ---------------------------------------------------------------- watchers

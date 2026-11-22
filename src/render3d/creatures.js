@@ -13,6 +13,12 @@ import { canvasTex, radial, seeded } from './textures.js';
 /** Mob template / sprite -> family and colours. */
 export function familyOf(template = '', sprite = '') {
   const k = `${template} ${sprite}`;
+  // the Rootbound (big world, 2026-11-22): parchment mites, open books that read, walking shelves, the ink-black Archivore
+  if (/bookmite|dogear/.test(k)) return { f: 'scarab', tint: /dogear/.test(k) ? '#a89060' : '#c8b48a' };
+  if (/rb_tome/.test(k)) return { f: 'wraith', tint: '#e8dcc0', glow: '#9fc4ff' };
+  if (/rb_shelf_golem/.test(k)) return { f: 'golem', tint: '#6a4a2e', glow: '#9fc4ff' };
+  if (/rb_echo_warden/.test(k)) return { f: 'golem', tint: '#7a8aa0', glow: '#bfe0ff' };
+  if (/rb_archivore/.test(k)) return { f: 'boar', tint: '#1a1430' };
   if (/thornback/.test(k)) return { f: 'wolf', tint: '#3a2a24', thorns: true, eyes: '#ff7a2a' };
   if (/mist_wolf/.test(k)) return { f: 'wolf', tint: '#b8c4d4', eyes: '#9fe0ff', ghost: 0.75 };
   if (/wolf/.test(k)) return { f: 'wolf', tint: '#6a5a3e', eyes: '#ffb347' };

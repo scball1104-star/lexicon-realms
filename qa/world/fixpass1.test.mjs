@@ -143,7 +143,9 @@ export const tests = [
   // ------------------------------------------------------------------------------------------- bug 4
   { name: 'bug 4: loot that does not fit waits as pending loot (loot_take collects it); quest items never take a bag slot (edges bag_full_on_loot_quest_item_vanishes)', fn() {
     const w2sys = [];
-    const w = createWorld({ seed: 11, content: C, systems: [{ id: 'killer', tick: (world) => w2sys.forEach((f) => f(world)) }] });
+    // seed 12 (was 11): the drops are dice on the world's one rng stream, which moves whenever content adds foes (big world: the
+    // Rootbound); with 11 every page roll now misses
+    const w = createWorld({ seed: 12, content: C, systems: [{ id: 'killer', tick: (world) => w2sys.forEach((f) => f(world)) }] });
     const s = freeNear('world', ...W('valley', 41, 10), 3);
     const full = ['slime_ink', 'scarab_shell', 'wolf_pelt', 'thorny_pelt', 'blot_residue', 'tangled_wool', 'crow_feather', 'grave_dust', 'mist_pelt', 'boar_hide', 'torn_page', 'ink_wisp', 'slime_ink', 'scarab_shell'].map((item) => ({ item, qty: 20 }));   // 14: a level 8 satchel has grown +2
     const id = w.addPlayer({ name: 'Full', cls: 'warden', zone: 'world', x: s[0], y: s[1], level: 8, bag: full, quests: { wm_copied_twice: { state: 'active', counts: [0] } }, questsDone: ['wm_name_twice', 'wm_keeper_marks'] });

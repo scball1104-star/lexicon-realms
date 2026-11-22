@@ -6,6 +6,7 @@
 import { frame, itemTooltip } from './menus.js';
 import { drawTooltip } from './hud.js';
 import { itemInfo, abilityInfo, abilityTooltip, classInfo, questInfo, npcInfo, RARITY_COLOR } from './gamedata.js';
+import { flightOptions, drawFlightPage } from './travelui.js';   // big world: inns and flight masters
 
 export const DIALOG_RECT = { x: 60, y: 40, w: 330, h: 262 };
 export const DIALOG_RECT_TOUCH = { x: 4, y: 36, w: 300, h: 300 };
@@ -18,7 +19,7 @@ export function dialogRectFor(L) {
 
 /** The dialog state from the sim's interact event (pure). */
 export function dialogFromInteract(ev) {
-  return { ent: ev.id, npc: ev.npc, trainer: ev.trainer || null, vendor: ev.vendor || null, offers: [], turnins: [], progress: [], soon: [],
+  return { ent: ev.id, npc: ev.npc, trainer: ev.trainer || null, vendor: ev.vendor || null, inn: ev.inn || null, flight: ev.flight || null, offers: [], turnins: [], progress: [], soon: [],
     page: 'main', quest: null, choice: 0, scroll: 0, line: 0 };
 }
 
@@ -31,7 +32,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
   const rowH0 = Math.max(14, env.L.minHit || 0);
   if (d.page === 'main') {
     // the greeting window is only as tall as its choices
-    const n = d.turnins.length + d.offers.length + d.progress.length + (d.trainer ? 1 : 0) + (d.vendor ? 1 : 0) + 2 + (act.profOptions ? act.profOptions(d).length : 0);
+    const n = d.turnins.length + d.offers.length + d.progress.length + (d.trainer ? 1 : 0) + (d.vendor ? 1 : 0) + (d.inn ? 1 : 0) + (d.flight ? 1 : 0) + 2 + (act.profOptions ? act.profOptions(d).length : 0);
     r.h = Math.min(r.h, 26 + 40 + n * (rowH0 + 1) + 6);
   }
   const npc = npcInfo(d.npc) || { name: d.npc, talk: [] };
@@ -65,6 +66,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     else if (d.trainer) opts.push({ icon: 'icon_book', label: `I only train ${(classInfo(d.trainer.cls) || { name: d.trainer.cls }).name}s.`, color: 'gray', on: () => {} });
     if (d.vendor) opts.push({ icon: 'icon_gold', label: 'Let me browse your goods.', color: 'white', on: () => act.openVendor() });
     if (act.profOptions) opts.push(...act.profOptions(d));      // professions: a trainer (src/ui/prof_ui.js)
+    opts.push(...flightOptions(d, act));
     if (d.soon.length && !opts.length) opts.push({ icon: 'emote_dots_0', label: 'Come back when you have more experience.', color: 'gray', on: () => {} });
     opts.push({ icon: null, label: 'Goodbye.', color: 'cream', on: () => act.closeDialog() });
     for (const o of opts) {
@@ -78,6 +80,8 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     }
     return;
   }
+
+  if (d.page === 'flight' && d.flight) { drawFlightPage(ctx, env, m, d, regions, act, r, button, bottom, () => back()); return; }
 
   if (d.page === 'quest') {
     const q = questInfo(d.quest);

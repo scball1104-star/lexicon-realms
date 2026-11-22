@@ -36,6 +36,15 @@ export function createLoadingCard({ font }) {
 
   function onZone(ev, { zones, renderer }) {
     const to = zones[ev.to], from = zones[ev.from];
+    // big world (2026-11-22): a pass between two outdoor zones (the Root Stair) is a load too: the card names where you
+    // arrive ("The Rootbound", "Levels 1 to 6") and holds until the renderer has the land near you built and warm
+    if (to && from && !isPlace(to) && !isPlace(from) && base(ev.to) !== base(ev.from)) {
+      const lv = to.levels && !(to.regions && to.regions.length > 1) ? to.levels : null;     // the one world names the area instead
+      const near = to.regions && typeof ev.x === 'number' ? to.regions.find((r) => ev.x >= r.x && ev.y >= r.y && ev.x < r.x + r.w && ev.y < r.y + r.h) : null;
+      const label = lv ? `Levels ${lv[0]} to ${lv[1]}` : near && near.levels ? `${near.name}, levels ${near.levels[0]} to ${near.levels[1]}` : '';
+      card = { t0: performance.now(), to: base(ev.to), into: true, kind: 'pass', info: { name: to.name || '', label, flavour: to.flavour || '', kind: 'pass', into: true }, shownK: 0, fadeAt: null, ready: false };
+      return;
+    }
     const into = isPlace(to), out = isPlace(from) && !into;
     if (!into && !out) return;
     if (out && !(renderer && typeof renderer.zoneReady === 'function' && !renderer.zoneReady(ev.to))) { card = null; return; }
@@ -81,7 +90,12 @@ export function createLoadingCard({ font }) {
     glow.addColorStop(0, card.kind === 'cave' ? 'rgba(120,170,160,0.16)' : 'rgba(255,140,60,0.22)'); glow.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = glow; g.fillRect(0, 0, hw, hh);
     const fw = Math.min(144, Math.floor(hw / 2) - 14);
-    if (card.kind === 'cave') {
+    if (card.kind === 'pass') {
+      // a mountain pass: two dark shoulders of rock with a lit road between them
+      g.fillStyle = '#1e1a22';
+      for (let i = 0; i < 14; i++) { const x = cx - fw - 30 + i * 9, y = cy + 56 - Math.min(i, 13 - i) * 13; g.fillRect(x, y, 14, cy + 70 - y); g.fillRect(2 * cx - x - 14, y, 14, cy + 70 - y); }
+      g.fillStyle = '#3a3028'; g.fillRect(cx - 10, cy + 20, 20, 50); g.fillStyle = '#5a4a38'; g.fillRect(cx - 4, cy + 20, 8, 50);
+    } else if (card.kind === 'cave') {
       // a rough rock arch
       g.fillStyle = '#2a2622';
       for (let i = 0; i <= 12; i++) { const a = Math.PI * (i / 12); const x = cx + Math.cos(a) * fw, y = cy + 56 - Math.sin(a) * 128; const r = 10 + ((i * 7) % 5) * 2; g.fillRect(Math.round(x - r), Math.round(y - r), r * 2, r * 2); }
@@ -106,7 +120,7 @@ export function createLoadingCard({ font }) {
     g.fillStyle = '#14101e'; g.fillRect(bx - 2, by - 2, bw + 4, 8);
     g.fillStyle = '#3a3448'; g.fillRect(bx, by, bw, 4);
     g.fillStyle = '#f9d77a'; g.fillRect(bx, by, Math.round(bw * card.shownK), 4);
-    const status = ready ? 'Ready' : into ? (card.kind === 'cave' ? 'Feeling the way in...' : 'Lighting the torches...') : 'Finding the way out...';
+    const status = ready ? 'Ready' : into ? (card.kind === 'cave' ? 'Feeling the way in...' : card.kind === 'pass' ? 'On the road...' : 'Lighting the torches...') : 'Finding the way out...';
     const ts = words(status, 'gray', 1); g.drawImage(ts.c, Math.round(cx - ts.w / 2), by + 8);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(buf, 0, 0, hw, hh, L.ox, L.oy, hw * L.base, hh * L.base);
