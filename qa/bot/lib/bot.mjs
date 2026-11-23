@@ -10,6 +10,7 @@ import { createNav, tileOfSub, T } from './nav.mjs';
 import { createRng } from '../../../src/sim/rng.js';
 import { losBetween } from '../../../src/sim/los.js';
 import { boxTiles } from '../../../src/sim/collision.js';
+import { bagCapacity } from '../../../src/sim/loot.js';
 import { BOTS2, MENDER_BOT, botView } from '../../sim/builds2.mjs';
 /** the feet box overlaps a wall or water cell (ledges are fine: you stand on them while hopping down) */
 function boxHitsSolid(Z, x, y) {
@@ -35,6 +36,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   const rng = createRng(seed * 7919 + 13);
   const id = spec ? w.addPlayer(spec) : w.addPlayer({ name, cls, look: seed % 3 });
   const me = () => w.get(id);
+  // routes only over joins the hero may take: a start realm's ride out (join.needs) opens once its quest is done
+  const doneQ = () => (me() && me().questsDone) || [];
+  const navRoute = (a, b) => nav.zoneRoute(a, b, doneQ());
   const now = () => w.tick;
   const simMin = () => +(now() / MIN).toFixed(2);
   const clsDef = C.classes[cls];
@@ -139,9 +143,15 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       let path = null;
       if (zb(p.zone) === zb(zone)) path = nav.path(p.zone, sx, sy, goalFn, hint, 200000, opts.noDanger ? null : danger(p.zone));
       else {
-        const zr = nav.zoneRoute(p.zone, zone);
-        if (!zr) { viol('no_zone_route', { key: `${p.zone}->${zone}`, from: p.zone, to: zone }); return 'fail'; }
-        const j = nav.joinTo(p.zone, zr[1], sx, sy);
+        const zr = navRoute(p.zone, zone);
+        if (!zr) {
+          // no road, but a ride (the ore cart, the ferry) whose master stands here: a hunt, a node or an explore back in the
+          // start realm took the bot nowhere (audit 2026-11-23: the Mender pushed at the North Landing for hours)
+          const rd = rideOut(zone);
+          if (rd) { takeRide(rd); return 'walking'; }
+          viol('no_zone_route', { key: `${p.zone}->${zone}`, from: p.zone, to: zone }); return 'fail';
+        }
+        const j = nav.joinTo(p.zone, zr[1], sx, sy, doneQ());
         path = nav.path(p.zone, sx, sy, (x, y) => x >= j.x && x < j.x + j.w && y >= j.y && y < j.y + j.h, [j.x, j.y], 200000, opts.noDanger ? null : danger(p.zone));
       }
       if (!path) { route = { key: fullKey, path: null, fails: (route && route.key === fullKey ? route.fails || 0 : 0) + 1 }; return 'fail'; }
@@ -171,8 +181,8 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       // on the last cell (or a join cell that did not fire): push on in the join's direction
       const [x, y] = feetPx(p);
       if (zb(p.zone) !== zb(zone)) {
-        const zr = nav.zoneRoute(p.zone, zone);
-        const j = nav.joinTo(p.zone, zr[1], sx, sy);
+        const zr = navRoute(p.zone, zone);
+        const j = nav.joinTo(p.zone, zr[1], sx, sy, doneQ());
         const Z = C.zones[p.zone];
         const dx = j.x === 0 ? -1 : j.x >= Z.w - 1 ? 1 : 0, dy = j.y === 0 ? -1 : j.y >= Z.h - 1 ? 1 : 0;
         hold(dx, dy);
@@ -300,7 +310,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     });
     return bi;
   }
-  function bagCap() { let n = 0; for (const b of me().bags || ['starter_satchel']) n += (C.items[b] && C.items[b].bagSlots) || 0; return n || 12; }
+  // the bag size the screen shows (the HUD's bag.size, src/sim/hud.js). Before, the bot summed its bags' slots and missed
+  // the satchel's growth (+2 at levels 5, 10, 15, 20): it reported "bag over capacity by 1" when the bag was not full
+  function bagCap() { const h = hud(); if (h && h.bag && h.bag.size) return h.bag.size; let n = 0; for (const b of me().bags || ['starter_satchel']) n += (C.items[b] && C.items[b].bagSlots) || 0; return n || 12; }
   const bagFree = () => bagCap() - (me().bag || []).length;
   const countItem = (item) => (me().bag || []).reduce((s, b) => s + (b.item === item ? b.qty : 0), 0);
   function sellable() {
@@ -495,6 +507,13 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       const goalFn = (x, y) => Math.hypot(x * T + 8 - t.x / SUB, y * T + 12 - t.y / SUB) <= r && losBetween(Z, (x * T + 8) * SUB, (y * T + 12) * SUB, t.x, t.y);
       const wr = walkTo('fight' + t.id + '@' + ex + ',' + ey, t.zone, goalFn, [ex, ey]);
       if (wr === 'fail') { blacklist.set(t.id, now() + 60 * 20); viol('mob_unreachable', { key: t.template + '@' + t.zone + ':' + tileOfSub(t).join(','), template: t.template, zone: t.zone, tile: tileOfSub(t), level: t.level }); return 'done'; }
+      // the tile I stand on counts as "in reach" (its centre is), but my feet are not: a caster that holds its ground and
+      // casts (Mirror Shade, Ink Wraith, Fire-Thrower) stood 30 px from a melee bot that had stopped at 28 px reach, and the
+      // bot read it as unhittable (audit 2026-11-23). Close the last steps straight at it, as a player would.
+      if (wr === 'arrived' && sight) {
+        const ddx = t.x - p.x, ddy = t.y - p.y;
+        hold(Math.abs(ddx) > 2 * SUB ? Math.sign(ddx) : 0, Math.abs(ddy) > 2 * SUB ? Math.sign(ddy) : 0);
+      }
       if (cls !== 'warden' && cls !== 'inkblade' && d <= want + 20 && sight) {/* in range soon */}
       return 'fighting';
     }
@@ -511,7 +530,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   // about a quarter of the XP to 20. Dungeon and cave quests (a `place`) are left to the dungeon bot unless opts.dungeons.
   const BOUNTY_IDS = Object.keys(C.quests).filter((q) => C.quests[q].bounty);
   const ORDER = [...C.questOrder, ...BOUNTY_IDS, ...(C.sideQuests || []).filter((q) => C.quests[q] && !C.questOrder.includes(q) && !BOUNTY_IDS.includes(q))]
-    .filter((q) => opts.dungeons || !C.quests[q].place);
+    // an elite quest (The Long Watch: the tower's top floor) is group content: a solo questing bot leaves it, as it leaves
+    // a dungeon's quests (fix20: before, the bot walked into the tower over and over at 17 to 19 and died on its stair)
+    .filter((q) => opts.dungeons || (!C.quests[q].place && !C.quests[q].elite));
   const goalBan = new Map();        // goal key -> until tick
   let goal = null;                  // { key, kind, ... }
   let doing = null;                 // a committed short action: { kind, until, ... }
@@ -554,6 +575,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       const qd = C.quests[q];
       if (qd.level > p.level + 2) continue;
       { const h = npcHome[qd.giver]; if (h && !reachable(h.zone)) continue; }   // a giver the hero cannot walk to yet (a one-way start realm)
+      // a giver only a ride away waits while the realm I stand in still has my unfinished quests (a new hero does the
+      // realm's chain first: before, the Mender took the ferry at level 1 for Hob's quest and left the Valewyn chain)
+      { const h = npcHome[qd.giver]; if (h && zb(h.zone) !== zb(p.zone) && !navRoute(p.zone, h.zone) && activeQuests().some((aq) => zb(C.quests[aq].zone) === zb(p.zone) && p.quests[aq].state !== 'ready')) continue; }
       cand.push({ key: 'accept:' + q, kind: 'npc', npc: qd.giver, act: 'accept', quest: q, pri: 5 });
     }
     // 6) work active objectives, lowest quest level first
@@ -594,8 +618,8 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const p = me();
     const list = Object.entries(C.npcs).filter(([nid, n]) => n.vendor && n.vendor.items && n.vendor.items.length && npcHome[nid] && (kind !== 'potion' || VENDORS_POTION.includes(nid)));
     const here = list.filter(([nid]) => npcHome[nid].zone === p.zone);
-    const pick = (here.length ? here : list.filter(([nid]) => nav.zoneRoute(p.zone, npcHome[nid].zone)))
-      .sort((a, b) => (nav.zoneRoute(p.zone, npcHome[a[0]].zone) || []).length - (nav.zoneRoute(p.zone, npcHome[b[0]].zone) || []).length
+    const pick = (here.length ? here : list.filter(([nid]) => navRoute(p.zone, npcHome[nid].zone)))
+      .sort((a, b) => (navRoute(p.zone, npcHome[a[0]].zone) || []).length - (navRoute(p.zone, npcHome[b[0]].zone) || []).length
         || Math.hypot(npcHome[a[0]].x - tileOfSub(p)[0], npcHome[a[0]].y - tileOfSub(p)[1]) - Math.hypot(npcHome[b[0]].x - tileOfSub(p)[0], npcHome[b[0]].y - tileOfSub(p)[1]))[0];
     return pick ? pick[0] : null;
   }
@@ -606,11 +630,17 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   // Mender stood in their realms at level 8 for five hours, the last hand-in up in Willowmere)
   function rideOut(zone) {
     const here = me().zone;
-    if (zb(here) === zb(zone) || nav.zoneRoute(here, zone)) return null;
+    if (zb(here) === zb(zone) || navRoute(here, zone)) return null;
     return Object.values((C.travel && C.travel.rides) || {}).find((rd) => npcHome[rd.npc] && npcHome[rd.npc].zone === here
-      && (zb(rd.zone) === zb(zone) || nav.zoneRoute(rd.zone, zone))) || null;
+      && (zb(rd.zone) === zb(zone) || navRoute(rd.zone, zone))) || null;
   }
-  const reachable = (zone) => zb(zone) === zb(me().zone) || !!nav.zoneRoute(me().zone, zone) || !!rideOut(zone);
+  function takeRide(rd) {
+    const n = npcEnt(rd.npc);
+    if (!n || me().flight) { hold(0, 0); return; }
+    const r = walkToEnt('ride:' + rd.npc, n, 30);
+    if (n.zone === me().zone && (r === 'arrived' || dpx(me(), n) <= 36)) { hold(0, 0); if (now() % 20 === 0) { cmd({ t: 'ride', npc: n.id }); R.counters.rides = (R.counters.rides || 0) + 1; } }
+  }
+  const reachable = (zone) => zb(zone) === zb(me().zone) || !!navRoute(me().zone, zone) || !!rideOut(zone);
   function goNpc(g, tpl, onReach) {
     const n = npcEnt(tpl);
     if (!n) { viol('npc_missing', { key: tpl, npc: tpl }); goalBan.set(g.key, now() + 600 * 20); return; }
@@ -690,22 +720,50 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   function trainableSoon() { const p = me(); return clsDef.abilities.filter((a) => !p.known.includes(a.id) && a.level <= p.level + 2); }
   function trainableSoonCost() { return trainableSoon().reduce((s, a) => s + trainCost(a.level), 0); }
 
-  function pickMob(templates, zone, minLevel = 0, maxGap = 3, region = null) {
+  // toughGap: a `tough` foe (the Gorse Boar) only this many levels over me at most (grinding: none over; fix20)
+  function pickMob(templates, zone, minLevel = 0, maxGap = 3, region = null, toughGap = null) {
     const p = me();
     if (zb(p.zone) !== zb(zone)) return null;
     zone = p.zone;
-    let best = null, bd = 1e9;
-    for (const m of ents()) {
-      if (!isHostileMob(m) || m.zone !== zone || !templates.includes(m.template)) continue;
+    const foes = zoneFoes(zone);
+    const cands = [];
+    for (const m of foes) {
+      if (!templates.includes(m.template)) continue;
       if ((blacklist.get(m.id) || 0) > now()) continue;
       if (m.level < minLevel || m.level > p.level + maxGap) continue;
+      if (toughGap != null && m.level > p.level + toughGap && ((m.mob && m.mob.traits) || []).includes('tough')) continue;
       if (m.tagger && m.tagger !== p.id) continue;
       if (m.ai && m.ai.mode === 'reset') continue;
       if (region && mobRegion(m) !== region) continue;
-      const d = dpx(m, p);
-      if (d < bd) { bd = d; best = m; }
+      cands.push([dpx(m, p), m]);
     }
+    if (!cands.length) return null;
+    cands.sort((a, b) => a[0] - b[0]);
+    // pull one at a time (fix20): of the nearest few, a foe with awake friends round it (its camp, its family's social
+    // call, a patrol walking by) costs as much as walking 12 tiles further for each friend, one above my level 24
+    let best = null, bd = 1e9;
+    for (const [d0, m] of cands.slice(0, 6)) { const d = d0 + 16 * 12 * addsNear(m, foes); if (d < bd) { bd = d; best = m; } }
     return best;
+  }
+  /** The live hostile foes in a zone (one pass over the world a tick). */
+  let zfCache = null;
+  function zoneFoes(zone) {
+    if (zfCache && zfCache.t === now() && zfCache.zone === zone) return zfCache.list;
+    const list = ents().filter((m) => isHostileMob(m) && m.zone === zone);
+    zfCache = { t: now(), zone, list };
+    return list;
+  }
+  /** Awake hostile foes that a pull of `m` would likely bring (within 5 tiles of it, 7 for a patrol), weighted by level. */
+  function addsNear(m, foes) {
+    const L = me().level;
+    let n = 0;
+    for (const o of foes) {
+      if (o === m || !isHostileMob(o) || o.zone !== m.zone || (o.ai && (o.ai.mode === 'reset' || o.ai.mode === 'combat'))) continue;
+      if ((C.mobs[o.template] || {}).behavior === 'passive' || o.level < L - 4) continue;
+      const r = o.spawn && o.spawn.patrol ? 7 : 5;
+      if (dpx(o, m) <= r * 16) n += o.level > L ? 2 : 1;
+    }
+    return n;
   }
   function hunt(g) {
     const p = me();
@@ -722,7 +780,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const safe = spots.filter((s) => !big.some((m) => { const [mx, my] = tileOfSub(m); return Math.hypot(mx - s.x, my - s.y) <= 14; }));
     if (safe.length) spots = safe;
     if (p.zone === zone) {
-      const m = pickMob(g.mobs, zone, g.minLevel || 0, 2, g.region && spots.some((s) => s.region === g.region) ? g.region : null);
+      const m = pickMob(g.mobs, zone, g.minLevel || 0, g.maxGap ?? 2, g.region && spots.some((s) => s.region === g.region) ? g.region : null, g.toughGap ?? null);
       if (m && dpx(m, p) < 400) { fight(m); return; }
     }
     // walk to the spawn spot nearest my level (rotate between spots so a camp that is dead does not hold us)
@@ -752,12 +810,17 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const n = cands[0];
     if (p.zone === zone && dpx(p, n) <= 30) {
       hold(0, 0);
-      if (!g.tried || g.tried.id !== n.id) g.tried = { id: n.id, at: now() };
-      if (now() - g.tried.at > 20 * 20) { blacklist.set(n.id, now() + 60 * 20); viol('node_never_gives', { key: n.template, node: n.template, item: g.item }); return; }
+      // the 20 s clock counts time spent standing at this node: a fight or a walk away in between starts it again (before,
+      // a bot pulled off a node by a foe came back to it after the fight and called it "never gives" at once: audit 2026-11-23)
+      if (!g.tried || g.tried.id !== n.id || now() - g.tried.last > 40) g.tried = { id: n.id, at: now(), last: now() };
+      g.tried.last = now();
+      if (now() - g.tried.at > 20 * 20) { blacklist.set(n.id, now() + 60 * 20); viol('node_never_gives', { key: n.template, node: n.template, item: g.item, fails: g.tried.fails || null }); return; }
       if ((now() - g.tried.at) % 10 === 0) cmd({ t: 'interact', id: n.id });
       return;
     }
-    walkToEnt('node' + n.id, n, 24);
+    const wr = walkToEnt('node' + n.id, n, 24);
+    // the tile counts as next to it, the feet do not (the same 30 px gap as a fight): step straight at it
+    if (wr === 'arrived' && p.zone === n.zone) { const ddx = n.x - p.x, ddy = n.y - p.y; hold(Math.abs(ddx) > 2 * SUB ? Math.sign(ddx) : 0, Math.abs(ddy) > 2 * SUB ? Math.sign(ddy) : 0); }
   }
   function escort(g) {
     const p = me();
@@ -797,10 +860,14 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     if (!tpls.length) return;
     const zg = C.zones[zonePick] ? zonePick : p.zone;
     if (p.zone === zg) {
-      const m = pickMob(tpls, zg, p.level - 2, 1);
+      const m = pickMob(tpls, zg, p.level - 2, 1, null, 0);
       if (m && dpx(m, p) < 300) { fight(m); return; }
     }
-    hunt({ key: 'grind', mobs: tpls, zone: zg, minLevel: p.level - 2, spotIdx: g.spotIdx, spotUntil: g.spotUntil });
+    // one hunt state for the whole grind (fix20: a fresh object every tick re-rolled the camp to walk to every tick, so the
+    // bot dithered between camps and re-planned its path each tick)
+    const hg = g.hunt || (g.hunt = { key: 'grind' });
+    Object.assign(hg, { mobs: tpls, zone: zg, minLevel: p.level - 2, maxGap: 1, toughGap: 0 });
+    hunt(hg);
   }
 
   // ---------------------------------------------------------------- watchers
@@ -815,7 +882,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     if (p.hp > p.hpMax) viol('hp_over_max', { key: 'me:' + (now() / 200 | 0), hp: p.hp, hpMax: p.hpMax });
     if (p.hp < 0 || !Number.isFinite(p.hp)) viol('bad_hp', { key: 'me', hp: p.hp });
     if (p.xp < 0 || (p.level < C.progression.maxLevel && p.xp >= C.progression.xpToNext[p.level])) viol('xp_out_of_range', { key: 'x' + p.level, xp: p.xp, level: p.level });
-    if ((p.bag || []).length > bagCap()) viol('bag_over_capacity', { key: 'b', n: p.bag.length, cap: bagCap() });
+    { const cap = bagCapacity(p, C); if ((p.bag || []).length > cap) viol('bag_over_capacity', { key: 'b', n: p.bag.length, cap }); }
     for (const s of p.bag || []) { const d = C.items[s.item]; if (!d) viol('unknown_item', { key: s.item, item: s.item }); else if (s.qty > (s.inst ? 1 : d.stack || 1) || s.qty < 1) viol('bad_stack', { key: s.item, item: s.item, qty: s.qty }); }
     if (p.res && (p.res.cur > p.res.max + 1e-6 || p.res.cur < -1e-6)) viol('resource_out_of_range', { key: p.res.kind, cur: p.res.cur, max: p.res.max });
     // gear conservation: instanced or equippable items held (bag + worn) change only through loot / reward / buy / buyback / sell
@@ -868,7 +935,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       if (ev.type === 'inventory_fail' && ev.id === id) inc(R.counters.invFail, ev.cmd + ':' + ev.reason);
       if (ev.type === 'train_fail' && ev.id === id) inc(R.counters.trainFail, ev.reason);
       if (ev.type === 'talent_fail' && ev.id === id) inc(R.counters.talentFail, ev.reason);
-      if (ev.type === 'interact_fail' && ev.src === id) inc(R.counters.interactFail, ev.reason);
+      if (ev.type === 'interact_fail' && ev.src === id) { inc(R.counters.interactFail, ev.reason); if (goal && goal.tried && goal.tried.id === ev.id) inc(goal.tried.fails || (goal.tried.fails = {}), ev.reason); }
       if (ev.type === 'threat' && ev.top === id && !pullAt.has(ev.mob)) pullAt.set(ev.mob, ev.tick);
       if (ev.type === 'threat' && ev.top === null) { pullAt.delete(ev.mob); hitAt.delete(ev.mob); }
       if (ev.type === 'damage' && ev.src === id && ev.dst !== id && ev.amount > 0) { if (!pullAt.has(ev.dst)) pullAt.set(ev.dst, ev.tick); if (!hitAt.has(ev.dst)) hitAt.set(ev.dst, ev.tick); }
@@ -888,7 +955,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       if (ev.type === 'train') { const r = trainerRow(ev.ability, (clsDef.abilities.find((a) => a.id === ev.ability) || {}).level); r.trainedMin = simMin(); r.goldAtTrain = ev.gold + ev.cost; R.goldBy.spentTrain += ev.cost; }
       if (ev.type === 'death' && ev.id === id) {
         const killer = ev.killer ? w.get(ev.killer) : null;
-        R.deaths.push({ min: simMin(), level: p.level, zone: p.zone, tile: tileOfSub(p), killer: killer ? killer.template : null, killerLevel: killer ? killer.level : null, goal: goal ? goal.key : null, lantern: p.lantern ? `${p.lantern.zone}:${p.lantern.id}` : null });
+        // `foes`: every foe that had me on its threat list when I fell (template@level), to tell a pull chain from a bad 1v1
+        const foes = lastFoes.map((m) => m.template + '@' + m.level);
+        R.deaths.push({ min: simMin(), level: p.level, zone: p.zone, tile: tileOfSub(p), killer: killer ? killer.template : null, killerLevel: killer ? killer.level : null, goal: goal ? goal.key : null, lantern: p.lantern ? `${p.lantern.zone}:${p.lantern.id}` : null, foes });
         // a death loop (a level 9 died 30 times to Corvina Ninecoats walking to the Ridge Path talk): three deaths on one goal
         // in 15 sim minutes put that goal aside for 20 minutes, the way a player would go and do something else first
         const gk = goal ? goal.key : null;
@@ -915,7 +984,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   }
 
   // ---------------------------------------------------------------- the per-tick brain
-  let resting = false, think = 0;
+  let resting = false, think = 0, lastFoes = [];
   function tick(events) {
     const p = me();
     if (R.done) return;
@@ -939,6 +1008,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
 
     // in combat: fight whatever holds me (or my escort)
     const threats = threatsOnMe();
+    lastFoes = threats;
     if (threats.length) {
       resting = false;
       if (hpFrac() < 0.3 && countItem('potion') > 0 && ((p.cd || {})['item:potion'] || 0) <= now()) { cmd({ t: 'use_item', item: 'potion' }); }
@@ -950,7 +1020,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     if (fightT) { fightT = null; if (p.autoOn) cmd({ t: 'attack', stop: true }); }
     if (p.cast) return;
     // rest
-    if (!resting && (hpFrac() < 0.55 || (usesMana() && resFrac() < 0.35))) { resting = true; hold(0, 0); if (!p.inCombat) cmd({ t: 'sit' }); return; }
+    if (!resting && (hpFrac() < 0.65 || (usesMana() && resFrac() < 0.35))) { resting = true; hold(0, 0); if (!p.inCombat) cmd({ t: 'sit' }); return; }
     if (resting) {
       R.counters.restSec += 0.05;
       if (hpFrac() >= 0.97 && (!usesMana() || resFrac() >= 0.92)) resting = false;

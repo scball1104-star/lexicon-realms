@@ -60,7 +60,10 @@ export const RARES = [
   r({ id: 'rare_corvina', name: 'Corvina Ninecoats', family: 'gorse_crow', level: 11, region: 'downs', where: 'the Ridge',
     flavour: 'Wears every button she ever stole, and she has stolen a great many.',
     kind: 'normal', traits: ['fast'], abilities: [{ id: 'mob_scatter', cooldown: 10 }], junk: 'crow_feather', speed: 80, flying: true,
-    spots: [[61, 110], [90, 117], [95, 102]],
+    // fix20 (2026-11-23): two of her spots (61,110 and 90,117) stood on the road a level 9 walks for Odo Has Not Come Down,
+    // and she killed low heroes there (13 deaths in the audit). She keeps to the Ridge's west foot now, 20+ tiles off that
+    // road (a first move to 93,103, 13 tiles off, still let her chase a level 9 down from it).
+    spots: [[41, 107], [33, 108], [38, 109]],
     item: { id: 'ninecoat_button_charm', name: 'Ninecoat Button Charm', slot: 'trinket', type: null, stats: { crit: 1, main: 2 } } }),
   // ---- the High Moor
   r({ id: 'rare_grumbletusk', name: 'Grumbletusk', family: 'gorse_boar', level: 16, region: 'moor', where: 'the Gorse Heath',

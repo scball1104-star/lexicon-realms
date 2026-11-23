@@ -334,7 +334,7 @@ object: {
   every melee swing sets `m.windup = { kind: 'swing' | 'heavy' | 'cast', start, at, target }` (snapshot `windup`, event
   `windup`); a swing glints 0.4 s and keeps the fight's rhythm, a heavy blow glints 0.6 s, plants its feet and lands only in
   reach; losing control in the glint spoils the blow (`windup_break`); a telegraphed cast mirrors its cast as kind 'cast'.
-  **Patrols**: `spawn.patrol = { id, mode, route, slot }`, mode `patrol`, placed on a clock (`src/sim/patrol.js`), leash
+  **Patrols**: `spawn.patrol = { id, mode, route, slot, even? }` (`even: n`, fix20: the n members stand evenly round the route), mode `patrol`, placed on a clock (`src/sim/patrol.js`), leash
   and walk home to the pull spot (`ai.anchor`), join a fight within 4 tiles. **Camp link**: a pull brings camp mates (same
   `group`) within 3.5 tiles in sight, any family. **Flee** also for family `humanoid` at 15%, event `mob_emote` ("X runs
   away in fear!"), calls up to 3 friends on the way. **Casters** back off a hero in their face (after 3 s, once per 8 s).

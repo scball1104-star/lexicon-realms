@@ -4,7 +4,7 @@
 //
 //   const nav = createNav(content)
 //   nav.path(zoneId, sx, sy, goal(x, y) -> bool, hint: [gx, gy]) -> [[x, y], ...] | null      tiles, start included
-//   nav.zoneRoute(from, to) -> [zoneId, ...]                                                     loaded zones only
+//   nav.zoneRoute(from, to, done?) -> [zoneId, ...]                                              loaded zones only; done = questsDone
 //   nav.joinTo(fromZone, toZone) -> join rect                                                    the first join between them
 //   nav.passable(zone, x, y)                                                                     '.' (ledges are directional)
 
@@ -97,18 +97,22 @@ export function createNav(content) {
     return out.reverse();
   }
 
-  function zoneRoute(from, to) {
+  // `done`: the hero's finished quests. A join with `needs` (a start realm's ride out that waits for its boss,
+  // src/sim/world.js) is not a road until that quest is done: before, the Inkblade stood at the Hollow's west edge
+  // pushing into the Fading Road at level 1 to 5 (audit 2026-11-23, nav_stuck_repeat hollow:0,189 to 193)
+  const open = (j, done) => !j.needs || (!!done && done.includes(j.needs));
+  function zoneRoute(from, to, done = null) {
     if (base(from) === base(to)) return [from];
-    const r0 = routeBase(base(from), base(to));
+    const r0 = routeBase(base(from), base(to), done);
     if (!r0) return null;
     r0[0] = from;
     return r0;
   }
-  function routeBase(from, to) {
+  function routeBase(from, to, done) {
     if (from === to) return [from];
     const prev = { [from]: null }, q = [from];
     for (let i = 0; i < q.length; i++) {
-      for (const { to: n } of graph[q[i]] || []) if (!(n in prev)) { prev[n] = q[i]; q.push(n); }
+      for (const { to: n, j } of graph[q[i]] || []) if (!(n in prev) && open(j, done)) { prev[n] = q[i]; q.push(n); }
     }
     if (!(to in prev)) return null;
     const r = [];
@@ -117,8 +121,8 @@ export function createNav(content) {
   }
 
   /** The join to take from `from` toward `to`; when there are two (Willowmere and the valley both join the Downs), the nearest to (sx, sy). */
-  function joinTo(from, to, sx, sy) {
-    const js = (graph[base(from)] || []).filter((e) => e.to === base(to)).map((e) => e.j);
+  function joinTo(from, to, sx, sy, done = null) {
+    const js = (graph[base(from)] || []).filter((e) => e.to === base(to) && open(e.j, done)).map((e) => e.j);
     if (!js.length) return null;
     if (sx == null) return js[0];
     return js.sort((a, b) => (Math.abs(a.x - sx) + Math.abs(a.y - sy)) - (Math.abs(b.x - sx) + Math.abs(b.y - sy)))[0];

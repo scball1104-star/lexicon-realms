@@ -46,6 +46,53 @@ Quests and bounties pay about 60% of the XP to 20, kills about 40%. Level 18 to 
 near 18 and the last two levels are mostly grinding (time stalled by the stuck watcher: 0 to 35 minutes a run). The
 deaths are mostly tower sentinel packs at 17 to 19, the rare Corvina and Gorse Boars.
 
+## Fix20 (2026-11-23): the level 1 to 20 audit's problems
+
+Each audit finding was sorted into a game problem or a bot problem first.
+
+Bot problems (fixed in `qa/bot/lib/bot.mjs`, `nav.mjs`):
+- **"Unhittable" foes** (Fire-Thrower, Mirror Shade, Ink Wraith): all three are casters that stand and cast. The melee bot
+  stopped when its tile counted as in reach but its feet were 30 px off (reach 28), and waited forever. It now closes the
+  last steps. The foes are hittable; the shade's blink and the wraiths' skip are already in their quest text.
+- **Gather nodes that "never gave"** (vw_stranded_1, vw_bell_1, hen_7, hay_3): every quest node gives (a new test picks
+  all of them). The same 30 px gap at the node, and a 20 s clock that kept running through a fight. Both fixed.
+- **Stuck at the Hollow's west edge** (0, 189 to 193): the Fading Road waits for the Steward (`join.needs`) and says so in
+  game. The bot's route ignored `needs`; it now routes only over roads the hero may take.
+- **Bag over capacity by 1**: the bot left out the satchel's growth (+2 at 5, 10, 15, 20). It reads the HUD's bag size now.
+  A real sim bug sat next to it: a two-hand weapon over a main hand and an off hand on a full bag lost the second piece.
+  It is refused now (no class can hit it today: the bow is the only two-hander).
+- **Start realms**: the bot took the ferry or ore cart out at level 1 and then had no way back for the realm's own goals
+  (the Warden stood stuck 50+ times). It now finishes its realm's quests first and takes a ride back when a goal needs it.
+- Fighting: pulls the lone foe of the nearest few (friends nearby cost 12 tiles each), grinds no `tough` foe above its
+  level, rests below 65% (was 55%), keeps one camp while grinding (it re-rolled the camp every tick), and leaves elite
+  quests (The Long Watch) to groups, as it leaves dungeon quests.
+
+Game problems (content layout; no foe's stats changed, Gorse Boars untouched):
+- **Tower Sentinels**: both camps walked one road past the tower door and bunched (about 6 of 15 pairs within 8 tiles at
+  any moment). Each camp now walks its own loop, evenly spaced (`even` in `src/data/patrols.js`): never two within 8
+  tiles, 9+ from the door, 7+ from Odo's hut.
+- **Corvina Ninecoats**: two of her spots stood on the Ridge Path road. She keeps the Ridge's west foot, 20+ tiles off it.
+- **Grimmet** stood beside the walk to chime post 5: moved to the Chime Road's north west end (bounty circle moved too).
+- **Moor patrols**: the mist wolf pair walked through chime posts 3 and 4 and the three-wolf camp; the level 16 boar walked
+  the Chime Road south through post 2 and the level 13 wolf camps. The pair walks the west meadow, the boar the heath's
+  far south east.
+
+`node qa/bot/questbot.mjs --cls <class> --seed <n> --cap 420 --stop 20`, before (this branch's base, or the audit) and after:
+
+| run | reached | min to 15 | deaths | sentinel | boar | mist wolf | Corvina | stuck | ninth_chime / long_watch / fifty_paces / peat / mist_pack deaths |
+|---|---|---|---|---|---|---|---|---|---|
+| scribe 1 before | L20 at 284.9 | 168 | 104 | 30 | 34 | 8 | 0 | 1 | 10 / 0 / 5 / 6 / 3 |
+| scribe 1 after | L20 at 237.9 | 139 | 56 | 11 | 15 | 11 | 0 | 1 | 2 / 0 / 3 / 3 / 3 |
+| scribe 2 before | L20 at 331.7 | 244 | 134 | 20 | 52 | 25 | 0 | 10 | 5 / 6 / 19 / 2 / 3 |
+| scribe 2 after | L20 at 254.6 | 150 | 56 | 17 | 7 | 11 | 0 | 1 | 0 / 0 / 3 / 3 / 3 |
+| warden 1 before | L13 at 420 (cap) | - | 16 | 0 | 0 | 0 | 3 | 53 | 0 / 0 / 0 / 0 / 0 |
+| warden 1 after | L20 at 304.8 | 105 | 80 | 13 | 23 | 1 | 0 | 4 | 2 / 0 / 1 / 15 / 0 |
+| warden 2 before | L16 at 420 (cap) | 206 | 101 | 4 | 44 | 4 | 6 | 55 | 0 / 0 / 2 / 19 / 0 |
+| warden 2 after | L20 at 252.5 | 101 | 37 | 7 | 4 | 2 | 0 | 0 | 3 / 0 / 1 / 3 / 0 |
+
+The warden 1 after run used an earlier spot for the heath boar patrol (on the heath's west edge, since moved: it walked
+into the Peat and Tusk hunters, most of that run's 15 peat deaths had two level 16 boars on them).
+
 ## How the questing bot plays (and what it is allowed to see)
 
 - Commands only through `world.enqueue` (move, stop, target, attack, cast, interact, quest_accept / turnin / abandon,

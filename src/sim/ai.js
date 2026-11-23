@@ -509,7 +509,8 @@ export function createAi(C) {
   const patrolSpeed = () => pxToSub(PR.speed);
   function patrolOffset(m, R) {
     const p = m.spawn.patrol;
-    if (m.spawn.patOff == null) m.spawn.patOff = p.spread ? nearestParam(R, m.spawn.x, m.spawn.y) : -(p.slot || 0) * PR.pairGap * SUB;
+    if (m.spawn.patOff == null) m.spawn.patOff = p.even ? Math.round((p.slot || 0) * (R.mode === 'loop' ? R.len : 2 * R.len) / p.even)
+      : p.spread ? nearestParam(R, m.spawn.x, m.spawn.y) : -(p.slot || 0) * PR.pairGap * SUB;
     return m.spawn.patOff;
   }
   /** Walk the route on its clock; returns false (wander instead) when the route cannot be walked. */
