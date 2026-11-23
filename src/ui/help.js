@@ -17,6 +17,7 @@ export function helpSections(binds) {
       ['Walk to a spot', null, 'Tap the ground'],
       ['Speed', 'Always full speed', 'Always full speed'],
       ['Sit and rest', k(b, 'sit'), 'Out of a fight you heal on your own'],
+      ['Ride a mount', `${k(b, 'mount')} (buy one from Wynn in Willowmere)`, 'Horseshoe button'],
     ] },
     { title: 'Fighting', rows: [
       ['Pick a foe', `Click it, or ${k(b, 'next_target')}`, 'Tap it, or Next'],

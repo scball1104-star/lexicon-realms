@@ -57,8 +57,10 @@ ITCH_INV = {
                                                      'Vase_Rubble_Medium', 'Coin_Pile', 'Coin_Pile_2', 'Chain_Coil', 'Cage_Small', 'Chalice']),
     'cave': ('Stylized Nature MegaKit/glTF', ['Mushroom_Common', 'Mushroom_Laetiporus']),
 }
-ANIMALS = {'Wolf': 'Animated-Animal-Pack/Wolf_P1gU3Qkr9r.glb', 'Deer': 'Animated-Animal-Pack/Deer_T6Cs7tmMHJ.glb'}
-ANIMAL_PAGES = {'Wolf': 'https://poly.pizza/m/P1gU3Qkr9r', 'Deer': 'https://poly.pizza/m/T6Cs7tmMHJ'}
+ANIMALS = {'Wolf': 'Animated-Animal-Pack/Wolf_P1gU3Qkr9r.glb', 'Deer': 'Animated-Animal-Pack/Deer_T6Cs7tmMHJ.glb',
+           'Horse': 'Animated-Animal-Pack/Horse_qvTrSG9pZF.glb', 'Stag': 'Animated-Animal-Pack/Stag_tQdzbZ1Cmw.glb'}   # mounts 2026-11-22
+ANIMAL_PAGES = {'Wolf': 'https://poly.pizza/m/P1gU3Qkr9r', 'Deer': 'https://poly.pizza/m/T6Cs7tmMHJ',
+                'Horse': 'https://poly.pizza/m/qvTrSG9pZF', 'Stag': 'https://poly.pizza/m/tQdzbZ1Cmw'}
 # CC0 monsters (poly.pizza). Only the Ghost Skull: the Orc models of that bundle are left out by Scott's decision.
 MONSTERS = {'Ghost_Skull': 'Ultimate-Monsters-Bundle/Ghost_Skull_TX8r9WBXpe.glb'}
 MONSTER_PAGES = {'Ghost_Skull': 'https://poly.pizza/m/TX8r9WBXpe'}
@@ -245,8 +247,9 @@ def write_licenses(total):
         where = os.path.join(ITCH, itch) if itch else POLY
         lines.append('| `%s/` | %s | %s | `%s` |' % (k, title, lic, where))
     lines += ['| `tex/` | textures of the packs above (each row below names its pack) | CC0 1.0 | as its pack |', '',
-              'The two animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf ' + ANIMAL_PAGES['Wolf'] +
-              ', Deer ' + ANIMAL_PAGES['Deer'] + '.', '',
+              'The four animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf ' + ANIMAL_PAGES['Wolf'] +
+              ', Deer ' + ANIMAL_PAGES['Deer'] + ', Horse ' + ANIMAL_PAGES['Horse'] + ' (the Bay Horse and Grey Charger mounts), Stag ' +
+              ANIMAL_PAGES['Stag'] + ' (the Moor Stag mount).', '',
               'The Ghost Skull (the barrow shade) is a Quaternius model published on poly.pizza as CC0 1.0: ' +
               MONSTER_PAGES['Ghost_Skull'] + '. The other foes are built in code (src/render3d/creatures.js).', '',
               'Total size: %.1f MB in %d files.' % (total / 1048576, len(files)), '',

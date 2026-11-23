@@ -401,6 +401,15 @@ export function createHud(env) {
       regions.push({ rect: b, kind: b.slot ? 'slot' : b.id, slot: b.slot, tip: undefined, ability: bs ? bs.ability : null, item: (bs && bs.item) || null,
         ...(holdCard ? { tapOnly: true } : {}) });
     }
+    // mounts: the horseshoe button, once the hero owns a mount (lit while riding)
+    const mb = L.mountBtn;
+    if (mb && m.player && m.player.mounts && m.player.mounts.length) {
+      const d = Math.min(mb.w - (mb.w < 34 ? 2 : 6), 34);
+      const r = { x: Math.round(mb.x + (mb.w - d) / 2), y: Math.round(mb.y + (mb.h - d) / 2), w: d, h: d };
+      g.window(ctx, r.x, r.y, r.w, r.h, 'thin', st.pressed === 'mount' || m.player.mount ? 'ember' : 'violet', 0.9);
+      horseshoe(ctx, r.x + r.w / 2, r.y + r.h / 2, Math.max(3, Math.floor(d / 6)), m.player.mount ? '#ffe08a' : '#d8d4cc');
+      regions.push({ rect: mb, kind: 'mount', tip: { title: m.player.mount ? 'Get off' : 'Ride', body: 'Summon your mount, or get off.' } });
+    }
     const j = st.joystick;
     if (j) {
       const R = 26;
@@ -408,6 +417,21 @@ export function createHud(env) {
       const kx = j.x + j.dx * R * 0.7, ky = j.y + j.dy * R * 0.7;
       ring(ctx, kx, ky, 10, 'rgba(104,145,217,0.85)', 'rgba(255,247,214,0.95)');
     }
+  }
+  /** A horseshoe (mounts): an open U of iron, nail holes along it, pixel-hard. u = the size unit in HUD px. */
+  function horseshoe(ctx, cx, cy, u, color) {
+    cx = Math.round(cx); cy = Math.round(cy);
+    const R = 2 * u, r0 = u;
+    ctx.fillStyle = '#1c1a24';
+    for (let y = -R - 1; y <= R + 1; y++) for (let x = -R - 1; x <= R + 1; x++) {
+      const d = Math.hypot(x, y); if (d <= R + 1 && d >= r0 - 1 && !(y > 0 && Math.abs(x) < r0 - 1)) ctx.fillRect(cx + x, cy + y, 1, 1);
+    }
+    ctx.fillStyle = color;
+    for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) {
+      const d = Math.hypot(x, y); if (d <= R && d >= r0 && !(y > 0 && Math.abs(x) < r0)) ctx.fillRect(cx + x, cy + y, 1, 1);
+    }
+    ctx.fillStyle = '#4a4458';
+    for (const a of [-2.4, -1.6, -0.8, 0.8, 1.6, 2.4]) { const k = (R + r0) / 2; ctx.fillRect(cx + Math.round(Math.sin(a) * k), cy - Math.round(Math.cos(a) * k), 1, 1); }
   }
   function ring(ctx, cx, cy, r, fill, edge) {
     cx = Math.round(cx); cy = Math.round(cy);

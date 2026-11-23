@@ -162,6 +162,12 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     chestSort(tab) { if (st.chest) send({ t: 'chest_sort', chest: st.chest.ent, tab }); },
     /** Ask the npc again (fresh quest lists after accept / turn-in), staying on the main page. */
     refreshDialog() { if (st.dialog) { const ent = st.dialog.ent; st.dialog.page = 'main'; st.dialog.quest = null; send({ t: 'interact', id: ent }); } },
+    /** Mounts: Z or the horseshoe. On a mount: get off. Else summon (the sim says no in a fight or indoors). */
+    mount() {
+      const p = lastModel && lastModel.player;
+      if (p && !p.mount && p.inCombat) { quietSay("You can't summon a mount in combat."); return; }
+      send({ t: 'mount' });
+    },
     openVendor() { if (!st.dialog) return; st.dialog.page = 'vendor'; st.dialog.scroll = 0; st.open.add('bags'); },
     sellJunk() {
       if (!st.dialog || !lastModel) return;
@@ -714,6 +720,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       case 'mark': hooks.input && hooks.input.inject({ k: 'talk', id: r.id }); return true;
       case 'next_target': hooks.input && hooks.input.inject({ k: 'tab', back: false }); st.pressed = 'next_target'; return true;
       case 'attack': hooks.input && hooks.input.inject({ k: 'attack' }); st.pressed = 'attack'; return true;
+      case 'mount': act.mount(); st.pressed = 'mount'; return true;     // mounts: the phone's horseshoe
       case 'menu_button': act.toggle(r.id); return true;
       case 'minimap': act.toggle('map'); return true;
       case 'tracker_head': st.trackerCollapsed = !st.trackerCollapsed; return true;
@@ -872,6 +879,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       return;
     }
     if (route.action === 'interact') { hooks.input && hooks.input.inject({ k: 'interact' }); return; }
+    if (route.action === 'mount') { act.mount(); return; }      // mounts: summon, or get off (src/sim/mounts.js)
     if (route.action === 'sit') {
       // the sim ignores sit in combat: say so instead of failing silently (CRITIQUE_1 item 18)
       if (lastModel && lastModel.player && lastModel.player.inCombat) quietSay("You can't rest in combat.");

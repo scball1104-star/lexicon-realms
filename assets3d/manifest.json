@@ -1,8 +1,10 @@
 {
 "v": 1,
-"bytes": 24582923,
+"bytes": 26735219,
 "files": [
 "animals/Deer.glb",
+"animals/Horse.glb",
+"animals/Stag.glb",
 "animals/Wolf.glb",
 "cave/Mushroom_Common.bin",
 "cave/Mushroom_Common.gltf",

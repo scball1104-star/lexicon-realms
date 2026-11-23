@@ -310,3 +310,14 @@ what is left of them is listed here.
   ones beside them in the same atlas (no hair strands, small eyes at 32 px). The LQ-copied ones are the reference.
 - NPC kitbashes: Sorrel shares Hob's face (re-haired), Quill and Penny keep the grids of Iris and Nella; distinct in
   colour and costume, not in silhouette.
+
+## Mounts (2026-11-22)
+
+- 3D: `assets3d/animals/Horse.glb` (the Bay Horse, and the Grey Charger recoloured) and `assets3d/animals/Stag.glb` (the
+  Moor Stag), Quaternius Animated Animal Pack via poly.pizza, CC0 1.0 (https://poly.pizza/m/qvTrSG9pZF,
+  https://poly.pizza/m/tQdzbZ1Cmw), copied from `D:\LQOnline\mockups3d_b\vendor\quaternius_polypizza\Animated-Animal-Pack`
+  like the Wolf and Deer; listed in `assets3d/LICENSES.md` and `assets3d/manifest.json`. Saddle, blanket, stirrups, reins
+  and barding are built in code (`src/render3d/mount3d.js`). There is no riding clip: the rider is the library's sit with
+  the legs and arms posed in code.
+- 2D: the horse and stag under a riding hero are drawn in code (`src/render/mount2d.js`), no sprite sheet.
+- Icons: `assets/icons/mounts16.png` and `mounts24.png`, code-drawn by `tools/mounts/make_icons.py`.

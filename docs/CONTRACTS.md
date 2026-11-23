@@ -1346,3 +1346,33 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `flight { from, to, start, end, k, up }` while flying (`up` 0..1: off the ground). Friends' frames keep them.
 - **Content.** `content.travel = { stone, inns, defaultHome, flight, routes }` (`src/data/travel.js travelContent`);
   `content.startRealms`; the Rootbound's foes, people, items, 14 quests (`sideQuests`), rare (`src/data/rootbound.js`).
+
+## Mounts (2026-11-22, LIVE; D:/LQOnline/mounts/BRIEF.md, Scott said go with its recommended answers)
+
+- **Data.** `src/data/mounts.js`: `MOUNTS` (bay_horse: level 10, 100 gold, +60%; moor_stag and grey_charger: level 20,
+  1,000 gold, +100%), their summons (`MOUNT_ABILITIES`, ids `mount_<kind>`, merged into `content.abilities`), the stable's
+  goods (`MOUNT_ITEMS`, ids `mount_<kind>`, items kind `'mount'`, merged into `content.items`), Wynn the Stable Master
+  (npc `wynn`, a vendor of the three, spawned at world 182,142 on the riverside lane), `STABLE` (her yard's decor, added to
+  the world's decor in `src/data/maps/index.js`, and the animals the 3D view stands there). `content.mounts =
+  mountsContent()`: `{ kinds, order, byItem, byAbility, flag: 'mounted', stable }`.
+- **Rules** (`src/sim/mounts.js`, `C.mounts`). Riding is an aura (`mount_<kind>`, flag `mounted`, `mods: speed add`, no
+  end, `breakOn: ['damage']`). The summon: a 1.5 s cast, `toggle` (cast again: off), `requires: { outOfCombat: true,
+  rideable: true }` (new requires key: `cast_fail` reason `indoors`). **Rideable** = `zone.mounts` if set, else
+  `zone.kind === 'field'` (`rideable(zone)`): the world, the Rootbound and any later outdoor zone ride; a dungeon, cave or
+  interior does not. A zone may set `mounts: false | true` to override. You get off: on any cast or attack
+  (`combat.breakStealth` with why `action` | `attack` removes a `mounted` aura), on a hit (damage over 0), and in
+  `tickPlayer`: the zone is not rideable (a door), a flight, the Lantern Stone, a gather or craft, sitting, death.
+- **Buying.** `buy { npc, index }` on a `mount` item: level (`reqLevel`) and gold checked, no bag item; the summon is
+  learned (the first one onto the bar like a skill, later ones into the spare skills, `barOff`). Events `mount_learn
+  { id, kind, name, ability }`; `inventory_fail` reasons `level`, `gold`, `known` (already owned).
+- **Command `mount { kind? }`** (Z, the phone horseshoe): riding: get off; else summon `kind` if owned, else the last one
+  ridden (`e.mountPick`), else the newest. `mount_fail { id, reason: none | combat | indoors }`. `dismount { id, kind,
+  reason: cancel | indoors | flight | cast | sit | dead }` (a hit or a cast shows as `aura_remove` reason `break`).
+- **Snapshot.** Player entities: `mount: kind | null` (friends' frames keep it: co-op shows the mount on other screens),
+  `mounts: [kinds]` when any are owned (trimmed from friends' frames, `src/net/frames.js TRIM`).
+- **Saves.** `saveFields` adds `mounts: [kinds]` and `mountPick` once one is owned (the summons are in `known` too);
+  `main.js specFor` passes them back; unknown kinds drop. No SAVE_VERSION change.
+- **Client.** Keymap action `mount` (default `KeyZ`, a ui action); `hudLayout({ touch }).mountBtn` (above slot 8), drawn
+  and pressable (region kind `mount`) only when `m.player.mounts` is not empty; `m.player.mount`, `m.player.mounts`.
+  Icons: `assets/icons/mounts16`, `mounts24` (`tools/mounts/make_icons.py`). 2D: `src/render/mount2d.js` (the hero lifted
+  `MOUNT_LIFT_PX`). 3D: `src/render3d/mount3d.js` (`createMount`, `createRider`, `createYard`), `renderer.dev.actor(id).mount`.

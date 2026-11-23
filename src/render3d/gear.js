@@ -141,6 +141,7 @@ const NPC_LOOKS = {
   lark: { base: 'female', hair: 'Hair_Buns', hairColor: '#c08040', out: 'Peasant', dye: { hue: 0.5, sat: 0.6, val: 1.0 }, scale: 0.66 },
   lark_escort: { base: 'female', hair: 'Hair_Buns', hairColor: '#c08040', out: 'Peasant', dye: { hue: 0.5, sat: 0.6, val: 1.0 }, scale: 0.66 },
   wick: { base: 'male', hair: 'Hair_SimpleParted', hairColor: '#e0c080', out: 'Peasant', dye: { hue: 0.3, sat: 0.6, val: 1.0 }, scale: 0.66 },
+  wynn: { base: 'female', hair: 'Hair_Buns', hairColor: '#8a5a30', out: 'Ranger', dye: { hue: 0.08, sat: 0.5, val: 0.75 } },   // mounts: the Stable Master
   odo: { base: 'male', hair: 'Hair_Long', beard: 'Hair_Beard', hairColor: '#9a9a9a', out: 'Ranger', dye: { hue: 0.1, sat: 0.4, val: 0.7 }, main: 'rod', cape: '#4a4a3a' },
 };
 export function npcSpec(template, sprite = '') {

@@ -91,6 +91,8 @@ function touchLayout(minHit, LW, LH) {
     xp: { y: H - 10 },
     chat: { x: 4, w: Math.min(170, W - 6 * p - 16), lines: 3, bottom: H - 16, passive: true },
     menuBar: mb, cluster,
+    // mounts: the horseshoe (shown once you own one) in the free spot above slot 8, by the bar's left end
+    mountBtn: { id: 'mount', x: right - 6 * p, y: bottom - 2 * p, w: p, h: p },
   };
 }
 

@@ -211,6 +211,7 @@ def run():
         assert 'card:close' not in ph.ev('__drv.labels()'), 'Close shuts the card'
         bar_item_phone(ph)
         bar_move_phone(ph)
+        mount_phone(ph)
         ph.tap_region(kind='menu_button', id='talents', wait=0.4)
         assert 'b2:close' in ph.ev('__drv.labels()'), 'a Scribe has the Builds 2 window (phase 2: every class)'
         ph.shot('phone_09_talents', 'talents window on the phone (Scribe: Builds 2)')
@@ -221,6 +222,34 @@ def run():
         # ---- Builds 2: a new Mender spends a point and takes a fork with taps (the pinned card: Learn, Close)
         mender_builds2(ph)
         b.close()
+
+
+def mount_phone(ph):
+    """Mounts (2026-11-22): no horseshoe until the hero owns a mount; then a tap summons it (1.5 s), the hero rides,
+    a second tap gets off."""
+    log('  mounts: the horseshoe button')
+    assert not ph.ev("__drv.region({ kind: 'mount' })"), 'no horseshoe before owning a mount'
+    for w in ('character', 'bags'):
+        ph.ev(f"window.__realms.ui.act.close('{w}')")
+    # the last step tapped a skill (a cast, maybe a fight with a slime): the slimes near are cleared (dev), then wait
+    # until the hero is out of the fight and past the global cooldown (there is no summon in a fight)
+    ph.ev("""() => { const R = window.__realms, W = R.world, e = W.get(R.playerId), C = W.internals;
+      for (const m of W.state.ents) if (m.kind === 'mob' && !m.dead && m.zone === e.zone && Math.hypot(m.x - e.x, m.y - e.y) < 30 * 256) C.combat.kill(m, e); }""")
+    t0 = time.time()
+    while time.time() - t0 < 30 and (ph.ev('__drv.me()')['inCombat'] or ph.ev('__drv.me()')['cast']):
+        time.sleep(0.3)
+    time.sleep(1.2)
+    ph.ev("() => { const R = window.__realms; R.world.internals.prog.learn(R.world.get(R.playerId), 'mount_bay_horse'); }")
+    ph.ev('window.__realms.redraw()')
+    time.sleep(0.4)
+    ph.tap_region(kind='mount', wait=0.2)
+    t0 = time.time()
+    while time.time() - t0 < 5 and ph.ev('(window.__realms.player() || {}).mount') != 'bay_horse':
+        time.sleep(0.1)
+    assert ph.ev('(window.__realms.player() || {}).mount') == 'bay_horse', f'a tap on the horseshoe summons the Bay Horse: {ph.ev("window.__realms.ui.log.slice(-3)")}'
+    ph.shot('phone_08d_mount', 'riding: the horseshoe lit above slot 8')
+    ph.tap_region(kind='mount', wait=0.4)
+    assert ph.ev('(window.__realms.player() || {}).mount') is None, 'a second tap gets off'
 
 
 def bar_item_phone(ph):
