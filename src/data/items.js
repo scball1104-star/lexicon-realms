@@ -339,13 +339,14 @@ for (const [id, name, slot, type, ilvl, stats] of [...DQ, ...DEEP_REWARDS]) gear
 
 // ---------------------------------------------------------------- consumables, bags (PROGRESSION 6.2: price is the vendor's sell price)
 const cons = (id, name, price, use, extra = {}) => add({ id, name, rarity: 'common', kind: 'consumable', slot: null, stack: 20, price, value: Math.max(1, Math.round(price / 4)), level: 1, reqLevel: 1, use, ...extra });
-cons('potion', 'Potion', 4, { kind: 'heal_pct', amount: 0.3, cooldown: 60, group: 'potion' });
-cons('hi_potion', 'Hi-Potion', 18, { kind: 'heal_pct', amount: 0.5, cooldown: 60, group: 'potion' }, { reqLevel: 8 });
-cons('ether', 'Ether', 6, { kind: 'mana_pct', amount: 0.3, cooldown: 60, group: 'potion' });
-cons('hi_ether', 'Hi-Ether', 24, { kind: 'mana_pct', amount: 0.5, cooldown: 60, group: 'potion' }, { reqLevel: 8 });
-cons('honey_roll', 'Honey Roll', 1, { kind: 'rest_food', amount: 0.1, cooldown: 0, group: 'food', needsSit: true });
-cons('antidote', 'Antidote', 3, { kind: 'dispel', dispel: ['poison'], cooldown: 0, group: 'antidote' });
-const bag = (id, name, slots, price) => add({ id, name, rarity: 'common', kind: 'bag', slot: null, stack: 1, price, value: Math.round(price / 4), level: 1, reqLevel: 1, bagSlots: slots });
+cons('potion', 'Potion', 4, { kind: 'heal_pct', amount: 0.3, cooldown: 60, group: 'potion' }, { text: 'Drink to heal 30% of your health at once, even mid-fight. One potion or ether a minute' });
+cons('hi_potion', 'Hi-Potion', 18, { kind: 'heal_pct', amount: 0.5, cooldown: 60, group: 'potion' }, { reqLevel: 8, text: 'Drink to heal 50% of your health at once, even mid-fight. One potion or ether a minute' });
+cons('ether', 'Ether', 6, { kind: 'mana_pct', amount: 0.3, cooldown: 60, group: 'potion' }, { text: 'Drink to restore 30% of your mana at once. For Menders and Scribes, the classes that cast with mana. One potion or ether a minute' });
+cons('hi_ether', 'Hi-Ether', 24, { kind: 'mana_pct', amount: 0.5, cooldown: 60, group: 'potion' }, { reqLevel: 8, text: 'Drink to restore 50% of your mana at once. For Menders and Scribes. One potion or ether a minute' });
+cons('honey_roll', 'Honey Roll', 1, { kind: 'rest_food', amount: 0.1, cooldown: 0, group: 'food', needsSit: true }, { text: 'Sit and eat between fights: heals 10% of your health each second while you sit. Cheaper than a potion when you are not in a hurry' });
+cons('antidote', 'Antidote', 3, { kind: 'dispel', dispel: ['poison'], cooldown: 0, group: 'antidote' }, { text: 'Cures poison at once. Keep a few for stinging and biting foes whose poison keeps hurting after the fight' });
+const bag = (id, name, slots, price) => add({ id, name, rarity: 'common', kind: 'bag', slot: null, stack: 1, price, value: Math.round(price / 4), level: 1, reqLevel: 1, bagSlots: slots,
+  text: `Adds ${slots} bag slots, so you carry more loot between trips to town. Equip it from your bags; you can wear up to 4 bags` });
 bag('starter_satchel', 'Satchel', 12, 0);
 bag('travel_satchel', 'Travel Satchel', 8, 40);
 bag('drovers_pack', "Drover's Pack", 10, 120);
