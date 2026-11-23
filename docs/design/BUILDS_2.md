@@ -519,6 +519,31 @@ Later bands, two zones and a small dungeon each (names are placeholders, from to
 
 Today's "XP at the cap becomes gold" (Fact: Q17) stays at each phase's temporary cap until Renown exists.
 
+### 5.7 Cap 30, built (2026-11-22; Scott: "Go with all of it")
+
+- **XP.** 5.2's rule to 30: 10,400 to go from 20 to 21, rising to 19,040 from 29; 142,280 at 25, 226,920 at 30.
+- **Points 21 to 30.** Ten more per named build on its own tracks (`src/data/builds2_cap30.js PAST_20`). Shieldwheel reaches
+  its second keystone (Gatekeeper, at 27, slot 2 opens at 25); Kept Name, Ember Sweep, Brevity, Herbal Smoke, Skirmisher,
+  Storm Arrows, Dust Kick, Mirage and Shadowskin are second forks or keystones the 20-point paths left. Tuned on
+  `qa/sim/builds2.mjs` to the same bands (one plain foe in 9 to 14 s at every level to 30, the slowest build of a class
+  within 25% of its fastest, struggles slower but never a wall).
+- **Level 25 pick.** The ten skills of BUILDS_2_PLAY 1.3, live. Six are **passive** (known = on, never on the bar): Slag
+  Brand, Hammerfall (1 Strike in 4 at random, not every 4th: the effect engine has no counter), Run-On Sentence,
+  Tanglewire, Broadhead, Gall Ink (a passive, not a toggle: Bleed Line becomes poison, slows 10%, lasts 4 s longer, ticks
+  10% softer), Opened Vein. Four are cast: Full Caps, Sanctuary Toll, Inner Bell (and Slag Brand's slag is a Strike rider).
+  Buying back the other side: 400 gold (DRAFT).
+- **Second signature at 20.** Each build takes the next in its order, with two reorders: the Tidehammer takes Kindred Light
+  second (Riptide Step left it at 15 to 17 s a foe from 23) and the Fan Dancer takes Mirrorshade (Inkwalk, an escape, left
+  it at 14.5 s at 24). To keep the Tidehammer over the 9 s floor once the spirit fights beside it, its points 16 to 19 are
+  Clear Voice and Toll (were Kindling and Flare).
+- **Struggle answers.** The Stormcaller's Sand Kestrel (second signature, 20) interrupts casters, so it answers its caster
+  struggle from 20; the Wordstorm's Fine Print (points 23 to 25) answers fast foes from 25 (it died to them without it).
+- **Gear tier.** Affix tiers 6 to 8 above ilvl 20 (16 to 20 stay tier 5); eight named pieces that any foe of levels 21 to
+  25 (magic, ilvl 23) or 26 to 30 (rare, ilvl 28) may drop at 1%; the Barrow Deep Halls' pools, two epics and two
+  legendaries (The Barrow-King's Due, The Drovers' Horn) (`src/data/gear_tier3.js`).
+- **Not built:** the level 30 pick (3.2 says "written when those levels are built"; no design yet), 5-piece sets (6.8),
+  Renown.
+
 ---
 
 ## 6. Equipment that makes builds

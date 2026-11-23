@@ -28,22 +28,23 @@ export const tests = [
     eq(bagCapacity(p, content), 20, 'level 20: 20 slots');
     eq(grew.join(), '5,10,15,20', 'grows at 5, 10, 15, 20');
   } },
-  { name: 'xp: the curve: granting 81,640 XP from level 1 lands exactly on the cap 20 (41,000 on 15), with a level event at every PROGRESSION.md threshold', fn() {
+  { name: 'xp: the curve: granting 226,920 XP from level 1 lands exactly on the cap 30 (41,000 on 15, 81,640 on 20), with a level event at every PROGRESSION.md threshold', fn() {
     const { world: w, pid, p } = duelWorld({ cls: 'mender', level: 1 });
     const levels = [];
     let total = 0;
-    while (p.level < 20) {
+    while (p.level < 30) {
       const ev = []; const before = p.level;
       w.grantXp(pid, 10, 'quest');
       total += 10;
       if (p.level > before) levels.push([p.level, total]);
       void ev;
     }
-    eq(total, 81640, 'total');
-    eq(PROGRESSION.maxLevel, 20, 'cap 20 (BUILDS_2 5.1, phase 5)');
+    eq(total, 226920, 'total');
+    eq(PROGRESSION.maxLevel, 30, 'cap 30 (BUILDS_2 5.1, phase 10; 20 in phase 5)');
     for (const [L, t] of levels) eq(t, PROGRESSION.xpAtLevel[L], `reached ${L} at its cumulative XP`);
     eq(levels.find(([L]) => L === 15)[1], 41000, '41,000 XP still lands on 15 (levels 1 to 14 unchanged)');
-    eq(levels.length, 19, 'nineteen level-ups');
+    eq(levels.find(([L]) => L === 20)[1], 81640, '81,640 XP still lands on 20');
+    eq(levels.length, 29, 'twenty-nine level-ups');
   } },
   { name: 'xp: level-up recomputes stats from base + growth (floor of the running total), refills health and mana', fn() {
     const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 1 });
@@ -71,11 +72,11 @@ export const tests = [
     C.combat.kill(m, p);
     eq(p.xp - x0, 40, 'kill XP to the tagger');
   } },
-  { name: 'xp: at the cap (20) XP turns into gold, 1 per 50, remainder kept', fn() {
-    const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 20 });
+  { name: 'xp: at the cap (30) XP turns into gold, 1 per 50, remainder kept', fn() {
+    const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 30 });
     p.gold = 0;
     w.grantXp(pid, 120); eq(p.gold, 2, '120 XP = 2 gold'); w.grantXp(pid, 30); eq(p.gold, 3, 'remainder carried');
-    eq(p.level, 20, 'still 20'); eq(p.xp, 0, 'no XP bar at the cap');
+    eq(p.level, 30, 'still 30'); eq(p.xp, 0, 'no XP bar at the cap');
   } },
   { name: 'xp: a hero saved at the old cap 15 (banked cap gold, any leftover XP) loads at 15, keeps both, and levels on to 16', fn() {
     const content = buildContent();

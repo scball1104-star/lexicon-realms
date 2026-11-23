@@ -271,7 +271,7 @@ export function createBuilds2(C) {
     if (!C.data.abilities[cmd.ability]) return fail(e, cmd.ability, 'unknown');
     e.build.picks[p.level] = cmd.ability;
     C.prog.learn(e, cmd.ability);
-    emit({ type: 'b2_pick', id: e.id, level: p.level, ability: cmd.ability });
+    emit({ type: 'b2_pick', id: e.id, level: p.level, ability: cmd.ability, ...(C.data.abilities[cmd.ability].passive ? { passive: true } : {}) });
     return true;
   }
   /** The skills a Builds 2 hero may buy at the trainer: the side of a pick they did not take, at the buy-back price. */

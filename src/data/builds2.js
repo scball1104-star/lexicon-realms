@@ -24,9 +24,10 @@ import { WARDEN, WARDEN_ABILITIES } from './builds2_warden.js';
 import { SCRIBE, SCRIBE_ABILITIES } from './builds2_scribe.js';
 import { WAYFINDER, WAYFINDER_ABILITIES } from './builds2_wayfinder.js';
 import { INKBLADE, INKBLADE_ABILITIES } from './builds2_inkblade.js';
+import { CAP30_ABILITIES, joinCap30 } from './builds2_cap30.js';
 
 export const BUILD_VERSION = 1;
-export const PICK_LEVELS = [1, 3, 6, 14];
+export const PICK_LEVELS = [1, 3, 6, 14, 25];   // 25: the cap 30 pick (src/data/builds2_cap30.js)
 export const SIGNATURE_LEVELS = [10, 20, 35];
 
 // ------------------------------------------------------------------------------------------------ rules
@@ -40,7 +41,7 @@ export const RULES = {
   freeRespecBelow: 10,          // a full respec is free at any lantern below level 10
   respec: { base: 10, perLevel: 5, cap: 250, firstFree: true },   // from 10: at a trainer, the first one free
   autoSpendUntil: 5,            // auto-spend (on by default) spends each new point on the suggested path to level 5
-  buyBack: { 1: 10, 3: 10, 6: 30, 14: 180 },   // gold to learn the skill you did not pick, at your trainer ("double gold")
+  buyBack: { 1: 10, 3: 10, 6: 30, 14: 180, 25: 400 },   // 25: DRAFT price (cap 30 lane)   // gold to learn the skill you did not pick, at your trainer ("double gold")
   signatureLevels: SIGNATURE_LEVELS,           // a signature pick (one of the class's three) at each
   lanternReach: 96,             // px: "at a lantern" for the free respec under 10 (2 x the lantern touch distance)
 };
@@ -130,7 +131,7 @@ const MENDER_SIGNATURE_ABILITIES = {
 
 export const B2_ABILITIES = {
   ...MENDER_SIGNATURE_ABILITIES,
-  ...WARDEN_ABILITIES, ...SCRIBE_ABILITIES, ...WAYFINDER_ABILITIES, ...INKBLADE_ABILITIES,
+  ...WARDEN_ABILITIES, ...SCRIBE_ABILITIES, ...WAYFINDER_ABILITIES, ...INKBLADE_ABILITIES, ...CAP30_ABILITIES,
   mender_blessing_stone: BLESS('mender_blessing_stone', 'Blessing of Stone', 'icon_protect', [{ stat: 'armor', mul: 1.2 }],
     'You and friends within 8 tiles: armor +20% for 10 minutes. One Blessing at a time.'),
   mender_blessing_flame: BLESS('mender_blessing_flame', 'Blessing of Flame', 'icon_fire', [{ stat: 'damageDone', mul: 1.08 }],
@@ -291,7 +292,9 @@ const MENDER_BUILDS = [
 // Cap 20 (phase 5, BUILDS_2 5.4): five more points per build for levels 16 to 20, on the build's own tracks (ranks the
 // first 15 points left unfilled; no new forks, keystones or skills). qa/sim/builds2.mjs gates every level to 20.
 const MENDER_PAST_15 = {
-  tidehammer: [...rep(P('sunfire', 'kindling'), 2), ...rep(P('sunfire', 'flare'), 2), P('sunfire', 'sunburst')],
+  // cap 30 (src/data/builds2_cap30.js): Clear Voice and Toll, not two Kindling and two Flare, at 16 to 19: with Kindred
+  // Light as its second signature at 20 the Tidehammer killed one foe in 8.9 s (under the 9 s floor)
+  tidehammer: [...rep(P('bell', 'clear_voice'), 2), ...rep(P('bell', 'toll'), 2), P('sunfire', 'sunburst')],
   lamplighter: [...rep(P('tide', 'deep_well'), 2), ...rep(P('tide', 'long_vigil'), 2), P('wardlight', 'blessed_cloth')],
   battle_mender: [...rep(P('dawnbrand', 'searing_name'), 2), ...rep(P('dawnbrand', 'bright_drain'), 2), P('dawnbrand', 'lingering_brand')],
 };
@@ -313,6 +316,8 @@ export const BUILDS2 = {
     baseline: { mods: [{ stat: 'healingDone', mul: 1.1 }] },
   },
 };
+// Cap 30 (src/data/builds2_cap30.js): the level 25 pick for every class and ten more points per named build (21 to 30)
+joinCap30(BUILDS2, SKILL_PICKS);
 
 // ------------------------------------------------------------------------------------------------ save shape helpers
 /** A fresh v1 build record (lives in the character save at state.build, save v2). */

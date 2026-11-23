@@ -18,8 +18,9 @@ export function withDoors(world, dungeons, places) {
     const [x, y] = d.door.area ? toWorld(d.door.area, d.door.x, d.door.y) : [d.door.x, d.door.y];
     const out = d.door.area ? toWorld(d.door.area, d.door.out[0], d.door.out[1]) : [...d.door.out];
     const region = d.door.area || null;
-    joins.push({ x, y, w: d.door.w || 1, h: d.door.h || 1, to: d.id, tx: z.arrival[0], ty: z.arrival[1], dir: d.door.dir || 'up', region, door: d.id });
-    doors.push({ id: d.id, to: d.id, name: d.name, kind: d.kind, levels: [...d.levels], label: (z.dungeon && z.dungeon.label) || '', x, y, w: d.door.w || 1, h: d.door.h || 1, out, region });
+    const gate = d.door.minLevel ? { minLevel: d.door.minLevel } : {};     // cap 30: a door only a hero of this level opens
+    joins.push({ x, y, w: d.door.w || 1, h: d.door.h || 1, to: d.id, tx: z.arrival[0], ty: z.arrival[1], dir: d.door.dir || 'up', region, door: d.id, ...gate });
+    doors.push({ id: d.id, to: d.id, name: d.name, kind: d.kind, levels: [...d.levels], label: (z.dungeon && z.dungeon.label) || '', x, y, w: d.door.w || 1, h: d.door.h || 1, out, region, ...gate });
   }
   return { ...world, joins, doors };
 }

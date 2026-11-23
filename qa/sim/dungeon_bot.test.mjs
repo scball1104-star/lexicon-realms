@@ -13,4 +13,5 @@ const cell = (place, level) => ({
     }
   },
 });
-export const tests = [cell('barrow', 11), cell('watchtower', 19), cell('rootcellar', 5), cell('smugglers_cut', 8), cell('tarn_hollow', 15)];
+export const tests = [cell('barrow', 11), cell('watchtower', 19), cell('rootcellar', 5), cell('smugglers_cut', 8), cell('tarn_hollow', 15),
+  cell('barrow_deep', 28)];      // cap 30: the Barrow Deep Halls (the script also runs it at 30)

@@ -7,9 +7,9 @@ import { DESIGN_DATA } from './design_data.js';
 import { B2_ABILITIES } from '../data/builds2.js';
 import { POWER_ABILITY_NAMES } from '../data/legendary_powers.js';
 
-// PLACEHOLDER until the sim exposes xpToLevel: docs/design/PROGRESSION.md section 1 (XP to next, levels 1..19; cap 20).
-export const XP_TO_NEXT = [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080, 6720, 7390, 8100, 8830, 9600];
-export const MAX_LEVEL = 20;
+// PLACEHOLDER until the sim exposes xpToLevel: docs/design/PROGRESSION.md section 1 (XP to next, levels 1..29; cap 30).
+export const XP_TO_NEXT = [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080, 6720, 7390, 8100, 8830, 9600, 10400, 11230, 12100, 12990, 13920, 14880, 15870, 16900, 17950, 19040];
+export const MAX_LEVEL = 30;
 
 const RESOURCE_LABEL = { mana: 'MP', resolve: 'RE', focus: 'FO' };
 const RESOURCE_WORD = { mana: 'Mana', resolve: 'Resolve', focus: 'Focus' };

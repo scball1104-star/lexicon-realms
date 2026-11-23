@@ -11,6 +11,7 @@
 
 import { glyphItems } from './storage.js';
 import { LEGENDARY_POWERS, MINOR_RULE, LEGEND_DROPS } from './legendary_powers.js';
+import { BAND_DROPS, DEEP_GEAR, DEEP_REWARDS, NAMED_BANDS } from './gear_tier3.js';
 
 export const RARITY = {
   common: { id: 'common', name: 'Common', color: '#e8e8e8', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 1.0 },
@@ -37,6 +38,10 @@ export const DROP_RULES = {
   junkChance: 0.35,
   classBias: 0.6,
   slotWeights: { weapon: 26, chest: 12, legs: 12, head: 12, feet: 10, hands: 10, off: 8, trinket: 10 },
+  // cap 30 (src/data/gear_tier3.js): named pieces any foe of a level band may drop, [{ from, to, chance, items }]
+  named: NAMED_BANDS,
+  // affix tier by ilvl (src/sim/loot.js rollAffixes): the top ilvl of tiers 1 to 8 (AFFIX_TIER_TOP below)
+  affixTierTop: [3, 6, 9, 12, 20, 23, 26, 30],
   // BUILDS_2 6.8 drop pacing by the dropper's level (src/sim/loot.js rollKill): [upToLevel, { gearChance, weights }] for
   // normal (and caster / armored) kills and for elites (and the named rares and cave bosses). The first band is today's.
   // Epic: a small chance from elites from level 1, from normal kills from level 20 (BUILDS_2 6.8's legendary column is
@@ -75,33 +80,35 @@ export const CLASS_GEAR = {
 export const SLOT_SHARE = { chest: 0.30, legs: 0.22, head: 0.18, feet: 0.16, hands: 0.14 };
 const SLOT_VALUE = { two: 1.8, main: 1.5, chest: 1.2, off: 1.0, head: 1.0, legs: 1.0, feet: 0.8, hands: 0.8, trinket: 0.8 };
 
-// PROGRESSION 4.7 affixes. values[tier - 1] = [min, max]; tier by ilvl: 1-3 T1, 4-6 T2, 7-9 T3, 10-12 T4, 13-15 T5.
+// PROGRESSION 4.7 affixes. values[tier - 1] = [min, max]; tier by ilvl: 1-3 T1, 4-6 T2, 7-9 T3, 10-12 T4, 13-20 T5, and
+// for the cap 30 gear tier 21-23 T6, 24-26 T7, 27-30 T8 (16 to 20 stay T5 so no live item changes).
 const ARMOR_SLOTS = ['head', 'chest', 'legs', 'feet', 'hands'];
 export const AFFIXES = {
   // combat: what the affix does in a fight (polish 2026-11-22, src/sim/affixes.js). dps: added to that weapon's damage per
   // second (its swing grows by value x speed); leech: `per` of the damage you deal a point comes back as health; onHit: a
   // direct hit has `chance` to deal value x `per` more damage of `school` (no crit, no further procs)
-  gleaming: { kind: 'prefix', name: 'Gleaming', stat: 'dps', combat: { kind: 'dps' }, slots: ['main', 'two'], values: [[0.4, 0.4], [0.8, 0.8], [1.2, 1.2], [1.6, 1.6], [2.0, 2.0]] },
-  keen: { kind: 'prefix', name: 'Keen', stat: 'crit', slots: ['main', 'two', 'hands'], values: [[1, 1], [1, 1], [2, 2], [2, 2], [3, 3]] },
-  mighty: { kind: 'prefix', name: 'Mighty', stat: 'str', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
-  nimble: { kind: 'prefix', name: 'Nimble', stat: 'agi', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
-  runed: { kind: 'prefix', name: 'Runed', stat: 'int', slots: ['head', 'chest', 'legs', 'main', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
-  vital: { kind: 'prefix', name: 'Vital', stat: 'sta', slots: [...ARMOR_SLOTS, 'trinket'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
-  sturdy: { kind: 'prefix', name: 'Sturdy', stat: 'armorPct', slots: ARMOR_SLOTS, values: [[10, 10], [15, 15], [20, 20], [25, 25], [30, 30]] },
-  fleet: { kind: 'prefix', name: 'Fleet', stat: 'speed', slots: ['feet'], values: [[2, 2], [2, 2], [3, 3], [3, 3], [4, 4]] },
-  of_the_bear: { kind: 'suffix', name: 'of the Bear', stat: 'sta', slots: [...ARMOR_SLOTS, 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
-  of_the_lantern: { kind: 'suffix', name: 'of the Lantern', stat: 'spi', slots: ['head', 'chest', 'trinket', 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
-  of_echoes: { kind: 'suffix', name: 'of Echoes', stat: 'mana', slots: ['head', 'off', 'trinket'], values: [[10, 10], [15, 15], [20, 20], [30, 30], [40, 40]] },
-  of_mending: { kind: 'suffix', name: 'of Mending', stat: 'sp', slots: ['main', 'off', 'trinket'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]] },
-  of_leeching: { kind: 'suffix', name: 'of Leeching', stat: 'leech', combat: { kind: 'leech', per: 0.01 }, slots: ['main', 'two'], values: [[2, 2], [3, 3], [4, 4], [5, 5], [6, 6]] },
-  of_embers: { kind: 'suffix', name: 'of Embers', stat: 'fireOnHit', combat: { kind: 'onHit', chance: 0.25, per: 4, school: 'fire', ability: 'affix_embers' }, slots: ['main', 'two'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]] },
+  gleaming: { kind: 'prefix', name: 'Gleaming', stat: 'dps', combat: { kind: 'dps' }, slots: ['main', 'two'], values: [[0.4, 0.4], [0.8, 0.8], [1.2, 1.2], [1.6, 1.6], [2.0, 2.0], [2.4, 2.4], [2.8, 2.8], [3.2, 3.2]] },
+  keen: { kind: 'prefix', name: 'Keen', stat: 'crit', slots: ['main', 'two', 'hands'], values: [[1, 1], [1, 1], [2, 2], [2, 2], [3, 3], [3, 3], [4, 4], [4, 4]] },
+  mighty: { kind: 'prefix', name: 'Mighty', stat: 'str', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
+  nimble: { kind: 'prefix', name: 'Nimble', stat: 'agi', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
+  runed: { kind: 'prefix', name: 'Runed', stat: 'int', slots: ['head', 'chest', 'legs', 'main', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
+  vital: { kind: 'prefix', name: 'Vital', stat: 'sta', slots: [...ARMOR_SLOTS, 'trinket'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
+  sturdy: { kind: 'prefix', name: 'Sturdy', stat: 'armorPct', slots: ARMOR_SLOTS, values: [[10, 10], [15, 15], [20, 20], [25, 25], [30, 30], [35, 35], [40, 40], [45, 45]] },
+  fleet: { kind: 'prefix', name: 'Fleet', stat: 'speed', slots: ['feet'], values: [[2, 2], [2, 2], [3, 3], [3, 3], [4, 4], [4, 4], [5, 5], [5, 5]] },
+  of_the_bear: { kind: 'suffix', name: 'of the Bear', stat: 'sta', slots: [...ARMOR_SLOTS, 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
+  of_the_lantern: { kind: 'suffix', name: 'of the Lantern', stat: 'spi', slots: ['head', 'chest', 'trinket', 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
+  of_echoes: { kind: 'suffix', name: 'of Echoes', stat: 'mana', slots: ['head', 'off', 'trinket'], values: [[10, 10], [15, 15], [20, 20], [30, 30], [40, 40], [50, 50], [60, 60], [70, 70]] },
+  of_mending: { kind: 'suffix', name: 'of Mending', stat: 'sp', slots: ['main', 'off', 'trinket'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8]] },
+  of_leeching: { kind: 'suffix', name: 'of Leeching', stat: 'leech', combat: { kind: 'leech', per: 0.01 }, slots: ['main', 'two'], values: [[2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9]] },
+  of_embers: { kind: 'suffix', name: 'of Embers', stat: 'fireOnHit', combat: { kind: 'onHit', chance: 0.25, per: 4, school: 'fire', ability: 'affix_embers' }, slots: ['main', 'two'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8]] },
   // resistances (src/data/resist.js): percentage points of that school's damage shrugged off on average
-  of_inkward: { kind: 'suffix', name: 'of Inkward', stat: 'resInk', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8]] },
-  of_shadeward: { kind: 'suffix', name: 'of Shadeward', stat: 'resShadow', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8]] },
-  of_lampward: { kind: 'suffix', name: 'of Lampward', stat: 'resLight', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8]] },
-  of_warding: { kind: 'suffix', name: 'of Warding', stat: 'resAll', slots: ['chest', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 2], [2, 3], [3, 4]] },
+  of_inkward: { kind: 'suffix', name: 'of Inkward', stat: 'resInk', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11]] },
+  of_shadeward: { kind: 'suffix', name: 'of Shadeward', stat: 'resShadow', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11]] },
+  of_lampward: { kind: 'suffix', name: 'of Lampward', stat: 'resLight', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11]] },
+  of_warding: { kind: 'suffix', name: 'of Warding', stat: 'resAll', slots: ['chest', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 2], [2, 3], [3, 4], [3, 4], [4, 5], [4, 5]] },
 };
-export const affixTier = (ilvl) => Math.max(1, Math.min(5, Math.ceil(ilvl / 3)));
+export const AFFIX_TIER_TOP = Object.freeze([3, 6, 9, 12, 20, 23, 26, 30]);
+export const affixTier = (ilvl) => { const i = AFFIX_TIER_TOP.findIndex((top) => ilvl <= top); return i < 0 ? AFFIX_TIER_TOP.length : i + 1; };
 
 // ---------------------------------------------------------------- formulas (PROGRESSION 4.2 to 4.8)
 export const reqLevel = (ilvl) => Math.max(1, ilvl - 2);
@@ -272,7 +279,9 @@ const D = [
   ['hollowfangs_mistwalkers', "Hollowfang's Mistwalkers", 'feet', 'class', 16, { main: 6, sta: 6, speed: 4 }, 'legendary', 'tarn_hollow', 'mistwalk'],
 ];
 const withPower = (pid) => (pid && LEGENDARY_POWERS[pid] ? { power: LEGENDARY_POWERS[pid], text: LEGENDARY_POWERS[pid].text } : {});
-for (const [id, name, slot, type, ilvl, stats, rarity, dungeon, power] of D) gear(id, name, slot, type, ilvl, rarity, stats, { dungeon, ...withPower(power) });
+for (const [id, name, slot, type, ilvl, stats, rarity, dungeon, power] of [...D, ...DEEP_GEAR]) gear(id, name, slot, type, ilvl, rarity, stats, { dungeon, ...withPower(power) });
+// the cap 30 gear tier's named world drops by level band (src/data/gear_tier3.js, DROP_RULES.named)
+for (const b of BAND_DROPS) for (const [id, name, slot, type, ilvl, stats] of b.rows) gear(id, name, slot, type, ilvl, b.rarity, stats, { band: [b.from, b.to] });
 
 // The Watchtower sets (BUILDS_2 6.7 and phase 9: sets from dungeon bosses): one per class, three pieces, one from each
 // boss (the Wickwright the head, the Captain of the Stair the legs, the Sentinel the chest). Rarity 'set'. The bonus at 2
@@ -326,7 +335,7 @@ const DQ = [
   ['stair_climbers_boots', "Stair-Climber's Boots", 'feet', 'class', 19, { sta: 4, main: 3, speed: 3 }],
   ['tower_guard_gauntlets', 'Tower Guard Gauntlets', 'hands', 'class', 19, { main: 4, sta: 3 }],
 ];
-for (const [id, name, slot, type, ilvl, stats] of DQ) gear(id, name, slot, type, ilvl, 'magic', stats, { reward: true });
+for (const [id, name, slot, type, ilvl, stats] of [...DQ, ...DEEP_REWARDS]) gear(id, name, slot, type, ilvl, 'magic', stats, { reward: true });
 
 // ---------------------------------------------------------------- consumables, bags (PROGRESSION 6.2: price is the vendor's sell price)
 const cons = (id, name, price, use, extra = {}) => add({ id, name, rarity: 'common', kind: 'consumable', slot: null, stack: 20, price, value: Math.max(1, Math.round(price / 4)), level: 1, reqLevel: 1, use, ...extra });

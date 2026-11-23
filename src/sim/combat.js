@@ -234,6 +234,7 @@ export function createCombat(C) {
 
   function castAbility(e, ab, cmd = {}) {
     if (e.dead) return fail(e, ab, 'dead');
+    if (ab.passive && e.kind === 'player' && typeof ab.passive === 'object') return fail(e, ab, 'passive');       // a cap 30 passive pick works while known (src/sim/data.js)
     if (cannotAct(e)) return fail(e, ab, 'stunned');
     if (ab.school !== 'physical' && stats.hasFlag(e, 'silence')) return fail(e, ab, 'silenced');
     // an interrupt locks the whole school of the spell it broke (combat core 2026-11-22, GAP 2.1)

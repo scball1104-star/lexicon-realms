@@ -159,17 +159,18 @@ export const tests = [
     },
   },
   {
-    name: 'data: XP table sums to the PROGRESSION.md cumulative column (41,000 at 15, 81,640 at the cap 20); mob curve matches section 3',
+    name: 'data: XP table sums to the PROGRESSION.md cumulative column (41,000 at 15, 81,640 at 20, 226,920 at the cap 30); mob curve matches section 3',
     fn() {
       let cum = 0;
       const cap = PROGRESSION.maxLevel;
-      eq(cap, 20, 'cap 20');
+      eq(cap, 30, 'cap 30');
       for (let L = 1; L <= cap; L++) {
         eq(PROGRESSION.xpAtLevel[L], cum, `cumulative at ${L}`);
         if (L === 15) eq(cum, 41000, 'total to 15 (unchanged)');
         if (L < cap) cum += PROGRESSION.xpToNext[L];
       }
-      eq(cum, 81640, 'total to 20');
+      eq(cum, 226920, 'total to 30');
+      eq(PROGRESSION.xpAtLevel[20], 81640, 'total to 20 (unchanged)');
       let rowsXp = 0, rowsMob = 0;
       const txt = doc('PROGRESSION.md');
       for (const line of txt.split('\n')) {
@@ -185,7 +186,7 @@ export const tests = [
           eq(20 + 4 * L, Number(c[5]), `mob xp at ${L}`);
         }
       }
-      assert(rowsXp >= 19, `PROGRESSION.md section 1 lists XP to next for levels 1 to 19 (found ${rowsXp} rows)`);
+      assert(rowsXp >= 29, `PROGRESSION.md section 1 lists XP to next for levels 1 to 29 (found ${rowsXp} rows)`);
       assert(rowsMob >= 20, `PROGRESSION.md section 3 lists the mob curve to 20 (found ${rowsMob} rows)`);
       eq(PROGRESSION.mobCurve.linearFrom.join(','), '15,58', 'linear past 15 at the slope 58');
       eq(Object.keys(MOB_ABILITIES).length >= 3, true, 'mob abilities');

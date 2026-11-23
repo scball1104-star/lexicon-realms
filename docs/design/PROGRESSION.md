@@ -6,7 +6,12 @@ section 9.4 so the engine agent can port it to a node test.
 
 ---
 
-## 1. The XP curve (levels 1 to 20)
+## 1. The XP curve (levels 1 to 30)
+
+**Cap 30 (BUILDS_2 phase 10, the 20 to 30 band, 2026-11-22; Scott: "Go with all of it").** Levels 1 to 19 keep their
+numbers; 20 to 29 extend the same rule (target minutes 26 to 35), so 30 comes at 226,920 XP, about 10 hours of pure
+levelling (BUILDS_2 5.2). The content for 20 to 30 is the Larchhill and Drovers' Reach zones (a separate build) and the
+Barrow Deep Halls (src/data/dungeons.js `barrow_deep`, levels 26 to 30). At the cap (now 30) XP turns into gold as below.
 
 **Cap 20 (phase 5 of BUILDS_2 section 9, 2026-11-19).** Scott approved "cap 50, shipped at 20 first, re-spread World 2
 to levels 1 to 20". World 2 is not built, so today's four zones were re-spread instead (1.1). Levels 1 to 14 keep their
@@ -37,11 +42,21 @@ of pure levelling: the chain plus one day of the bounty boards, 2.4).
 | 17 | 8,100 | 55,110 | 23 |
 | 18 | 8,830 | 63,210 | 24 |
 | 19 | 9,600 | 72,040 | 25 |
-| 20 | cap | **81,640** | |
+| 20 | 10,400 | 81,640 | 26 |
+| 21 | 11,230 | 92,040 | 27 |
+| 22 | 12,100 | 103,270 | 28 |
+| 23 | 12,990 | 115,370 | 29 |
+| 24 | 13,920 | 128,360 | 30 |
+| 25 | 14,880 | 142,280 | 31 |
+| 26 | 15,870 | 157,160 | 32 |
+| 27 | 16,900 | 173,030 | 33 |
+| 28 | 17,950 | 189,930 | 34 |
+| 29 | 19,040 | 207,880 | 35 |
+| 30 | cap | **226,920** | |
 
 How it was built: `xp_to_next(L) = 4 * kill_xp(L) * minutes(L)`, rounded to tens, which is "30% of the level from
 about 1.2 kills a minute". Past 14 the target minutes are `20 + (L - 14)` (BUILDS_2 5.2). At the cap (now 20) further
-XP converts to gold at 1 gold per 50 XP (shown as "+n gold" instead), until Renown exists. A hero saved at 15 under
+XP converts to gold at 1 gold per 50 XP (shown as "+n gold" instead), until Renown exists (now at 30). A hero saved at 15 under
 the old cap keeps its level, its XP and any gold the cap already banked, and levels on from there.
 
 ### 1.1 The zone re-spread (BUILDS_2 5.5 option 1, mapped onto today's zones)

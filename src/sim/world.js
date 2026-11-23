@@ -1039,6 +1039,8 @@ function wrap(state, content0, rng, systems) {
     const j = inJoin(zone, tx, ty);
     if (!j || !content.zones[j.to]) return;          // a join to a zone that is not loaded: just the map edge
     if (j.needs && !(e.questsDone || []).includes(j.needs)) { if (combatOn && C.realms2) C.realms2.notYet(e, j); return; }   // realms2: the ride out waits for the boss
+    // a door with a level gate (cap 30: the Barrow Deep Halls at 26) stays shut to a lower hero; one line every 5 s
+    if (j.minLevel && (e.level || 1) < j.minLevel) { if (!(e.doorSaidAt > state.tick - 100)) { e.doorSaidAt = state.tick; emit({ type: 'door_locked', id: e.id, door: j.door || j.to, need: j.minLevel }); } return; }
     const from = e.zone;
     // a door into a dungeon or cave goes into the hero's party's own copy (made here, or reset after 30 minutes empty)
     const to = DG && DG.isPlace(j.to) && !DG.isPlace(from) ? DG.enter(e, j.to) : j.to;

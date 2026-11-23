@@ -35,6 +35,7 @@ export function createTravelUi({ font, content }) {
       case 'ride_start': return ev.vehicle === 'ferry' ? `The ferry pushes off for ${ev.name}.` : `The ore cart rattles off toward ${ev.name}.`;
       case 'ride_fail': return RIDE_FAIL[ev.reason] || null;
       case 'inventory_fail': return ev.item === 'lantern_stone' ? STONE_FAIL[ev.reason] || null : null;
+      case 'door_locked': return `The stair will not open for you. It waits for a hero of level ${ev.need}.`;   // cap 30: a level-gated door
       default: return null;
     }
   }

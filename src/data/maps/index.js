@@ -15,6 +15,8 @@ import watchtower from './watchtower.js';
 import rootcellar from './rootcellar.js';
 import smugglersCut from './smugglers_cut.js';
 import tarnHollow from './tarn_hollow.js';
+import barrowDeep from './barrow_deep.js';
+import { DH_MOB_ABILITIES } from '../deep_halls.js';     // cap 30: registers the Deep Halls' foes into MOBS
 import rootbound from './rootbound.js';
 import larchhill from './larchhill.js';
 import droversReach from './drovers_reach.js';
@@ -57,7 +59,7 @@ import { R2, R2_OUTDOOR } from '../realms2.js';     // wave 3 realms2: Saffron H
 export const REGIONS = { willowmere, valley, downs, moor };
 // Dungeons and caves (2026-11-22, src/data/dungeons.js): each its own zone (kind 'dungeon' | 'cave'), entered by a door on
 // the world. A party's copy is the zone under the id `<place>#<key>` (copies.js): ZONES resolves it to the place's data.
-export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine };
+export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep };
 // the loading card's one line of flavour (src/ui/loading.js reads zone.flavour)
 for (const [id, z] of Object.entries(PLACES)) if (DUNGEONS[id] && DUNGEONS[id].flavour) PLACES[id] = { ...z, flavour: DUNGEONS[id].flavour };
 // patrols you must time (src/data/patrols.js): a place's patrol pairs spawn with its other foes
@@ -145,7 +147,7 @@ export function buildContent() {
     classes: CLASSES, abilities: { ...ABILITIES, ...MOUNT_ABILITIES }, talents: TALENTS, progression: PROGRESSION,
     // Builds 2 data (off for players: progression.builds2.enabled is false)
     builds2: { rules: BUILDS2_RULES, classes: BUILDS2, skillPicks: SKILL_PICKS, abilities: B2_ABILITIES },
-    mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES, ...R2.mobAbilities },
+    mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES, ...R2.mobAbilities, ...DH_MOB_ABILITIES },
     mobs, mobSprites: MOB_SPRITES, npcs: { ...NPCS, ...TRAVEL_NPCS, ...RB_NPCS, ...MOUNT_NPCS, ...R2.npcs },
     items: { ...ITEMS, ...TRAVEL_ITEMS, ...RB_ITEMS, ...MOUNT_ITEMS, ...R2.items }, rarity: RARITY, affixes: AFFIXES, dropRules: DROP_RULES, weaponTypes: WEAPON_TYPES, armorTypes: ARMOR_TYPES, classGear: CLASS_GEAR,
     hitTable: HIT_CONTENT, resist: RESIST_CONTENT,        // the hit table and resistances (src/data/hittable.js, resist.js)

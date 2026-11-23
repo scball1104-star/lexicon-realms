@@ -22,7 +22,7 @@ const MAX_TICKS = 20 * 120;
 export const B2_CLASSES = ['mender', 'warden', 'scribe', 'wayfinder', 'inkblade'];
 export const NAMED_ALL = Object.fromEntries(B2_CLASSES.map((c) => [c, BUILDS2[c].builds.map((b) => ({ ...b, cls: c }))]));
 export const NAMED = NAMED_ALL.mender;
-export const B2_LEVELS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];   // to the cap 20 (phase 5)
+export const B2_LEVELS = Array.from({ length: 30 }, (_, i) => i + 1);   // to the cap 30 (phase 10; 20 in phase 5)
 // The solo band (every named build solos): it wins every fight, never dies, and one foe takes 5 to 14 s at levels 1 to 4
 // (the lighter low-level foes, today's band) and 6 to 15 s from 5 (BUILDS_2 5.3: "never under 6 s for the strongest").
 // The TARGET band, the gate since the 2026-11-19 tuning: one plain foe in 9 to 14 s from level 5 for the suggested builds
@@ -41,9 +41,12 @@ export function makeHero(build, level, seed = 1, { x = 40, y = 15 } = {}) {
   const { world, p, C } = d;
   p.build.firstKill = true;
   p.build.leaning = build.id;
-  for (const lv of [1, 3, 6, 14]) if (level >= lv && build.picks[lv]) { if (!C.b2.pick(p, { level: lv, ability: build.picks[lv] })) throw new Error(`${build.id} L${level}: pick ${build.picks[lv]} refused`); }
+  for (const lv of [1, 3, 6, 14, 25]) if (level >= lv && build.picks[lv]) { if (!C.b2.pick(p, { level: lv, ability: build.picks[lv] })) throw new Error(`${build.id} L${level}: pick ${build.picks[lv]} refused`); }
   for (const [lv, id] of Object.entries(build.buy || {})) if (level >= Number(lv)) { p.gold = (p.gold || 0) + 200; if (C.b2.buyBack(p, id)) throw new Error(`${build.id} L${level}: cannot buy ${id}`); }
   if (level >= 10 && build.signature) { if (!C.b2.pick(p, { level: 10, ability: build.signature })) throw new Error(`${build.id} L${level}: signature ${build.signature} refused`); }
+  // cap 30: the second signature at 20, the next one in the build's order
+  const sig2 = (build.signatures || []).find((id) => id !== build.signature);
+  if (level >= 20 && sig2) { if (!C.b2.pick(p, { level: 20, ability: sig2 })) throw new Error(`${build.id} L${level}: signature ${sig2} refused`); }
   for (const id of build.path.slice(0, level)) if (!C.b2.learn(p, { node: id })) throw new Error(`${build.id} L${level}: cannot learn ${id} (${C.b2.whyNot(p, id)})`);
   C.stats.recalc(p); p.hp = p.hpMax; p.res.cur = p.res.kind === 'resolve' ? 0 : p.res.max;   // Resolve starts empty (the Warden)
   return d;
@@ -57,6 +60,8 @@ function bot(world, p, t, foes, build) {
   const hp = p.hp / p.hpMax;
   const alive = foes.filter((m) => !m.dead);
   if (knows('mender_warding_word') && !auraOn(p, 'mender_spoken_for') && hp < 0.9 && can('mender_warding_word', p)) return { ab: 'mender_warding_word', target: p };
+  if (hp < 0.6 && knows('mender_inner_bell') && can('mender_inner_bell')) return { ab: 'mender_inner_bell' };
+  if (hp < 0.6 && knows('mender_sanctuary_toll') && can('mender_sanctuary_toll')) return { ab: 'mender_sanctuary_toll' };
   if (hp < 0.4 && can('mender_mend', p)) return { ab: 'mender_mend', target: p };
   if (hp < 0.75 && knows('mender_steady_name') && !auraOn(p, 'mender_steady_name', p.id) && can('mender_steady_name', p)) return { ab: 'mender_steady_name', target: p };
   if (alive.filter((m) => dpx(m, p) <= 96).length >= 2 && can('mender_chorus')) return { ab: 'mender_chorus' };
@@ -192,7 +197,9 @@ export const BOTS2 = {
     if (v.hp < 0.8 && v.can('scribe_vellum_ward')) return { ab: 'scribe_vellum_ward' };
     if (v.can('scribe_living_words') && objs(world, p, 'scribe_ink_hound').length < 2) return { ab: 'scribe_living_words' };
     const close = v.near(40);
-    if (close.length && close.some((m) => !held2(m)) && v.hp < 0.7 && v.can('scribe_ellipsis') && p.x > 12 * TILE) return { ab: 'scribe_ellipsis', at: { x: p.x / SUB - 112, y: p.y / SUB } };
+    // cap 30: only the build made for Ellipsis (the Duelist) blinks; a Wordstorm that took it second at 20 blinked from fast
+    // foes it could not outrun and died to them
+    if (close.length && close.some((m) => !held2(m)) && v.hp < 0.7 && b.signature === 'scribe_ellipsis' && v.can('scribe_ellipsis') && p.x > 12 * TILE) return { ab: 'scribe_ellipsis', at: { x: p.x / SUB - 112, y: p.y / SUB } };
     if (v.near(48).length && v.can('scribe_full_stop')) return { ab: 'scribe_full_stop' };
     if (v.near(56).some((m) => !held2(m)) && v.can('scribe_exclamation')) return { ab: 'scribe_exclamation' };
     // Paragraph: a wall across the way of a foe coming at you
@@ -205,6 +212,7 @@ export const BOTS2 = {
     if (p.res.cur < p.res.max * 0.25 && v.can('scribe_inkwell_pause') && (held2(t) || d > 64 || (t.ai && t.ai.target !== p.id))) return { ab: 'scribe_inkwell_pause' };
     if (v.can('scribe_ink_lash', t)) return { ab: 'scribe_ink_lash', target: t };
     if (v.can('scribe_scrawl', t)) return { ab: 'scribe_scrawl', target: t };
+    if (v.can('scribe_full_caps') && !auraOn(p, 'scribe_full_caps', p.id) && v.can('scribe_inkbolt', t)) return { ab: 'scribe_full_caps' };
     if (v.can('scribe_inkbolt', t)) return { ab: 'scribe_inkbolt', target: t };
     return null;
   },
@@ -368,7 +376,7 @@ const Hf = (x) => Math.max(10, x);
 export const struggleCost = (r, plain) => (r.ttk / plain.ttk + Hf(r.low) / Hf(plain.low)) / 2;
 export const struggleOk = (r, plain, answers = false) => r.deaths === 0 && r.wins === r.runs && r.ttk <= 2.5 * plain.ttk
   && (answers ? struggleCost(r, plain) <= 1.25 : struggleCost(r, plain) >= 1.1);
-export const S_LEVELS = [6, 10, 15, 20];
+export const S_LEVELS = [6, 10, 15, 20, 25, 30];   // 25 and 30: cap 30
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {

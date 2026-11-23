@@ -77,6 +77,24 @@ export const DUNGEONS = {
     legendary: 'hollowfangs_mistwalkers', legend: { chance: 0.1, step: 0.005 },     // combat core 2026-11-22: a third place rolls one
     chest: { gold: [30, 45], rarity: 'magic', ilvl: 16 },
   },
+  // cap 30 (2026-11-22): the Barrow grown down under the drove roads (src/data/deep_halls.js, tools/maps/zone_barrow_deep.mjs).
+  // Its door is a stair under the cairn in the heart of the Standing Stones, and only a hero of level 26 opens it (`minLevel`:
+  // src/data/maps/doors.js puts it on the join, src/sim/world.js checkJoin refuses a lower hero with a `door_locked` event).
+  barrow_deep: {
+    id: 'barrow_deep', flavour: 'Under the drove roads the Barrow kept digging. Down here the flock is still being counted.', name: 'The Barrow Deep Halls', kind: 'dungeon', levels: [26, 30],
+    adds: { hp: 0.4, dmg: 0.4 },
+    trash: { hp: 0.75, dmg: 0.55 },               // packs in a copy: lighter than the open world's (a solo hero, no second pull)
+    door: { area: 'downs', x: 28, y: 20, w: 1, h: 1, out: [28, 21], dir: 'up', minLevel: 26 },   // under the cairn in the ring's heart
+    bosses: ['deep_drove_herd', 'deep_cairn_counter', 'deep_barrow_king'], last: 'deep_barrow_king',
+    drops: {
+      deep_drove_herd: ['drove_bell_rod', 'barrowking_buckler', 'deepway_knives', 'wether_bone_bow', 'cairnstone_helm'],
+      deep_cairn_counter: ['drove_bell_rod', 'barrowking_buckler', 'deepway_knives', 'wether_bone_bow', 'cairnstone_helm'],
+    },
+    rare: ['barrow_kings_mantle', 'last_drove_token'],
+    legendary: ['barrow_kings_due', 'drovers_horn'], legend: { chance: 0.1, step: 0.005 },
+    chest: { gold: [60, 90], rarity: 'magic', ilvl: 28 },
+    daily: { gold: [160, 230], glyphs: 4, rarity: 'rare', ilvl: 29, xpMinutes: 55 },
+  },
 };
 // the 20 to 30 band's cave (src/data/band_dungeons.js: the Larch Mine, its door in Larchhill)
 Object.assign(DUNGEONS, BAND_DUNGEONS);

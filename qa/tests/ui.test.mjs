@@ -178,7 +178,8 @@ export const tests = [
       eq(m.talentPoints.total, 0);
       eq(JSON.stringify(defaultBar('warden', 6)), JSON.stringify(['warden_strike', 'warden_shield_bash', 'warden_sweeping_blow', 'warden_second_wind']));
       eq(xpToNext(15), 6720, 'level 15 is no longer the cap (cap 20, BUILDS_2 5.2)');
-      eq(xpToNext(20), 0, 'cap');
+      eq(xpToNext(20), 10400, 'level 20 is no longer the cap (cap 30, BUILDS_2 5.2)');
+      eq(xpToNext(30), 0, 'cap');
     },
   },
   {

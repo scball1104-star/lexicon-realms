@@ -10,6 +10,7 @@ import { createNav, tileOfSub, T } from './nav.mjs';
 import { createRng } from '../../../src/sim/rng.js';
 import { losBetween } from '../../../src/sim/los.js';
 import { boxTiles } from '../../../src/sim/collision.js';
+import { BOTS2, MENDER_BOT, botView } from '../../sim/builds2.mjs';
 /** the feet box overlaps a wall or water cell (ledges are fine: you stand on them while hopping down) */
 function boxHitsSolid(Z, x, y) {
   const [a0, b0, a1, b1] = boxTiles(x, y);
@@ -24,6 +25,8 @@ export const TALENT_BRANCH = { warden: 'oathblade', mender: 'kindling', scribe: 
 const RANGE = { warden: 28, inkblade: 28, mender: 110, scribe: 120, wayfinder: 120 };
 const VENDORS_POTION = ['pell', 'penny', 'tamsin'];
 const dpx = (a, b) => Math.hypot((a.x - b.x) / SUB, (a.y - b.y) / SUB);
+// a party's copy of a dungeon or cave is the zone '<place>#<key>' (src/data/maps/copies.js): goals name the place
+const zb = (z) => (typeof z === 'string' ? z.split('#')[0] : z);
 const feetPx = (e) => [e.x / SUB, e.y / SUB];
 
 export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec = null, opts = {} }) {
@@ -37,12 +40,19 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   const clsDef = C.classes[cls];
   const cg = (C.classGear || {})[cls] || { weapons: clsDef.weapons, armor: clsDef.armor };
   const stopAt = opts.stopLevel || 10;
+  // Builds 2 (on for every class since 2026-11-19): the hero spends its points on its leaning's path (the talents
+  // screen's "Spend suggested"), takes the leaning's skill picks and signatures, and fights with the played-well class bot
+  // of qa/sim/builds2.mjs (the same one the build gate and the dungeon bot use). Before cap 30 the questbot sent the old
+  // learn_talent and trainer commands, which a Builds 2 hero refuses: it fought to the end with its two level 1 skills.
+  const B2 = (C.builds2 && C.builds2.classes && C.builds2.classes[cls]) || null;
+  const leaning = B2 ? (B2.builds.find((b) => b.id === (opts.build || B2.defaultBuild)) || B2.builds[0]) : null;
+  if (leaning) leaning.cls = cls;
 
   // ---------------------------------------------------------------- run log
   const R = {
     cls, seed, name, startTick: now(),
     levels: [{ level: 1, min: 0 }], deaths: [], gold: [], trainer: [], quests: {}, stuck: [], errors: [], violations: [],
-    counters: { castFail: {}, reject: {}, invFail: {}, trainFail: {}, talentFail: {}, interactFail: {}, kills: {}, navStuck: 0, potions: 0, sold: 0, soldGold: 0, bought: {}, equips: 0, sits: 0, restSec: 0, zoneMin: {} },
+    counters: { castFail: {}, reject: {}, invFail: {}, trainFail: {}, talentFail: {}, b2Fail: {}, interactFail: {}, xpBy: {}, kills: {}, navStuck: 0, potions: 0, sold: 0, soldGold: 0, bought: {}, equips: 0, sits: 0, restSec: 0, zoneMin: {} },
     goldBy: { loot: 0, quest: 0, sell: 0, spentTrain: 0, spentBuy: 0 },
     talents: [], goalsLog: [], done: false, reason: null, endMin: null,
     // fix pass 1: every kill timed FROM THE PULL (the foe's first threat on the bot, or the bot's first hit, whichever
@@ -123,11 +133,11 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   function walkTo(key, zone, goalFn, hint) {
     const p = me();
     const [sx, sy] = tileOfSub(p);
-    if (p.zone === zone && goalFn(sx, sy)) { hold(0, 0); route = null; return 'arrived'; }
+    if (zb(p.zone) === zb(zone) && goalFn(sx, sy)) { hold(0, 0); route = null; return 'arrived'; }
     const fullKey = key + '|' + p.zone;
     if (!route || route.key !== fullKey || route.replan) {
       let path = null;
-      if (p.zone === zone) path = nav.path(zone, sx, sy, goalFn, hint, 200000, opts.noDanger ? null : danger(zone));
+      if (zb(p.zone) === zb(zone)) path = nav.path(p.zone, sx, sy, goalFn, hint, 200000, opts.noDanger ? null : danger(p.zone));
       else {
         const zr = nav.zoneRoute(p.zone, zone);
         if (!zr) { viol('no_zone_route', { key: `${p.zone}->${zone}`, from: p.zone, to: zone }); return 'fail'; }
@@ -160,7 +170,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     if (route.i >= path.length) {
       // on the last cell (or a join cell that did not fire): push on in the join's direction
       const [x, y] = feetPx(p);
-      if (p.zone !== zone) {
+      if (zb(p.zone) !== zb(zone)) {
         const zr = nav.zoneRoute(p.zone, zone);
         const j = nav.joinTo(p.zone, zr[1], sx, sy);
         const Z = C.zones[p.zone];
@@ -189,11 +199,26 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   const npcHome = {};
   for (const z of Object.values(C.zones)) for (const n of z.npcs || []) npcHome[n.npc] = { zone: z.id, x: n.x, y: n.y };
   const trainerNpc = clsDef.trainer;
-  function mobSpots(tpl, zonePref) {
+  // where a foe lives: every zone's spawns plus the content's own list (the bounty boards' named foes are only there).
+  // `region`: since the one world a quest's area is a region of 'world' (o.region after src/data/maps/index.js
+  // worldQuest); a kill there only counts in that region (src/sim/quests.js regionOfMob). Before cap 30 the bot hunted the
+  // first camp of the template anywhere: it killed 2,800 grey downs blots for a valley bounty that never counted
+  function mobSpots(tpl, zonePref, region = null) {
     const out = [];
-    for (const z of Object.values(C.zones)) for (const s of z.spawns || []) if (s.mob === tpl && !s.night) out.push({ zone: z.id, x: s.x, y: s.y, level: s.level });
-    const pref = out.filter((s) => s.zone === zonePref);
+    for (const z of Object.values(C.zones)) for (const s of z.spawns || []) if (s.mob === tpl && !s.night) out.push({ zone: z.id, x: s.x, y: s.y, level: s.level, region: s.region || null });
+    for (const s of C.spawns || []) if (s.mob === tpl && !s.night && !out.some((o) => o.x === s.x && o.y === s.y && o.zone === s.zone)) out.push({ zone: s.zone, x: s.x, y: s.y, level: s.level, region: s.region || null });
+    const reg = region ? out.filter((s) => s.region === region) : [];
+    if (reg.length) return reg;
+    const pref = out.filter((s) => s.zone === zonePref || s.region === zonePref);
     return pref.length ? pref : out;
+  }
+  function mobRegion(m) {
+    const z = C.zones[m.zone];
+    if (!z || !z.regions) return null;
+    const at = m.spawn || m;
+    const tx = Math.floor(at.x / TILE), ty = Math.floor((at.y - 1) / TILE);
+    for (const r of z.regions) if (tx >= r.x && ty >= r.y && tx < r.x + r.w && ty < r.y + r.h) return r.id;
+    return null;
   }
   function dropSources(item) {
     const out = [];
@@ -295,8 +320,25 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
 
   // ---------------------------------------------------------------- talents
   const branch = TALENT_BRANCH[cls];
+  function spendB2() {
+    const p = me(), h = hud();
+    const b = h && h.builds2;
+    if (!b) return false;
+    if (leaning && p.build && p.build.leaning !== leaning.id) { cmd({ t: 'b2_leaning', build: leaning.id }); return true; }
+    for (const pk of b.picks || []) {
+      let want = null;
+      if (pk.signature) want = ((leaning && leaning.signatures) || []).find((x) => pk.options.includes(x)) || pk.options[0];
+      else want = (leaning && leaning.picks && pk.options.includes(leaning.picks[pk.level])) ? leaning.picks[pk.level] : pk.options[0];
+      cmd({ t: 'b2_pick', level: pk.level, ability: want });
+      R.talents.push({ min: simMin(), level: p.level, pick: pk.level, ability: want });
+      return true;
+    }
+    if (b.points && b.points.free > 0 && b.suggested) { cmd({ t: 'b2_suggest' }); R.talents.push({ min: simMin(), level: p.level, talent: b.suggested }); return true; }
+    return false;
+  }
   function spendTalents() {
     const p = me();
+    if (p.b2) return spendB2();
     const total = p.level >= 5 ? p.level - 4 : 0;
     let spent = 0, inBranch = 0;
     const tal = C.talents[cls].talents;
@@ -319,6 +361,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   const trainCost = (lvl) => (C.progression.trainCost[String(lvl)] ?? 0);
   function trainable() {
     const p = me();
+    if (p.b2) return [];          // Builds 2: skills come from picks and signatures, the trainer only sells the other side back
     return clsDef.abilities.filter((a) => a.level <= p.level && !p.known.includes(a.id));
   }
   function trainerRow(abId, lvl) {
@@ -357,8 +400,24 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   }
   let lastCastTick = -1;
 
+  function rotationB2(t) {
+    const p = me();
+    const esc = escortEnt();
+    if (cls === 'warden' && esc && t.target === esc.id && castIf('warden_taunt', true, t)) return true;
+    const foes = threatsOnMe().filter((m) => m.zone === p.zone);
+    if (!foes.includes(t)) foes.unshift(t);
+    let pick = null;
+    try { pick = cls === 'mender' ? MENDER_BOT(w, p, t, foes, leaning) : BOTS2[cls](w, p, t, botView(w, p, foes), leaning); } catch (err) { R.errors.push({ min: simMin(), error: 'b2 bot: ' + (err.stack || err) }); return false; }
+    if (!pick || p.cast || now() < p.gcdUntil) return !!pick;
+    const ab = C.abilities[pick.ab] || (C.builds2 && C.builds2.abilities[pick.ab]) || {};
+    if (ab.castTime > 0 || ab.channel) hold(0, 0);
+    cmd({ t: 'cast', ability: pick.ab, ...(pick.target ? { target: pick.target.id } : {}), ...(pick.at ? { at: pick.at } : {}) });
+    lastCastTick = now();
+    return true;
+  }
   function rotation(t) {
     const p = me();
+    if (p.b2 && leaning && rotationB2(t)) return;
     const near = ents().filter((m) => isHostileMob(m) && m.zone === p.zone && dpx(m, p) < 40).length;
     switch (cls) {
       case 'warden': {
@@ -447,7 +506,12 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
 
   // ---------------------------------------------------------------- goals (the quest brain)
   const QS = w.quests;
-  const ORDER = C.questOrder;
+  // the order the sim offers quests in (src/sim/quests.js ORDER): the chain, then every bounty (only today's are open), then
+  // the side quests. Before cap 30 the bot read the chain alone and never took a bounty, which BUILDS_2 5.6 counts on for
+  // about a quarter of the XP to 20. Dungeon and cave quests (a `place`) are left to the dungeon bot unless opts.dungeons.
+  const BOUNTY_IDS = Object.keys(C.quests).filter((q) => C.quests[q].bounty);
+  const ORDER = [...C.questOrder, ...BOUNTY_IDS, ...(C.sideQuests || []).filter((q) => C.quests[q] && !C.questOrder.includes(q) && !BOUNTY_IDS.includes(q))]
+    .filter((q) => opts.dungeons || !C.quests[q].place);
   const goalBan = new Map();        // goal key -> until tick
   let goal = null;                  // { key, kind, ... }
   let doing = null;                 // a committed short action: { kind, until, ... }
@@ -498,7 +562,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       qd.objectives.forEach((o, i) => {
         const need = o.kind === 'kill' || o.kind === 'collect' ? o.count || 1 : 1;
         if (p.quests[q].counts[i] >= need) return;
-        if (o.kind === 'kill') cand.push({ key: `kill:${q}:${i}`, kind: 'hunt', mobs: [o.mob], zone: o.zone || qd.zone, quest: q, pri: 6 });
+        if (o.kind === 'kill') cand.push({ key: `kill:${q}:${i}`, kind: 'hunt', mobs: [o.mob], zone: o.zone || qd.zone, region: o.region || null, quest: q, pri: 6 });
         if (o.kind === 'collect') {
           const nodes = nodeSources(o.item);
           if (nodes.length) cand.push({ key: `node:${q}:${i}`, kind: 'node', item: o.item, quest: q, pri: 6 });
@@ -613,9 +677,10 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   function trainableSoon() { const p = me(); return clsDef.abilities.filter((a) => !p.known.includes(a.id) && a.level <= p.level + 2); }
   function trainableSoonCost() { return trainableSoon().reduce((s, a) => s + trainCost(a.level), 0); }
 
-  function pickMob(templates, zone, minLevel = 0, maxGap = 3) {
+  function pickMob(templates, zone, minLevel = 0, maxGap = 3, region = null) {
     const p = me();
-    if (p.zone !== zone) return null;
+    if (zb(p.zone) !== zb(zone)) return null;
+    zone = p.zone;
     let best = null, bd = 1e9;
     for (const m of ents()) {
       if (!isHostileMob(m) || m.zone !== zone || !templates.includes(m.template)) continue;
@@ -623,6 +688,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       if (m.level < minLevel || m.level > p.level + maxGap) continue;
       if (m.tagger && m.tagger !== p.id) continue;
       if (m.ai && m.ai.mode === 'reset') continue;
+      if (region && mobRegion(m) !== region) continue;
       const d = dpx(m, p);
       if (d < bd) { bd = d; best = m; }
     }
@@ -632,7 +698,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const p = me();
     let zone = g.zone;
     let spots = [];
-    for (const tpl of g.mobs) spots.push(...mobSpots(tpl, zone).filter((s) => s.level >= (g.minLevel || 0)));
+    for (const tpl of g.mobs) spots.push(...mobSpots(tpl, zone, g.region).filter((s) => s.level >= (g.minLevel || 0)));
     if (!spots.length) { viol('kill_target_has_no_spawn', { key: g.mobs.join(','), quest: g.quest, mobs: g.mobs }); goalBan.set(g.key, now() + 3600 * 20); return; }
     if (!spots.some((s) => s.zone === zone)) zone = spots[0].zone;
     spots = spots.filter((s) => s.zone === zone);
@@ -643,7 +709,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const safe = spots.filter((s) => !big.some((m) => { const [mx, my] = tileOfSub(m); return Math.hypot(mx - s.x, my - s.y) <= 14; }));
     if (safe.length) spots = safe;
     if (p.zone === zone) {
-      const m = pickMob(g.mobs, zone, g.minLevel || 0, 2);
+      const m = pickMob(g.mobs, zone, g.minLevel || 0, 2, g.region && spots.some((s) => s.region === g.region) ? g.region : null);
       if (m && dpx(m, p) < 400) { fight(m); return; }
     }
     // walk to the spawn spot nearest my level (rotate between spots so a camp that is dead does not hold us)
@@ -710,7 +776,11 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       if (z.kind === 'dungeon' || z.kind === 'cave' || z.instanced) continue;
       for (const s of z.spawns || []) if (!s.night && s.level >= p.level - 2 && s.level <= p.level + 1) { pool.add(s.mob); zonePick = zonePick || z.id; }
     }
-    const tpls = [...pool].filter((t) => !(C.mobs[t] && (C.mobs[t].elite || C.mobs[t].boss)));
+    // a foe that killed me twice in the last 20 minutes while grinding is left out of the pool for now (a player stops
+    // pulling the camp that keeps killing them): before, a level 16 to 19 bot died 200 times to the tower sentinels'
+    // packs by the Watchtower's foot, a corpse run from Odo's hut lantern each time
+    const killedMe = (t) => R.deaths.filter((d) => d.killer === t && d.goal === 'grind' && d.min >= simMin() - 20).length >= 2;
+    const tpls = [...pool].filter((t) => !(C.mobs[t] && (C.mobs[t].elite || C.mobs[t].boss)) && !killedMe(t));
     if (!tpls.length) return;
     const zg = C.zones[zonePick] ? zonePick : p.zone;
     if (p.zone === zg) {
@@ -821,7 +891,8 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
         if (ev.kind !== 'abandon') lastProgress = now();
       }
       if (ev.type === 'gold') { if (ev.source === 'loot') R.goldBy.loot += ev.amount; if (ev.source === 'quest') R.goldBy.quest += ev.amount; if (ev.source === 'sell') { R.goldBy.sell += ev.amount; R.counters.sold++; } if (ev.source === 'buy') R.goldBy.spentBuy -= ev.amount; }
-      if (ev.type === 'xp') lastProgress = now();
+      if (ev.type === 'xp') { if (ev.amount > 0) lastProgress = now(); const q = ev.source === 'quest' && ev.quest && C.quests[ev.quest] && C.quests[ev.quest].bounty ? 'bounty' : ev.source || 'other'; inc(R.counters.xpBy, q, ev.amount || 0); }
+      if (ev.type === 'b2_fail' && ev.id === id) inc(R.counters.b2Fail, (ev.reason || '?') + ':' + (ev.node || ev.ability || ''));
       if (ev.type === 'inventory' && ev.kind === 'use') R.counters.potions++;
       if (ev.type === 'inventory' && ev.kind === 'equip') R.counters.equips++;
       if (ev.type === 'sit') R.counters.sits++;
