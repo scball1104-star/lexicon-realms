@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Creature Kit</title>
+<style>
+  html, body { margin: 0; background: #1a1f1a; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; }
+  #wrap { position: relative; width: 1600px; height: 900px; }
+  canvas { display: block; }
+  .lab { position: absolute; transform: translate(-50%, 0); color: #fff6e0; font-size: 19px; letter-spacing: 0.5px; white-space: nowrap;
+         text-shadow: 0 1px 0 #000, 0 0 6px rgba(0,0,0,0.9); background: rgba(20,16,10,0.45); padding: 2px 10px; border-radius: 10px; }
+  .cap { position: absolute; color: #fff6e0; font-size: 26px; text-shadow: 0 2px 4px #000; padding: 6px 14px; background: rgba(20,16,10,0.55); border-radius: 8px; }
+  .div { position: absolute; left: 799px; top: 0; width: 3px; height: 900px; background: #fff6e0; opacity: 0.8; }
+  #ui { position: absolute; right: 10px; top: 10px; color: #fff; font: 14px sans-serif; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="1600" height="900"></canvas></div>
+<script type="module">
+import * as THREE from '../../../src/vendor/three/three.module.min.js';
+import { buildCreature } from './creature_kit.js';
+import { RECIPES } from './recipes.js';
+
+const q = new URLSearchParams(location.search);
+const scene = q.get('scene') || 'lineup';
+const live = q.get('live') === '1';
+const W = 1600, Hh = 900;
+const wrap = document.getElementById('wrap');
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(W, Hh, false);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+function grassTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
+  g.fillStyle = '#56763a'; g.fillRect(0, 0, 512, 512);
+  let s = 12345; const r = () => ((s = (s * 16807) % 2147483647) / 2147483647);
+  const wrap4 = (fn) => { for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) fn(ox, oy); };
+  for (let i = 0; i < 220; i++) { const x = r() * 512, y = r() * 512, rr = 12 + r() * 46, c2 = r() < 0.5 ? '96,128,58' : '66,96,42'; g.fillStyle = `rgba(${c2},0.22)`; wrap4((ox, oy) => { g.beginPath(); g.arc(x + ox, y + oy, rr, 0, 6.3); g.fill(); }); }
+  for (let i = 0; i < 9000; i++) { const x = r() * 512, y = r() * 512, dx = (r() - 0.5) * 3, dy = -3 - r() * 5; g.strokeStyle = r() < 0.5 ? 'rgba(150,180,90,0.25)' : 'rgba(30,55,22,0.25)'; g.lineWidth = 1.2; wrap4((ox, oy) => { if (x + ox < -10 || x + ox > 522 || y + oy < -10 || y + oy > 522) return; g.beginPath(); g.moveTo(x + ox, y + oy); g.lineTo(x + ox + dx, y + oy + dy); g.stroke(); }); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(7, 7); t.anisotropy = 8; return t;
+}
+const GRASS = grassTex();
+/** The shared stage: sky, fog, grass, a warm key light with soft shadows, sky fill. */
+function stage(center = new THREE.Vector3(), span = 6) {
+  const s = new THREE.Scene();
+  s.background = new THREE.Color('#9fb8c8'); s.fog = new THREE.Fog('#9fb8c8', 14, 34);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: GRASS, roughness: 1 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
+  s.add(new THREE.HemisphereLight('#dfeeff', '#4a5a30', 1.25));
+  const sun = new THREE.DirectionalLight('#fff0d6', 2.6); sun.position.set(center.x + 4, 9, center.z + 7); sun.target.position.copy(center);
+  sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096); sun.shadow.radius = 5; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+  const sc = sun.shadow.camera; sc.left = -span; sc.right = span; sc.top = span; sc.bottom = -span; sc.near = 1; sc.far = 30;
+  s.add(sun, sun.target);
+  const rim = new THREE.DirectionalLight('#c8d8ff', 0.9); rim.position.set(center.x - 5, 4, center.z - 6); s.add(rim);
+  return s;
+}
+/** Run a body forward in time so its gait phase and pose are what the game would show at that moment. */
+function pose(body, until, stAt) {
+  const dt = 1 / 60;
+  for (let t = 0; t <= until + 1e-6; t += dt) body.update(dt, stAt(t));
+}
+const labels = [];
+function label(text, pos3, cam, vp = { x: 0, y: 0, w: W, h: Hh }, cls = 'lab') {
+  cam.updateMatrixWorld();
+  const p = pos3.clone().project(cam);
+  const d = document.createElement('div'); d.className = cls; d.textContent = text;
+  d.style.left = (vp.x + (p.x * 0.5 + 0.5) * vp.w) + 'px'; d.style.top = (vp.y + (-p.y * 0.5 + 0.5) * vp.h) + 'px';
+  wrap.appendChild(d); labels.push(d); return d;
+}
+function caption(text, x, y) { const d = document.createElement('div'); d.className = 'cap'; d.textContent = text; d.style.left = x + 'px'; d.style.top = y + 'px'; wrap.appendChild(d); }
+const byKey = Object.fromEntries(RECIPES.map((r) => [r.key, r]));
+
+async function beforeAfter() {
+  const { createCreature } = await import('../../../src/render3d/creatures.js');
+  const { createLoader } = await import('../../../src/render3d/loader.js');
+  const L = createLoader('../../../assets3d/');
+  const keys = ['gorse_boar', 'mudsnapper', 'slag_golem'];
+  const xs = [-1.5, -0.05, 1.35];
+  const sides = [];
+  for (const side of ['old', 'new']) {
+    const s = stage(new THREE.Vector3(0, 0, 0), 5);
+    const cam = new THREE.PerspectiveCamera(32, 800 / 900, 0.1, 100);
+    cam.position.set(1.2, 3.6, 9.6); cam.lookAt(0.05, 0.7, 0);
+    const bodies = [];
+    for (let i = 0; i < 3; i++) {
+      const r = byKey[keys[i]];
+      const b = side === 'old' ? await createCreature(L, r.template, r.sprite, {}) : buildCreature(THREE, r);
+      b.o.position.set(xs[i], 0, i === 1 ? 0.5 : 0); b.o.rotation.y = 0.55;
+      s.add(b.o); bodies.push({ b, r });
+      pose(b, 2.0, (t) => ({ t, moving: false, speed: 0 }));
+    }
+    sides.push({ s, cam, bodies });
+  }
+  renderer.setScissorTest(true);
+  sides.forEach(({ s, cam, bodies }, k) => {
+    renderer.setViewport(k * 800, 0, 800, 900); renderer.setScissor(k * 800, 0, 800, 900); renderer.render(s, cam);
+    for (const { b, r, } of bodies) label(r.name, b.o.position.clone().add(new THREE.Vector3(0, -0.12, 0.6)), cam, { x: k * 800, y: 0, w: 800, h: 900 });
+  });
+  caption('Today (code-built families)', 24, 20); caption('Creature kit', 824, 20);
+  const d = document.createElement('div'); d.className = 'div'; wrap.appendChild(d);
+}
+
+function lineup() {
+  const s = stage(new THREE.Vector3(0, 0, 0), 8);
+  const cam = new THREE.PerspectiveCamera(30, W / Hh, 0.1, 100);
+  cam.position.set(0, 4.9, 12.4); cam.lookAt(0, 0.45, -0.2);
+  // back row 5, front row 4; display scale keeps the small ones readable (noted under the name)
+  const back = ['slag_golem', 'gorse_boar', 'hollow_raven', 'ash_hound', 'brine_eel'];
+  const front = ['moss_scarab', 'mudsnapper', 'sand_scorpion', 'bog_leech'];
+  const show = { moss_scarab: 1.7, sand_scorpion: 1.7, mudsnapper: 1.35, bog_leech: 1.2, hollow_raven: 1.3 };
+  const place = [];
+  back.forEach((k, i) => place.push([k, (i - 2) * 2.6, -2.1]));
+  front.forEach((k, i) => place.push([k, (i - 1.5) * 2.8, 1.5]));
+  for (const [k, x, z] of place) {
+    const r = byKey[k];
+    const b = buildCreature(THREE, r);
+    const sc = show[k] || 1; b.o.scale.multiplyScalar(sc);
+    b.o.position.set(x, 0, z); b.o.rotation.y = k === 'brine_eel' ? 0.9 : k === 'bog_leech' ? 0.95 : 0.6;
+    s.add(b.o);
+    pose(b, 2.3 + x * 0.1, (t) => ({ t, moving: false, speed: 0 }));
+    label(r.name + (sc !== 1 ? `  (x${sc})` : ''), new THREE.Vector3(x, 0, z + 0.95), cam);
+  }
+  renderer.render(s, cam);
+  caption('Nine foes, one kit. (x1.7) = drawn larger than in-game size so it reads here', 20, 840);
+  if (live) {
+    // demo mode: walk everything in place
+  }
+}
+
+function motion() {
+  const r = byKey.ash_hound;
+  const frames = [
+    ['Idle', (t) => ({ t, moving: false, speed: 0 }), 2.0],
+    ['Walk, mid-stride', (t) => ({ t, moving: true, speed: 2.2 }), 2.0 + 0.11],
+    ['Attack lunge', (t) => ({ t, moving: false, speed: 0, attackT: 1.8 }), 1.8 + 0.2],
+    ['Hurt flinch', (t) => ({ t, moving: false, speed: 0, hurtT: 1.9 }), 1.9 + 0.13],
+  ];
+  renderer.setScissorTest(true);
+  frames.forEach(([name, fn, at], i) => {
+    const s = stage(new THREE.Vector3(0, 0, 0), 3);
+    const b = buildCreature(THREE, r); b.o.rotation.y = Math.PI / 2 - 0.35; s.add(b.o);
+    pose(b, at, fn);
+    const cam = new THREE.PerspectiveCamera(30, 800 / 450, 0.1, 100);
+    cam.position.set(0.55, 1.3, 3.25); cam.lookAt(0.15, 0.5, 0);
+    const vx = (i % 2) * 800, vyTop = Math.floor(i / 2) * 450;
+    renderer.setViewport(vx, 900 - vyTop - 450, 800, 450); renderer.setScissor(vx, 900 - vyTop - 450, 800, 450);
+    renderer.render(s, cam);
+    caption(name, vx + 16, vyTop + 12);
+  });
+  const a = document.createElement('div'); a.style.cssText = 'position:absolute;left:799px;top:0;width:2px;height:900px;background:#fff6e0;opacity:.7'; wrap.appendChild(a);
+  const b2 = document.createElement('div'); b2.style.cssText = 'position:absolute;left:0;top:449px;width:1600px;height:2px;background:#fff6e0;opacity:.7'; wrap.appendChild(b2);
+}
+
+function solo() {
+  // inspection: one creature from two angles
+  const r = byKey[q.get('key') || 'ash_hound'];
+  renderer.setScissorTest(true);
+  [0.6, 2.4].forEach((ry, i) => {
+    const s = stage(new THREE.Vector3(), 3);
+    const b = buildCreature(THREE, r); b.o.rotation.y = ry; s.add(b.o);
+    pose(b, 2.0, (t) => ({ t, moving: q.get('moving') === '1', speed: 2 }));
+    const h = Math.max(0.6, b.height);
+    const cam = new THREE.PerspectiveCamera(30, 800 / 900, 0.1, 100);
+    cam.position.set(0, h * 0.9 + 0.4, h * 2.2 + 1.6); cam.lookAt(0, h * 0.45, 0);
+    renderer.setViewport(i * 800, 0, 800, 900); renderer.setScissor(i * 800, 0, 800, 900); renderer.render(s, cam);
+  });
+}
+
+try {
+  if (scene === 'solo') solo();
+  else if (scene === 'before_after') await beforeAfter();
+  else if (scene === 'motion') motion();
+  else lineup();
+  window.__kit = { ready: true };
+} catch (e) {
+  console.error(e); window.__kit = { error: String(e && e.stack || e) };
+}
+</script>
+</body>
+</html>

@@ -553,6 +553,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       if (status(q) !== 'available') continue;
       const qd = C.quests[q];
       if (qd.level > p.level + 2) continue;
+      { const h = npcHome[qd.giver]; if (h && zb(h.zone) !== zb(p.zone) && !nav.zoneRoute(p.zone, h.zone)) continue; }   // a giver the hero cannot walk to yet (a one-way start realm)
       cand.push({ key: 'accept:' + q, kind: 'npc', npc: qd.giver, act: 'accept', quest: q, pri: 5 });
     }
     // 6) work active objectives, lowest quest level first

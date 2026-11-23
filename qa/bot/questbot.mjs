@@ -13,6 +13,11 @@ import { dirname, join } from 'node:path';
 import { buildContent } from '../../src/data/maps/index.js';
 import { createWorld } from '../../src/sim/index.js';
 import { createBot } from './lib/bot.mjs';
+import { RB_QUEST_ORDER } from '../../src/data/rootbound.js';
+import { SH_QUEST_ORDER } from '../../src/data/saffron.js';
+import { NH_QUEST_ORDER } from '../../src/data/hollow.js';
+import { REALMS2_ORDER } from '../../src/data/start_realms2.js';
+const REALM_ORDER = { rootbound: RB_QUEST_ORDER, saffron: SH_QUEST_ORDER, hollow: NH_QUEST_ORDER, ...REALMS2_ORDER };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '..', 'out', 'bot', 'runs');
@@ -21,9 +26,21 @@ const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 
 const CLASSES = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
 
 export function runOne(cls, seed, capMin = 240, stopLevel = 10) {
-  const content = buildContent();
+  const base = buildContent();
+  // The real path (audit 2026-11-23): a new hero starts in its class's start realm (src/main.js) and never sees the other
+  // four realms' quests, so they leave the bot's list (before, the bot chased them and stood at level 1 for 30 minutes).
+  // --legacy keeps the old Willowmere start with every quest.
+  const legacy = process.argv.includes('--legacy');
+  const R = base.startRealms[cls];
+  const others = new Set(Object.values(base.startRealms).map((r) => r.zone).filter((z) => !R || z !== R.zone));
+  // the realm's own chain first (its last hand-in leads up to Willowmere), then the main chain
+  const realmOrder = R ? REALM_ORDER[R.zone] || [] : [];
+  const content = legacy || !R ? base : { ...base, questOrder: [...realmOrder, ...base.questOrder.filter((id) => !realmOrder.includes(id))],
+    sideQuests: base.sideQuests.filter((id) => !others.has((base.quests[id] || {}).zone) && !realmOrder.includes(id)) };
   const world = createWorld({ seed: 1000 + seed, content });
-  const bot = createBot({ world, content, cls, seed, name: 'Bot' + cls[0].toUpperCase() + cls.slice(1, 6), opts: { stopLevel } });
+  const name = 'Bot' + cls[0].toUpperCase() + cls.slice(1, 6);
+  const spec = legacy || !R ? null : { name, cls, look: seed % 3, zone: R.zone, x: R.x, y: R.y, lantern: { ...R.lantern }, home: { inn: R.home }, lanternStone: true, newHero: true };
+  const bot = createBot({ world, content, cls, seed, name, spec, opts: { stopLevel } });
   const cap = capMin * 1200;
   let events = [];
   const t0 = Date.now();
