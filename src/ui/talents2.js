@@ -34,7 +34,7 @@ export function pickSlots(cls, level = null) {
   const cd = b2Class(cls);
   const sigs = (cd && cd.signatures) || [];
   if (sigs.length) out.push({ level: RULES.signatureLevels[0], options: sigs.map((x) => x.id), axis: cd.signatureAxis || 'Signature skill', ready: sigs.every((x) => x.ready), signature: true });
-  return out;
+  return out.sort((a, b) => a.level - b.level);   // in level order, the signature at its own level (Scott, 2026-11-23)
 }
 /** The skill a hero took in a slot ('' when none): b.picks[level] for a skill pick, the first of b.sigs for the signature. */
 export const slotTaken = (build, slot) => (slot.signature ? (build.sigs || []).find((id) => slot.options.includes(id)) || '' : (build.picks || {})[slot.level] || '');
