@@ -26,7 +26,7 @@ export function createGfx(art) {
   const sweeps = new Map();
   // the Realms icon atlases (assets/icons/: abilities24/16 by ability id, talents16 by talent id, items16 by icon id)
   const atlases = art.icons || {};
-  const atlasOrder = (small) => (small ? ['abilities16', 'talents16', 'items16', 'abilities24', 'prof16'] : ['abilities24', 'talents16', 'items16', 'abilities16', 'prof16']);
+  const atlasOrder = (small) => (small ? ['abilities16', 'talents16', 'items16', 'abilities24', 'prof16', 'mounts16', 'mounts24'] : ['abilities24', 'talents16', 'items16', 'abilities16', 'prof16', 'mounts24', 'mounts16']);
   function findIcon(name, small = false) {
     const f = ui.frames[name];
     if (f) return { img: uiImg, f, o: (ui.origins && ui.origins[name]) || [0, 0] };

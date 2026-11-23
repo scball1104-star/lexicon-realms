@@ -268,7 +268,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     return [...box.values()].map((o) => ({ ...o, min: o.min.map((v) => +v.toFixed(2)), max: o.max.map((v) => +v.toFixed(2)) }));
   };
   /** Drivers: what a body looks like now ({ kind, built, sig, spec }) or null. */
-  dev.actor = (id) => { const a = actors.get(id); if (!a) return null; const b = a.body; return { kind: a.kind, built: !!b, sig: a.sig, building: a.building, type: b && b.type, spec: b && b.spec ? { parts: b.spec.parts, helm: b.spec.helm, cape: b.spec.cape, main: b.spec.main, off: b.spec.off } : null, anim: b && b.anim ? b.anim.name : null }; };
+  dev.actor = (id) => { const a = actors.get(id); if (!a) return null; const b = a.body; return { kind: a.kind, built: !!b, sig: a.sig, building: a.building, type: b && b.type, spec: b && b.spec ? { parts: b.spec.parts, helm: b.spec.helm, cape: b.spec.cape, main: b.spec.main, off: b.spec.off } : null, anim: b && b.anim ? b.anim.name : null, mount: a.mount ? { kind: a.mount.kind, on: !!a.mountOn, gait: a.mount.gait, seatY: +a.mount.seatY.toFixed(2), bodyY: b && b.ch ? +b.ch.o.position.y.toFixed(2) : null } : null }; };   // mount: mount3d.js
 
   /** Drivers only: a row of foe bodies in front of the hero, for a look at every family at game zoom.
    *  list: [{ template, sprite, elite, rank }]; pose: 'idle' | 'walk' | 'attack' (the attack replays every 1.6 s). */

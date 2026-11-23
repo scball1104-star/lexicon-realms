@@ -229,11 +229,13 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       g.rect(ctx, x0, y, w0, rowH - 1, 'rgba(20,16,30,0.35)');
       g.iconIn(ctx, s.icon || 'icon_bag', x0, y, 16, rowH - 1);
       g.text(ctx, g.clip(s.name, w0 - 100), x0 + 20, y + Math.floor((rowH - 11) / 2), m.gold >= s.price ? 'white' : 'dim');
-      if ((s.reqLevel || 1) > m.player.level) g.text(ctx, `Lv ${s.reqLevel}`, x0 + w0 - 56, y + Math.floor((rowH - 11) / 2), 'red', { align: 'right' });
+      const ownedMount = s.kind === 'mount' && (m.player.mounts || []).some((k) => s.item === `mount_${k}`);   // mounts: you have it
+      if (ownedMount) g.text(ctx, 'Owned', x0 + w0 - 56, y + Math.floor((rowH - 11) / 2), 'green', { align: 'right' });
+      else if ((s.reqLevel || 1) > m.player.level) g.text(ctx, `Lv ${s.reqLevel}`, x0 + w0 - 56, y + Math.floor((rowH - 11) / 2), 'red', { align: 'right' });
       g.text(ctx, `${s.price} gold`, x0 + w0 - 2, y + Math.floor((rowH - 11) / 2), m.gold >= s.price ? 'gold' : 'red', { align: 'right' });
       void col;
       const info = itemInfo(s.item);
-      const tip = info ? { ...itemTooltip(info, touch ? null : 'Click to buy (right-click: 5)', info.slot ? (m.equip[info.slot] || null) : undefined), foot: `${touch ? '' : 'Click to buy, right-click for 5.  '}${s.price} gold each.${(s.reqLevel || 1) > m.player.level ? `  Needs level ${s.reqLevel} to wear.` : ''}`, footColor: can ? 'gold' : 'red' } : null;
+      const tip = info ? { ...itemTooltip(info, touch ? null : 'Click to buy (right-click: 5)', info.slot ? (m.equip[info.slot] || null) : undefined), foot: `${touch ? '' : 'Click to buy, right-click for 5.  '}${s.price} gold each.${(s.reqLevel || 1) > m.player.level ? `  Needs level ${s.reqLevel} to ${s.kind === 'mount' ? 'ride' : 'wear'}.` : ''}`, footColor: can ? 'gold' : 'red' } : null;
       // on a phone a tap shows the item's card first (Scott 2026-11-19: "The armor doesn't let me inspect it before buying
       // it"); Buy on the card, or a second tap on the same row, buys it
       const picked = touch && d.vpick === s.index;

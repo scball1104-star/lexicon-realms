@@ -29,6 +29,7 @@ import { createFx } from './fx.js';
 import { BitmapFont } from '../core/font.js';
 import { createOcclusion } from './occlude.js';
 import { flyLift, drawKite2d, KITE_LIFT_PX } from './kite2d.js';
+import { mountLift, drawMount2d } from './mount2d.js';
 import { isPlaceZone, doorMouths } from './dungeon_plan.js';
 import { placeLive, drawBrazier, drawFlames, drawDoorMouth, drawTelegraphs2d, drawDoorLabels2d } from './dungeon2d.js';
 
@@ -345,12 +346,16 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       }
       const looks = fx.auraLooks(it.ent);
       const stealth = looks.some((l) => l.look === 'stealth');
-      const lift = flyLift(it.ent);                     // big world: a hero on the Lantern Kite (src/render/kite2d.js)
-      if (lift) drawKite2d(g, it.x - cam.x, it.y - cam.y - lift + 2, now, Math.min(1, lift / KITE_LIFT_PX));
+      const fly = flyLift(it.ent);                      // big world: a hero on the Lantern Kite (src/render/kite2d.js)
+      if (fly) drawKite2d(g, it.x - cam.x, it.y - cam.y - fly + 2, now, Math.min(1, fly / KITE_LIFT_PX));
+      const ride = mountLift(it.ent);                   // mounts: the horse or stag under a riding hero (src/render/mount2d.js)
+      if (ride) drawMount2d(g, it.x - cam.x, it.y - cam.y, it.ent.mount, it.ent.dir, now, !!it.ent.moving, 'under');
+      const lift = fly || ride;
       const dx = it.x - f.ox - cam.x, dy = it.y - f.oy - cam.y - lift;
       if (stealth) g.globalAlpha = 0.45;
       blit(g, f, f.img, dx, dy);
       g.globalAlpha = 1;
+      if (ride) drawMount2d(g, it.x - cam.x, it.y - cam.y, it.ent.mount, it.ent.dir, now, !!it.ent.moving, 'over');
       const hurt = fx.hurtAt(it.ent.id);
       if (hurt != null && now - hurt >= 0 && now - hurt < 0.1) {   // the hit: a white silhouette flash (cached per frame rect)
         g.globalAlpha = now - hurt < 0.05 ? 0.9 : 0.55;

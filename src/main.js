@@ -177,7 +177,8 @@ async function boot() {
       // never inside the sim). A save without them banks nothing new. Optional fields: SAVE_VERSION is unchanged.
       rest: s.rest, offlineSecs: Number.isFinite(s.savedAt) ? Math.max(0, (Date.now() - s.savedAt) / 1000) : 0,
       prof: s.prof,                                                       // professions (optional; src/sim/professions.js)
-      home: s.home, flights: s.flights, lanternStone: true };                // big world travel (src/sim/travel.js); optional fields
+      home: s.home, flights: s.flights, lanternStone: true,                  // big world travel (src/sim/travel.js); optional fields
+      mounts: s.mounts, mountPick: s.mountPick };                            // mounts owned, the last ridden (src/sim/mounts.js); optional
   }
   /** Where a brand-new hero starts: its class's start realm (chosen on creation, the default) or Willowmere ({}). */
   function startSpot(c) {

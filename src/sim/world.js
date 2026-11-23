@@ -41,6 +41,7 @@ import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
 import { createTravel } from './travel.js';
 import { createLegendDrops } from './legend_drops.js';
+import { createMounts } from './mounts.js';
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -186,6 +187,9 @@ function wrap(state, content0, rng, systems) {
   // ---- travel (big world, src/sim/travel.js): the Lantern Stone, inn homes, flight (content.travel)
   const TV = combatOn && content.travel ? createTravel(C) : null;
   const LD = combatOn && content.items ? createLegendDrops({ content, rng, state, emit }) : null;   // src/sim/legend_drops.js
+  // ---- mounts (src/sim/mounts.js): the stable's goods teach a summon; riding is an aura (content.mounts)
+  const MT = combatOn && content.mounts ? createMounts(C) : null;
+  C.mounts = MT;
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -391,6 +395,7 @@ function wrap(state, content0, rng, systems) {
         if (ST) ST.restore(e, spec);               // the hero's chest tab and glyph pouch (missing = empty)
         if (PF) PF.restore(e, spec);               // professions: skills, recipes, a flask (save `prof`, missing = none)
         if (TV) { TV.restore(e, spec); if (spec.lanternStone) ensureStone(e, !!spec.newHero); }   // home, flight points; the Lantern Stone (main.js asks)
+        if (MT) MT.restore(e, spec);               // mounts owned (save `mounts`, missing = none; the summons are in `known` too)
       }
       add(e);
       emit({ type: 'join', id: e.id, name: e.name });
@@ -428,6 +433,7 @@ function wrap(state, content0, rng, systems) {
       const rest = C.life.saveOf(e); if (rest) out.rest = rest;      // rest XP banked (missing = none)
       const prof = PF && PF.saveOf(e); if (prof) out.prof = prof;     // professions (missing = none)
       if (TV) Object.assign(out, TV.saveOf(e));                       // travel: home (inn id), flights (known points); missing = none
+      if (MT) Object.assign(out, MT.saveOf(e));                       // mounts: owned kinds, the last one ridden; missing = none
       return out;
     },
     get(id) { return index.get(id) || null; },
@@ -515,6 +521,7 @@ function wrap(state, content0, rng, systems) {
         if (combatOn && (e.kind === 'player' || e.kind === 'mob')) C.combat.tickUnit(e);
         if (combatOn && e.kind === 'player') C.prog.tickPlayer(e);
         if (TV && e.kind === 'player' && !TV.flying(e)) TV.tickPlayer(e);  // the Lantern Stone's cast
+        if (MT && e.kind === 'player') MT.tickPlayer(e);                 // mounts: off at a door, on a flight, a cast, sitting
         if (e.target != null) dropBadTarget(e);
       }
       // 3) world: projectiles, traps and zones, combat state
@@ -678,6 +685,7 @@ function wrap(state, content0, rng, systems) {
       case 'chest_store': case 'chest_take': case 'chest_move': case 'chest_row': case 'chest_sort': if (ST) ST.command(e, cmd); return;
       case 'prof_train': case 'prof_recipe': case 'prof_unlearn': case 'prof_craft': case 'prof_cancel': if (PF) PF.command(e, cmd); return;
       case 'set_home': case 'fly': if (TV) TV.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
+      case 'mount': if (MT) MT.command(e, cmd); return;                  // mounts: Z / the horseshoe (summon, or get off)
       case 'interact': {
         const t = index.get(cmd.id);
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');
@@ -754,7 +762,7 @@ function wrap(state, content0, rng, systems) {
     if (!entry) return null;
     const it = resolveItem(content, entry, e.cls);
     return { index: i, item: entry.item, inst: entry.inst || null, name: it.name, icon: it.icon, rarity: it.rarity, kind: it.kind, slot: it.slot || null,
-      reqLevel: it.reqLevel || 1, price: priceOf(e, entry), stack: it.stack || 1 };
+      reqLevel: (MT && MT.isMountItem(entry.item) ? content.items[entry.item].reqLevel : it.reqLevel) || 1, price: priceOf(e, entry), stack: it.stack || 1 };   // a mount: its own level
   }
   function sellValue(e, slot) {
     const def = content.items[slot.item];
@@ -782,6 +790,15 @@ function wrap(state, content0, rng, systems) {
     const vdef = vendorDef(n);
     const entry = stockEntry(vdef, cmd.index != null ? cmd.index : vdef.items.findIndex((s) => s.item === cmd.item));
     if (!entry) return invFail(e, cmd, 'no_item');
+    if (MT && MT.isMountItem(entry.item)) {          // a mount: buying it teaches the summon (no bag item, src/sim/mounts.js)
+      if ((e.gold || 0) < priceOf(e, entry)) return invFail(e, { ...cmd, item: entry.item }, 'gold');
+      const why = MT.buy(e, content.items[entry.item]);
+      if (why) return invFail(e, { ...cmd, item: entry.item }, why);
+      e.gold -= priceOf(e, entry);
+      emit({ type: 'inventory', id: e.id, kind: 'buy', item: entry.item, qty: 1, cost: priceOf(e, entry), npc: n.template });
+      emit({ type: 'gold', id: e.id, amount: -priceOf(e, entry), total: e.gold, source: 'buy' });
+      return true;
+    }
     const qty = entry.inst ? 1 : Math.max(1, Math.min(20, cmd.qty | 0 || 1));
     const cost = priceOf(e, entry) * qty;
     if ((e.gold || 0) < cost) return invFail(e, { ...cmd, item: entry.item }, 'gold');
@@ -1047,6 +1064,7 @@ function wrap(state, content0, rng, systems) {
           b2: !!e.b2, build: e.build ? JSON.parse(JSON.stringify(e.build)) : null });
         if (PF && e.work) o.work = PF.workView(e);      // professions: a hero mining or crafting (the 3D pickaxe)
         if (TV) Object.assign(o, TV.publicOf(e));                            // travel: home, flights, hearth, flight
+        if (MT) Object.assign(o, MT.publicOf(e));                            // mounts: mount (kind ridden | null), mounts (owned)
       }
     }
     if (e.kind === 'mob' && combatOn) {

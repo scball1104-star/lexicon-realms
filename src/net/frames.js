@@ -18,7 +18,7 @@ export const VIEW_PX = 960;   // 60 tiles: wider than any zoom shows, so foes ne
 
 // fields a friend's hero does not need on another screen
 const TRIM = ['bag', 'qbag', 'pendingLoot', 'quests', 'questsDone', 'known', 'talents', 'build', 'stats', 'derived', 'bar', 'cd', 'combo',
-  'gold', 'lantern', 'xpToLevel', 'bags', 'gcdUntil'];
+  'gold', 'lantern', 'xpToLevel', 'bags', 'gcdUntil', 'mounts'];   // mounts: the owned list (the ridden `mount` stays: friends see it)
 // event types that belong to one hero only (menus, bags, quest log, xp)
 const PRIVATE = new Set(['interact', 'interact_fail', 'inventory', 'inventory_fail', 'quest', 'loot', 'loot_pending', 'loot_lost', 'gold', 'xp',
   'cmd_reject', 'cast_fail', 'secret_found', 'lantern', 'sit', 'target', 'bounty']);

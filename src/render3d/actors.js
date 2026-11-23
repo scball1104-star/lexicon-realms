@@ -14,6 +14,7 @@ import { heroSpec, npcSpec, dress } from './gear.js';
 import { createCreature } from './creatures.js';
 import { radial } from './textures.js';
 import { gatherLook, animateGather, gatherPick, workClip } from './gather3d.js';
+import { createRider, createYard } from './mount3d.js';
 
 const PX = 16;
 const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
@@ -142,6 +143,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
   const actors = new Map();
   const corpses = new Map();   // mob id -> death time (fx clock)
   const tmp = new THREE.Vector3();
+  const rider = createRider(L), yard = createYard(L, layer);   // mounts (mount3d.js): the animal under a hero, Wynn's yard
 
   async function buildBody(a, e) {
     if (e.kind === 'player' || e.kind === 'npc') {
@@ -219,6 +221,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     const a = actors.get(id);
     if (!a) return;
     if (a.body) detach(a.body);
+    rider.clear(a);
     layer.remove(a.root);
     actors.delete(id);
     waiting.delete(a);
@@ -234,6 +237,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     if (an.name === 'Death01') an.endOne();
     const stealth = (e.auras || []).some((x) => /stealth|fade/.test(String(x.id)));
     if (e.flight) { an.endOne(); an.play('Sitting_Idle_Loop', { now }); return; }   // big world: riding the Lantern Kite
+    if (rider.riding(a)) { an.endOne(); an.play('Sitting_Idle_Loop', { now, fade: 0.25 }); return; }   // mounts: in the saddle
     if (st.moving) {
       an.endOne();
       if (stealth) an.play('Crouch_Fwd_Loop', { ts: Math.max(0.7, st.speed / 2.2) });
@@ -314,11 +318,13 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       const b = a.body;
       if (b && b.type === 'hero') {
         gatherPick(a, e, L);               // professions: the pickaxe while mining (gather3d.js)
+        rider.step(a, e, snap.tick, now, fdt, moving);   // mounts: the animal under (or, summoning, beside) the hero
         heroAnim(a, e, st);
         b.ch.mixer.update(fdt);
         // the library's sit is a chair sit: on open ground the body drops to sit on the grass
         const sy = b.anim.name === 'Sitting_Idle_Loop' ? -0.42 * (b.spec.scale || 1) : 0;
         b.ch.o.position.y += (sy - b.ch.o.position.y) * Math.min(1, dt * 8);
+        if (rider.pose(a, now) == null && b.ch.o.rotation.x) b.ch.o.rotation.x = 0;   // mounts: seat, legs, reins, the bounce
         if (b.ch.cape) b.ch.cape.state.flare = moving ? 0.55 : 0.15;
         b.ch.applyPost();
         for (const f of b.ch.fx) f(dt, b.ch, now);
@@ -351,6 +357,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       }
     }
     for (const id of [...actors.keys()]) if (!seen.has(id)) remove(id);
+    yard.sync(zoneId, focus, dt);        // mounts: Wynn's animals stand in her yard (mount3d.js)
     // start the waiting bodies, nearest first, two at a time
     if (waiting.size && inflight < 2) {
       const list = [...waiting].sort((p, q) => (focus ? p.root.position.distanceToSquared(focus) - q.root.position.distanceToSquared(focus) : 0));

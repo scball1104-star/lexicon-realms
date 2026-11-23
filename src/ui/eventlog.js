@@ -8,7 +8,7 @@ const FAIL = {
   cooldown: 'That is not ready yet.', range: 'Out of range.', los: 'You cannot see your target.',
   requires: 'You cannot do that now.', silenced: 'You cannot speak right now.', moving: 'You must stand still for that.',
   target: 'You need a target for that.', combo: 'Not enough Ink Marks on that target.', stunned: 'You are stunned.', busy: 'You are busy.',
-  combat: 'Not while in combat.', locked: 'That school of magic is locked out for now.',
+  combat: 'Not while in combat.', locked: 'That school of magic is locked out for now.', indoors: 'You cannot ride here.',
 };
 const SCHOOL_WORD = { ink: 'ink', light: 'light', shadow: 'shadow', fire: 'fire', nature: 'nature', spell: 'spell' };
 
@@ -25,6 +25,12 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
       if (ev.src !== me || ev.reason === 'gcd' || ev.reason === 'dead') return [];
       if (ev.reason === 'resource') return [{ ch: 'error', quiet: true, text: `Not enough ${resWord}.` }];
       return [{ ch: 'error', quiet: true, text: FAIL[ev.reason] || 'You cannot do that now.' }];
+    // mounts (src/sim/mounts.js)
+    case 'mount_learn': return ev.id === me ? [{ ch: 'system', text: `You can now ride the ${ev.name}. Press Z (or tap the horseshoe) to ride.` }] : [];
+    case 'mount_fail':
+      if (ev.id !== me) return [];
+      return [{ ch: 'error', quiet: true, text: ev.reason === 'none' ? 'You have no mount. Wynn sells them in Willowmere.' : ev.reason === 'indoors' ? 'You cannot ride here.' : ev.reason === 'combat' ? 'Not while in combat.' : 'You cannot do that now.' }];
+    case 'dismount': return ev.id === me && ev.reason === 'indoors' ? [{ ch: 'system', text: 'You get off at the door.' }] : [];
     case 'cast_stop':
       if (ev.src === me && ev.reason === 'interrupt') return [{ ch: 'error', text: `${abil(ev.ability) || 'Your spell'} was interrupted.` }];
       return [];

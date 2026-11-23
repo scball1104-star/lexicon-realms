@@ -1,0 +1,28 @@
+{
+ "image": "mounts16.png",
+ "size": [
+  16,
+  16
+ ],
+ "frames": {
+  "mount_bay_horse": [
+   0,
+   0,
+   16,
+   16
+  ],
+  "mount_grey_charger": [
+   16,
+   0,
+   16,
+   16
+  ],
+  "mount_moor_stag": [
+   32,
+   0,
+   16,
+   16
+  ]
+ },
+ "note": "mount icons, code-drawn by tools/mounts/make_icons.py"
+}

@@ -27,17 +27,19 @@ three.js r170 (MIT) is vendored separately in `src/vendor/three/` with its licen
 | `cave/` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 | `D:\LQOnline\vendor_itch\x\Stylized Nature MegaKit` |
 | `tex/` | textures of the packs above (each row below names its pack) | CC0 1.0 | as its pack |
 
-The two animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf https://poly.pizza/m/P1gU3Qkr9r, Deer https://poly.pizza/m/T6Cs7tmMHJ.
+The four animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf https://poly.pizza/m/P1gU3Qkr9r, Deer https://poly.pizza/m/T6Cs7tmMHJ, Horse https://poly.pizza/m/qvTrSG9pZF (the Bay Horse and Grey Charger mounts), Stag https://poly.pizza/m/tQdzbZ1Cmw (the Moor Stag mount).
 
 The Ghost Skull (the barrow shade) is a Quaternius model published on poly.pizza as CC0 1.0: https://poly.pizza/m/TX8r9WBXpe. The other foes are built in code (src/render3d/creatures.js).
 
-Total size: 23.4 MB in 300 files.
+Total size: 25.5 MB in 302 files.
 
 ## Files
 
 | File | Pack | License |
 |---|---|---|
 | `animals/Deer.glb` | Quaternius Animated Animal Pack via poly.pizza | CC0 1.0 |
+| `animals/Horse.glb` | Quaternius Animated Animal Pack via poly.pizza | CC0 1.0 |
+| `animals/Stag.glb` | Quaternius Animated Animal Pack via poly.pizza | CC0 1.0 |
 | `animals/Wolf.glb` | Quaternius Animated Animal Pack via poly.pizza | CC0 1.0 |
 | `cave/Mushroom_Common.bin` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 |
 | `cave/Mushroom_Common.gltf` | Stylized Nature MegaKit (Quaternius, free tier): cave props | CC0 1.0 |

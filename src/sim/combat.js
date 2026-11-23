@@ -13,6 +13,7 @@ import { TICK_HZ, SUB, TILE, GCD_TICKS } from './constants.js';
 import { levelValue, ticks as T, clone } from './data.js';
 import { distPx, distPxXY, unitTo, DIR_VEC, dirFromVec } from './geom.js';
 import { hasLos, losBetween } from './los.js';
+import { rideable, MOUNT_FLAG } from './mounts.js';
 
 export function createCombat(C) {
   const { state, rng, emit, data, stats } = C;
@@ -190,6 +191,7 @@ export function createCombat(C) {
     if (r.combo && !(e.combo && t && e.combo.target === t.id && e.combo.n >= r.combo && e.combo.until > now())) return 'combo';
     if (r.notMoving && isMovingInput(e)) return 'moving';
     if (r.outOfCombat && e.inCombat && !S().fadeInCombat(e, ab)) return 'combat';
+    if (r.rideable && !rideable(C.zoneOf(e))) return 'indoors';      // mounts: open land only (src/sim/mounts.js)
     if (r.targetNoAura && t && stats.findAura(t, r.targetNoAura)) return 'requires';
     if (r.targetHpBelow && t && t.hp / t.hpMax >= r.targetHpBelow) return 'requires';
     if (r.aura && !stats.findAura(e, r.aura)) return 'requires';
@@ -1204,6 +1206,7 @@ export function createCombat(C) {
   function breakStealth(e, why) {
     let was = null;
     for (const a of [...e.auras]) {
+      if (a.def.flags && a.def.flags.includes(MOUNT_FLAG)) { if (why === 'action' || why === 'attack') removeAura(e, a, 'break'); continue; }   // mounts: an attack or a cast gets you off
       if (!a.def.flags || !a.def.flags.includes('stealth')) continue;
       if (!a.def.breakOn || !a.def.breakOn.includes(why)) continue;
       was = a.def.opener || { bonus: 0, combo: 0 };

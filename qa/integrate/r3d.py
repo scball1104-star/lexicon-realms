@@ -493,6 +493,7 @@ def session_h(b):
 
 def session_i(b):
     log('I: dungeon door, loading card, warm-up, leaving')
+    ride_3d(b)            # mounts: the 3D speed check while riding (its own page, first: a page behind another stops its loop)
     page = b.new_page(viewport={'width': 1280, 'height': 720})
     hook(page)
     g = Game(page, 'i')
@@ -503,6 +504,21 @@ def session_i(b):
         time.sleep(0.25)
     assert 'barrow' in g.ev('window.__realms.renderer.dev.zonesBuilt'), 'the Barrow is built in the background near its door'
     g.shot('01_barrow_door', 'the Barrow door on the Downs with its label')
+    # mounts (2026-11-22): the riding speed check ran on the quiet North Road (ride_3d: the Barrow's shades keep a hero in
+    # a fight here, and there is no summon in a fight); here the shades are cleared, the hero summons with Z, rides
+    # through the door below and gets off at the door
+    g.ev("""() => { const R = window.__realms, W = R.world, e = W.get(R.playerId), C = W.internals;
+      for (const m of W.state.ents) if (m.kind === 'mob' && !m.dead && m.zone === e.zone && Math.hypot(m.x - e.x, m.y - e.y) < 30 * 256) C.combat.kill(m, e);
+      C.prog.learn(e, 'mount_bay_horse'); window.__dis = [];
+      const step = W.step.bind(W); W.step = () => { const ev = step(); for (const x of ev) if (x.type === 'dismount' || (x.type === 'aura_remove' && /^mount_/.test(x.aura))) window.__dis.push(x); return ev; }; }""")
+    t0 = time.time()
+    while time.time() - t0 < 15 and g.ev('(window.__realms.player() || {}).inCombat'):
+        time.sleep(0.2)
+    g.key('KeyZ', 0.1)
+    t0 = time.time()
+    while time.time() - t0 < 6 and g.ev('(window.__realms.player() || {}).mount') != 'bay_horse':
+        time.sleep(0.1)
+    assert g.ev('(window.__realms.player() || {}).mount') == 'bay_horse', f'riding at the Barrow door: {g.ev("window.__realms.ui.log.slice(-3)")}'
     frames = """() => { window.__ifr = []; const R = window.__realms; let last = performance.now(); const f = (t) => { const c = R.renderer.loadingCard; window.__ifr.push([t - last, (R.player() || {}).zone, c && c.active ? 1 : 0]); last = t; if (window.__ifr.length < 3000) requestAnimationFrame(f); }; requestAnimationFrame(f); }"""
     g.ev(frames)
     page.keyboard.down('KeyW')
@@ -511,6 +527,9 @@ def session_i(b):
         time.sleep(0.02)
     page.keyboard.up('KeyW')
     assert str(g.ev('(window.__realms.player() || {}).zone')).startswith('barrow'), 'walked into the Barrow'
+    dis = g.ev('window.__dis')
+    log('  door dismount', json.dumps(dis))
+    assert g.ev('(window.__realms.player() || {}).mount') is None and any(x.get('reason') == 'indoors' for x in dis), f'off the horse at the door (mounts): {dis}'
     t0 = time.time()
     while g.ev('window.__realms.renderer.loadingCard.active') and time.time() - t0 < 25:
         time.sleep(0.05)
@@ -546,6 +565,54 @@ def session_i(b):
     assert zc.get('firstFrameMs', 999) < 100, f'leaving is instant: {zc}'
     assert not g.ev('window.__realms.renderer.loadingCard.active'), 'no card on the way out'
     metrics['dungeon_leave'] = zc
+    page.close()
+
+
+def ride_3d(b):
+    """Mounts: on the North Road, walk east and back, learn the Bay Horse, press the real Z key (the 1.5 s summon), ride
+    the same way: about 60% faster in the real game, the horse under the hero at a gallop (ride_3d metric, i01b shot)."""
+    page = b.new_page(viewport={'width': 1280, 'height': 720})
+    hook(page)
+    g = Game(page, 'i')
+    g.boot('r=3d&dev=1&zone=world&x=150&y=120&cls=warden&name=Ash&tod=0.5')
+    g.ev('window.__realms.dev.level(12)')
+
+    tick = lambda: g.ev('window.__realms.world.tick')
+
+    def pace(key_out, key_back, secs=1.2):
+        """px per second of sim time (20 ticks a second) while the key is held: wall-clock waits do not skew it."""
+        page.keyboard.down(key_out); time.sleep(0.3)
+        x0, t0 = g.me()['x'], tick()
+        time.sleep(secs)
+        d, dt = abs(g.me()['x'] - x0), tick() - t0
+        page.keyboard.up(key_out)
+        time.sleep(0.15)
+        page.keyboard.down(key_back); time.sleep(secs + 0.3); page.keyboard.up(key_back)
+        time.sleep(0.3)
+        return d * 20 / max(1, dt)
+    walk = pace('KeyD', 'KeyA')
+    g.ev("() => { const R = window.__realms; R.world.internals.prog.learn(R.world.get(R.playerId), 'mount_bay_horse'); }")
+    time.sleep(0.3)
+    g.key('KeyZ', 0.1)
+    t0 = time.time()
+    while time.time() - t0 < 6 and (g.ev('(window.__realms.player() || {}).mount') != 'bay_horse' or not (g.ev('window.__realms.renderer.dev.actor(window.__realms.playerId)') or {}).get('mount')):
+        time.sleep(0.1)
+    assert g.ev('(window.__realms.player() || {}).mount') == 'bay_horse', f'Z summoned the Bay Horse: {g.ev("window.__realms.ui.log.slice(-3)")}'
+    time.sleep(0.8)
+    am = g.ev('window.__realms.renderer.dev.actor(window.__realms.playerId)')
+    assert am['mount'] and am['mount']['on'] and am['anim'] == 'Sitting_Idle_Loop', f'the hero sits on the horse in 3D: {am}'
+    page.keyboard.down('KeyD'); time.sleep(0.4)
+    x0, t0 = g.me()['x'], tick()
+    time.sleep(0.4)
+    gait = (g.ev('window.__realms.renderer.dev.actor(window.__realms.playerId)')['mount'] or {}).get('gait')
+    g.shot('01b_riding', 'riding the Bay Horse east on the North Road (3D)')
+    d, dt = abs(g.me()['x'] - x0), tick() - t0
+    page.keyboard.up('KeyD'); time.sleep(0.15)
+    ride = d * 20 / max(1, dt)
+    metrics['ride_3d'] = {'walkPxS': round(walk, 1), 'ridePxS': round(ride, 1), 'ratio': round(ride / max(1, walk), 2), 'gait': gait, 'actor': am['mount']}
+    log('  ride', json.dumps(metrics['ride_3d']))
+    assert 1.45 < ride / max(1, walk) < 1.75, f'riding is about 60% faster in the real game: {metrics["ride_3d"]}'
+    assert gait == 'Gallop', f'the horse gallops at riding speed: {gait}'
     page.close()
 
 
