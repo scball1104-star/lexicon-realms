@@ -219,6 +219,7 @@ def session_a(b):
     g.key('Enter', 0.4)
     page.keyboard.type('Talia')
     g.click_region(kind='class', id='warden')
+    g.click_region(label='start:willowmere', wait=0.2)     # wave 3: a Warden starts in Emberpeak unless Willowmere is picked
     g.key('Enter', 1.0)
     assert g.ev('__drv.mode()') == 'game', 'entered the world'
     t = g.wait3d()

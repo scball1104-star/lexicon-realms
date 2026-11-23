@@ -243,7 +243,9 @@ for (const d of Object.values(DUNGEONS)) {
 // (the big-zone kit), checked like an area (finish: everything reachable from its arrival, no pits), and every join
 // between it and the world lands on a walkable cell the other side can walk back from.
 const outdoor = [];
-for (const id of ['rootbound', 'larchhill', 'drovers_reach']) {
+// the start realms reached by a ride, not a walk (wave 3: Emberpeak's ore cart, Valewyn's ferry): no pass, no chain of joins
+const RIDE_REALMS = ['emberpeak', 'valewyn'];
+for (const id of ['rootbound', 'larchhill', 'drovers_reach', ...RIDE_REALMS]) {
   if (!fs.existsSync(path.join(path.dirname(fileURLToPath(import.meta.url)), `zone_${id}.mjs`))) { problems.push(`outdoor ${id}: no zone_${id}.mjs`); continue; }
   const z = (await import(`./zone_${id}.mjs`)).build(db);
   z.source = `tools/maps/zone_${id}.mjs`;
@@ -257,7 +259,7 @@ for (const id of ['rootbound', 'larchhill', 'drovers_reach']) {
   const seen = Object.fromEntries(Object.values(all).map((z) => [z.id, reach(z, z.arrival[0], z.arrival[1])]));
   const linked = new Set([world.id]);
   for (let pass = 0; pass < outdoor.length + 1; pass++) for (const z of Object.values(all)) for (const j of z.joins) if (all[j.to] && linked.has(z.id)) linked.add(j.to);
-  for (const o of outdoor) if (!linked.has(o.id)) problems.push(`${o.id}: no chain of joins from the world`);
+  for (const o of outdoor) if (!linked.has(o.id) && !RIDE_REALMS.includes(o.id)) problems.push(`${o.id}: no chain of joins from the world`);
   for (const z of Object.values(all)) for (const j of z.joins) {
     const o = all[j.to];
     if (!o || (z.id === world.id && o.id === world.id)) continue;

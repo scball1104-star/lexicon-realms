@@ -10,6 +10,7 @@
 // Spots are tiles in their own zone (the world is one zone, the Rootbound another). Text is original; no em dashes.
 
 import { BAND_INNS, BAND_POINTS, BAND_ROUTES, BAND_TRAVEL_NPCS, BAND_TRAVEL_NPC_SPAWNS } from './band_travel.js';
+import { REALMS2_TRAVEL as R2 } from './start_realms2.js';   // wave 3: Emberpeak and Valewyn's inns, kites and rides
 
 export const STONE = Object.freeze({ item: 'lantern_stone', castSec: 10, cooldownSec: 30 * 60 });
 
@@ -27,6 +28,7 @@ export const INNS = Object.freeze({
   tb_innkeeper: Object.freeze({ id: 'thornfold_hearth', name: 'the Thornfold Hearth', zone: 'world', x: 75, y: 133 }),
   rb_innkeeper: Object.freeze({ id: 'lamplit_shelf', name: 'the Lamplit Shelf', zone: 'rootbound', x: 305, y: 69 }),
   ...BAND_INNS,                  // Larch Cross and Highdrove (src/data/band_travel.js)
+  ...R2.inns,
 });
 export const DEFAULT_HOME = 'hob';
 
@@ -42,6 +44,7 @@ export const FLIGHT = Object.freeze({
     ridge_path: Object.freeze({ id: 'ridge_path', name: 'Ridge Path, the High Moor', npc: 'fm_ridge', zone: 'world', x: 83, y: 92, land: [83, 93] }),
     willow_library: Object.freeze({ id: 'willow_library', name: 'The Willow Library, the Rootbound', npc: 'rb_kitemaster', zone: 'rootbound', x: 296, y: 64, land: [296, 65] }),
     ...BAND_POINTS,
+    ...R2.points,
   }),
   // the routes between points, each a list of legs { zone, pts: [[x, y] tiles] } in flying order (reversed for the way
   // back). A route between two zones ends one leg at the pass and starts the next where the pass lands.
@@ -54,6 +57,7 @@ export const FLIGHT = Object.freeze({
       { zone: 'rootbound', pts: [[288, 2], [288, 24], [292, 50], [296, 64]] },
     ] }),
     ...BAND_ROUTES.map((r) => Object.freeze(r)),
+    ...R2.routes,
   ]),
 });
 
@@ -72,6 +76,7 @@ export const TRAVEL_NPCS = Object.freeze({
   rb_innkeeper: { id: 'rb_innkeeper', name: 'Bryony', sprite: 'npc_innkeeper', title: 'Keeper of the Lamplit Shelf', faction: 'friendly', roles: ['innkeeper'], vendor: null, trainer: null, innkeeper: true,
     talk: ['Every bed here is a bookshelf with a blanket on it. You will sleep like a closed book.', 'Make this your home and the Lantern Stone will always find its way back down.'] },
   ...BAND_TRAVEL_NPCS,                  // Larch Cross and Highdrove (src/data/band_travel.js)
+  ...R2.npcs,
 });
 
 /** Where the travel npcs stand (spawns, CONTRACTS 7: zone, x, y tiles). */
@@ -83,7 +88,11 @@ export const TRAVEL_NPC_SPAWNS = Object.freeze([
   { npc: 'rb_kitemaster', zone: 'rootbound', x: 296, y: 64, dir: 'down' },
   { npc: 'rb_innkeeper', zone: 'rootbound', x: 306, y: 68, dir: 'down' },
   ...BAND_TRAVEL_NPC_SPAWNS,
+  ...R2.spawns,
 ]);
+
+/** Rides (wave 3): an ore cart or a ferry from one npc to one place, about half a minute, free, from level 1. */
+export const RIDE = Object.freeze({ speedMult: 1.5, lift: 3 });
 
 /** The flight graph's shortest route from a to b (a list of legs), or null. Pure: the sim and the tests use it. */
 export function flightRoute(a, b) {
@@ -132,5 +141,12 @@ export function travelContent() {
     if (!r) continue;
     routes[`${a}>${b}`] = { legs: r.legs, tiles: r.tiles, cost: flightCost(r.tiles), speed, ticks: Math.ceil((r.tiles * TILE_SUB) / speed) + 2 * Math.round(FLIGHT.lift * 20) + 2 };
   }
-  return { stone: STONE, inns: INNS, defaultHome: DEFAULT_HOME, flight: FLIGHT, routes };
+  // rides (wave 3: an ore cart, a ferry): one route each, free, any level, at RIDE.speedMult (src/sim/travel.js 'ride')
+  const rides = {};
+  const rspeed = Math.round(WALK_SUB * RIDE.speedMult);
+  for (const [id, r] of Object.entries(R2.rides)) {
+    const tiles = r.legs.reduce((n, l) => n + l.pts.slice(1).reduce((m, p, i) => m + Math.hypot(p[0] - l.pts[i][0], p[1] - l.pts[i][1]), 0), 0);
+    rides[id] = { ...r, tiles: Math.round(tiles), speed: rspeed, ticks: Math.ceil((tiles * TILE_SUB) / rspeed) + 2 * Math.round(RIDE.lift * 20) + 2 };
+  }
+  return { stone: STONE, inns: INNS, defaultHome: DEFAULT_HOME, flight: FLIGHT, routes, rides, ride: RIDE };
 }

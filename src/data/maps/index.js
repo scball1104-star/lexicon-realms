@@ -19,6 +19,8 @@ import rootbound from './rootbound.js';
 import larchhill from './larchhill.js';
 import droversReach from './drovers_reach.js';
 import larchMine from './larch_mine.js';
+import emberpeak from './emberpeak.js';                 // wave 3 start realms (lane realms1): src/data/start_realms2.js
+import valewyn from './valewyn.js';
 import { composeWorld } from './compose.js';
 import { withDoors } from './doors.js';
 import { withCopies, zoneBase } from './copies.js';
@@ -48,6 +50,7 @@ import { TRAVEL_ITEMS, TRAVEL_NPCS, TRAVEL_NPC_SPAWNS, travelContent } from '../
 import { MOUNT_ABILITIES, MOUNT_ITEMS, MOUNT_NPCS, MOUNT_NPC_SPAWNS, STABLE, mountsContent } from '../mounts.js';
 import { applyBand } from '../band_content.js';
 import { RB_MOBS, RB_NPCS, RB_ITEMS, RB_QUESTS, RB_QUEST_ORDER, RB_RARE_RUNTIME, RB_RARE_SPAWN, RB_EXTRA_DROPS, START_REALMS } from '../rootbound.js';
+import { applyRealms2 } from '../start_realms2.js';
 
 // The four areas as generated (their own local tiles): tools, tests and the quest data's authoring helpers read these.
 export const REGIONS = { willowmere, valley, downs, moor };
@@ -69,6 +72,8 @@ export const OUTDOOR = { rootbound: { ...rootbound, flavour: 'A library grown in
 // the 20 to 30 band (band lane, 2026-11-22): Larchhill (the Larch Mine's door stands in it) and Drovers' Reach
 OUTDOOR.larchhill = { ...withDoors(larchhill, DUNGEONS, PLACES), flavour: "Larch woods, silver mines and the list-writer's grey couriers." };
 OUTDOOR.drovers_reach = { ...droversReach, flavour: "The old drove roads, walled in stone and held by the chain." };
+OUTDOOR.emberpeak = { ...emberpeak, flavour: 'A forge town under a black mountain, and the Gate that holds it.' };   // wave 3 start realms (realms1)
+OUTDOOR.valewyn = { ...valewyn, flavour: 'A lake town half under water. The tide is coming in.' };
 export const ZONES = withCopies({ [WORLD_ID]: WORLD, ...OUTDOOR, ...PLACES });
 export { zoneBase };
 /** Is this zone id a dungeon or a cave (or a copy of one)? */
@@ -160,5 +165,6 @@ export function buildContent() {
   // the Rootbound's rare (src/data/rootbound.js): one more on the world life's list, in its own zone
   out.rares = { ...out.rares, ...RB_RARE_RUNTIME };
   out.spawns = [...out.spawns, RB_RARE_SPAWN];
+  applyRealms2(out);                           // wave 3: Emberpeak and Valewyn (src/data/start_realms2.js)
   return applyBand(out);       // the 20 to 30 band: Larchhill, the Larch Mine, Drovers' Reach (src/data/band_content.js)
 }

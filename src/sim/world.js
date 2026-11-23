@@ -43,6 +43,7 @@ import { createGlyphs } from './glyphs.js';
 import { createTravel } from './travel.js';
 import { createLegendDrops } from './legend_drops.js';
 import { createMounts } from './mounts.js';
+import { createRealmMech } from './realm_mech.js';   // wave 3: the start realms' lava, Gate waves and tide
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -195,6 +196,7 @@ function wrap(state, content0, rng, systems) {
   // ---- mounts (src/sim/mounts.js): the stable's goods teach a summon; riding is an aura (content.mounts)
   const MT = combatOn && content.mounts ? createMounts(C) : null;
   C.mounts = MT;
+  const RM = combatOn ? createRealmMech(C) : null;   // the start realms' signatures (src/sim/realm_mech.js)
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -538,6 +540,7 @@ function wrap(state, content0, rng, systems) {
       if (TR) TR.tick();                         // trades end when the two walk apart
       if (combatOn) C.life.tick(events);
       if (PF) PF.tick();                         // professions: node respawns, the gather and craft casts
+      if (RM) RM.tick();                         // wave 3: Emberpeak's lava and Gate waves, Valewyn's tide
       // 4) systems (quests): read this tick's events, may call grantXp / emit
       for (const s of systems) if (s && s.tick) s.tick(w, events);
       state.rng = rng.state;
@@ -691,7 +694,7 @@ function wrap(state, content0, rng, systems) {
       case 'chest_store': case 'chest_take': case 'chest_move': case 'chest_row': case 'chest_sort': if (ST) ST.command(e, cmd); return;
       case 'glyph_socket': case 'glyph_remove': if (GL) GL.command(e, cmd); return;
       case 'prof_train': case 'prof_recipe': case 'prof_unlearn': case 'prof_craft': case 'prof_cancel': case 'prof_fish': if (PF) PF.command(e, cmd); return;
-      case 'set_home': case 'fly': if (TV) TV.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
+      case 'set_home': case 'fly': case 'ride': if (TV) TV.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
       case 'mount': if (MT) MT.command(e, cmd); return;                  // mounts: Z / the horseshoe (summon, or get off)
       case 'interact': {
         const t = index.get(cmd.id);

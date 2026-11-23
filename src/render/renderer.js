@@ -30,6 +30,7 @@ import { BitmapFont } from '../core/font.js';
 import { createOcclusion } from './occlude.js';
 import { flyLift, drawKite2d, KITE_LIFT_PX } from './kite2d.js';
 import { mountLift, drawMount2d } from './mount2d.js';
+import { drawRealm2d } from './realm2d.js';   // wave 3: Emberpeak's lava, Valewyn's tide, the ride vehicles
 import { isPlaceZone, doorMouths } from './dungeon_plan.js';
 import { placeLive, drawBrazier, drawFlames, drawDoorMouth, drawTelegraphs2d, drawDoorLabels2d } from './dungeon2d.js';
 
@@ -224,6 +225,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     const sx = Math.max(0, cam.x), sy = Math.max(0, cam.y);
     const sw = Math.min(map.pixelW - sx, W), sh = Math.min(map.pixelH - sy, H);
     if (sw > 0 && sh > 0) map.drawGround(g, cam, W, H, t);
+    if (zone && (zone.lava || zone.tide || snap.entities.some((e) => e.flight && e.flight.ride))) drawRealm2d(g, zone, snap, cam, W, H, now, (id) => pos.get(id) || null);
 
     // y-sorted: props and entities
     const list = [];
