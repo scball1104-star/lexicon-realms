@@ -349,6 +349,8 @@ export const tests = [
       for (const qid of RB_QUEST_ORDER) {
         const q = C.quests[qid];
         const g = at(q.giver);
+        // a full bag refuses a quest: sell the junk and materials as a player would (professions step 2 added cloth drops)
+        e.bag = e.bag.filter((s) => !['junk', 'material'].includes((C.items[s.item] || {}).kind));
         w.enqueue(id, { t: 'quest_accept', quest: qid, npc: g.id });
         run(w, 2);
         assert(e.quests[qid], `${qid}: accepted`);

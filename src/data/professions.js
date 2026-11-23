@@ -11,6 +11,8 @@
 import { NODE_POINTS } from './prof_nodes.js';
 import { WEAPON_TYPES, ARMOR_TYPES, weaponDamage, armorValue, itemValue, reqLevel, iconFor } from './items.js';
 import { toWorld, isRegion } from './maps/layout.js';
+import { PROFESSIONS2, PROF_ORDER_ALL, MATS2, cons2, FOOD2, BANDAGES2, BAGS2, RECIPES2, FREE2, SKIN, CLOTH, MEAT_FALLBACK, MEAT2, FISH,
+  PROF_NPCS2, TRAINERS2, PROF_NPC_SPOTS2, BOSS_DROPS2 } from './professions2.js';
 
 export const SKILL_MAX = 150;
 /** Five ranks of 30 (cap, hero level to train, trainer gold). Rank n needs rank n - 1. */
@@ -31,7 +33,9 @@ export const PROFESSIONS = {
   cooking: { id: 'cooking', name: 'Cooking', kind: 'craft', primary: false, verb: 'Cooking', who: 'cook', icon: 'pi_food_stew' },
   first_aid: { id: 'first_aid', name: 'First Aid', kind: 'craft', primary: false, verb: 'First Aid', who: 'medic', icon: 'pi_bandage' },
 };
-export const PROF_ORDER = ['mining', 'herbalism', 'smithing', 'alchemy', 'cooking', 'first_aid'];
+// build step 2 (src/data/professions2.js): Skinning, Leatherwork, Tailoring, Inscription and the secondary Fishing
+Object.assign(PROFESSIONS, PROFESSIONS2);
+export const PROF_ORDER = PROF_ORDER_ALL;
 
 /** Recipe colour by (skill - recipe skill): orange always gives a point, yellow 3 in 4, green 1 in 4, grey none. */
 export function recipeColor(skill, req) {
@@ -93,6 +97,7 @@ const MATS = [
   ['downs_mutton', 'Downs Mutton', 2, 2, ['meat', '#b05848', '#ffc0a8'], 'Good Downs mutton, fed on clover.'],
   ['mist_wolf_haunch', 'Mist Wolf Haunch', 3, 3, ['meat', '#7a5868', '#d0b0c8'], 'Cold meat with a faint mist on it.'],
   ['boar_shank', 'Boar Shank', 3, 3, ['meat', '#a05030', '#f0b080'], 'A big shank from a gorse boar.'],
+  ...MATS2,                                   // build step 2 (professions2.js)
 ];
 
 // ---------------------------------------------------------------- consumables
@@ -144,6 +149,7 @@ const CONS = [
     ['heavy_wool_bandage', 'Heavy Wool Bandage', 2, 0.2, 7, '#f0e8d8'], ['mallow_poultice', 'Mallow Poultice', 3, 0.25, 10, '#e0b0d8'],
     ['heavy_mallow_poultice', 'Heavy Mallow Poultice', 4, 0.28, 12, '#f0c0e8'], ['gloam_dressing', 'Gloam Dressing', 5, 0.32, 14, '#a0c8f0'],
     ['heavy_gloam_dressing', 'Heavy Gloam Dressing', 6, 0.36, 17, '#b8d8ff'], ['inkthorn_dressing', 'Inkthorn Dressing', 8, 0.4, 20, '#c0a8e8'],
+    ...BANDAGES2,                             // build step 2
   ].map(([id, name, value, k, lvl, col]) => [id, name, value, ['bandage', col, '#ffffff'],
     { kind: 'prof_aura', slot: 'bandage', aura: aura('prof_bandage', name, id, 6, [], { period: 1, tick: [{ type: 'heal', to: 'holder', pctMaxHp: k / 6, canCrit: false }] }), cooldown: 60, group: 'bandage' },
     `Heals ${pct(k)} of your health over 6 sec. Works in combat.`, lvl]),
@@ -170,6 +176,7 @@ const FOOD = [
   ['peat_smoked_bacon', 'Peat-Smoked Bacon', 6, ['#8a3a2a', '#ffb0a0'], 0.21, 0.05, 0.03, 17],
   ['lantern_feast', 'Lantern Feast', 8, ['#d0a030', '#fff0c0'], 0.22, 0.06, 0.03, 18],
   ['watchmans_breakfast', 'Watchman\'s Breakfast', 8, ['#c08040', '#fff0d0'], 0.22, 0.05, 0.04, 19],
+  ...FOOD2,                                   // build step 2: fish and the 20 to 30 meats
 ];
 for (const [id, name, value, [c1, c2], rest, hp, dmg, lvl] of FOOD) {
   const parts = [];
@@ -178,6 +185,7 @@ for (const [id, name, value, [c1, c2], rest, hp, dmg, lvl] of FOOD) {
   const text = `Sit and eat: restores ${pct(rest)} of your health each second.${parts.length ? ` Then Well Fed: ${parts.join(', ')} for 30 min.` : ''}`;
   CONS.push([id, name, value, [rest >= 0.2 ? 'feast' : 'food', c1, c2], { kind: 'prof_aura', slot: 'food', rest, ooc: true, aura: hp || dmg ? fed(id, name, hp, dmg) : null, cooldown: 0, group: 'food' }, text, lvl]);
 }
+CONS.push(...cons2({ aura, DMG, HP, pct }));    // build step 2: armor patches, scrolls, the Ember Whetstone
 
 // ---------------------------------------------------------------- crafted gear
 // Gear built with items.js's formulas (the same as every drop). Crafted blues: the band's fixed stats (two, the top of a
@@ -308,15 +316,24 @@ export const RECIPES_BY_PROF = {
     R('inkthorn_dressing', 'Inkthorn Dressing', 100, 'inkthorn_dressing', [['mist_pelt', 2], ['inkthorn', 1]]),
   ],
 };
+// build step 2 (professions2.js): the new crafts' lists, and the step 1 crafts on to 150. A row's makes is an item id,
+// { item, qty }, { gear: [...] } (built here with gear()) or { bag: id }; extra { letters } marks a glyph made to order.
+for (const [prof, rows] of Object.entries(RECIPES2)) {
+  const list = RECIPES_BY_PROF[prof] || (RECIPES_BY_PROF[prof] = []);
+  for (const [id, name, skill, makes, reagents, source = 'trainer', extra = {}] of rows) {
+    const m = makes && makes.gear ? gear(...makes.gear) : makes && makes.bag ? X(makes.bag, 1) : makes;
+    list.push({ ...R(id, name, skill, m, reagents, source), ...extra });
+  }
+}
 export const RECIPES = {};
 for (const [prof, list] of Object.entries(RECIPES_BY_PROF)) for (const r of list) RECIPES[r.id] = { ...r, prof };
 /** Gold a trainer asks for a recipe (the brief: about 350 gold of recipes a profession, 1 to 150). */
 export const recipeCost = (r) => Math.max(1, Math.round(1 + (r.skill * r.skill) / 300));
 /** Recipes every hero gets free with Novice. */
-export const FREE_RECIPES = new Set(['smelt_tin', 'rough_whetstone', 'blow_vials', 'wayleaf_tonic', 'wayleaf_flatbread', 'roast_wolf_haunch', 'hide_strip_bandage']);
+export const FREE_RECIPES = new Set(['smelt_tin', 'rough_whetstone', 'blow_vials', 'wayleaf_tonic', 'wayleaf_flatbread', 'roast_wolf_haunch', 'hide_strip_bandage', ...FREE2]);
 
 // Patterns (a dropped recipe: `use` teaches it). One item per non-trainer recipe.
-const PATTERN_TEXT = { smithing: 'Smithing', alchemy: 'Alchemy', cooking: 'Cooking', first_aid: 'First Aid' };
+const PATTERN_TEXT = Object.fromEntries(Object.values(PROFESSIONS).map((p) => [p.id, p.name]));
 const PATTERNS = {};
 for (const r of Object.values(RECIPES)) {
   if (r.source === 'trainer') continue;
@@ -368,24 +385,31 @@ export const TRAINERS = {
   hazel: { profs: ['first_aid'], sells: [] },
   dunstan: { profs: ['mining', 'smithing'], sells: [] },
   briony: { profs: ['herbalism', 'alchemy', 'cooking', 'first_aid'], sells: [] },
+  ...TRAINERS2,                               // build step 2: Hesper, Maudie, Old Fen and Corwen in Willowmere
 };
 // Thornfold, by the hearth (downs local tiles; the world spot comes from layout.js)
-const PROF_NPC_SPOTS = [{ npc: 'dunstan', zone: 'downs', x: 86, y: 37, dir: 'left' }, { npc: 'briony', zone: 'downs', x: 71, y: 36, dir: 'right' }];
+const PROF_NPC_SPOTS = [{ npc: 'dunstan', zone: 'downs', x: 86, y: 37, dir: 'left' }, { npc: 'briony', zone: 'downs', x: 71, y: 36, dir: 'right' }, ...PROF_NPC_SPOTS2];
 
 // ---------------------------------------------------------------- drops: meat, world Patterns, boss Patterns and materials
 /** Beasts drop meat for Cooking (any hero). template -> [item, chance] */
 export const MEAT_DROPS = {
   briar_wolf: ['wolf_haunch', 0.4], thornback_wolf: ['thornback_flank', 0.4], fold_ram: ['downs_mutton', 0.45],
-  mist_wolf: ['mist_wolf_haunch', 0.4], gorse_boar: ['boar_shank', 0.45],
+  mist_wolf: ['mist_wolf_haunch', 0.4], gorse_boar: ['boar_shank', 0.45], ...MEAT2,
 };
 /** A foe of the band drops a world Pattern now and then (any hero; the Pattern says who can learn it). */
 export const WORLD_PATTERN_CHANCE = 0.004;
-export const WORLD_PATTERN_BANDS = [[1, 7], [6, 13], [12, 20], [18, 30]];
+export const WORLD_PATTERN_BANDS = [[1, 7], [6, 13], [12, 20], [18, 26], [24, 30]];   // Pattern skill 0-29, 30-59, 60-89, 90-119, 120+
 /** Dungeon bosses: each boss of the dungeon may drop the dungeon's Patterns (one per crafting profession) and its materials. */
 export const BOSS_DROPS = {
   barrow: { patterns: ['tally_iron_hauberk', 'elixir_of_the_uncounted'], patternChance: 0.12, mats: [['tally_iron', 0.5, 1, 2], ['undying_wick', 0.5, 1, 2]] },
   watchtower: { patterns: ['wick_iron_greathelm', 'flask_of_the_last_lamp'], patternChance: 0.12, mats: [['wick_iron', 0.5, 1, 2], ['last_lamp_oil', 0.5, 1, 2]] },
 };
+// build step 2: every crafting profession's Pattern in the Barrow and the Watchtower (now five each, so a boss rolls
+// one a little more often), and the caves' own
+for (const [id, d] of Object.entries(BOSS_DROPS2)) {
+  const cur = BOSS_DROPS[id];
+  BOSS_DROPS[id] = cur ? { ...cur, patterns: [...cur.patterns, ...d.patterns], patternChance: 0.16, mats: [...cur.mats, ...d.mats] } : { patternChance: 0.2, ...d };
+}
 
 // ---------------------------------------------------------------- items for content.items
 function mkItems() {
@@ -397,6 +421,10 @@ function mkItems() {
   for (const [id, name, value, art, use, text, lvl] of CONS) {
     out[id] = { id, name, rarity: 'common', kind: use ? 'consumable' : 'material', slot: null, stack: 20, value, price: value * 4, level: lvl || 1, reqLevel: lvl || 1,
       classes: null, use, bagSlots: 0, stats: {}, icon: `pi_${id}`, art, text };
+  }
+  for (const [id, name, slots, value, art, text] of BAGS2) {
+    out[id] = { id, name, rarity: slots >= 12 ? 'magic' : 'common', kind: 'bag', slot: null, stack: 1, value, level: 1, reqLevel: 1, classes: null, use: null,
+      bagSlots: slots, stats: {}, icon: `pi_${id}`, art, text: `${text} ${slots} slots.` };
   }
   Object.assign(out, GEAR, PATTERNS);
   return out;
@@ -411,6 +439,7 @@ export function iconSpecs() {
     pi_sickle: ['sickle', '#8a6a40', '#e0e8f0'], pi_anvil: ['anvil', '#4a4e58', '#a8b0c0'], pi_flask_purple: ['potion', '#8a5ad0', '#e0c0ff'],
     pi_food_stew: ['food', '#8a6030', '#c0e070'], pi_bandage: ['bandage', '#e8e0d0', '#ffffff'], pi_track_ore: ['ore', '#d08a5a', '#ffe0b0'],
     pi_track_herb: ['herb', '#6ab040', '#d0f0a0'], pi_book: ['book', '#7a4a2a', '#f9d77a'],
+    pi_knife: ['knife', '#8a6a40', '#e0e8f0'], pi_track_skin: ['hide', '#b08050', '#f0d0a0'],
   });
   return out;
 }
@@ -430,7 +459,7 @@ export function nodePools(worldId) {
 }
 
 export function applyProfessions(C) {
-  const npcs = { ...C.npcs, ...PROF_NPCS };
+  const npcs = { ...C.npcs, ...PROF_NPCS, ...PROF_NPCS2 };
   // the trainers sell their reagents (added to any vendor list they already have)
   for (const [nid, t] of Object.entries(TRAINERS)) {
     const n = npcs[nid];
@@ -453,6 +482,7 @@ export function applyProfessions(C) {
       trainers: TRAINERS, nodes: NODE_KINDS, pools: nodePools(C.worldId), yield: YIELD, meat: MEAT_DROPS, bossDrops: BOSS_DROPS,
       worldPatterns: { chance: WORLD_PATTERN_CHANCE, bands: WORLD_PATTERN_BANDS },
       gatherSec: GATHER_SECONDS, craftSec: CRAFT_SECONDS, respawnSec: NODE_RESPAWN_S, upShare: NODE_UP_SHARE,
+      skin: SKIN, cloth: CLOTH, meatFallback: MEAT_FALLBACK, fish: FISH,          // build step 2 (professions2.js)
     },
   };
 }

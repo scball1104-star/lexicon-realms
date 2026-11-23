@@ -9,6 +9,8 @@ import { itemInfo } from './gamedata.js';
 import { PROFESSIONS, PROF_ORDER, RANKS, RECIPES, RECIPES_BY_PROF, TRAINERS, NODE_KINDS, NODE_AREAS, PROF_ITEMS, recipeColor, nodeColor, recipeCost, SKILL_MAX } from '../data/professions.js';
 import { CLASS_GEAR, armorValue, weaponDamage } from '../data/items.js';
 import { inRect } from './layout.js';
+import { FISH, SKIN } from '../data/professions2.js';
+import { DUNGEONS } from '../data/dungeons.js';
 
 const DIFF = { orange: '#ff8a2a', yellow: '#fff27a', green: '#5fdc6a', gray: '#9a95a6', red: '#ff4a4a' };
 const DIFF_WORD = { orange: 'Orange: +1 every time', yellow: 'Yellow: usually +1', green: 'Green: sometimes +1', gray: 'Gray: no more skill', red: 'Too hard for you yet' };
@@ -21,6 +23,8 @@ const FAIL = {
   level: (e) => `You need level ${e.need}.`, gold: () => 'Not enough gold.', range: () => 'Too far away.', not_trainer: () => 'I cannot teach you that.',
   max_rank: () => 'You are a Master already.', known: () => 'You already know that.', not_known: () => 'You do not know that recipe.',
   empty: () => 'Someone got there first.', dead: () => 'Not while dead.', no_recipe: () => 'No such recipe.',
+  not_skinnable: () => 'There is no hide on that.', no_water: () => 'Stand by water to fish (within 5 tiles).', combat: () => 'Not in combat.',
+  got_away: () => 'It got away. These waters need more Fishing skill.', bad_letter: () => 'Pick a letter that recipe can make.',
 };
 const STOP = { move: 'You moved.', interrupt: 'Interrupted.', cast: null, cancel: null, death: null, empty: 'Someone got there first.' };
 const name = (prof) => (PROFESSIONS[prof] || {}).name;
@@ -50,14 +54,16 @@ const TRACK_KEY = 'lexicon_realms.prof_track';
 /** Recipe groups in the list. */
 function groupOf(r) {
   const it = PROF_ITEMS[r.makes.item] || itemInfo(r.makes.item) || {};
+  if (it.kind === 'bag') return 'Bags';
+  if (it.kind === 'glyph') return 'Glyphs';
   if (it.kind === 'weapon') return 'Weapons and shields';
   if (it.kind === 'armor') return 'Armor';
   const u = it.use || {};
-  if (u.kind === 'prof_aura') return { battle: 'Elixirs and flasks', guardian: 'Elixirs and flasks', flask: 'Elixirs and flasks', whet: 'Whetstones', food: 'Food', bandage: 'Bandages', oil: 'Oils' }[u.slot] || 'Other';
+  if (u.kind === 'prof_aura') return { battle: 'Elixirs and flasks', guardian: 'Elixirs and flasks', flask: 'Elixirs and flasks', whet: 'Whetstones', food: 'Food', bandage: 'Bandages', oil: 'Oils', patch: 'Armor patches', scroll: 'Scrolls' }[u.slot] || 'Other';
   if (u.kind) return 'Potions';
   return 'Materials';
 }
-const GROUP_ORDER = ['Materials', 'Potions', 'Elixirs and flasks', 'Oils', 'Food', 'Bandages', 'Armor', 'Weapons and shields', 'Whetstones', 'Other'];
+const GROUP_ORDER = ['Materials', 'Glyphs', 'Potions', 'Elixirs and flasks', 'Oils', 'Scrolls', 'Food', 'Bandages', 'Armor patches', 'Bags', 'Armor', 'Weapons and shields', 'Whetstones', 'Other'];
 
 export function createProfUI({ st, act, send, toast, say, hero, storage = null }) {
   let track = null;
@@ -75,7 +81,9 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
   const have = (me, item) => (me.bag || []).filter((s) => s.item === item).reduce((n, s) => n + s.qty, 0) + (me.qbag || []).filter((s) => s.item === item).reduce((n, s) => n + s.qty, 0);
   const canMake = (me, r) => Math.min(...r.reagents.map(([i, n]) => Math.floor(have(me, i) / n)));
   const known = (v) => PROF_ORDER.filter((p) => v.prof.skills[p]);
-  const gatherKinds = (v) => ['ore', 'herb'].filter((k) => v.prof.skills[k === 'ore' ? 'mining' : 'herbalism']);
+  const GATHER_PROF = { ore: 'mining', herb: 'herbalism', skin: 'skinning' };
+  const gatherKinds = (v) => ['ore', 'herb', 'skin'].filter((k) => v.prof.skills[GATHER_PROF[k]]);
+  const corpseNode = (e) => ({ ...e, name: `${e.name} (skin)`, node: { gather: { prof: 'skinning', skill: e.skin.skill, kind: 'skin' } } });
   function trackKind(v) {
     const ks = gatherKinds(v);
     if (track === 'off') return null;
@@ -129,9 +137,10 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
       tx += w + 3;
     }
     if (!s.tab) {
-      const lines = ['You have no profession yet.', '', 'Trainers teach them: Garrick (Mining, Smithing) and Pell (Herbalism, Alchemy) in Willowmere,',
-        'Oren (Cooking) and Hazel (First Aid) too, and Dunstan and Briony in Thornfold on the Downs.', '', 'Each hero may learn two of Mining, Herbalism, Smithing and Alchemy.',
-        'Cooking and First Aid are for everyone.'];
+      const lines = ['You have no profession yet.', '', 'Trainers in Willowmere: Garrick (Mining, Smithing), Pell (Herbalism, Alchemy), Hesper (Skinning,',
+        'Leatherwork), Maudie (Tailoring), Corwen (Inscription), Oren (Cooking), Hazel (First Aid) and Old Fen (Fishing).', 'Dunstan and Briony teach in Thornfold on the Downs.', '',
+        'Each hero may learn two of Mining, Herbalism, Skinning, Smithing, Leatherwork, Tailoring, Alchemy and Inscription.',
+        'Cooking, First Aid and Fishing are for everyone.'];
       let y = r.y + 40;
       for (const ln of lines) { for (const w of g.wrap(ln, r.w - 24)) { g.text(ctx, w, r.x + 12, y, ln ? 'cream' : 'gray'); y += 12; } }
       return;
@@ -215,6 +224,19 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
     const s2 = s;
     s2.qty = Math.max(1, Math.min(Math.max(1, n), s2.qty || 1));
     const yb = R.y + R.h - btnH - 6;
+    // a glyph made to order (Inscription): the letters this recipe can make, one chosen
+    if (r.letters) {
+      if (!s2.letter || !r.letters.includes(s2.letter)) s2.letter = r.letters[0];
+      const lw = env.L.touch ? Math.max(18, Math.min(22, env.L.minHit || 18)) : 14;
+      const per = Math.max(1, Math.floor((R.w - 16) / (lw + 2)));
+      const rowsN = Math.ceil(r.letters.length / per);
+      const ly = yb - 4 - rowsN * (lw + 2);
+      g.text(ctx, 'Letter:', R.x + 8, ly - 12, 'gold');
+      r.letters.split('').forEach((Lt, i) => {
+        const x = R.x + 8 + (i % per) * (lw + 2), yy = ly + Math.floor(i / per) * (lw + 2);
+        button(x, yy, lw, Lt, () => { s2.letter = Lt; }, Lt === s2.letter ? 'violet' : 'slate', Lt === s2.letter ? 'white' : 'gray', null, lw);
+      });
+    }
     const bw = env.L.touch ? Math.max(20, Math.min(24, env.L.minHit)) : 16;
     button(R.x + 8, yb, bw, '-', () => { s2.qty = Math.max(1, s2.qty - 1); });
     g.window(ctx, R.x + 10 + bw, yb, 30, btnH, 'thin', 'slate', 0.9);
@@ -223,9 +245,9 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
     const working = v.prof.work && v.prof.work.kind === 'craft';
     const cw = 68;
     if (working) button(R.x + R.w - 8 - cw, yb, cw, 'Stop', () => send({ t: 'prof_cancel' }), 'crimson', 'cream');
-    else button(R.x + R.w - 8 - cw, yb, cw, 'Create', () => { if (n < 1) { toast('You are missing reagents.'); return; } send({ t: 'prof_craft', recipe: r.id, qty: s2.qty }); }, n > 0 ? 'forest' : 'slate', n > 0 ? 'cream' : 'gray');
+    else button(R.x + R.w - 8 - cw, yb, cw, 'Create', () => { if (n < 1) { toast('You are missing reagents.'); return; } send({ t: 'prof_craft', recipe: r.id, qty: s2.qty, ...(r.letters ? { letter: s2.letter } : {}) }); }, n > 0 ? 'forest' : 'slate', n > 0 ? 'cream' : 'gray');
     const aw = R.w - 8 - cw - 6 - (R.x + 44 + 2 * bw - R.x) - 4;
-    button(R.x + 46 + 2 * bw, yb, aw, `${g.textW(`Create All (${n})`) > aw - 6 ? 'All' : 'Create All'} (${n})`, () => { if (n < 1) { toast('You are missing reagents.'); return; } send({ t: 'prof_craft', recipe: r.id, qty: n }); }, 'slate', n > 0 ? 'cream' : 'gray');
+    button(R.x + 46 + 2 * bw, yb, aw, `${g.textW(`Create All (${n})`) > aw - 6 ? 'All' : 'Create All'} (${n})`, () => { if (n < 1) { toast('You are missing reagents.'); return; } send({ t: 'prof_craft', recipe: r.id, qty: n, ...(r.letters ? { letter: s2.letter } : {}) }); }, 'slate', n > 0 ? 'cream' : 'gray');
   }
 
   /** A recipe's card: the product, its difficulty, what it does, the reagents (have / need) and where it came from. */
@@ -255,7 +277,8 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
       if (it.armor) lines.push({ t: `${it.armor} armor`, c: 'white' });
       for (const [k, val] of Object.entries(it.stats || {})) lines.push({ t: `+${val} ${STAT[k] || k}`, c: 'green' });
       lines.push({ t: 'Crafted: a good piece, never above dungeon loot.', c: 'dim' });
-    } else if (it.text) for (const ln of g.wrap(it.text, R.w - 16)) lines.push({ t: ln, c: 'cream' });
+    } else if (r.letters) for (const ln of g.wrap(`A glyph of the letter you pick (${r.letters.split('').join(' ')}). It goes to your pouch.`, R.w - 16)) lines.push({ t: ln, c: 'cream' });
+    else if (it.text) for (const ln of g.wrap(it.text, R.w - 16)) lines.push({ t: ln, c: 'cream' });
     for (const ln of lines.slice(0, 6)) { g.text(ctx, g.clip(ln.t, R.w - 16), x0, y, ln.c); y += 11; }
     y += 4;
     g.text(ctx, 'Reagents', x0, y, 'gold'); y += 13;
@@ -271,7 +294,8 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
       regions.push({ rect: { x: xx, y: yy, w: colW - 4, h: 20 }, kind: 'item', tip: itemTooltip(info) });
     });
     y += Math.ceil(r.reagents.length / 2) * 24 + 2;
-    const src = r.source === 'trainer' ? 'Learned from a trainer.' : r.source === 'world' ? 'Learned from a Pattern found in the world.' : `Learned from a Pattern a boss drops in ${r.source === 'boss:barrow' ? 'the Wethers\' Barrow' : 'the Watchtower'}.`;
+    const place = r.source.startsWith('boss:') ? (DUNGEONS[r.source.slice(5)] || {}).name || r.source.slice(5) : '';
+    const src = r.source === 'trainer' ? 'Learned from a trainer.' : r.source === 'world' ? 'Learned from a Pattern found in the world.' : `Learned from a Pattern a boss drops in ${place}.`;
     if (y < R.y + R.h - 40) g.text(ctx, g.clip(src, R.w - 16), x0, y, 'dim');
   }
 
@@ -279,6 +303,8 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
     const { g } = env;
     const prof = PROFESSIONS[s.tab], sk = v.prof.skills[s.tab];
     const kind = prof.node;
+    if (kind === 'skin') return skinPage(ctx, env, v, s, body, regions, button, rowH);
+    if (kind === 'fish') return fishPage(ctx, env, v, s, body, regions, button, rowH);
     let y = body.y + 2;
     g.text(ctx, `Find ${kind === 'ore' ? 'ore seams' : 'herbs'} in the world and right-click (or tap, or press F) to gather.`, body.x + 4, y, 'cream'); y += 12;
     g.text(ctx, 'A 2 second cast: moving or a hit stops it. Each one gives 1 to 3, and skill.', body.x + 4, y, 'gray'); y += 18;
@@ -294,6 +320,51 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
     y += 6;
     const on = trackKind(v) === kind;
     button(body.x + 4, y, 190, on ? `Tracking ${kind === 'ore' ? 'ore' : 'herbs'}: on` : `Track ${kind === 'ore' ? 'ore' : 'herbs'} on the minimap`, () => setTrack(on ? 'off' : kind), on ? 'forest' : 'slate');
+    dropButton(ctx, env, v, s, body, button);
+  }
+
+  function skinPage(ctx, env, v, s, body, regions, button, rowH) {
+    const { g } = env;
+    const sk = v.prof.skills.skinning;
+    let y = body.y + 2;
+    g.text(ctx, 'Skin a dead beast: right-click (or tap, or press F) its body. A 2 second cast.', body.x + 4, y, 'cream'); y += 12;
+    g.text(ctx, 'Beasts only: no hide on slimes, spirits or the lamp constructs. Vellum scraps sometimes.', body.x + 4, y, 'gray'); y += 18;
+    g.text(ctx, 'Hide', body.x + 4, y, 'gold'); g.text(ctx, 'Needs', body.x + 150, y, 'gold'); g.text(ctx, 'From beasts of level', body.x + 200, y, 'gold'); y += 13;
+    SKIN.tiers.forEach(([need, item], i) => {
+      const it = PROF_ITEMS[item] || itemInfo(item) || { name: item };
+      const lo = Math.max(1, Math.ceil(Math.max(1, need) / SKIN.perLevel + SKIN.from)), next = SKIN.tiers[i + 1];
+      const hi = next ? Math.ceil(next[0] / SKIN.perLevel + SKIN.from) - 1 : 30;
+      g.text(ctx, it.name, body.x + 4, y, DIFF[nodeColor(sk.v, Math.max(1, need))]);
+      g.text(ctx, String(Math.max(1, need)), body.x + 150, y, 'white');
+      g.text(ctx, i === 0 ? `up to ${hi}` : `${lo} to ${hi}`, body.x + 200, y, 'cream');
+      y += Math.max(12, rowH);
+    });
+    y += 4;
+    g.text(ctx, `A beast needs Skinning (its level - ${SKIN.from}) x ${SKIN.perLevel}.`, body.x + 4, y, 'dim'); y += 14;
+    const on = trackKind(v) === 'skin';
+    button(body.x + 4, y, 190, on ? 'Tracking beasts to skin: on' : 'Track beasts to skin', () => setTrack(on ? 'off' : 'skin'), on ? 'forest' : 'slate');
+    dropButton(ctx, env, v, s, body, button);
+  }
+
+  function fishPage(ctx, env, v, s, body, regions, button, rowH) {
+    const { g } = env;
+    const sk = v.prof.skills.fishing;
+    let y = body.y + 2;
+    g.text(ctx, 'Stand within 5 tiles of water and cast. A bite comes in 6 to 10 seconds; moving or a hit stops it.', body.x + 4, y, 'cream'); y += 12;
+    g.text(ctx, 'Below a water\'s skill, fish often get away. Cooking makes them into food.', body.x + 4, y, 'gray'); y += 18;
+    g.text(ctx, 'Water', body.x + 4, y, 'gold'); g.text(ctx, 'Needs', body.x + 160, y, 'gold'); g.text(ctx, 'Fish', body.x + 210, y, 'gold'); y += 13;
+    for (const A of Object.values(FISH.areas)) {
+      if (y > body.y + body.h - 50) break;
+      g.text(ctx, g.clip(A.name, 150), body.x + 4, y, DIFF[recipeColor(sk.v, A.skill)]);
+      g.text(ctx, String(A.skill), body.x + 160, y, 'white');
+      const names = [...A.catch.map(([i]) => (PROF_ITEMS[i] || {}).name || i), `rare: ${(PROF_ITEMS[A.rare[0]] || {}).name || A.rare[0]}`];
+      g.text(ctx, g.clip(names.join(', '), body.w - 214), body.x + 210, y, 'cream');
+      y += Math.max(12, rowH - 2);
+    }
+    const fishing = v.prof.work && v.prof.work.kind === 'fish';
+    const bh = env.L.touch ? Math.max(18, Math.min(24, env.L.minHit || 18)) : 15;
+    if (fishing) button(body.x + 4, body.y + body.h - bh - 2, 120, 'Reel in', () => send({ t: 'prof_cancel' }), 'crimson', 'cream', null, bh);
+    else button(body.x + 4, body.y + body.h - bh - 2, 120, 'Cast a line', () => { send({ t: 'prof_fish' }); if (env.L.touch) act.close('prof'); }, 'forest', 'cream', null, bh);
     dropButton(ctx, env, v, s, body, button);
   }
 
@@ -330,7 +401,7 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
       button(body.x + 4, y, 260, `Train ${next.name} (cap ${next.cap}): ${next.gold} gold${why ? `, ${why}` : ''}`, () => send({ t: 'prof_train', npc: s.npc, prof: s.tab }), ok ? 'forest' : 'slate', ok ? 'cream' : 'gray');
     } else g.text(ctx, `You are a Master ${prof.who}.`, body.x + 4, y + 3, 'gold');
     y += btnH + 6;
-    if (prof.kind !== 'craft') { g.text(ctx, 'Gathering needs no recipes: find the seams and herbs out in the world.', body.x + 4, y, 'gray'); return; }
+    if (prof.kind !== 'craft') { g.text(ctx, prof.node === 'skin' ? 'Skinning needs no recipes: skin the beasts you defeat.' : prof.node === 'fish' ? 'Fishing needs no recipes: find water and cast a line.' : 'Gathering needs no recipes: find the seams and herbs out in the world.', body.x + 4, y, 'gray'); return; }
     const offer = (RECIPES_BY_PROF[s.tab] || []).filter((r) => r.source === 'trainer' && !v.prof.recipes.includes(r.id)).sort((a, b) => a.skill - b.skill);
     g.text(ctx, offer.length ? 'Recipes I can teach you' : 'You know every recipe I teach.', body.x + 4, y, 'gold'); y += 13;
     const Lr = { x: body.x, y, w: body.w, h: body.y + body.h - y };
@@ -370,12 +441,15 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
     // the node card in the target frame's place: the node being gathered, else the nearest one in reach
     if (!m.target && L.target) {
       let node = w && w.node != null ? v.snap.entities.find((e) => e.id === w.node) : null;
+      if (node && node.kind === 'mob') node = node.skin ? corpseNode(node) : null;
       if (!node) {
         let best = 40;
         for (const e of v.snap.entities) {
-          if (e.kind !== 'object' || !e.node || !e.node.gather || e.zone !== v.me.zone) continue;
+          const corpse = e.kind === 'mob' && e.dead && e.skin && v.prof.skills.skinning;
+          if (!corpse && (e.kind !== 'object' || !e.node || !e.node.gather)) continue;
+          if (e.zone !== v.me.zone) continue;
           const d = Math.hypot(e.x - v.me.x, e.y - v.me.y);
-          if (d < best) { best = d; node = e; }
+          if (d < best) { best = d; node = corpse ? corpseNode(e) : e; }
         }
       }
       if (node) nodeCard(ctx, env, v, node, L.target, regions);
@@ -391,7 +465,9 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
         const sx = Math.max(0, Math.min(img.width - inner.w, Math.round((m.minimap.x / 16) * ppt - inner.w / 2)));
         const sy = Math.max(0, Math.min(img.height - inner.h, Math.round((m.minimap.y / 16) * ppt - inner.h / 2)));
         for (const e of v.snap.entities) {
-          if (e.kind !== 'object' || !e.node || !e.node.gather || e.node.gather.kind !== kind || e.zone !== m.minimap.zone) continue;
+          const isCorpse = kind === 'skin' && e.kind === 'mob' && e.dead && e.skin;
+          if (!isCorpse && (e.kind !== 'object' || !e.node || !e.node.gather || e.node.gather.kind !== kind)) continue;
+          if (e.zone !== m.minimap.zone) continue;
           const px = Math.round(inner.x + (e.x / 16) * ppt - sx), py = Math.round(inner.y + (e.y / 16) * ppt - sy);
           if (px < inner.x + 2 || py < inner.y + 2 || px >= inner.x + inner.w - 2 || py >= inner.y + inner.h - 2) continue;
           diamond(ctx, px, py);
@@ -405,12 +481,12 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
     if (kinds.length) {
       const [x, y] = spots[1];
       g.window(ctx, x, y, s, s, 'thin', kind ? 'violet' : 'slate', 0.95);
-      g.iconIn(ctx, kind === 'herb' ? 'pi_track_herb' : 'pi_track_ore', x, y, s, s, kind ? 1 : 0.45);
+      g.iconIn(ctx, kind === 'herb' ? 'pi_track_herb' : kind === 'skin' ? 'pi_track_skin' : 'pi_track_ore', x, y, s, s, kind ? 1 : 0.45);
       regions.push({ rect: { x, y, w: s, h: s }, kind: 'button', label: 'prof_track', on: () => {
         const order = [...kinds, 'off'];
         const cur = kind || 'off';
         setTrack(order[(order.indexOf(cur) + 1) % order.length]);
-      }, tip: { title: kind ? `Tracking ${kind === 'ore' ? 'ore' : 'herbs'}` : 'Tracking off', sub: 'Click to change what the minimap shows.' } });
+      }, tip: { title: kind ? `Tracking ${{ ore: 'ore', herb: 'herbs', skin: 'beasts to skin' }[kind]}` : 'Tracking off', sub: 'Click to change what the minimap shows.' } });
     }
     const [x, y] = spots[0];
     g.window(ctx, x, y, s, s, 'thin', st.open.has('prof') ? 'violet' : 'slate', 0.95);
@@ -432,7 +508,7 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
     const col = sk ? nodeColor(sk.v, gt.skill) : 'red';
     g.window(ctx, r.x, r.y, r.w, r.h, 'thin', 'blue', 0.95);
     g.window(ctx, r.x + 3, r.y + 3, 18, 18, 'thin', 'slate', 0.95);
-    g.iconIn(ctx, gt.kind === 'herb' ? 'pi_track_herb' : 'pi_track_ore', r.x + 3, r.y + 3, 18, 18);
+    g.iconIn(ctx, gt.kind === 'herb' ? 'pi_track_herb' : gt.kind === 'skin' ? 'pi_track_skin' : 'pi_track_ore', r.x + 3, r.y + 3, 18, 18);
     g.text(ctx, g.clip(node.name, r.w - 30), r.x + 25, r.y + 2, 'cream');
     g.text(ctx, `Needs ${name(gt.prof)} ${gt.skill}`, r.x + 25, r.y + 14, DIFF[col]);
     const word = sk ? ({ orange: 'Orange', yellow: 'Yellow', green: 'Green', gray: 'Gray', red: 'Too hard' })[col] : `No ${name(gt.prof)}`;

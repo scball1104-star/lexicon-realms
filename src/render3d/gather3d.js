@@ -99,7 +99,8 @@ export function gatherPick(a, e, L) {
 export function workClip(e) {
   const w = e.work;
   if (!w) return null;
-  if (w.kind === 'gather') return w.prof === 'herbalism' ? { name: 'Crouch_Idle_Loop', loop: true } : { name: 'Sword_Attack', loop: false, ts: 1.05 };
+  if (w.kind === 'gather') return w.prof === 'herbalism' || w.prof === 'skinning' ? { name: 'Crouch_Idle_Loop', loop: true } : { name: 'Sword_Attack', loop: false, ts: 1.05 };
+  if (w.kind === 'fish') return { name: 'Idle_Loop', loop: true };   // build step 2: stand and wait for a bite
   if (w.prof === 'smithing') return { name: 'Sword_Attack', loop: false, ts: 0.8 };
   return { name: 'Spell_Simple_Idle_Loop', loop: true };
 }

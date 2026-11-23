@@ -11,627 +11,1227 @@
    16,
    16
   ],
-  "pi_bandage": [
+  "pi_ash_carp": [
    16,
+   0,
+   16,
+   16
+  ],
+  "pi_ash_carp_curry": [
+   32,
+   0,
+   16,
+   16
+  ],
+  "pi_bandage": [
+   48,
+   0,
+   16,
+   16
+  ],
+  "pi_bell_carp": [
+   64,
+   0,
+   16,
+   16
+  ],
+  "pi_bell_carp_feast": [
+   80,
    0,
    16,
    16
   ],
   "pi_boar_ribs": [
-   32,
+   96,
    0,
    16,
    16
   ],
   "pi_boar_shank": [
-   48,
+   112,
    0,
    16,
    16
   ],
   "pi_book": [
-   64,
+   128,
    0,
    16,
    16
   ],
   "pi_bright_stone": [
-   80,
+   144,
    0,
    16,
    16
   ],
   "pi_bright_whetstone": [
-   96,
+   160,
+   0,
+   16,
+   16
+  ],
+  "pi_brook_minnow": [
+   176,
    0,
    16,
    16
   ],
   "pi_clear_tonic": [
-   112,
+   192,
+   0,
+   16,
+   16
+  ],
+  "pi_coarse_thread": [
+   208,
    0,
    16,
    16
   ],
   "pi_coarse_whetstone": [
-   128,
+   224,
    0,
    16,
    16
   ],
   "pi_cooking_salt": [
-   144,
-   0,
-   16,
-   16
-  ],
-  "pi_downs_mutton": [
-   160,
-   0,
-   16,
-   16
-  ],
-  "pi_elixir_of_barrow_stone": [
-   176,
-   0,
-   16,
-   16
-  ],
-  "pi_elixir_of_fold_stone": [
-   192,
-   0,
-   16,
-   16
-  ],
-  "pi_elixir_of_gloamfire": [
-   208,
-   0,
-   16,
-   16
-  ],
-  "pi_elixir_of_inkthorn": [
-   224,
-   0,
-   16,
-   16
-  ],
-  "pi_elixir_of_the_long_watch": [
    240,
    0,
    16,
    16
   ],
-  "pi_elixir_of_the_ram": [
+  "pi_downs_hide": [
    0,
+   16,
+   16,
+   16
+  ],
+  "pi_downs_mutton": [
+   16,
+   16,
+   16,
+   16
+  ],
+  "pi_downs_perch": [
+   32,
+   16,
+   16,
+   16
+  ],
+  "pi_drovers_quiver": [
+   48,
+   16,
+   16,
+   16
+  ],
+  "pi_elixir_of_barrow_stone": [
+   64,
+   16,
+   16,
+   16
+  ],
+  "pi_elixir_of_fold_stone": [
+   80,
+   16,
+   16,
+   16
+  ],
+  "pi_elixir_of_gloamfire": [
+   96,
+   16,
+   16,
+   16
+  ],
+  "pi_elixir_of_inkthorn": [
+   112,
+   16,
+   16,
+   16
+  ],
+  "pi_elixir_of_the_long_watch": [
+   128,
+   16,
+   16,
+   16
+  ],
+  "pi_elixir_of_the_ram": [
+   144,
    16,
    16,
    16
   ],
   "pi_elixir_of_the_uncounted": [
-   16,
+   160,
    16,
    16,
    16
   ],
   "pi_elixir_shepherds_coat": [
-   32,
+   176,
    16,
    16,
    16
   ],
   "pi_elixir_small_courage": [
-   48,
+   192,
+   16,
+   16,
+   16
+  ],
+  "pi_ember_armor_patch": [
+   208,
+   16,
+   16,
+   16
+  ],
+  "pi_ember_boar_loin": [
+   224,
+   16,
+   16,
+   16
+  ],
+  "pi_ember_boar_roast": [
+   240,
    16,
    16,
    16
   ],
   "pi_ember_garnet": [
-   64,
-   16,
-   16,
-   16
-  ],
-  "pi_ember_stone": [
-   80,
-   16,
-   16,
-   16
-  ],
-  "pi_embersteel_bar": [
-   96,
-   16,
-   16,
-   16
-  ],
-  "pi_embersteel_ore": [
-   112,
-   16,
-   16,
-   16
-  ],
-  "pi_empty_vial": [
-   128,
-   16,
-   16,
-   16
-  ],
-  "pi_field_stone": [
-   144,
-   16,
-   16,
-   16
-  ],
-  "pi_flask_of_the_hearth": [
-   160,
-   16,
-   16,
-   16
-  ],
-  "pi_flask_of_the_lantern": [
-   176,
-   16,
-   16,
-   16
-  ],
-  "pi_flask_of_the_last_lamp": [
-   192,
-   16,
-   16,
-   16
-  ],
-  "pi_flask_purple": [
-   208,
-   16,
-   16,
-   16
-  ],
-  "pi_fold_hotpot": [
-   224,
-   16,
-   16,
-   16
-  ],
-  "pi_food_stew": [
-   240,
-   16,
-   16,
-   16
-  ],
-  "pi_glass_sand": [
    0,
    32,
    16,
    16
   ],
-  "pi_gloam_draught": [
+  "pi_ember_hide": [
    16,
    32,
    16,
    16
   ],
-  "pi_gloam_dressing": [
+  "pi_ember_leather": [
    32,
    32,
    16,
    16
   ],
-  "pi_gloam_ether": [
+  "pi_ember_stone": [
    48,
    32,
    16,
    16
   ],
-  "pi_gloamcap": [
+  "pi_ember_whetstone": [
    64,
    32,
    16,
    16
   ],
-  "pi_gloamcap_soup": [
+  "pi_emberfin_salmon": [
    80,
    32,
    16,
    16
   ],
-  "pi_heavy_gloam_dressing": [
+  "pi_emberfin_salmon_steak": [
    96,
    32,
+   16,
+   16
+  ],
+  "pi_embersteel_bar": [
+   112,
+   32,
+   16,
+   16
+  ],
+  "pi_embersteel_ore": [
+   128,
+   32,
+   16,
+   16
+  ],
+  "pi_emberweave": [
+   144,
+   32,
+   16,
+   16
+  ],
+  "pi_emberweave_bandage": [
+   160,
+   32,
+   16,
+   16
+  ],
+  "pi_emberweave_bolt": [
+   176,
+   32,
+   16,
+   16
+  ],
+  "pi_emberweave_pack": [
+   192,
+   32,
+   16,
+   16
+  ],
+  "pi_empty_vial": [
+   208,
+   32,
+   16,
+   16
+  ],
+  "pi_field_stone": [
+   224,
+   32,
+   16,
+   16
+  ],
+  "pi_fine_thread": [
+   240,
+   32,
+   16,
+   16
+  ],
+  "pi_flask_of_the_hearth": [
+   0,
+   48,
+   16,
+   16
+  ],
+  "pi_flask_of_the_lantern": [
+   16,
+   48,
+   16,
+   16
+  ],
+  "pi_flask_of_the_last_lamp": [
+   32,
+   48,
+   16,
+   16
+  ],
+  "pi_flask_purple": [
+   48,
+   48,
+   16,
+   16
+  ],
+  "pi_fold_hotpot": [
+   64,
+   48,
+   16,
+   16
+  ],
+  "pi_food_stew": [
+   80,
+   48,
+   16,
+   16
+  ],
+  "pi_glass_sand": [
+   96,
+   48,
+   16,
+   16
+  ],
+  "pi_gloam_draught": [
+   112,
+   48,
+   16,
+   16
+  ],
+  "pi_gloam_dressing": [
+   128,
+   48,
+   16,
+   16
+  ],
+  "pi_gloam_eel": [
+   144,
+   48,
+   16,
+   16
+  ],
+  "pi_gloam_ether": [
+   160,
+   48,
+   16,
+   16
+  ],
+  "pi_gloam_ink": [
+   176,
+   48,
+   16,
+   16
+  ],
+  "pi_gloamcap": [
+   192,
+   48,
+   16,
+   16
+  ],
+  "pi_gloamcap_soup": [
+   208,
+   48,
+   16,
+   16
+  ],
+  "pi_gloamsilk": [
+   224,
+   48,
+   16,
+   16
+  ],
+  "pi_gloamsilk_bag": [
+   240,
+   48,
+   16,
+   16
+  ],
+  "pi_gloamsilk_bolt": [
+   0,
+   64,
+   16,
+   16
+  ],
+  "pi_grave_linen": [
+   16,
+   64,
+   16,
+   16
+  ],
+  "pi_grave_linen_bolt": [
+   32,
+   64,
+   16,
+   16
+  ],
+  "pi_grave_linen_satchel": [
+   48,
+   64,
+   16,
+   16
+  ],
+  "pi_grilled_minnows": [
+   64,
+   64,
+   16,
+   16
+  ],
+  "pi_heavy_gloam_dressing": [
+   80,
+   64,
+   16,
+   16
+  ],
+  "pi_heavy_lampsilk_bandage": [
+   96,
+   64,
    16,
    16
   ],
   "pi_heavy_mallow_poultice": [
    112,
-   32,
+   64,
    16,
    16
   ],
   "pi_heavy_wool_bandage": [
    128,
-   32,
+   64,
    16,
    16
   ],
   "pi_hedge_mallow": [
    144,
-   32,
+   64,
    16,
    16
   ],
   "pi_hide_strip_bandage": [
    160,
-   32,
+   64,
+   16,
+   16
+  ],
+  "pi_hollowfang_pelt": [
+   176,
+   64,
    16,
    16
   ],
   "pi_honey_flatbread": [
-   176,
-   32,
+   192,
+   64,
+   16,
+   16
+  ],
+  "pi_hunters_quiver": [
+   208,
+   64,
    16,
    16
   ],
   "pi_ink_slate": [
-   192,
-   32,
+   224,
+   64,
    16,
    16
   ],
   "pi_inkslate_whetstone": [
-   208,
-   32,
+   240,
+   64,
    16,
    16
   ],
   "pi_inksteel_bar": [
-   224,
-   32,
+   0,
+   80,
    16,
    16
   ],
   "pi_inkstone": [
-   240,
-   32,
+   16,
+   80,
    16,
    16
   ],
   "pi_inkthorn": [
-   0,
-   48,
+   32,
+   80,
    16,
    16
   ],
   "pi_inkthorn_draught": [
-   16,
    48,
+   80,
    16,
    16
   ],
   "pi_inkthorn_dressing": [
-   32,
-   48,
+   64,
+   80,
    16,
    16
   ],
   "pi_inkthorn_ether": [
-   48,
-   48,
+   80,
+   80,
+   16,
+   16
+  ],
+  "pi_inkthorn_ink": [
+   96,
+   80,
    16,
    16
   ],
   "pi_iron_bar": [
-   64,
-   48,
+   112,
+   80,
    16,
    16
   ],
   "pi_iron_ore": [
+   128,
    80,
-   48,
+   16,
+   16
+  ],
+  "pi_knife": [
+   144,
+   80,
+   16,
+   16
+  ],
+  "pi_lampback_armor_patch": [
+   160,
+   80,
+   16,
+   16
+  ],
+  "pi_lampback_hide": [
+   176,
+   80,
+   16,
+   16
+  ],
+  "pi_lampback_leather": [
+   192,
+   80,
+   16,
+   16
+  ],
+  "pi_lampback_venison": [
+   208,
+   80,
+   16,
+   16
+  ],
+  "pi_lampfin": [
+   224,
+   80,
+   16,
+   16
+  ],
+  "pi_lampfin_fry": [
+   240,
+   80,
    16,
    16
   ],
   "pi_lamplighters_oil": [
+   0,
    96,
+   16,
+   16
+  ],
+  "pi_lamplit_silk": [
+   16,
+   96,
+   16,
+   16
+  ],
+  "pi_lampsilk": [
+   32,
+   96,
+   16,
+   16
+  ],
+  "pi_lampsilk_bag": [
    48,
+   96,
+   16,
+   16
+  ],
+  "pi_lampsilk_bandage": [
+   64,
+   96,
+   16,
+   16
+  ],
+  "pi_lampsilk_bolt": [
+   80,
+   96,
    16,
    16
   ],
   "pi_lampsilver_bar": [
-   112,
-   48,
+   96,
+   96,
    16,
    16
   ],
   "pi_lampsilver_ore": [
+   112,
+   96,
+   16,
+   16
+  ],
+  "pi_lantern_bearers_quiver": [
    128,
-   48,
+   96,
+   16,
+   16
+  ],
+  "pi_lantern_carp": [
+   144,
+   96,
    16,
    16
   ],
   "pi_lantern_feast": [
-   144,
-   48,
+   160,
+   96,
    16,
    16
   ],
   "pi_lantern_glass_vial": [
-   160,
-   48,
+   176,
+   96,
    16,
    16
   ],
   "pi_lantern_opal": [
-   176,
-   48,
+   192,
+   96,
    16,
    16
   ],
   "pi_last_lamp_oil": [
-   192,
+   208,
+   96,
+   16,
+   16
+  ],
+  "pi_light_armor_patch": [
+   224,
+   96,
+   16,
+   16
+  ],
+  "pi_light_leather": [
+   240,
+   96,
+   16,
+   16
+  ],
+  "pi_linen_bolt": [
+   0,
+   112,
+   16,
+   16
+  ],
+  "pi_linen_pouch": [
+   16,
+   112,
+   16,
+   16
+  ],
+  "pi_linen_rag": [
+   32,
+   112,
+   16,
+   16
+  ],
+  "pi_loach_cakes": [
    48,
+   112,
    16,
    16
   ],
   "pi_mallow_draught": [
-   208,
-   48,
+   64,
+   112,
    16,
    16
   ],
   "pi_mallow_ether": [
-   224,
-   48,
+   80,
+   112,
+   16,
+   16
+  ],
+  "pi_mallow_ink": [
+   96,
+   112,
    16,
    16
   ],
   "pi_mallow_poultice": [
-   240,
-   48,
+   112,
+   112,
    16,
    16
   ],
   "pi_mallow_roast": [
-   0,
-   64,
+   128,
+   112,
+   16,
+   16
+  ],
+  "pi_mirror_trout": [
+   144,
+   112,
+   16,
+   16
+  ],
+  "pi_mirror_trout_bake": [
+   160,
+   112,
+   16,
+   16
+  ],
+  "pi_mist_armor_patch": [
+   176,
+   112,
+   16,
+   16
+  ],
+  "pi_mist_hide": [
+   192,
+   112,
+   16,
+   16
+  ],
+  "pi_mist_leather": [
+   208,
+   112,
    16,
    16
   ],
   "pi_mist_wolf_haunch": [
+   224,
+   112,
    16,
-   64,
+   16
+  ],
+  "pi_mistweave": [
+   240,
+   112,
    16,
    16
   ],
   "pi_mistwolf_steak": [
-   32,
-   64,
+   0,
+   128,
    16,
    16
   ],
   "pi_moor_hunters_pie": [
-   48,
-   64,
+   16,
+   128,
    16,
    16
   ],
   "pi_moorstar": [
-   64,
-   64,
+   32,
+   128,
    16,
    16
   ],
   "pi_moorstar_draught": [
-   80,
-   64,
+   48,
+   128,
    16,
    16
   ],
   "pi_moorstar_ether": [
-   96,
    64,
+   128,
+   16,
+   16
+  ],
+  "pi_moorstar_ink": [
+   80,
+   128,
+   16,
+   16
+  ],
+  "pi_mudge_bristle": [
+   96,
+   128,
    16,
    16
   ],
   "pi_mutton_pie": [
    112,
-   64,
+   128,
    16,
    16
   ],
   "pi_pattern": [
    128,
-   64,
+   128,
    16,
    16
   ],
   "pi_pattern_gold": [
    144,
-   64,
+   128,
    16,
    16
   ],
   "pi_peat_smoked_bacon": [
    160,
-   64,
+   128,
+   16,
+   16
+  ],
+  "pi_perch_chowder": [
+   176,
+   128,
+   16,
+   16
+  ],
+  "pi_perfect_pelt": [
+   192,
+   128,
    16,
    16
   ],
   "pi_pick": [
-   176,
-   64,
+   208,
+   128,
    16,
    16
   ],
   "pi_pot_of_honey": [
-   192,
-   64,
+   224,
+   128,
+   16,
+   16
+  ],
+  "pi_ragged_hide": [
+   240,
+   128,
+   16,
+   16
+  ],
+  "pi_reeves_shroud": [
+   0,
+   144,
    16,
    16
   ],
   "pi_roast_wolf_haunch": [
-   208,
-   64,
+   16,
+   144,
+   16,
+   16
+  ],
+  "pi_rootwater_dace": [
+   32,
+   144,
    16,
    16
   ],
   "pi_rough_whetstone": [
-   224,
-   64,
+   48,
+   144,
    16,
    16
   ],
   "pi_rubble_stone": [
-   240,
    64,
+   144,
    16,
    16
   ],
   "pi_sack_of_flour": [
-   0,
    80,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_might_i": [
+   96,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_might_ii": [
+   112,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_might_iii": [
+   128,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_might_iv": [
+   144,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_might_v": [
+   160,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_the_tarn_bell": [
+   176,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_vigor_i": [
+   192,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_vigor_ii": [
+   208,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_vigor_iii": [
+   224,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_vigor_iv": [
+   240,
+   144,
+   16,
+   16
+  ],
+  "pi_scroll_of_vigor_v": [
+   0,
+   160,
    16,
    16
   ],
   "pi_second_wind_draught": [
    16,
-   80,
+   160,
    16,
    16
   ],
   "pi_shepherds_supper": [
    32,
-   80,
+   160,
    16,
    16
   ],
   "pi_sickle": [
    48,
-   80,
+   160,
    16,
    16
   ],
   "pi_smith_flux": [
    64,
+   160,
+   16,
+   16
+  ],
+  "pi_smoked_gloam_eel": [
    80,
+   160,
    16,
    16
   ],
   "pi_smoked_haunch": [
-   80,
-   80,
+   96,
+   160,
+   16,
+   16
+  ],
+  "pi_smugglers_oilcloth": [
+   112,
+   160,
+   16,
+   16
+  ],
+  "pi_starfin": [
+   128,
+   160,
    16,
    16
   ],
   "pi_starseed": [
-   96,
-   80,
+   144,
+   160,
+   16,
+   16
+  ],
+  "pi_stone_loach": [
+   160,
+   160,
    16,
    16
   ],
   "pi_tally_iron": [
-   112,
-   80,
+   176,
+   160,
+   16,
+   16
+  ],
+  "pi_tally_vellum": [
+   192,
+   160,
+   16,
+   16
+  ],
+  "pi_tanners_salt": [
+   208,
+   160,
+   16,
+   16
+  ],
+  "pi_tarn_bell_wax": [
+   224,
+   160,
+   16,
+   16
+  ],
+  "pi_tarn_pike": [
+   240,
+   160,
+   16,
+   16
+  ],
+  "pi_tarn_pike_steak": [
+   0,
+   176,
+   16,
+   16
+  ],
+  "pi_thick_armor_patch": [
+   16,
+   176,
+   16,
+   16
+  ],
+  "pi_thick_leather": [
+   32,
+   176,
    16,
    16
   ],
   "pi_thornback_chili": [
-   128,
-   80,
+   48,
+   176,
    16,
    16
   ],
   "pi_thornback_flank": [
-   144,
-   80,
+   64,
+   176,
    16,
    16
   ],
   "pi_thornback_skewers": [
-   160,
    80,
+   176,
    16,
    16
   ],
   "pi_tin_bar": [
+   96,
    176,
-   80,
    16,
    16
   ],
   "pi_tin_ore": [
-   192,
-   80,
+   112,
+   176,
    16,
    16
   ],
   "pi_track_herb": [
-   208,
-   80,
+   128,
+   176,
    16,
    16
   ],
   "pi_track_ore": [
-   224,
-   80,
+   144,
+   176,
+   16,
+   16
+  ],
+  "pi_track_skin": [
+   160,
+   176,
+   16,
+   16
+  ],
+  "pi_trout_on_a_stick": [
+   176,
+   176,
    16,
    16
   ],
   "pi_undying_wick": [
-   240,
-   80,
+   192,
+   176,
    16,
    16
   ],
   "pi_valley_stew": [
+   208,
+   176,
+   16,
+   16
+  ],
+  "pi_vellum_scrap": [
+   224,
+   176,
+   16,
+   16
+  ],
+  "pi_vellum_sheet": [
+   240,
+   176,
+   16,
+   16
+  ],
+  "pi_venison_stew": [
    0,
-   96,
+   192,
+   16,
+   16
+  ],
+  "pi_watch_vellum": [
+   16,
+   192,
    16,
    16
   ],
   "pi_watchmans_breakfast": [
+   32,
+   192,
    16,
-   96,
+   16
+  ],
+  "pi_wayfarers_great_quiver": [
+   48,
+   192,
    16,
    16
   ],
   "pi_wayleaf": [
-   32,
-   96,
+   64,
+   192,
    16,
    16
   ],
   "pi_wayleaf_antidote": [
-   48,
-   96,
+   80,
+   192,
    16,
    16
   ],
   "pi_wayleaf_flatbread": [
-   64,
    96,
+   192,
+   16,
+   16
+  ],
+  "pi_wayleaf_ink": [
+   112,
+   192,
    16,
    16
   ],
   "pi_wayleaf_tonic": [
-   80,
-   96,
+   128,
+   192,
    16,
    16
   ],
   "pi_wick_iron": [
-   96,
-   96,
+   144,
+   192,
+   16,
+   16
+  ],
+  "pi_willow_trout": [
+   160,
+   192,
    16,
    16
   ],
   "pi_wolf_haunch": [
-   112,
-   96,
+   176,
+   192,
    16,
    16
   ],
   "pi_wool_bandage": [
-   128,
-   96,
+   192,
+   192,
    16,
    16
   ]

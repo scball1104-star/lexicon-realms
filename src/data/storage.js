@@ -24,8 +24,8 @@ export const LANTERN_CHESTS = Object.freeze([
 ]);
 
 // Glyphs (BUILDS_2 6.4): letter stones. They take no bag slot: they go to the glyph pouch (one stack per letter, A to Z,
-// no limit), like quest items go to the quest bag. Socketing and spelled words are a later build; the stat numbers are
-// left to the Builds 2 balance pass, so a glyph's card shows the rule only. No drops are wired yet (dev hook only).
+// no limit), like quest items go to the quest bag. Margins, socketing, spelled words, the draft stat numbers and the
+// drops are in src/data/glyphs.js and src/sim/glyphs.js (Inscriptions).
 export const VOWELS = 'AEIOU';
 export const GLYPH_WORDS = Object.freeze({ ASH: 'weapon', VOW: 'shield or off hand', SUN: 'rod or bow', INK: 'dagger or quill', OAK: 'chest', GO: 'feet', HUSH: 'weapon' });
 /** The item records for the 26 glyphs (items.js adds them to ITEMS). */

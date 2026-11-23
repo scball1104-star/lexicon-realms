@@ -84,6 +84,18 @@ export function createData(content) {
     const base = abilities[id];
     if (!base) return null;
     if (!e || e.kind !== 'player') return base;
+    if (e.moveCharges) return moreCharges(e, abilityOf(e, id, base));   // Inscriptions: GO, one more charge on a movement skill
+    return abilityOf(e, id, base);
+  }
+  const moved = new WeakMap();
+  function moreCharges(e, ab) {
+    if (!ab || !ab.cooldown || !(ab.effects || []).some((f) => f && f.type === 'move')) return ab;
+    let m = moved.get(ab);
+    if (!m) moved.set(ab, (m = {}));
+    if (!m[e.moveCharges]) m[e.moveCharges] = { ...ab, charges: (ab.charges || 1) + e.moveCharges };
+    return m[e.moveCharges];
+  }
+  function abilityOf(e, id, base) {
     const info = talentInfo(e);
     if (!info.patches[id]) return base;
     if (!info.eff[id]) {

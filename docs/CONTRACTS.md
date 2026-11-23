@@ -1346,3 +1346,20 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `flight { from, to, start, end, k, up }` while flying (`up` 0..1: off the ground). Friends' frames keep them.
 - **Content.** `content.travel = { stone, inns, defaultHome, flight, routes }` (`src/data/travel.js travelContent`);
   `content.startRealms`; the Rootbound's foes, people, items, 14 quests (`sideQuests`), rare (`src/data/rootbound.js`).
+
+## Professions step 2 and Inscriptions (2026-11-22, wave 3 lane prof2)
+
+- Data: `src/data/professions2.js` (Skinning, Leatherwork, Tailoring, Inscription, Fishing; the 90 to 150 recipes;
+  cloth, hide and fish tables; the Willowmere trainers Hesper, Maudie, Old Fen, Corwen; boss Patterns of all five
+  places), merged by `src/data/professions.js`. `content.professions` gains `skin`, `cloth`, `meatFallback`, `fish`.
+- Commands: `prof_fish {}` (cast at water within 5 tiles); `prof_craft { recipe, qty, letter }` (a recipe with
+  `letters` makes `glyph_<letter>` to order); `interact` on a dead mob whose snapshot has `skin: { skill }` skins it.
+  `state.prof.skinned` lists skinned corpses. Work kind `fish` (workView `at` = the water tile). New fail reasons:
+  `not_skinnable`, `no_water`, `got_away`, `combat`, `bad_letter`.
+- Inscriptions (BUILDS_2 6.4): `src/data/glyphs.js` (`content.glyphs`), `src/sim/glyphs.js`. A weapon or armor bag
+  slot gets `inst.margins` the first time it enters a bag (from a hash of item and uid, no rng); `inst.glyphs` holds
+  the letters in margin order. Commands `glyph_socket { uid | equip, index, letter }` and `glyph_remove { uid | equip,
+  index, npc }` (a smith, for gold). Events `glyph`, `glyph_fail` (private). HUD item views carry `glyph`
+  ({ margins, glyphs, word, wordText, letterText, draft }). stats.js reads worn letters and words into `e.glyphPw`
+  (power records: mods, procs, `immune`, `moveCharges`); combat adds the `absorb` proc trigger and the
+  `interruptLock` mod; data.js `ability()` adds `e.moveCharges` to a movement skill's charges.
