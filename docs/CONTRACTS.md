@@ -1514,3 +1514,26 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `qa/sim/builds2.mjs`), takes the sim's quest order (chain, bounties, side quests; dungeon quests only with
   `opts.dungeons`), hunts a kill objective in its region, and `qa/bot/lib/nav.mjs` never steps on a dungeon door it is not
   going to and routes a copy (`place#key`) as its place.
+
+## The creature kit: every foe's 3D body (2026-11-23, LIVE; Scott approved the stills: "Ok to go ahead")
+
+- **Kit.** `src/render3d/creature_kit.js` `buildCreature(THREE, recipe)` -> `{ o, height, update(dt, st), mats, lights,
+  release() }`, the same body contract as `createCreature` (st: `{ t, moving, speed, attackT, hurtT, deadT, cast }`).
+  Bodies: quadruped, insect, biped (rock golems), humanoid (people and ghosts), serpent, flyer (birds; insects with
+  `proportions.insect`), blob, lantern, book, vortex. `rig()` merges every mesh into one rigidly skinned mesh per material
+  whose bones are the pivots the animation moves; merged geometry is cached by recipe id (`geometry.userData.shared`,
+  freed least recently used past 40 recipes once no foe of it is out, via `release()` in `actors.js detach`), canvas
+  textures by content (256 px body, 128 px limbs). Hurt is a short warm rim, not a tint.
+- **Recipes.** `src/render3d/creature_recipes.js` `RECIPES[templateId]` for every mob template (110), `ZONES` for the
+  lineup stills. `createCreature(L, template, sprite, { elite, rank, kit = true })` builds from the recipe when one
+  exists (its `size` already says rare or elite: no extra scale), else the old `familyOf` path (kept, with the GLB
+  loader). `qa/tests/creature_kit.test.mjs` checks every template has a recipe and every recipe builds headless.
+- **Stills.** `python tools/art/creature_kit/stills.py --zones all` -> `qa/out/creature_kit/zone_<zone>.png` (every foe
+  of a zone at in-game size); `--solo <id>` close-ups.
+- **Humanoid foes** (2026-11-23, second pass): every `body: 'humanoid'` recipe is built by `src/render3d/foe_human.js`
+  `buildHumanFoe(L, THREE, recipe)` on the heroes' rigged human (`hero.js assemble`, shared glTF via SkeletonUtils.clone,
+  `recipe.human` = base, outfit, hair, `cracks` glow; dyes from the palette) with the kit's dress
+  (`buildCreature(THREE, { ...recipe, piecesOnly: true })` -> pieces hung on `Head`, `hand_*`, `lowerarm_*`,
+  `upperarm_*`, `pelvis`, `spine_03`, all one skinned mesh per material) and the library clips (idle, walk, jog, attack,
+  hit, death). Ghosts: see-through body, legs hidden under the kit hem, a depth-only pass first. Body `family: 'human'`
+  (actors.js detach keeps its shared glTF geometry). If its files fail, createCreature falls back to the kit body.

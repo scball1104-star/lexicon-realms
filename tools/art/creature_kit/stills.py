@@ -1,6 +1,9 @@
 """Render the three creature-kit approval stills (Playwright + Chromium, GPU flags), 1600x900 each.
 
     python tools/art/creature_kit/stills.py [--port 8796] [--timeout 240]
+    python tools/art/creature_kit/stills.py --zones valley,downs     zone lineups: every foe of each zone at in-game
+                                                                    size (qa/out/creature_kit/zone_<zone>.png); --zones all
+    python tools/art/creature_kit/stills.py --solo nh_raven          close-ups by recipe key or mob id (solo_<key>.png)
 
 Starts tools/dev/serve.py on --port (and stops it after) unless something already answers there. Writes
 qa/out/creature_kit/still1_before_after.png, still2_lineup.png, still3_motion.png. Every wait is bounded.
@@ -17,6 +20,8 @@ import urllib.request
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 OUT = os.path.join(ROOT, 'qa', 'out', 'creature_kit')
 GPU_ARGS = ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-gpu-rasterization']
+ALL_ZONES = ['valley', 'cellars', 'downs', 'barrow', 'moor', 'watchtower', 'rootbound', 'emberpeak', 'valewyn', 'saffron', 'hollow',
+             'larchhill', 'drovers', 'deep']
 SHOTS = [('before_after', 'still1_before_after.png'), ('lineup', 'still2_lineup.png'), ('motion', 'still3_motion.png')]
 
 
@@ -34,6 +39,8 @@ def main():
     ap.add_argument('--timeout', type=int, default=240)
     ap.add_argument('--only', default='')
     ap.add_argument('--solo', default='', help='comma list of recipe keys: close-up inspection shots (solo_<key>.png)')
+    ap.add_argument('--zones', default='', help='comma list of zones (src/render3d/creature_recipes.js ZONES) or all')
+    ap.add_argument('--pose', default='idle', help='zone lineups: idle, walk or attack')
     a = ap.parse_args()
     os.makedirs(OUT, exist_ok=True)
     # hard ceiling on the whole run
@@ -56,7 +63,12 @@ def main():
         from playwright.sync_api import sync_playwright
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True, args=GPU_ARGS, timeout=30000)
-            shots = [(f'solo&key={k}', f'solo_{k}.png') for k in a.solo.split(',') if k] if a.solo else SHOTS
+            zones = a.zones.split(',') if a.zones and a.zones != 'all' else ALL_ZONES if a.zones == 'all' else []
+            if zones:
+                suf = '' if a.pose == 'idle' else '_' + a.pose
+                shots = [(f'zone&z={z}&pose={a.pose}', f'zone_{z}{suf}.png') for z in zones if z]
+            else:
+                shots = [(f'solo&key={k}', f'solo_{k}.png') for k in a.solo.split(',') if k] if a.solo else SHOTS
             for scene, fname in shots:
                 if a.only and a.only != scene:
                     continue

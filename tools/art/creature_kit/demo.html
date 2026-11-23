@@ -20,7 +20,8 @@
 <script type="module">
 import * as THREE from '../../../src/vendor/three/three.module.min.js';
 import { buildCreature } from './creature_kit.js';
-import { RECIPES } from './recipes.js';
+import { RECIPES, MAP, ZONES } from './recipes.js';
+import { RoomEnvironment } from '../../../src/vendor/three/addons/environments/RoomEnvironment.js';
 
 const q = new URLSearchParams(location.search);
 const scene = q.get('scene') || 'lineup';
@@ -47,6 +48,9 @@ const GRASS = grassTex();
 function stage(center = new THREE.Vector3(), span = 6) {
   const s = new THREE.Scene();
   s.background = new THREE.Color('#9fb8c8'); s.fog = new THREE.Fog('#9fb8c8', 14, 34);
+  // the game's soft room light for metals (src/render3d/renderer3d.js: a RoomEnvironment at a low intensity)
+  if (!stage.env) stage.env = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+  s.environment = stage.env; s.environmentIntensity = 0.25;
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: GRASS, roughness: 1 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
   s.add(new THREE.HemisphereLight('#dfeeff', '#4a5a30', 1.25));
@@ -87,7 +91,7 @@ async function beforeAfter() {
     const bodies = [];
     for (let i = 0; i < 3; i++) {
       const r = byKey[keys[i]];
-      const b = side === 'old' ? await createCreature(L, r.template, r.sprite, {}) : buildCreature(THREE, r);
+      const b = side === 'old' ? await createCreature(L, r.template, r.sprite, { kit: false }) : buildCreature(THREE, r);
       b.o.position.set(xs[i], 0, i === 1 ? 0.5 : 0); b.o.rotation.y = 0.55;
       s.add(b.o); bodies.push({ b, r });
       pose(b, 2.0, (t) => ({ t, moving: false, speed: 0 }));
@@ -101,6 +105,44 @@ async function beforeAfter() {
   });
   caption('Today (code-built families)', 24, 20); caption('Creature kit', 824, 20);
   const d = document.createElement('div'); d.className = 'div'; wrap.appendChild(d);
+}
+
+
+async function zoneLineup() {
+  // every foe of a zone at its real in-game size, in rows, named; plain foes first, rares and elites after
+  const z = q.get('z') || 'valley';
+  const { buildContent } = await import('../../../src/data/maps/index.js');
+  const C = buildContent();
+  const ids = ZONES[z] || [];
+  const { createCreature } = await import('../../../src/render3d/creatures.js');
+  const { createLoader } = await import('../../../src/render3d/loader.js');
+  const L = createLoader('../../../assets3d/');
+  const built = await Promise.all(ids.map((id) => (MAP[id].body === 'humanoid' && q.get('kitonly') !== '1' ? createCreature(L, id, id) : Promise.resolve(buildCreature(THREE, MAP[id])))));
+  const bodies = ids.map((id, i) => { const b = built[i]; const bb = new THREE.Box3(); b.o.updateMatrixWorld(true); b.o.traverse((m) => { if (m.isSkinnedMesh) { m.geometry.computeBoundingBox(); bb.union(m.geometry.boundingBox.clone()); } }); return { id, b, w: Math.max(1.25, bb.max.x - bb.min.x, (bb.max.z - bb.min.z) * 0.55) }; });
+  const perRow = bodies.length > 8 ? Math.ceil(bodies.length / 2) : bodies.length > 5 ? Math.ceil(bodies.length / 2) : bodies.length;
+  const rows = []; for (let i = 0; i < bodies.length; i += perRow) rows.push(bodies.slice(i, i + perRow));
+  const s = stage(new THREE.Vector3(0, 0, 0), 10);
+  let maxW = 0; const rowZ = rows.length === 1 ? [0] : [-1.9, 2.0];
+  rows.forEach((row, ri) => {
+    const tw = row.reduce((a, x) => a + x.w + 0.55, -0.55); maxW = Math.max(maxW, tw);
+    let x = -tw / 2;
+    for (const it of row) { it.x = x + it.w / 2; it.z = rowZ[ri]; x += it.w + 0.55; }
+  });
+  const tallest = Math.max(...bodies.map((it) => it.b.height));
+  const cam = new THREE.PerspectiveCamera(30, W / Hh, 0.1, 200);
+  const dist = Math.max(5.5, maxW * 1.32, tallest * 2.6);
+  s.fog.near = dist * 1.6; s.fog.far = dist * 3.5;
+  cam.position.set(0, dist * 0.36 + tallest * 0.35, dist + (rows.length > 1 ? 2.2 : 0)); cam.lookAt(0, tallest * 0.32, rows.length > 1 ? 0.3 : 0);
+  for (const it of bodies) {
+    it.b.o.position.set(it.x, 0, it.z); it.b.o.rotation.y = 0.5; s.add(it.b.o);
+    pose(it.b, 2.3 + it.x * 0.07, (t) => ({ t, moving: q.get('pose') === 'walk', speed: 2, attackT: q.get('pose') === 'attack' ? 2.1 : null }));
+  }
+  renderer.render(s, cam);
+  for (const it of bodies) {
+    const m = C.mobs[it.id]; const lv = m && m.level ? (m.level[0] === m.level[1] ? m.level[0] : m.level.join('-')) : '';
+    const d = label(`${m ? m.name : it.id} (${lv})${m && m.elite ? ' elite' : ''}`, new THREE.Vector3(it.x, -0.05, it.z + 0.75), cam); d.style.fontSize = '15px';
+  }
+  caption(`${z}: ${bodies.length} foes at in-game size`, 20, 840);
 }
 
 function lineup() {
@@ -154,13 +196,17 @@ function motion() {
   const b2 = document.createElement('div'); b2.style.cssText = 'position:absolute;left:0;top:449px;width:1600px;height:2px;background:#fff6e0;opacity:.7'; wrap.appendChild(b2);
 }
 
-function solo() {
-  // inspection: one creature from two angles
-  const r = byKey[q.get('key') || 'ash_hound'];
+async function solo() {
+  // inspection: one creature from two angles (humanoids on the rigged human, as in the game)
+  const r = byKey[q.get('key') || 'ash_hound'] || MAP[q.get('key')];
+  const { createCreature } = await import('../../../src/render3d/creatures.js');
+  const { createLoader } = await import('../../../src/render3d/loader.js');
+  const L = createLoader('../../../assets3d/');
+  const two = r.body === 'humanoid' && q.get('kitonly') !== '1' ? await Promise.all([0, 1].map(() => createCreature(L, r.id, r.id))) : [buildCreature(THREE, r), buildCreature(THREE, r)];
   renderer.setScissorTest(true);
   [0.6, 2.4].forEach((ry, i) => {
     const s = stage(new THREE.Vector3(), 3);
-    const b = buildCreature(THREE, r); b.o.rotation.y = ry; s.add(b.o);
+    const b = two[i]; b.o.rotation.y = ry; s.add(b.o);
     pose(b, 2.0, (t) => ({ t, moving: q.get('moving') === '1', speed: 2 }));
     const h = Math.max(0.6, b.height);
     const cam = new THREE.PerspectiveCamera(30, 800 / 900, 0.1, 100);
@@ -170,9 +216,10 @@ function solo() {
 }
 
 try {
-  if (scene === 'solo') solo();
+  if (scene === 'solo') await solo();
   else if (scene === 'before_after') await beforeAfter();
   else if (scene === 'motion') motion();
+  else if (scene === 'zone') await zoneLineup();
   else lineup();
   window.__kit = { ready: true };
 } catch (e) {
