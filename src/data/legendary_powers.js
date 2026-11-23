@@ -47,6 +47,22 @@ export const LEGENDARY_POWERS = Object.freeze({
       { type: 'aura', to: 'self', aura: { id: 'lg_mistwalk', name: 'Mistwalk', icon: 'inkblade_fade', kind: 'buff', duration: 3, hitCharges: 1,
         mods: [{ stat: 'speed', add: 0.3 }, { stat: 'damageDone', mul: 1.2 }] } }] })),
   },
+  // the Barrow Deep Halls (cap 30, src/data/gear_tier3.js)
+  kings_due: {
+    id: 'kings_due', name: "The Barrow-King's Due",
+    text: "Power, The Barrow-King's Due: your direct hits have a 12% chance to take the king's due. The foe takes 14 shadow damage plus 2.2 a level, and you mend for half as much. At most once every 4 s.",
+    procs: [{ on: 'hit', direct: true, chance: 0.12, icd: 4, effects: [
+      { type: 'damage', to: 'target', amount: { base: 14, perLevel: 2.2 }, school: 'shadow', canCrit: false, ability: 'lg_kings_due' },
+      { type: 'heal', to: 'self', amount: { base: 7, perLevel: 1.1 }, canCrit: false, noThreat: true, ability: 'lg_kings_due' }] }],
+  },
+  drovers_horn: {
+    id: 'drovers_horn', name: "The Drovers' Horn",
+    text: "Power, The Drovers' Horn: +4% move speed. Each skill or spell you use has a 10% chance to sound the horn: you and friends within 6 tiles deal 10% more damage for 6 s. At most once every 15 s.",
+    mods: [{ stat: 'speed', add: 0.04 }],
+    procs: [{ on: 'cast', chance: 0.1, icd: 15, effects: [
+      { type: 'aura', to: 'allies_near', radius: 96, aura: { id: 'lg_drovers_horn', name: "Drovers' Horn", icon: 'icon_haste', kind: 'buff', duration: 6, mods: [{ stat: 'damageDone', mul: 1.1 }] } },
+      { type: 'aura', to: 'self', aura: { id: 'lg_drovers_horn', name: "Drovers' Horn", icon: 'icon_haste', kind: 'buff', duration: 6, mods: [{ stat: 'damageDone', mul: 1.1 }] } }] }],
+  },
 });
 
 /** Log and tooltip names of the powers' own ability ids (src/ui/gamedata.js abilityName). */
@@ -54,4 +70,5 @@ export const POWER_ABILITY_NAMES = Object.freeze({
   lg_reeves_count: { id: 'lg_reeves_count', name: "The Reeve's Count" },
   lg_last_toll: { id: 'lg_last_toll', name: 'The Last Toll' },
   lg_last_wick: { id: 'lg_last_wick', name: 'The Last Wick' },
+  lg_kings_due: { id: 'lg_kings_due', name: "The Barrow-King's Due" },
 });

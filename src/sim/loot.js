@@ -128,7 +128,9 @@ export function rollAffixes(ctx, slot, ilvl, rarity) {
   const rar = (ctx.content.rarity || {})[rarity];
   if (!rar || !rar.affixes || rar.affixes[1] === 0) return [];
   const A = ctx.content.affixes;
-  const tier = Math.max(1, Math.min(5, Math.ceil(ilvl / 3)));
+  // the tier by ilvl (DROP_RULES.affixTierTop: cap 30 adds tiers 6 to 8 above ilvl 20); an affix without that tier uses its top
+  const tops = (ctx.content.dropRules || {}).affixTierTop;
+  const tier = Array.isArray(tops) ? Math.max(1, (tops.findIndex((t) => ilvl <= t) + 1) || tops.length) : Math.max(1, Math.min(5, Math.ceil(ilvl / 3)));
   const want = ctx.rng.int(rar.affixes[0], rar.affixes[1]);
   const out = [];
   let pre = 0, suf = 0;
@@ -137,7 +139,7 @@ export function rollAffixes(ctx, slot, ilvl, rarity) {
     const left = pool.filter((id) => !out.some((o) => o.id === id) && (A[id].kind === 'prefix' ? pre < rar.prefixMax : suf < rar.suffixMax));
     if (!left.length) break;
     const id = left[ctx.rng.int(0, left.length - 1)];
-    const [lo, hi] = A[id].values[tier - 1];
+    const [lo, hi] = A[id].values[Math.min(tier, A[id].values.length) - 1];
     const value = Number.isInteger(lo) && Number.isInteger(hi) ? ctx.rng.int(lo, hi) : lo;
     out.push({ id, value });
     if (A[id].kind === 'prefix') pre++; else suf++;
@@ -205,6 +207,11 @@ export function rollKill(ctx, mob, player) {
   // BUILDS_2 6.8 drop pacing (src/data/items.js DROP_RULES.bands): the dropper's level picks the band; else the flat rule
   const rule = bandRule(C.dropRules, source, L) || C.dropRules[source];
   if (ctx.rng.chance(rule.gearChance)) out.items.push(rollGear(ctx, { ilvl: L, source, cls: player ? player.cls : null, rarity: weighted(ctx.rng, rule.weights) }));
+  // cap 30 gear tier (src/data/gear_tier3.js): a named piece of the dropper's level band, now and then
+  for (const nb of C.dropRules.named || []) {
+    if (L < nb.from || L > nb.to || !nb.items.length) continue;
+    if (ctx.rng.chance(nb.chance)) out.items.push({ item: nb.items[ctx.rng.int(0, nb.items.length - 1)], qty: 1 });
+  }
   return out;
 }
 

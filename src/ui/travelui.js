@@ -31,6 +31,7 @@ export function createTravelUi({ font, content }) {
       case 'flight_start': return `The Lantern Kite takes you to ${ev.name}. (${ev.cost} gold)`;
       case 'flight_end': return `You land at ${ev.name}.`;
       case 'inventory_fail': return ev.item === 'lantern_stone' ? STONE_FAIL[ev.reason] || null : null;
+      case 'door_locked': return `The stair will not open for you. It waits for a hero of level ${ev.need}.`;   // cap 30: a level-gated door
       default: return null;
     }
   }

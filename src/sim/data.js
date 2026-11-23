@@ -26,10 +26,15 @@ export function createData(content) {
     const t = e.talents || {};
     let key = Object.keys(t).sort().map((k) => `${k}:${t[k]}`).join(',');
     if (e.sets) key += `|sets|${Object.keys(e.sets).sort().map((k) => `${k}:${e.sets[k]}`).join(',')}`;   // set bonuses (dungeons)
+    const pas = passivesKnown(e);
+    if (pas.length) key += `|pas|${pas.join(',')}`;
     if (!e.b2 || !e.build) return key;
     const r = e.build.ranks || {};
     return `${key}|b2|${Object.keys(r).sort().map((k) => `${k}:${r[k]}`).join(',')}`;
   }
+  // passive skills (the cap 30 level 25 picks, src/data/builds2_cap30.js): known = on; never on the bar, never cast
+  const passiveIds = new Set(Object.keys(abilities).filter((id) => abilities[id] && abilities[id].passive && typeof abilities[id].passive === 'object'));
+  function passivesKnown(e) { return passiveIds.size && e.known ? e.known.filter((id) => passiveIds.has(id)).sort() : []; }
   /** Every (node, rank) that applies to `e`: today's talents, plus the Builds 2 ranks when the hero runs Builds 2. */
   function rankedNodes(e) {
     const out = [];
@@ -42,7 +47,9 @@ export function createData(content) {
     let c = cache.get(e.id);
     if (c && c.key === key) return c;
     c = { key, mods: [], procs: [], scripts: new Set(), patches: {}, eff: {}, grants: [] };
-    for (const [t, r] of rankedNodes(e)) {
+    const ranked = rankedNodes(e);
+    for (const id of passivesKnown(e)) ranked.push([{ id, byRank: [abilities[id].passive] }, 1]);
+    for (const [t, r] of ranked) {
       const id = t.id;
       const fx = t.byRank[Math.min(r, t.byRank.length) - 1];
       if (!fx) continue;

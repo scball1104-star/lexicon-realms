@@ -1098,7 +1098,7 @@ fixture flag off).
   the hedge look, the dust cloud `zone_peal`). No new renderer event types were needed; `b2_proc`, `b2_grant` are ignored
   by the renderers.
 - **Level 25 picks** (BUILDS_2_PLAY 1.3: Slag Brand / Hammerfall, Run-On Sentence / Full Caps, Tanglewire / Broadhead, Gall
-  Ink / Opened Vein, Sanctuary Toll / Inner Bell): not written into the data yet (the cap is 15).
+  Ink / Opened Vein, Sanctuary Toll / Inner Bell): written and live since cap 30 (below, "Cap 30").
 - **Flourishes, class hooks (Ring Block, Bright Thread, Punctuate, Snap Draw, Clean Spill), setup states and cross-class
   combos, party keystones, Many Hands** (BUILDS_2_PLAY 2, 4): a later phase. Hook room left: node `byRank` effects take
   any extra field, and setup states can be auras on foes like `inkblade_marks`.
@@ -1346,3 +1346,35 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `flight { from, to, start, end, k, up }` while flying (`up` 0..1: off the ground). Friends' frames keep them.
 - **Content.** `content.travel = { stone, inns, defaultHome, flight, routes }` (`src/data/travel.js travelContent`);
   `content.startRealms`; the Rootbound's foes, people, items, 14 quests (`sideQuests`), rare (`src/data/rootbound.js`).
+
+## Cap 30: the 20 to 30 band, level 25 picks, the gear tier, the Barrow Deep Halls (2026-11-22, LIVE)
+
+- **Cap.** `PROGRESSION.maxLevel` 30; `xpToNext` / `xpAtLevel` to 30 (BUILDS_2 5.2's rule: 226,920 XP at 30); the UI's
+  placeholder table (`src/ui/gamedata.js`) matches. XP at the cap still turns into gold (1 per 50).
+- **Level 25 pick.** `src/data/builds2_cap30.js` joins one more pick per class onto `SKILL_PICKS` (`PICK_LEVELS` [1, 3, 6,
+  14, 25]; `RULES.buyBack[25]` 400 gold, a DRAFT price) and ten more points per named build (`PAST_20`), the suggested 25
+  pick (`b.picks[25]`), two second-signature reorders (`SIG2_OF`) and two struggle answers (`ANSWERS_OF`).
+- **Passive skills.** An ability with `passive: { mods, procs, modAbility }` (an object; a mob ability's `passive: true` is
+  unchanged) works while known: `src/sim/data.js talentInfo` adds it like a talent rank (the talent key carries the known
+  passives). `prog.learn` and `fillBar` never put it on the bar; `castAbility` refuses it for a player (`cast_fail` reason
+  `passive`). `b2_pick` carries `passive: true` for one.
+- **Second signature.** The pick rule was already there (levels 10, 20, 35); the talents window's signature slot now takes
+  the open one at 20 (`b2_pick { level: 20 }`). `pickSlots(cls, level)`: from level 20 the 25 slot joins the strip and the
+  level 1 slot leaves it (five slots, the approved geometry); `pickSlots(cls)` (no level) lists every slot for lookups.
+  `talents2Layout(R, cls, { level })`.
+- **Gear tier.** `src/data/gear_tier3.js`: `DROP_RULES.named` = [{ from, to, chance, items }] (`loot.js rollKill`: a foe of
+  a band level rolls `chance` for one of the band's pieces after its gear roll; no roll outside a band, so drops below 21
+  are unchanged); `DROP_RULES.affixTierTop` [3, 6, 9, 12, 20, 23, 26, 30] (`rollAffixes`: tiers 6 to 8 above ilvl 20; an
+  affix's values list has 8 tiers; `items.js affixTier`). Two legendary powers, `kings_due` and `drovers_horn`.
+- **Level-gated doors.** A dungeon's `door.minLevel` goes on its world join and `doors` entry (`src/data/maps/doors.js`);
+  `world.js checkJoin` leaves a lower hero on the tile and emits `door_locked { id, door, need }` (at most once every 5 s;
+  `e.doorSaidAt`). `src/ui/travelui.js` words it.
+- **The Barrow Deep Halls.** `DUNGEONS.barrow_deep` (levels 26 to 30, door at the cairn in the Standing Stones on the Downs,
+  `minLevel` 26), map `tools/maps/zone_barrow_deep.mjs` -> `src/data/maps/barrow_deep.js`, foes and the `mob_drove_stampede`
+  ability in `src/data/deep_halls.js` (registered into MOBS on import, like the Rootbound's; `src/data/maps/index.js`
+  imports it and merges `DH_MOB_ABILITIES`), quests `dg_deep_drove_roads` and `dg_deep_kings_count` (side quests, giver
+  Tamsin). Gated by `qa/sim/dungeon_bot.mjs` at 28 and 30.
+- **Questbot.** `qa/bot/lib/bot.mjs` plays Builds 2 (`b2_leaning`, `b2_pick`, `b2_suggest`, the class bots of
+  `qa/sim/builds2.mjs`), takes the sim's quest order (chain, bounties, side quests; dungeon quests only with
+  `opts.dungeons`), hunts a kill objective in its region, and `qa/bot/lib/nav.mjs` never steps on a dungeon door it is not
+  going to and routes a copy (`place#key`) as its place.

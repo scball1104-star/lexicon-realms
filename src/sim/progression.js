@@ -104,6 +104,7 @@ export function createProgression(C) {
   function learn(e, id) {
     const isNew = !e.known.includes(id);
     if (isNew) e.known.push(id);
+    if (data.abilities[id] && typeof data.abilities[id].passive === 'object') return;     // a passive pick (cap 30) never takes a bar slot
     if (e.bar.includes(id)) return;
     if (Array.isArray(e.barOff) && e.barOff.includes(id)) { if (!isNew) return; e.barOff = e.barOff.filter((x) => x !== id); }
     const hole = e.bar.indexOf(null);                // a slot left empty (a bar that holds items keeps its positions)
@@ -203,7 +204,7 @@ export function createProgression(C) {
     if (keepsPlace(e.bar)) { restoreBar(e, e.bar); return; }     // a bar the player arranged (items, moved skills) stays as saved
     e.bar = e.bar.filter((id, i) => id && e.known.includes(id) && e.bar.indexOf(id) === i).slice(0, BAR_SLOTS);
     if (e.bar.length < 6) return;
-    for (const id of e.known) if (e.bar.length < BAR_SLOTS && !e.bar.includes(id) && data.abilities[id] && !offList(e).includes(id)) e.bar.push(id);
+    for (const id of e.known) if (e.bar.length < BAR_SLOTS && !e.bar.includes(id) && data.abilities[id] && typeof data.abilities[id].passive !== 'object' && !offList(e).includes(id)) e.bar.push(id);
   }
 
   function trainerCls(npc) {

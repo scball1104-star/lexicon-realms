@@ -14,9 +14,20 @@ export const T = 16;
 export function createNav(content) {
   const zones = content.zones;
   const graph = {};
+  // a party's copy of a dungeon or cave ('<place>#<key>', src/data/maps/copies.js) routes as its place
+  const base = (id) => (typeof id === 'string' ? id.split('#')[0] : id);
+  // door cells: a join into a dungeon or cave (a world door, src/data/maps/doors.js). A path never steps on one unless the
+  // door is where it is going: before cap 30 the questbot walked over the Tarn Hollow door on the moor, landed in a copy
+  // it had no route out of, and spent 500 to 680 of its 900 minutes there
+  const doorCells = {};
   for (const z of Object.values(zones)) {
     graph[z.id] = [];
     for (const j of z.joins || []) if (zones[j.to]) graph[z.id].push({ to: j.to, j });
+    const cells = new Set();
+    for (const j of z.joins || []) if (j.door || (zones[j.to] && (zones[j.to].kind === 'dungeon' || zones[j.to].kind === 'cave') && !(z.kind === 'dungeon' || z.kind === 'cave'))) {
+      for (let y = j.y; y < j.y + (j.h || 1); y++) for (let x = j.x; x < j.x + (j.w || 1); x++) cells.add(y * z.w + x);
+    }
+    doorCells[z.id] = cells;
   }
 
   function cell(z, x, y) { if (x < 0 || y < 0 || x >= z.w || y >= z.h) return '#'; return z.collision[y][x]; }
@@ -34,6 +45,7 @@ export function createNav(content) {
   function path(zoneId, sx, sy, goal, hint, maxNodes = 200000, extra = null) {
     const z = zones[zoneId];
     if (!z) return null;
+    const doors = doorCells[base(zoneId)] || doorCells[z.id] || new Set();
     const W = z.w, H = z.h, N = W * H;
     const g = new Float64Array(N).fill(Infinity);
     const prev = new Int32Array(N).fill(-1);
@@ -74,6 +86,7 @@ export function createNav(content) {
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
         if (!canStep(z, x, y, dx, dy)) continue;
         const k = ny * W + nx;
+        if (doors.has(k) && !goal(nx, ny)) continue;
         const ng = g[c] + 1 + (extra ? extra[k] : 0);
         if (ng < g[k]) { g[k] = ng; prev[k] = c; push(ng + h(nx, ny), k); }
       }
@@ -85,6 +98,13 @@ export function createNav(content) {
   }
 
   function zoneRoute(from, to) {
+    if (base(from) === base(to)) return [from];
+    const r0 = routeBase(base(from), base(to));
+    if (!r0) return null;
+    r0[0] = from;
+    return r0;
+  }
+  function routeBase(from, to) {
     if (from === to) return [from];
     const prev = { [from]: null }, q = [from];
     for (let i = 0; i < q.length; i++) {
@@ -98,7 +118,7 @@ export function createNav(content) {
 
   /** The join to take from `from` toward `to`; when there are two (Willowmere and the valley both join the Downs), the nearest to (sx, sy). */
   function joinTo(from, to, sx, sy) {
-    const js = (graph[from] || []).filter((e) => e.to === to).map((e) => e.j);
+    const js = (graph[base(from)] || []).filter((e) => e.to === base(to)).map((e) => e.j);
     if (!js.length) return null;
     if (sx == null) return js[0];
     return js.sort((a, b) => (Math.abs(a.x - sx) + Math.abs(a.y - sy)) - (Math.abs(b.x - sx) + Math.abs(b.y - sy)))[0];

@@ -3,7 +3,7 @@
 // telegraphs), eat and sit to full between pulls, and walk back from the inside lantern after a death. It uses the
 // played-well class bots of qa/sim/builds2.mjs (each class's named builds, design gear), and only the command API to act.
 //
-//   node qa/sim/dungeon_bot.mjs                         the Barrow at 11, the Watchtower at 19 and 20, the caves at 5, 8, 15; every class
+//   node qa/sim/dungeon_bot.mjs                         the Barrow at 11, the Watchtower at 19 and 20, the caves at 5, 8, 15, the Deep Halls at 28 and 30; every class
 //   node qa/sim/dungeon_bot.mjs --place barrow --level 11 --cls warden --builds all --seeds 3
 //   import { clearRun } from './dungeon_bot.mjs'
 // Prints DUNGEON_BOT_DONE: runs=<n> cleared=<n> max_deaths=<n> gate=<pass|FAIL> (gate: every run clears with deaths <= 2).
@@ -27,9 +27,11 @@ function makeHero(w, build, level) {
   const pid = w.addPlayer({ name: 'Bot', cls: build.cls, level, gearMode: 'design' });
   const p = w.get(pid), C = w.internals;
   p.build.firstKill = true; p.build.leaning = build.id;
-  for (const lv of [1, 3, 6, 14]) if (level >= lv && build.picks[lv]) C.b2.pick(p, { level: lv, ability: build.picks[lv] });
+  for (const lv of [1, 3, 6, 14, 25]) if (level >= lv && build.picks[lv]) C.b2.pick(p, { level: lv, ability: build.picks[lv] });
   for (const [lv, id] of Object.entries(build.buy || {})) if (level >= Number(lv)) { p.gold = (p.gold || 0) + 200; C.b2.buyBack(p, id); }
   if (level >= 10 && build.signature) C.b2.pick(p, { level: 10, ability: build.signature });
+  const sig2 = (build.signatures || []).find((id) => id !== build.signature);
+  if (level >= 20 && sig2) C.b2.pick(p, { level: 20, ability: sig2 });
   for (const id of build.path.slice(0, level)) C.b2.learn(p, { node: id });
   C.stats.recalc(p); p.hp = p.hpMax; if (p.res.kind !== 'resolve') p.res.cur = p.res.max;
   p.bag.push({ item: 'honey_roll', qty: 20, uid: 900 });
@@ -207,7 +209,7 @@ if (isMain) {
   const classes = arg('--cls', 'warden,mender,scribe,wayfinder,inkblade').split(',');
   const cells = args.includes('--place')
     ? [[arg('--place'), Number(arg('--level', 11))]]
-    : [['barrow', 11], ['watchtower', 19], ['watchtower', 20], ['rootcellar', 5], ['smugglers_cut', 8], ['tarn_hollow', 15]];
+    : [['barrow', 11], ['watchtower', 19], ['watchtower', 20], ['rootcellar', 5], ['smugglers_cut', 8], ['tarn_hollow', 15], ['barrow_deep', 28], ['barrow_deep', 30]];
   const seeds = Number(arg('--seeds', 1));
   const allBuilds = arg('--builds', 'first') === 'all';
   const rows = [];

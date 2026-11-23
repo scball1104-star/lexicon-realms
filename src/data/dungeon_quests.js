@@ -11,6 +11,7 @@ const at = (zone, tx, ty, rTiles) => ({ zone, x: Math.round(tx * 16 + 8), y: Mat
 const DOOR = {
   barrow: at('downs', 28, 7, 2), watchtower: at('moor', 117.5, 7, 2), rootcellar: at('valley', 91, 26, 2),
   smugglers_cut: at('world', 180, 168, 2), tarn_hollow: at('moor', 42, 47, 2),
+  barrow_deep: at('downs', 28, 20, 2),          // cap 30: the stair under the cairn in the Standing Stones
 };
 const NPC = {
   cobb: at('valley', 31, 48, 1.5), pell: at('willowmere', 14, 27, 1.5), sorrel: at('moor', 82, 58, 1.5),
@@ -161,6 +162,44 @@ export const DUNGEON_QUESTS = {
       offer: "Nobody reaches the Sentinel while the Wickwright keeps the lamps lit and the Captain keeps the stair. Put out the one and get past the other. I will ring the post while you climb. If the chime reaches you, the Sentinel will hear it too, and it never liked my chime.",
       progress: 'I rang the post an hour ago. Did you hear it? You must have heard it.',
       complete: "The lamps are out on the gallery and the stair is clear. All that is left is the top of the tower. Take this. I made the cord from an old chime rope, it brings luck, mostly.",
+    },
+    giveOnAccept: [],
+  },
+  // ---------------------------------------------------------------------------------------------- the Barrow Deep Halls (cap 30)
+  // Tamsin again (Thornfold): the barrow she sent you into at 10 goes on down, under the drove roads. XP: the PROGRESSION
+  // 2.2 formula at the quest level, size about 1.1 (the Watchtower chain's).
+  dg_deep_drove_roads: {
+    id: 'dg_deep_drove_roads', num: 330, name: 'Under the Drove Roads', level: 27, minLevel: 26, zone: 'downs',
+    giver: 'tamsin', turnIn: 'tamsin', place: 'barrow_deep',
+    requires: { quests: [], cls: null, level: 26 },
+    chain: { id: 'barrow_deep', step: 1 },
+    objectives: [
+      { kind: 'kill', mob: 'deep_drove_herd', count: 1, where: [DOOR.barrow_deep], label: 'The Drove-Herd (the Barrow Deep Halls)' },
+      { kind: 'kill', mob: 'deep_cairn_counter', count: 1, where: [DOOR.barrow_deep], label: 'The Cairn-Counter (the Barrow Deep Halls)' },
+    ],
+    rewards: { xp: 7950, gold: 110, items: [], choice: ['deep_halls_signet', 'stone_counters_gloves', 'drove_road_boots'] },
+    rewardRarity: 'magic',
+    text: {
+      offer: "The cairn in the middle of the Stones has a stair under it now. It was not there last spring. The old drovers said the Barrow went on under the roads, further than anyone dug, and that the flocks that went in were still being driven down there. Brindle swears he hears hooves under the fold at night. Go down. Find what drives them, and what keeps count of the ones who never came back.",
+      progress: 'The hooves again last night. Under the fold, under the road, all the way to the Stones.',
+      complete: "The herd is scattered and the cairn is finished. Brindle slept, and so did the sheep. There is one more down there, I think. The one they were all counting for.",
+    },
+    giveOnAccept: [],
+  },
+  dg_deep_kings_count: {
+    id: 'dg_deep_kings_count', num: 331, name: "The King's Count", level: 29, minLevel: 28, zone: 'downs', elite: true,
+    giver: 'tamsin', turnIn: 'tamsin', place: 'barrow_deep',
+    requires: { quests: ['dg_deep_drove_roads'], cls: null, level: 28 },
+    chain: { id: 'barrow_deep', step: 2 },
+    objectives: [
+      { kind: 'kill', mob: 'deep_barrow_king', count: 1, where: [DOOR.barrow_deep], label: 'The Barrow-King (the Barrow Deep Halls)' },
+    ],
+    rewards: { xp: 8950, gold: 140, items: [], choice: ['kings_road_greaves', 'barrow_lamp_charm', 'ninefold_hood'] },
+    rewardRarity: 'magic',
+    text: {
+      offer: "At the bottom of the Deep Halls sits the first name the Barrow ever counted. A king, the drovers called him, though nobody remembers of what. Every name in the Barrow was counted for him, and he will not let the count end. End it. Take friends. Take all the friends you have.",
+      progress: 'He will tell you to kneel. Do not kneel.',
+      complete: "The count is done. All of it, all the way down. You can hear the quiet from here, if you listen. Pick one of these. The drovers left them at the Stones for whoever finished the count, and I kept them for a long time.",
     },
     giveOnAccept: [],
   },

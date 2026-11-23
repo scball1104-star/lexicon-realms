@@ -3,14 +3,16 @@
 // sim (src/sim/progression.js, src/sim/stats.js) evaluates them. Change a number here, never in the sim.
 
 export const PROGRESSION = {
-  // Cap 20 (BUILDS_2 5.1 to 5.4, phase 5; Scott 2026-11-19 "cap 50, shipped at 20 first"). Levels 1 to 14 keep the old
-  // numbers exactly; 15 to 19 extend the same rule (BUILDS_2 5.2: 4 x kill XP x target minutes 20 + (L - 14)).
-  maxLevel: 20,
+  // Cap 30 (BUILDS_2 phase 10, the 20 to 30 band; Scott 2026-11-22 "Go with all of it"). Levels 1 to 14 keep the old
+  // numbers exactly; 15 to 29 extend the same rule (BUILDS_2 5.2: 4 x kill XP x target minutes 20 + (L - 14)).
+  maxLevel: 30,
   // XP to go from level L to L + 1 (index = level). PROGRESSION 1.
-  xpToNext: [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080, 6720, 7390, 8100, 8830, 9600],
-  // Cumulative XP at the start of each level (index = level). 41,000 at 15, 81,640 at 20.
-  xpAtLevel: [0, 0, 480, 1260, 2280, 3720, 5480, 7590, 10090, 13000, 16360, 20200, 24550, 29450, 34920, 41000, 47720, 55110, 63210, 72040, 81640],
-  capGoldPerXp: 50,                        // at the cap (now 20): 1 gold per 50 XP (OPEN_QUESTIONS Q17, kept until Renown)
+  xpToNext: [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080, 6720, 7390, 8100, 8830, 9600,
+    10400, 11230, 12100, 12990, 13920, 14880, 15870, 16900, 17950, 19040],
+  // Cumulative XP at the start of each level (index = level). 41,000 at 15, 81,640 at 20, 142,280 at 25, 226,920 at 30.
+  xpAtLevel: [0, 0, 480, 1260, 2280, 3720, 5480, 7590, 10090, 13000, 16360, 20200, 24550, 29450, 34920, 41000, 47720, 55110, 63210, 72040, 81640,
+    92040, 103270, 115370, 128360, 142280, 157160, 173030, 189930, 207880, 226920],
+  capGoldPerXp: 50,                        // at the cap (now 30): 1 gold per 50 XP (OPEN_QUESTIONS Q17, kept until Renown)
   // The zone re-spread (BUILDS_2 5.5 option 1 on today's zones, PROGRESSION.md 1.1): the zone generators author foe and
   // area levels on the old 1 to 15 scale; index = authoring level, value = the shipped level. The valley (1 to 6) is
   // unchanged; the Downs (5 to 9) stretch to 5 to 11, the High Moor (10 to 14) to 13 to 19. tools/maps/build_world.mjs

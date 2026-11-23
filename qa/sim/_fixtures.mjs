@@ -39,7 +39,7 @@ const curveHp = (L) => Math.round(L > 15 ? 835 + 58 * (L - 15) : 100 + 40 * L + 
 
 export function fixtureMobs() {
   const m = {};
-  for (let L = 1; L <= 20; L++) {
+  for (let L = 1; L <= 30; L++) {
     m[`dummy_${L}`] = { id: `dummy_${L}`, name: `Test Foe ${L}`, level: L, sprite: 'briar_wolf', faction: 'hostile', family: 'test', behavior: 'passive', wander: 0 };
     m[`brute_${L}`] = { id: `brute_${L}`, name: `Test Brute ${L}`, level: L, sprite: 'briar_wolf', faction: 'hostile', family: 'brute', wander: 0 };
     // one foe per trait (class identity pass, qa/sim/matchup.mjs): the brute with that one trait (the caster is kind 'caster')

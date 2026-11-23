@@ -4,6 +4,7 @@
 //   node qa/bot/questbot.mjs                       5 classes x 3 seeds, parallel child runs, summary
 //   node qa/bot/questbot.mjs --cls warden --seed 1 --cap 240     one run (sim minutes cap), JSON to qa/out/bot/runs/
 //   options: --seeds 1,2,3  --jobs 5  --stop 10  --timeout 600 (wall seconds per run)
+//   to 20 (cap 30 lane): --stop 20 --cap 900 --timeout 3600 (about 12 to 15 wall minutes a run)
 // Prints QUESTBOT_DONE: runs=<n> reached10=<n> errors=<n> violations=<n> (machine-read sentinel).
 import { spawn } from 'node:child_process';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
@@ -102,7 +103,7 @@ async function main() {
   writeFileSync(join(HERE, '..', 'out', 'bot', 'summary.json'), JSON.stringify({ rows, crashed: results.filter((r) => r.crashed) }, null, 1));
   console.table(rows.map(({ trainer, ...r }) => r));
   const reached = rows.filter((r) => r.to10 != null).length;
-  console.log(`QUESTBOT_DONE: runs=${results.length} reached10=${reached} crashed=${results.length - ok.length} errors=${rows.reduce((s, r) => s + r.errors, 0)} violations=${rows.reduce((s, r) => s + r.violations, 0)}`);
+  console.log(`QUESTBOT_DONE: runs=${results.length} reached10=${reached} reached_stop=${rows.filter((r) => r.endLevel >= stop).length} stop=${stop} crashed=${results.length - ok.length} errors=${rows.reduce((s, r) => s + r.errors, 0)} violations=${rows.reduce((s, r) => s + r.violations, 0)}`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();

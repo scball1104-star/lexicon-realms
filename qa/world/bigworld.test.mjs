@@ -342,6 +342,9 @@ export const tests = [
       const id = w.addPlayer({ name: 'Ann', cls: 'scribe', zone: R.zone, x: R.x, y: R.y, lantern: { ...R.lantern }, home: { inn: R.home } });
       const e = w.get(id);
       w.setLevel(id, 6);
+      // the bags a player buys on the way (PROGRESSION 6.5): the scripted hero never sells, and a full satchel refuses a
+      // reward (it filled up by chance once the Barrow Deep Halls joined the world and moved the seeded drops, cap 30)
+      e.bags = ['starter_satchel', 'loom_bag', 'drovers_pack'];
       const npc = (t) => w.state.ents.find((x) => x.kind === 'npc' && x.template === t);
       const goTo = (zone, tx, ty) => { e.zone = zone; e.x = tx * 256 + 128; e.y = (ty + 1) * 256 - 16; };
       const at = (t) => { const n = npc(t); e.zone = n.zone; e.x = n.x + 8 * 16; e.y = n.y; return n; };

@@ -13,6 +13,39 @@ Outputs: `qa/out/bot/runs/<class>_<seed>.json` (full run log), `qa/out/bot/summa
 `qa/out/bot/edges.json`, `qa/out/bot/browser/*.png` and `browser_smoke.json`. `qa/out/bot/naive/` keeps the first batch
 (before the bot learned to bind lanterns and walk around foes) for the lantern numbers in bug 13.
 
+## Cap 30 lane (2026-11-22): the questbot to level 20
+
+Before: no class reached 20 in 900 sim minutes (the best was 13). Three causes, all in the bot, none in the foes:
+
+1. **Builds 2 ignored.** The bot sent the old `learn_talent` and trainer commands; a Builds 2 hero refuses both (52,418
+   refusals in one run). It fought to the end with its two level 1 skills. Now it sets its class's default leaning, takes
+   the leaning's skill picks and signatures (`b2_pick`), spends each point on the suggested path (`b2_suggest`) and fights
+   with the played-well class bots of `qa/sim/builds2.mjs`.
+2. **Trapped in a cave.** Walking the moor it stepped on the Tarn Hollow door, landed in a copy (`tarn_hollow#424`) it had
+   no route out of, and spent 528 to 684 of its 900 minutes there. `nav.mjs` now never steps on a dungeon door it is not
+   going to, and routes a copy as its place.
+3. **Quest lookup.** It read the main chain only, so it never took a bounty (about 17,000 XP to 20, BUILDS_2 5.6). Once it
+   did, it hunted the valley blot bounty at the downs blots (a kill counts only in the quest's region) and killed 2,800 grey
+   blots for nothing. It now takes the sim's own order (chain, bounties, side quests; dungeon quests left to the dungeon
+   bot) and hunts a kill in its region. Also: grinding leaves out a foe that killed it twice in 20 minutes (it died 1,100 to
+   1,400 times to the tower sentinels by the Watchtower's foot); grey kills no longer count as progress.
+
+Gorse Boars and every other foe are unchanged.
+
+`node qa/bot/questbot.mjs --cls <class> --seed 1 --cap 900 --stop 20` (seed 1, one day of bounties):
+
+| class | to 10 | to 15 | to 20 (target about 300) | XP: quests / bounties / kills | deaths | quests done |
+|---|---|---|---|---|---|---|
+| warden | 103 | 136 | 327 | 35,530 / 16,598 / 31,033 | 130 | 36 |
+| mender | 99 | 137 | 238 | 35,589 / 16,598 / 29,473 | 36 | 36 |
+| scribe | 103 | 165 | 286 | 31,198 / 17,043 / 33,426 | 116 | 35 |
+| wayfinder | 121 | 171 | 302 | 31,334 / 16,821 / 33,512 | 108 | 35 |
+| inkblade | 108 | 180 | 321 | 30,091 / 16,820 / 34,813 | 109 | 35 |
+
+Quests and bounties pay about 60% of the XP to 20, kills about 40%. Level 18 to 20 is the thin stretch: the chain runs out
+near 18 and the last two levels are mostly grinding (time stalled by the stuck watcher: 0 to 35 minutes a run). The
+deaths are mostly tower sentinel packs at 17 to 19, the rare Corvina and Gorse Boars.
+
 ## How the questing bot plays (and what it is allowed to see)
 
 - Commands only through `world.enqueue` (move, stop, target, attack, cast, interact, quest_accept / turnin / abandon,

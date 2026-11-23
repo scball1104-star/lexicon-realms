@@ -1007,7 +1007,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (ev.id !== me) return;
         const nm = (abilityInfo(ev.ability) || { name: null }).name || ev.ability;
         toast(`You learn ${nm}.`);
-        say('system', `You learn ${nm}. It is on your bar.`);
+        say('system', ev.passive ? `You learn ${nm}. It works on its own and takes no bar slot.` : `You learn ${nm}. It is on your bar.`);
         return;
       }
       case 'b2_pick_ready': {

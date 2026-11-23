@@ -94,7 +94,7 @@ export const tests = [
     },
   },
   {
-    name: 'quests: the chain in order plus one day of the bounty boards, kills at 3/7 of quest XP (PROGRESSION 2.3), reaches the cap 20 by the last turn-in and every pickup is in level (both day draws)',
+    name: 'quests: the chain in order plus one day of the bounty boards, kills at 3/7 of quest XP (PROGRESSION 2.3), reaches 20 (the cap before cap 30; the 20 to 30 band is the next zones) by the last turn-in and every pickup is in level (both day draws)',
     fn() {
       const C = content();
       const P = C.progression;
@@ -103,7 +103,7 @@ export const tests = [
         const posted = QS.bountiesToday(day);
         eq(posted.length, 9, `day ${day}: 3 boards x 3 bounties`);
         let level = 1, xp = 0, reached = null;
-        const gain = (n) => { xp += n; while (level < P.maxLevel && xp >= P.xpToNext[level]) { xp -= P.xpToNext[level]; level++; } };
+        const gain = (n) => { xp += n; while (level < Math.min(P.maxLevel, 20) && xp >= P.xpToNext[level]) { xp -= P.xpToNext[level]; level++; } };
         const take = (id, tag) => {
           const q = C.quests[id];
           assert(level >= q.minLevel, `day ${day}: ${id} picked up at level ${level}, needs ${q.minLevel}`);
@@ -114,7 +114,7 @@ export const tests = [
         for (const id of C.questOrder) {
           take(id, 'chain');
           if (BOARD_AFTER[id]) for (const b of posted.filter((x) => C.quests[x].bounty.board === BOARD_AFTER[id])) take(b, 'board');
-          if (level >= P.maxLevel && reached == null) reached = id;
+          if (level >= 20 && reached == null) reached = id;
         }
         eq(level, 20, `day ${day}: the chain plus the day's bounties ends at level ${level}`);
         assert(['mo_long_watch', 'mo_word_for_the_elder'].includes(reached), `day ${day}: 20 reached at ${reached}, not at the end of the chain`);

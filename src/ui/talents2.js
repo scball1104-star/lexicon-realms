@@ -25,8 +25,12 @@ export const b2Class = (cls) => (cls && BUILDS2[cls]) || null;
  * The pick slots the window shows: the class's skill picks (one of two) and its first signature pick (one of three, at
  * SIGNATURE_LEVELS[0]; `signature: true`). A signature slot is ready when every one of its skills is built.
  */
-export function pickSlots(cls) {
-  const out = [...(SKILL_PICKS[cls] || [])];
+// cap 30: the level 25 pick joins the strip from level 20, and the level 1 pick (long taken by then, its skill on the bar)
+// leaves it, so the strip keeps five slots and the approved geometry. `level` null: every slot (for lookups).
+export const LATE_PICKS_FROM = 20;
+export function pickSlots(cls, level = null) {
+  const late = level != null && level >= LATE_PICKS_FROM;
+  const out = (SKILL_PICKS[cls] || []).filter((p) => level == null || (p.level >= 25 ? late : !(late && p.level === 1)));
   const cd = b2Class(cls);
   const sigs = (cd && cd.signatures) || [];
   if (sigs.length) out.push({ level: RULES.signatureLevels[0], options: sigs.map((x) => x.id), axis: cd.signatureAxis || 'Signature skill', ready: sigs.every((x) => x.ready), signature: true });
@@ -116,7 +120,7 @@ export function talents2Rect(L) {
  * Every box the window draws or hits, from the window rect `R`, the class and the touch size `hit` (HUD px for 44 css
  * px; 15 on desktop). Phone: six columns when each fits two 44 px fork targets, else 3 tabs. Pure (node tests).
  */
-export function talents2Layout(R, cls, { touch = false, hit = 15, tab = 'strength' } = {}) {
+export function talents2Layout(R, cls, { touch = false, hit = 15, tab = 'strength', level = 1 } = {}) {
   const cd = b2Class(cls);
   const sz = 24, pad = 8;
   const headH = touch ? Math.max(48, hit + 4) : 44;
@@ -128,8 +132,8 @@ export function talents2Layout(R, cls, { touch = false, hit = 15, tab = 'strengt
   const colH = rowY[4] + sz + 14 - colTop;
   // the phone's side column holds the picks: wide enough for a signature's three 44 css px targets
   // with a signature (five slots) the phone's picks go compact: the level beside the icons, no name line (the card names them)
-  const maxOpts = Math.max(2, ...pickSlots(cls).map((p) => p.options.length));
-  const sideW = touch ? Math.max(140, 2 * hit + 30, maxOpts * Math.max(hit, 28) + (pickSlots(cls).length > 4 ? 22 : 12)) : 0;
+  const maxOpts = Math.max(2, ...pickSlots(cls, level).map((p) => p.options.length));
+  const sideW = touch ? Math.max(140, 2 * hit + 30, maxOpts * Math.max(hit, 28) + (pickSlots(cls, level).length > 4 ? 22 : 12)) : 0;
   const colW6 = Math.floor((R.w - 2 * pad - (sideW ? sideW + 4 : 0)) / cd.tracks.length);
   const tabs = touch && colW6 < Math.max(96, 2 * hit + 8);
   const shown = !tabs ? cd.tracks : tab === 'skills' ? [] : cd.tracks.filter((t) => t.kind === (tab === 'weakness' ? 'weakness' : 'strength'));
@@ -170,7 +174,7 @@ export function talents2Layout(R, cls, { touch = false, hit = 15, tab = 'strengt
 
   // the side column (phone): skill picks (six columns) or the tabs, Respec and Auto (tabs)
   let picks = null, tabRects = [];
-  const pickList = pickSlots(cls);
+  const pickList = pickSlots(cls, level);
   const slotsV = (P) => {
     const rowH = Math.floor((P.h - 22) / Math.max(1, pickList.length));
     const isz = 28, pitch = Math.max(hit, isz), off = Math.floor((pitch - isz) / 2);
@@ -316,7 +320,7 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
   const R = talents2Rect(L);
   const hit = touch ? L.minHit : 15;
   st.b2Tab = st.b2Tab || 'strength';
-  const lay = talents2Layout(R, cls, { touch, hit, tab: st.b2Tab });
+  const lay = talents2Layout(R, cls, { touch, hit, tab: st.b2Tab, level: p.level });
   const free = pts.free;
   const star = B.suggested;
   const sel = st.talentSel;
@@ -477,12 +481,14 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
     const defs = pickSlots(cls);
     for (const s of P.slots) {
       const def = defs.find((x) => x.level === s.level) || { options: [], ready: false };
-      const taken = slotTaken(build, def);
-      const open = (B.picks || []).some((x) => x.level === s.level);
+      // cap 30: the signature slot also takes the second signature (level 20): the open signature pick names its level
+      const sigOpen = s.signature ? (B.picks || []).find((x) => x.signature) : null;
+      const taken = sigOpen ? '' : slotTaken(build, def);
+      const open = s.signature ? !!sigOpen : (B.picks || []).some((x) => x.level === s.level);
       const reached = p.level >= s.level;
       g.text(ctx, s.compact ? String(s.level) : `Lv ${s.level}`, s.sx, s.sy + (P.vertical ? 0 : 1), reached ? (s.signature ? 'gold' : 'cream') : 'dim');
       for (const o of s.opts) {
-        const isTaken = taken === o.id, bought = (build.bought || []).includes(o.id);
+        const isTaken = s.signature ? (build.sigs || []).includes(o.id) : taken === o.id, bought = (build.bought || []).includes(o.id);
         const lit = def.ready && (isTaken || bought || open);
         g.window(ctx, o.x, o.y, o.isz, o.isz, 'thin', !def.ready ? 'slate' : isTaken || bought ? 'ember' : open ? 'blue' : 'slate', 1);
         g.iconIn(ctx, skillIcon(o.id), o.x, o.y, o.isz, o.isz, lit ? 1 : 0.4);
@@ -497,7 +503,7 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
         regions.push({ rect: o.hit, kind: 'talent', id: key, label: `b2pick:${s.level}:${o.id}`,
           on: () => {
             if (touch) { st.talentSel = st.talentSel === key ? null : key; return; }
-            if (open && !taken && def.ready) act.b2({ t: 'b2_pick', level: s.level, ability: o.id });
+            if (open && !taken && !isTaken && def.ready) act.b2({ t: 'b2_pick', level: sigOpen ? sigOpen.level : s.level, ability: o.id });
             else act.toast(pickTip(m, s, o.id).foot);
           } });
       }
@@ -505,7 +511,7 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
       const nm = (id) => skillName(id);
       const both = s.signature ? 'Signature: one of three' : `${nm(def.options[0])} or ${nm(def.options[1])}`;
       const line = !def.ready ? both : taken ? nm(taken)
-        : open ? (s.signature ? 'Choose a signature' : 'Choose one') : both;
+        : open ? (s.signature ? ((build.sigs || []).length ? 'Choose your next signature' : 'Choose a signature') : 'Choose one') : both;
       const lc = !def.ready ? 'dim' : taken ? 'gold' : open ? 'green' : 'gray';
       if (s.compact) { /* compact phone slots: no name line (the card names the skill) */ }
       else if (P.vertical) g.text(ctx, g.clip(line, s.nameW - 34), s.sx + 32, s.sy, lc);
@@ -558,8 +564,9 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
       tip = pickTip(m, s, o.id, { touch: true });
       const def = pickSlots(cls).find((x) => x.level === s.level) || {};
       at = { x: o.x, y: o.y, w: o.isz, h: o.isz, colX: lay.picks.x, colW: lay.picks.w };
-      can = !!def.ready && (B.picks || []).some((x) => x.level === s.level) && !slotTaken(build, def);
-      learn = () => { act.b2({ t: 'b2_pick', level: s.level, ability: o.id }); st.talentSel = null; };
+      const sigOpen = s.signature ? (B.picks || []).find((x) => x.signature) : null;     // cap 30: the second signature at 20
+      can = !!def.ready && (sigOpen ? !(build.sigs || []).includes(o.id) : (B.picks || []).some((x) => x.level === s.level) && !slotTaken(build, def));
+      learn = () => { act.b2({ t: 'b2_pick', level: sigOpen ? sigOpen.level : s.level, ability: o.id }); st.talentSel = null; };
       label = `Learn ${skillName(o.id)}`;
     }
     // the window dims behind the card; a tap on the dim closes it
