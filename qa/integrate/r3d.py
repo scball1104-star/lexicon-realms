@@ -288,7 +288,8 @@ def session_a(b):
         time.sleep(0.2)
     equip = g.ev('window.__realms.player().equip')
     log('  equip', equip, 'helm', after['spec']['helm'] if after and after['spec'] else None)
-    assert equip.get('head') == 'watch_iron_helm', 'the helm is worn (sim)'
+    head = equip.get('head'); head = head.get('item') if isinstance(head, dict) else head   # the sim stores { item, inst } since the gear rework
+    assert head == 'watch_iron_helm', 'the helm is worn (sim)'
     assert after and after['spec'] and after['spec']['helm'], 'the 3D hero wears a helm'
     assert after['sig'] != before['sig'], 'the hero was rebuilt for the new gear'
     time.sleep(0.4)
