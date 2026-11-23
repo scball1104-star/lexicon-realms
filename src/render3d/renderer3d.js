@@ -51,6 +51,7 @@ import { regionInfo } from '../data/maps/compose.js';
 import { zoneBase } from '../data/maps/copies.js';
 import { CUT } from './dungeon3d.js';
 import { makeBird, tickBird } from './bird.js';   // big world: the Lantern Kite
+import { createRealms2Fx3 } from './realms2_3d.js';   // wave 3 realms2: lantern cones, fog banks, the sandstorm
 import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 
 const PX = 16;
@@ -126,6 +127,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   { const g = renderer.getContext(); const ext = g.getExtension('WEBGL_debug_renderer_info'); renderer.userData = { gpu: ext ? g.getParameter(ext.UNMASKED_RENDERER_WEBGL) : 'unknown' }; }
 
   const scene = new THREE.Scene();
+  const r2fx = createRealms2Fx3(scene);
   scene.background = new THREE.Color('#141a2e');
   scene.fog = new THREE.Fog('#141a2e', 30, 70);
   {
@@ -376,7 +378,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     }
     // underground (a dungeon or cave): no sky and no sun to speak of. Near-black fog close round the hero, a faint
     // cool fill, the fires always lit (zone lamps) and a stronger light on the hero; the far plane comes in with the fog
-    const U = zone && isPlaceZone(zone) ? UNDER[zone.kind] : zone && zone.cavern ? CAVERN : null;
+    const U = zone && isPlaceZone(zone) ? UNDER[zone.kind] : zone && zone.cavern ? CAVERN : zone && zone.atmos ? zone.atmos : null;   // atmos: the Hollow's foggy night
     if (U) {
       sky.lamps = 1; sky.lum = 0;
       hemi.color.set(U.hemi); hemi.groundColor.set(U.ground); hemi.intensity = U.hemiK;
@@ -744,6 +746,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     animateLineup(now, dt);
     renderer.info.reset();
     const sky = applySky(snap, view, zone, target, area, rdt);
+    dev.realms2 = r2fx.update(snap, view.zone, actors, camera, now, focus);
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     if (tg && tg.e && !tg.e.dead && tg.kind !== 'object') {
       targetRing.visible = true;

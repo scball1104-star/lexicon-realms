@@ -11,6 +11,7 @@
 
 import { BAND_INNS, BAND_POINTS, BAND_ROUTES, BAND_TRAVEL_NPCS, BAND_TRAVEL_NPC_SPAWNS } from './band_travel.js';
 import { REALMS2_TRAVEL as R2 } from './start_realms2.js';   // wave 3: Emberpeak and Valewyn's inns, kites and rides
+import { R2_INNS, R2_FLIGHT_POINTS, R2_FLIGHT_ROUTES, R2_TRAVEL_NPCS, R2_TRAVEL_SPAWNS } from './realms2.js';   // wave 3 realms2: two more realms' inns and kites
 
 export const STONE = Object.freeze({ item: 'lantern_stone', castSec: 10, cooldownSec: 30 * 60 });
 
@@ -29,6 +30,7 @@ export const INNS = Object.freeze({
   rb_innkeeper: Object.freeze({ id: 'lamplit_shelf', name: 'the Lamplit Shelf', zone: 'rootbound', x: 305, y: 69 }),
   ...BAND_INNS,                  // Larch Cross and Highdrove (src/data/band_travel.js)
   ...R2.inns,
+  ...R2_INNS,
 });
 export const DEFAULT_HOME = 'hob';
 
@@ -45,6 +47,7 @@ export const FLIGHT = Object.freeze({
     willow_library: Object.freeze({ id: 'willow_library', name: 'The Willow Library, the Rootbound', npc: 'rb_kitemaster', zone: 'rootbound', x: 296, y: 64, land: [296, 65] }),
     ...BAND_POINTS,
     ...R2.points,
+    ...R2_FLIGHT_POINTS,
   }),
   // the routes between points, each a list of legs { zone, pts: [[x, y] tiles] } in flying order (reversed for the way
   // back). A route between two zones ends one leg at the pass and starts the next where the pass lands.
@@ -58,6 +61,7 @@ export const FLIGHT = Object.freeze({
     ] }),
     ...BAND_ROUTES.map((r) => Object.freeze(r)),
     ...R2.routes,
+    ...R2_FLIGHT_ROUTES,
   ]),
 });
 
@@ -77,6 +81,7 @@ export const TRAVEL_NPCS = Object.freeze({
     talk: ['Every bed here is a bookshelf with a blanket on it. You will sleep like a closed book.', 'Make this your home and the Lantern Stone will always find its way back down.'] },
   ...BAND_TRAVEL_NPCS,                  // Larch Cross and Highdrove (src/data/band_travel.js)
   ...R2.npcs,
+  ...R2_TRAVEL_NPCS,
 });
 
 /** Where the travel npcs stand (spawns, CONTRACTS 7: zone, x, y tiles). */
@@ -89,6 +94,7 @@ export const TRAVEL_NPC_SPAWNS = Object.freeze([
   { npc: 'rb_innkeeper', zone: 'rootbound', x: 306, y: 68, dir: 'down' },
   ...BAND_TRAVEL_NPC_SPAWNS,
   ...R2.spawns,
+  ...R2_TRAVEL_SPAWNS,
 ]);
 
 /** Rides (wave 3): an ore cart or a ferry from one npc to one place, about half a minute, free, from level 1. */

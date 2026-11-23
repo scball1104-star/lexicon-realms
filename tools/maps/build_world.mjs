@@ -18,6 +18,7 @@ import { build as buildWilds } from './zone_wilds.mjs';
 import { composeWorld } from '../../src/data/maps/compose.js';
 import { withDoors } from '../../src/data/maps/doors.js';
 import { DUNGEONS } from '../../src/data/dungeons.js';
+import { REALMS2_ZONES } from './zone_realms2.mjs';   // wave 3 realms2: Saffron Haven, the Nameless Hollow
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // --out <dir> writes the zone modules elsewhere (diffing a change); --no-assets skips assets/tiles (the map lane only
@@ -245,7 +246,7 @@ for (const d of Object.values(DUNGEONS)) {
 const outdoor = [];
 // the start realms reached by a ride, not a walk (wave 3: Emberpeak's ore cart, Valewyn's ferry): no pass, no chain of joins
 const RIDE_REALMS = ['emberpeak', 'valewyn'];
-for (const id of ['rootbound', 'larchhill', 'drovers_reach', ...RIDE_REALMS]) {
+for (const id of ['rootbound', 'larchhill', 'drovers_reach', ...RIDE_REALMS, ...REALMS2_ZONES]) {
   if (!fs.existsSync(path.join(path.dirname(fileURLToPath(import.meta.url)), `zone_${id}.mjs`))) { problems.push(`outdoor ${id}: no zone_${id}.mjs`); continue; }
   const z = (await import(`./zone_${id}.mjs`)).build(db);
   z.source = `tools/maps/zone_${id}.mjs`;
@@ -259,7 +260,7 @@ for (const id of ['rootbound', 'larchhill', 'drovers_reach', ...RIDE_REALMS]) {
   const seen = Object.fromEntries(Object.values(all).map((z) => [z.id, reach(z, z.arrival[0], z.arrival[1])]));
   const linked = new Set([world.id]);
   for (let pass = 0; pass < outdoor.length + 1; pass++) for (const z of Object.values(all)) for (const j of z.joins) if (all[j.to] && linked.has(z.id)) linked.add(j.to);
-  for (const o of outdoor) if (!linked.has(o.id) && !RIDE_REALMS.includes(o.id)) problems.push(`${o.id}: no chain of joins from the world`);
+  for (const o of outdoor) if (!linked.has(o.id) && !RIDE_REALMS.includes(o.id) && !REALMS2_ZONES.includes(o.id)) problems.push(`${o.id}: no chain of joins from the world`);
   for (const z of Object.values(all)) for (const j of z.joins) {
     const o = all[j.to];
     if (!o || (z.id === world.id && o.id === world.id)) continue;
@@ -267,7 +268,7 @@ for (const id of ['rootbound', 'larchhill', 'drovers_reach', ...RIDE_REALMS]) {
     let any = false;
     for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) if (seen[z.id][y * z.w + x]) any = true;
     if (!any) problems.push(`${z.id} join -> ${o.id} at ${j.x},${j.y} is not reachable from ${z.id}'s arrival`);
-    if (!o.joins.some((k) => k.to === z.id)) problems.push(`${z.id} join -> ${o.id}: no join back`);
+    if (!j.ride && !o.joins.some((k) => k.to === z.id)) problems.push(`${z.id} join -> ${o.id}: no join back`);   // a one-way ride (realms2) needs none
     if (z.id !== world.id) console.log(`pass ${z.id} -> ${o.id}: ${z.id} ${j.x},${j.y} lands ${o.id} ${j.tx},${j.ty}`);
   }
   // doors in an outdoor zone (src/data/dungeons.js door.zone): walkable, reachable, the exit lands on the door's out

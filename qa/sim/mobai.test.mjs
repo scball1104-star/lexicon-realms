@@ -21,8 +21,9 @@ export const tests = [
     const pats = C.spawns.filter((s) => s.patrol);
     assert(pats.length >= PATROLS.reduce((n, p) => n + p.levels.length, 0), 'the open-world patrols spawn');
     for (const s of pats) {
-      assert(compileRoute(W, s.patrol), `route ${s.patrol.id} walks`);
-      assert(spotFree(W, s.x, s.y), `patrol ${s.mob} spawn ${s.x},${s.y} free`);
+      const Z = ZONES[s.zone] || W;          // an outdoor zone of its own walks its own map (realms2: the Hollow's watch)
+      assert(compileRoute(Z, s.patrol), `route ${s.patrol.id} walks`);
+      assert(spotFree(Z, s.x, s.y), `patrol ${s.mob} spawn ${s.x},${s.y} free`);
     }
     for (const [place, list] of Object.entries(PLACE_PATROLS)) {
       const Z = ZONES[place];

@@ -51,6 +51,7 @@ import { MOUNT_ABILITIES, MOUNT_ITEMS, MOUNT_NPCS, MOUNT_NPC_SPAWNS, STABLE, mou
 import { applyBand } from '../band_content.js';
 import { RB_MOBS, RB_NPCS, RB_ITEMS, RB_QUESTS, RB_QUEST_ORDER, RB_RARE_RUNTIME, RB_RARE_SPAWN, RB_EXTRA_DROPS, START_REALMS } from '../rootbound.js';
 import { applyRealms2 } from '../start_realms2.js';
+import { R2, R2_OUTDOOR } from '../realms2.js';     // wave 3 realms2: Saffron Haven, the Nameless Hollow
 
 // The four areas as generated (their own local tiles): tools, tests and the quest data's authoring helpers read these.
 export const REGIONS = { willowmere, valley, downs, moor };
@@ -74,6 +75,7 @@ OUTDOOR.larchhill = { ...withDoors(larchhill, DUNGEONS, PLACES), flavour: "Larch
 OUTDOOR.drovers_reach = { ...droversReach, flavour: "The old drove roads, walled in stone and held by the chain." };
 OUTDOOR.emberpeak = { ...emberpeak, flavour: 'A forge town under a black mountain, and the Gate that holds it.' };   // wave 3 start realms (realms1)
 OUTDOOR.valewyn = { ...valewyn, flavour: 'A lake town half under water. The tide is coming in.' };
+Object.assign(OUTDOOR, R2_OUTDOOR);                   // wave 3 realms2: Saffron Haven, the Nameless Hollow
 export const ZONES = withCopies({ [WORLD_ID]: WORLD, ...OUTDOOR, ...PLACES });
 export { zoneBase };
 /** Is this zone id a dungeon or a cave (or a copy of one)? */
@@ -133,7 +135,7 @@ export function buildContent() {
   const sq = WORLD.lanterns.find((l) => l.region === 'willowmere');
   // the open world's life (src/data/worldlife.js): rare foes, rest XP, story chains, Night at the Stones
   // the Rootbound's own foes (src/data/rootbound.js), and its loose pages in the ink slimes it shares with the valley
-  const mobs = { ...MOBS, ...RB_MOBS };
+  const mobs = { ...MOBS, ...RB_MOBS, ...R2.mobs };
   for (const [id, extra] of Object.entries(RB_EXTRA_DROPS)) mobs[id] = { ...mobs[id], loot: { ...mobs[id].loot, table: [...mobs[id].loot.table, ...extra] } };
   // professions (src/data/professions.js): trainers, materials, recipes, gathering nodes, consumables
   const out = applyParty(applyProfessions(applyWorldLife({
@@ -143,14 +145,14 @@ export function buildContent() {
     classes: CLASSES, abilities: { ...ABILITIES, ...MOUNT_ABILITIES }, talents: TALENTS, progression: PROGRESSION,
     // Builds 2 data (off for players: progression.builds2.enabled is false)
     builds2: { rules: BUILDS2_RULES, classes: BUILDS2, skillPicks: SKILL_PICKS, abilities: B2_ABILITIES },
-    mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES },
-    mobs, mobSprites: MOB_SPRITES, npcs: { ...NPCS, ...TRAVEL_NPCS, ...RB_NPCS, ...MOUNT_NPCS },
-    items: { ...ITEMS, ...TRAVEL_ITEMS, ...RB_ITEMS, ...MOUNT_ITEMS }, rarity: RARITY, affixes: AFFIXES, dropRules: DROP_RULES, weaponTypes: WEAPON_TYPES, armorTypes: ARMOR_TYPES, classGear: CLASS_GEAR,
+    mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES, ...R2.mobAbilities },
+    mobs, mobSprites: MOB_SPRITES, npcs: { ...NPCS, ...TRAVEL_NPCS, ...RB_NPCS, ...MOUNT_NPCS, ...R2.npcs },
+    items: { ...ITEMS, ...TRAVEL_ITEMS, ...RB_ITEMS, ...MOUNT_ITEMS, ...R2.items }, rarity: RARITY, affixes: AFFIXES, dropRules: DROP_RULES, weaponTypes: WEAPON_TYPES, armorTypes: ARMOR_TYPES, classGear: CLASS_GEAR,
     hitTable: HIT_CONTENT, resist: RESIST_CONTENT,        // the hit table and resistances (src/data/hittable.js, resist.js)
     // the chain (questOrder) plus the bounty boards' quests (BUILDS_2 5.6); boards: which npc posts which pools
-    quests: worldQuests({ ...QUESTS, ...BOUNTIES, ...DUNGEON_QUESTS, ...RB_QUESTS }), questOrder: QUEST_ORDER, comingLater: COMING_LATER, bounties: { boards: BOARDS },
+    quests: worldQuests({ ...QUESTS, ...BOUNTIES, ...DUNGEON_QUESTS, ...RB_QUESTS, ...R2.quests }), questOrder: QUEST_ORDER, comingLater: COMING_LATER, bounties: { boards: BOARDS },
     // offered after the chain and the bounties (src/data/dungeon_quests.js); then the Rootbound's (src/data/rootbound.js)
-    sideQuests: [...DUNGEON_QUEST_ORDER, ...RB_QUEST_ORDER],
+    sideQuests: [...DUNGEON_QUEST_ORDER, ...RB_QUEST_ORDER, ...R2.questOrder],
     startRealms: START_REALMS,                 // big world: a new hero of the class may start in its realm (src/main.js)
     // dungeons and caves (src/data/dungeons.js, src/sim/dungeons.js): copies, bosses, loot, the daily chest; the sets
     dungeons: DUNGEONS, dungeonRules: DUNGEON_RULES, sets: SETS,
@@ -163,8 +165,9 @@ export function buildContent() {
     start: { zone: WORLD_ID, x: WORLD.arrival[0], y: WORLD.arrival[1], lantern: { zone: WORLD_ID, id: sq.id, x: sq.x, y: sq.y } },
   })));      // group play (src/data/party.js): lantern-ash on two vendors, the party rules
   // the Rootbound's rare (src/data/rootbound.js): one more on the world life's list, in its own zone
-  out.rares = { ...out.rares, ...RB_RARE_RUNTIME };
-  out.spawns = [...out.spawns, RB_RARE_SPAWN];
+  out.rares = { ...out.rares, ...RB_RARE_RUNTIME, ...R2.rares };
+  out.spawns = [...out.spawns, RB_RARE_SPAWN, ...R2.rareSpawns];
+  out.realms2 = R2.rules;                     // wave 3 realms2: the storm and the lantern watch (src/sim/realms2.js)
   applyRealms2(out);                           // wave 3: Emberpeak and Valewyn (src/data/start_realms2.js)
   return applyBand(out);       // the 20 to 30 band: Larchhill, the Larch Mine, Drovers' Reach (src/data/band_content.js)
 }

@@ -44,6 +44,7 @@ import { createTravel } from './travel.js';
 import { createLegendDrops } from './legend_drops.js';
 import { createMounts } from './mounts.js';
 import { createRealmMech } from './realm_mech.js';   // wave 3: the start realms' lava, Gate waves and tide
+import { createRealms2 } from './realms2.js';   // wave 3 realms2: the sandstorm and the lantern watch
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -148,6 +149,7 @@ function wrap(state, content0, rng, systems) {
     C.b2 = createBuilds2(C);                 // Builds 2 (off unless content.progression.builds2.enabled)
     C.hud = createHud(C);
     C.life = createWorldLife(C);             // rares, rest XP, story cards, Night at the Stones (src/sim/worldlife.js)
+    C.realms2 = createRealms2(C);            // the realms2 start realms' storm and lantern watch (src/sim/realms2.js)
     C.onDeath = (dst, killer) => { C.prog.onDeath(dst, killer); if (dst.kind === 'mob') { C.life.onMobDeath(dst); questKill(dst, killer); } };
     C.onDamaged = (e) => { if (QS) QS.onDamaged(e); };
     C.spawnMobEnt = (spec) => spawnMob(spec);
@@ -539,6 +541,7 @@ function wrap(state, content0, rng, systems) {
       if (GP) GP.tick();                         // group play: foe scaling, rez casts, death waits, ready checks
       if (TR) TR.tick();                         // trades end when the two walk apart
       if (combatOn) C.life.tick(events);
+      if (combatOn) C.realms2.tick();           // the sandstorm, the lantern watch, the fog banks
       if (PF) PF.tick();                         // professions: node respawns, the gather and craft casts
       if (RM) RM.tick();                         // wave 3: Emberpeak's lava and Gate waves, Valewyn's tide
       // 4) systems (quests): read this tick's events, may call grantXp / emit
@@ -1035,6 +1038,7 @@ function wrap(state, content0, rng, systems) {
     const [tx, ty] = feetTile(e);
     const j = inJoin(zone, tx, ty);
     if (!j || !content.zones[j.to]) return;          // a join to a zone that is not loaded: just the map edge
+    if (j.needs && !(e.questsDone || []).includes(j.needs)) { if (combatOn && C.realms2) C.realms2.notYet(e, j); return; }   // realms2: the ride out waits for the boss
     const from = e.zone;
     // a door into a dungeon or cave goes into the hero's party's own copy (made here, or reset after 30 minutes empty)
     const to = DG && DG.isPlace(j.to) && !DG.isPlace(from) ? DG.enter(e, j.to) : j.to;
@@ -1045,7 +1049,7 @@ function wrap(state, content0, rng, systems) {
     if (combatOn) { e.autoOn = false; e.combo = null; e.forced = null; if (e.cast) C.combat.cancelCast(e, 'move'); }
     if (DG && DG.isPlace(from) && !DG.isPlace(to)) DG.leave(e, from);
     const inf = DG ? DG.info(to) : null;
-    emit({ type: 'zone', id: e.id, from, to, x: j.tx, y: j.ty, ...(inf ? { kind: inf.kind, base: inf.base, name: inf.name, levels: inf.levels, label: inf.label } : {}) });
+    emit({ type: 'zone', id: e.id, from, to, x: j.tx, y: j.ty, ...(j.ride ? { ride: j.ride } : {}), ...(inf ? { kind: inf.kind, base: inf.base, name: inf.name, levels: inf.levels, label: inf.label } : {}) });
     if (combatOn) C.prog.onZoneEnter(e);
   }
 

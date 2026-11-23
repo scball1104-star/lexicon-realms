@@ -42,7 +42,7 @@ export function createLoadingCard({ font }) {
       const lv = to.levels && !(to.regions && to.regions.length > 1) ? to.levels : null;     // the one world names the area instead
       const near = to.regions && typeof ev.x === 'number' ? to.regions.find((r) => ev.x >= r.x && ev.y >= r.y && ev.x < r.x + r.w && ev.y < r.y + r.h) : null;
       const label = lv ? `Levels ${lv[0]} to ${lv[1]}` : near && near.levels ? `${near.name}, levels ${near.levels[0]} to ${near.levels[1]}` : '';
-      card = { t0: performance.now(), to: base(ev.to), into: true, kind: 'pass', info: { name: to.name || '', label, flavour: to.flavour || '', kind: 'pass', into: true }, shownK: 0, fadeAt: null, ready: false };
+      card = { t0: performance.now(), to: base(ev.to), into: true, kind: 'pass', info: { name: to.name || '', label, flavour: ev.ride || to.flavour || '', kind: 'pass', into: true }, shownK: 0, fadeAt: null, ready: false };
       return;
     }
     const into = isPlace(to), out = isPlace(from) && !into;
