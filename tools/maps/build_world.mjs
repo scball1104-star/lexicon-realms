@@ -243,7 +243,9 @@ for (const d of Object.values(DUNGEONS)) {
 // (the big-zone kit), checked like an area (finish: everything reachable from its arrival, no pits), and every join
 // between it and the world lands on a walkable cell the other side can walk back from.
 const outdoor = [];
-for (const id of ['rootbound']) {
+// the start realms reached by a ride, not a walk (wave 3: Emberpeak's ore cart, Valewyn's ferry): `rides: true`, no pass
+const RIDE_REALMS = ['emberpeak', 'valewyn'];
+for (const id of ['rootbound', ...RIDE_REALMS]) {
   const z = (await import(`./zone_${id}.mjs`)).build(db);
   z.source = `tools/maps/zone_${id}.mjs`;
   outdoor.push(finish(z));
@@ -253,7 +255,7 @@ for (const id of ['rootbound']) {
   const seenW = reach(W3, W3.arrival[0], W3.arrival[1]);
   for (const o of outdoor) {
     const there = W3.joins.filter((j) => j.to === o.id);
-    if (!there.length) problems.push(`world: no join to ${o.id}`);
+    if (!there.length && !RIDE_REALMS.includes(o.id)) problems.push(`world: no join to ${o.id}`);
     for (const j of there) {
       if (!(o.collision[j.ty] && o.collision[j.ty][j.tx] === '.')) problems.push(`world join -> ${o.id} lands on ${j.tx},${j.ty}, not walkable`);
       let any = false;
@@ -261,7 +263,7 @@ for (const id of ['rootbound']) {
       if (!any) problems.push(`world join -> ${o.id} at ${j.x},${j.y} is not reachable from the town`);
     }
     const back = o.joins.filter((j) => j.to === W3.id);
-    if (!back.length) problems.push(`${o.id}: no join back to the world`);
+    if (!back.length && !RIDE_REALMS.includes(o.id)) problems.push(`${o.id}: no join back to the world`);
     for (const j of back) if (!(W3.collision[j.ty] && W3.collision[j.ty][j.tx] === '.' && seenW[j.ty * W3.w + j.tx])) problems.push(`${o.id} join -> world lands on ${j.tx},${j.ty}, not a walkable, reachable cell`);
     console.log(`pass world <-> ${o.id}: ${there.map((j) => `world ${j.x},${j.y}`).join(' ')} / ${back.map((j) => `${o.id} ${j.x},${j.y}`).join(' ')}`);
   }

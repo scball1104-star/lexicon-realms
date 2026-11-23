@@ -137,7 +137,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       log.length = 0;
       if (!c.state) {
         // a brand-new hero: a short welcome and, once per hero, the controls card
-        if (c.start === 'realm' && START_REALMS[c.cls]) say('system', `Welcome to ${START_REALMS[c.cls].name}, ${c.name}. Ottilie the Head Archivist has a word for you: look for the gold ! over her head.`);
+        if (c.start === 'realm' && START_REALMS[c.cls]) say('system', `Welcome to ${START_REALMS[c.cls].name}, ${c.name}. ${START_REALMS[c.cls].welcome || 'Ottilie the Head Archivist has a word for you: look for the gold ! over her head.'}`);
         else say('system', `Welcome to Willowmere, ${c.name}. Hob the innkeeper has a word for you: look for the gold ! over his head.`);
       } else say('system', `Welcome back, ${c.name}.`);
       if (!c.hinted) { st.hint = { t0: st.now }; store.update(id, { hinted: true }); }
@@ -899,7 +899,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     switch (ev.type) {
       case 'interact':
         if (ev.src !== me) return;
-        if (st.dialog && st.dialog.ent === ev.id) Object.assign(st.dialog, { trainer: ev.trainer || null, vendor: ev.vendor || null, inn: ev.inn || null, flight: ev.flight || null, line: st.dialog.line + 1 });
+        if (st.dialog && st.dialog.ent === ev.id) Object.assign(st.dialog, { trainer: ev.trainer || null, vendor: ev.vendor || null, inn: ev.inn || null, flight: ev.flight || null, ride: ev.ride || null, line: st.dialog.line + 1 });
         else { st.dialog = dialogFromInteract(ev); st.dialog.line = Math.floor(st.now * 7); if (st.metrics.touch) st.open.clear(); }
         return;
       case 'chest_open':

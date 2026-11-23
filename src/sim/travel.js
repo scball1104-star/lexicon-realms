@@ -2,7 +2,7 @@
 // randomness): the data arrives as content.travel (src/data/travel.js via src/data/maps/index.js buildContent).
 //
 //   const T = createTravel(C)                 C: the world's context (state, content, emit, get, zoneOf, ...)
-//   T.command(e, cmd)                         'set_home' { npc } | 'fly' { npc, to } | 'flight_list' { npc }
+//   T.command(e, cmd)                         'set_home' { npc } | 'fly' { npc, to } | 'ride' { npc } | 'flight_list' { npc }
 //   T.useStone(e, def)                        the Lantern Stone's use (world.js useItem): starts the 10 s cast
 //   T.onInteract(e, npc, ev)                  an npc talk: a flight master unlocks its point; adds ev.inn / ev.flight
 //   T.flying(e)                               true while the hero rides a kite (no commands, no walking)
@@ -12,7 +12,8 @@
 //
 // Events: hearth_start { id, endTick }, hearth_stop { id, reason }, hearth { id, zone, x, y, inn }, home { id, inn, name },
 // home_fail { id, reason }, flight_point { id, point, name }, flight_start { id, to, cost, ticks }, flight_fail { id, reason },
-// flight_end { id, to }, plus a `zone` event whenever the hero changes zone (the loading card listens to that).
+// flight_end { id, to }, ride_start { id, ride, name, ticks }, ride_fail { id, reason } (a ride: an ore cart or a ferry, wave 3;
+// it moves like a flight, on the ground, free and from level 1, and ends with flight_end), plus a `zone` event whenever the hero changes zone (the loading card listens to that).
 import { SUB, TILE, INTERACT_RANGE_PX } from './constants.js';
 import { standTile } from './collision.js';
 import { distPx } from './geom.js';
@@ -29,6 +30,9 @@ export function createTravel(C) {
   const npcDef = (n) => (n && content.npcs ? content.npcs[n.template] : null) || null;
   const innOf = (n) => (T && n ? T.inns[n.template] || null : null);
   const pointOf = (n) => { const d = npcDef(n); return T && d && d.flight ? T.flight.points[d.flight] || null : null; };
+  const rideOf = (n) => { const d = npcDef(n); return T && T.rides && d && d.ride ? T.rides[d.ride] || null : null; };
+  // where a flight or a ride ends: a flight point, or a ride's own landing (both carry zone and land)
+  const destOf = (id) => (T ? T.flight.points[id] || (T.rides || {})[id] || null : null);
   const homeSpot = (e) => {
     const h = e.home && T && Object.values(T.inns).find((i) => i.id === e.home.inn) ? e.home : null;
     if (h) return h;
@@ -87,6 +91,8 @@ export function createTravel(C) {
           return { id: p.id, name: p.name, known: e.flights.includes(p.id), cost: r ? r.cost : null, secs: r ? Math.round(r.ticks / 20) : null };
         }) };
     }
+    const rd = rideOf(npc);
+    if (rd) ev.ride = { id: rd.id, label: rd.label, name: rd.name, vehicle: rd.vehicle, secs: Math.round(rd.ticks / 20) };
   }
 
   function command(e, cmd) {
@@ -98,6 +104,25 @@ export function createTravel(C) {
       if (!near(e, npc)) return emit({ type: 'home_fail', id: e.id, reason: 'range' });
       e.home = { zone: inn.zone, x: inn.x, y: inn.y, inn: inn.id, name: inn.name };
       emit({ type: 'home', id: e.id, inn: inn.id, name: inn.name });
+      return;
+    }
+    if (cmd.t === 'ride') {
+      const fail = (reason) => emit({ type: 'ride_fail', id: e.id, reason });
+      const rd = rideOf(npc);
+      if (!rd) return fail('not_ride');
+      if (!near(e, npc)) return fail('range');
+      if (e.flight) return fail('flying');
+      if (e.inCombat) return fail('combat');
+      stopStone(e, 'ride');
+      if (e.cast && C.combat) C.combat.cancelCast(e, 'cancel');
+      e.autoOn = false; e.target = null; e.sitting = 0; e.mx = 0; e.my = 0; e.moving = false;
+      e.flight = { from: null, to: rd.id, ride: rd.vehicle, leg: 0, i: 0, t: 0, start: now(), lift: ticks(T.ride.lift), end: now() + rd.ticks, legs: rd.legs, speed: rd.speed };
+      e.auras.push({ id: FLIGHT_AURA, src: e.id, stacks: 1, startTick: now(), until: null, nextTick: null, absorb: 0, data: {},
+        def: { id: FLIGHT_AURA, name: rd.vehicle === 'ferry' ? 'On the ferry' : 'In the ore cart', icon: 'icon_feather', kind: 'buff', flags: ['untargetable', 'stealth', 'immune'] } });
+      for (const m of state.ents) if (m.kind === 'mob' && m.threat && m.threat[e.id] != null) delete m.threat[e.id];
+      const leg = rd.legs[0];
+      if (leg.zone !== e.zone) place(e, leg.zone, leg.pts[0][0], leg.pts[0][1], 'ride');
+      emit({ type: 'ride_start', id: e.id, ride: rd.id, name: rd.name, ticks: rd.ticks, vehicle: rd.vehicle });
       return;
     }
     if (cmd.t === 'fly') {
@@ -169,7 +194,7 @@ export function createTravel(C) {
   }
   function land(e) {
     const f = e.flight;
-    const to = T.flight.points[f.to];
+    const to = destOf(f.to);
     e.flight = null;
     e.auras = e.auras.filter((a) => a.id !== FLIGHT_AURA);
     if (to) place(e, to.zone, to.land[0], to.land[1], 'flight');
@@ -216,7 +241,8 @@ export function createTravel(C) {
     if (e.flight) {
       const f = e.flight, total = f.end - f.start;
       o.flight = { from: f.from, to: f.to, start: f.start, end: f.end, k: Math.max(0, Math.min(1, (now() - f.start) / Math.max(1, total))),
-        up: Math.min(1, (now() - f.start) / Math.max(1, f.lift), f.landAt != null ? Math.max(0, (f.landAt - now()) / Math.max(1, f.lift)) : 1) };
+        up: f.ride ? 0 : Math.min(1, (now() - f.start) / Math.max(1, f.lift), f.landAt != null ? Math.max(0, (f.landAt - now()) / Math.max(1, f.lift)) : 1) };
+      if (f.ride) o.flight.ride = f.ride;            // an ore cart or a ferry: on the ground, no kite (the renderers draw the vehicle)
     }
     return o;
   }

@@ -349,6 +349,7 @@ export const tests = [
       for (const qid of RB_QUEST_ORDER) {
         const q = C.quests[qid];
         const g = at(q.giver);
+        e.bag = e.bag.filter((b) => (C.items[b.item] || {}).kind === 'quest' || b.item === 'lantern_stone');   // a player sells the junk (the loot rolls shift with the content)
         w.enqueue(id, { t: 'quest_accept', quest: qid, npc: g.id });
         run(w, 2);
         assert(e.quests[qid], `${qid}: accepted`);

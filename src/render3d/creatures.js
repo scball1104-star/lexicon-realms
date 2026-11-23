@@ -14,6 +14,19 @@ import { canvasTex, radial, seeded } from './textures.js';
 export function familyOf(template = '', sprite = '') {
   const k = `${template} ${sprite}`;
   // the Rootbound (big world, 2026-11-22): parchment mites, open books that read, walking shelves, the ink-black Archivore
+  // the wave 3 start realms (lane realms1): Emberpeak's fire sprites, ash hounds, slag and furnace golems, the ash-armored
+  // Crew, Brask; Valewyn's mudsnappers, bog leeches, the drowned, brine eels and the Widow (no humanoid foes: the Crew wear
+  // the golem's iron, the drowned the shade's)
+  if (/^ep_cinderling/.test(template)) return { f: 'slime', tint: '#3a1408', glow: '#ff7a2a', size: 0.7 };
+  if (/^ep_(ash_hound|rare_scorchjaw)/.test(template)) return { f: 'wolf', tint: /scorch/.test(template) ? '#2a1c18' : '#4a4440', eyes: '#ff6a1a', thorns: /scorch/.test(template) };
+  if (/^ep_(slag_golem|furnace_golem)/.test(template)) return { f: 'golem', tint: /furnace/.test(template) ? '#2a2220' : '#4a3a30', glow: '#ff7a2a' };
+  if (/^ep_(raider|gate_raider|firethrower)/.test(template)) return { f: 'golem', tint: '#5a4e46', glow: /fire/.test(template) ? '#ffb040' : '#c86a2a' };
+  if (/^ep_brask/.test(template)) return { f: 'golem', tint: '#2a2220', glow: '#ff4a0a' };
+  if (/^vw_(mudsnapper|rare_old_pinch)/.test(template)) return { f: 'scarab', tint: /pinch/.test(template) ? '#6a3a2a' : '#7a5a3a' };
+  if (/^vw_bog_leech/.test(template)) return { f: 'slime', tint: '#1e2a1a', glow: '#7aff9a', size: 0.85 };
+  if (/^vw_drowned/.test(template)) return { f: 'shade', tint: '#3a6a70', glow: '#9fffe8' };
+  if (/^vw_brine_eel/.test(template)) return { f: 'wraith', tint: '#1a3a40', glow: '#6ad8e0', ink: true };
+  if (/^vw_brine_widow/.test(template)) return { f: 'shade', tint: '#c8e8f0', glow: '#9fe0ff' };
   if (/bookmite|dogear/.test(k)) return { f: 'scarab', tint: /dogear/.test(k) ? '#a89060' : '#c8b48a' };
   if (/rb_tome/.test(k)) return { f: 'wraith', tint: '#e8dcc0', glow: '#9fc4ff' };
   if (/rb_shelf_golem/.test(k)) return { f: 'golem', tint: '#6a4a2e', glow: '#9fc4ff' };

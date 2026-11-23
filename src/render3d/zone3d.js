@@ -24,6 +24,7 @@ import { regionInfo, underAt } from '../data/maps/compose.js';
 // dungeons and caves (zone kind 'dungeon' | 'cave'): walls, cut, props; the world's doors into them
 import { buildPlaceWalls, buildDoorMouths, cutMat, doorAt, dressPlace } from './dungeon3d.js';
 import { dungeonPlan, isPlaceZone } from '../render/dungeon_plan.js';
+import { buildRealm3d } from './realm3d.js';   // wave 3: the start realms' props, lava crossings and tide water
 
 const CH = 48;   // chunk size (m): the town is one chunk, the big fields a few
 // Instanced models (trees, rocks, grass and the like) in a big zone (the one world, 296 x 196 m) go in 16 m chunks
@@ -339,7 +340,7 @@ function paintGround(zone, terrainAt, wear = null, shade = null) {
   const c = new THREE.Color(), srgb = { r: 0, g: 0, b: 0 };
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const id = terrainAt(x, y), i = (y * W + x) * 4;
-    c.set(GROUND[id] || GROUND[underAt(zone, x, y)] || GROUND.grass);
+    c.set((zone.palette && zone.palette[id]) || GROUND[id] || GROUND[underAt(zone, x, y)] || GROUND.grass);   // zone.palette: a realm's own ground colours
     c.offsetHSL((hashXY(x, y, 3) - 0.5) * 0.02, (hashXY(x, y, 5) - 0.5) * 0.06, (hashXY(x, y, 7) - 0.5) * 0.07);
     if (wear && wear[y * W + x] > 0) c.lerp(WORN, wear[y * W + x] * 0.45);
     if (shade && shade[y * W + x] > 0) c.lerp(FOREST_FLOOR, shade[y * W + x]);   // under the deep-forest canopy
@@ -386,21 +387,23 @@ function groundMaterial({ color, weights }, W, H) {
 }
 
 /** The zone's water surface: colour per kind from the mask, alpha fading at the shore, a foam line, scrolling ripples. */
-function waterMaterial(mask, W, H, inkGlow = 0) {
+function waterMaterial(mask, W, H, inkGlow = 0, lava = false) {
   const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.1, metalness: 0.1, transparent: true, depthWrite: false, normalMap: RIPPLE, normalScale: new THREE.Vector2(0.5, 0.5) });
-  const U = { tWM: { value: mask }, tJit: { value: groundDetail().macro }, uSize: { value: new THREE.Vector2(W, H) }, uInkGlow: { value: inkGlow } };
+  // lava (zone.style 'forge', Emberpeak): the ink channel is molten rock, orange and glowing
+  const U = { tWM: { value: mask }, tJit: { value: groundDetail().macro }, uSize: { value: new THREE.Vector2(W, H) }, uInkGlow: { value: inkGlow },
+    uInkCol: { value: lava ? new THREE.Vector3(0.62, 0.17, 0.03) : new THREE.Vector3(0.13, 0.07, 0.24) }, uInkEm: { value: lava ? new THREE.Vector3(1.0, 0.32, 0.04) : new THREE.Vector3(0.05, 0.11, 0.34) } };
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 lrWorld; varying vec2 vWM; varying vec2 vWW;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWM = uv; vWW = lrWorld;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tWM, tJit; uniform vec2 uSize; uniform float uInkGlow; varying vec2 vWM; varying vec2 vWW; float lrInk = 0.0;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tWM, tJit; uniform vec2 uSize; uniform float uInkGlow; uniform vec3 uInkCol, uInkEm; varying vec2 vWM; varying vec2 vWW; float lrInk = 0.0;')
       .replace('#include <color_fragment>', `#include <color_fragment>
       {
         vec4 j = texture2D(tJit, vWW * 0.17 + vec2(0.13, 0.61));
         vec3 m = texture2D(tWM, vWM + (j.rg - 0.5) * 1.1 / uSize).rgb;
         float a = max(m.r, max(m.g, m.b));
         float edge = smoothstep(0.32, 0.6, a);
-        vec3 c = (vec3(0.11, 0.24, 0.31) * m.r + vec3(0.25, 0.42, 0.45) * m.g + vec3(0.13, 0.07, 0.24) * m.b) / max(0.001, m.r + m.g + m.b);
+        vec3 c = (vec3(0.11, 0.24, 0.31) * m.r + vec3(0.25, 0.42, 0.45) * m.g + uInkCol * m.b) / max(0.001, m.r + m.g + m.b);
         c *= mix(1.0, 0.7, smoothstep(0.75, 1.0, m.r));                    // deeper toward the middle
         float foam = (1.0 - smoothstep(0.0, 0.16, abs(a - 0.47))) * (0.55 + 0.45 * j.b);
         diffuseColor.rgb = mix(c, vec3(0.78, 0.84, 0.82), foam * 0.6);
@@ -408,9 +411,9 @@ function waterMaterial(mask, W, H, inkGlow = 0) {
         if (diffuseColor.a < 0.01) discard;
         lrInk = m.b * edge * (0.75 + 0.25 * j.g);
       }`).replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-      totalEmissiveRadiance += lrInk * uInkGlow * vec3(0.05, 0.11, 0.34);   // a cavern's ink glows (zone.cavern)`);
+      totalEmissiveRadiance += lrInk * uInkGlow * uInkEm;   // a cavern's ink glows (zone.cavern); lava glows (zone.style 'forge')`);
   };
-  mat.customProgramCacheKey = () => 'lr_water3';
+  mat.customProgramCacheKey = () => 'lr_water4';
   return mat;
 }
 
@@ -780,6 +783,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   apron.rotation.x = -Math.PI / 2; apron.position.set(W / 2, -0.03, H / 2); apron.receiveShadow = true;
   group.add(apron);
   report(0.1);
+  buildRealm3d(zone, group);       // wave 3 (src/render3d/realm3d.js): only a zone with realmProps, lava or tide
   await step();
 
   // water: one plane over the zone; a per-tile mask (R deep water, G shallows, B ink) with noise-broken edges gives a
@@ -796,7 +800,8 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   if (wet) {
     wmg.putImageData(wmi, 0, 0);
     const mt = new THREE.CanvasTexture(wm); mt.wrapS = mt.wrapT = THREE.ClampToEdgeWrapping;
-    const wmat = waterMaterial(mt, W, H, zone.cavern ? 1 : 0);
+    const forge = zone.style === 'forge';
+    const wmat = waterMaterial(mt, W, H, zone.cavern || forge ? (forge ? 0.75 : 1) : 0, forge);
     const wgeo = new THREE.PlaneGeometry(W, H); wgeo.rotateX(-Math.PI / 2); wgeo.translate(W / 2, 0.035, H / 2);
     const uv2 = wgeo.attributes.uv, ps2 = wgeo.attributes.position;
     // uv: the mask lookup; lrWorld (world metres) breaks the shore edge

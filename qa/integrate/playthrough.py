@@ -317,6 +317,8 @@ def run():
         g.key('Enter', 0.4)
         g.p.keyboard.type('Talia')
         g.click_region(kind='class', id='warden')
+        # wave 3: a Warden starts in Emberpeak unless the player picks Willowmere; this run walks Willowmere
+        g.click_region(label='start:willowmere', wait=0.2)
         g.shot('02_create', 'character creation, Warden picked, name typed')
         g.key('Enter', 1.5)
         assert g.ev('__drv.mode()') == 'game', 'entered the world'

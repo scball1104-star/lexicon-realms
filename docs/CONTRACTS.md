@@ -1346,3 +1346,27 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `flight { from, to, start, end, k, up }` while flying (`up` 0..1: off the ground). Friends' frames keep them.
 - **Content.** `content.travel = { stone, inns, defaultHome, flight, routes }` (`src/data/travel.js travelContent`);
   `content.startRealms`; the Rootbound's foes, people, items, 14 quests (`sideQuests`), rare (`src/data/rootbound.js`).
+
+## Wave 3 start realms, lane realms1: Emberpeak and Valewyn (2026-11-22; WORLD_2.md 1.1 and 1.2)
+
+- **Zones.** `emberpeak` and `valewyn` (576 x 384, `OUTDOOR` in `src/data/maps/index.js`), generated from
+  `tools/maps/zone_emberpeak.mjs` / `zone_valewyn.mjs` with the big-zone kit. No walking pass: they are reached by a ride
+  or a kite (`build_world.mjs RIDE_REALMS` skips the pass check for them). Data: `src/data/emberpeak.js`,
+  `src/data/valewyn.js`, gathered by `src/data/start_realms2.js` (`applyRealms2(out)` at the end of buildContent;
+  `REALMS2_START` spread into `START_REALMS`; `REALMS2_TRAVEL` spread into `src/data/travel.js`).
+- **Start choice.** `START_REALMS.warden` = Emberpeak, `START_REALMS.mender` = Valewyn (`welcome`: the line ui.js says).
+- **Rides.** `content.travel.rides[id] = { id, npc, vehicle: 'cart' | 'ferry', label, name, zone, land, legs, tiles, speed,
+  ticks }` (`RIDE` speedMult 1.5, lift 3 s). An npc with `ride: <id>` offers it: the `interact` event carries
+  `ride { id, label, name, vehicle, secs }`; command `ride { npc }` -> `ride_start { ride, name, ticks, vehicle }` or
+  `ride_fail` (reason `not_ride`, `range`, `flying`, `combat`). It moves like a flight (`e.flight` with `ride`, the
+  `lr_flight` aura, a `zone` event per leg, `flight_end` at `land`), free, any level; the snapshot's `flight.ride` is
+  the vehicle and `flight.up` stays 0 (no kite). A hero on a ride saves at its landing (main.js).
+- **Signatures** (`src/sim/realm_mech.js`, deterministic on `state.tick`; `lavaAt` / `tideAt` are pure, kept in step with a copy in `src/data/realm_cycles.js` for
+  the renderers). Zone fields: `lava { ch, cycle, hot, burnPct, crossings }` (a hero on a glowing crossing cell takes
+  `damage { ability: 'realm_lava' }`), `gate { quest, area, waves, pause, giveUp }` (the camps in `waves` stay hidden,
+  `realmParked`, until a hero with the quest steps into `area`; `state.realm[zone].gate` keeps the phase),
+  `tide { ch, period, slow }` (aura `realm_wading` on the flats at high water; mobs with `realmGate: 'tide'` rise at
+  level 0.6 and sink below 0.4; zone nodes with `tide: 'high' | 'low'` open only then). Messages are `quest_hook`.
+- **Looks.** Zone fields `grade` (2D tint), `palette` (3D ground colours by terrain id), `style: 'forge'` (3D: the ink
+  water is lava), `realmProps [{ t, x, y }]` (code-built props, `src/render3d/realm3d.js`); `src/render/realm2d.js` paints
+  the lava, the crossings, the tide and the ride vehicles in 2D.

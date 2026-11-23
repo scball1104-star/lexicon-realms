@@ -12,11 +12,13 @@ const FLIGHT_FAIL = {
   level: 'The kites carry heroes from level 6.', gold: 'You do not have enough gold for that flight.', not_known: 'You have not been to that flight point yet.',
   combat: 'Not while you are fighting.', range: 'Too far from the kitemaster.', flying: 'You are already flying.',
 };
+const RIDE_FAIL = { range: 'Too far away to climb aboard.', combat: 'Not while you are fighting.', flying: 'You are already on your way.' };
 const HOME_FAIL = { range: 'Too far from the innkeeper.', not_inn: 'Only an innkeeper can do that.' };
 const STONE_FAIL = { cooldown: 'The Lantern Stone is still dim. It needs time to gather its light.', combat: 'Not while you are fighting.', flying: 'Not while you are flying.' };
 
 export function createTravelUi({ font, content }) {
   const pts = (content.travel && content.travel.flight.points) || {};
+  const rides = (content.travel && content.travel.rides) || {};    // wave 3: the ore cart, the ferry
   let buf = null, bctx = null;
 
   function message(ev, me) {
@@ -29,7 +31,9 @@ export function createTravelUi({ font, content }) {
       case 'flight_point': return `New flight point: ${ev.name}.`;
       case 'flight_fail': return FLIGHT_FAIL[ev.reason] || 'The kite will not fly there.';
       case 'flight_start': return `The Lantern Kite takes you to ${ev.name}. (${ev.cost} gold)`;
-      case 'flight_end': return `You land at ${ev.name}.`;
+      case 'flight_end': return rides[ev.to] ? `You arrive at ${ev.name}.` : `You land at ${ev.name}.`;
+      case 'ride_start': return ev.vehicle === 'ferry' ? `The ferry pushes off for ${ev.name}.` : `The ore cart rattles off toward ${ev.name}.`;
+      case 'ride_fail': return RIDE_FAIL[ev.reason] || null;
       case 'inventory_fail': return ev.item === 'lantern_stone' ? STONE_FAIL[ev.reason] || null : null;
       default: return null;
     }
@@ -53,9 +57,11 @@ export function createTravelUi({ font, content }) {
       label = `Lantern Stone  ${Math.max(0, (p.hearth.end - snap.tick) / 20).toFixed(1)} s`;
     } else {
       k = p.flight.k;
-      const to = pts[p.flight.to], from = pts[p.flight.from];
-      label = `Flying to ${to ? to.name.split(',')[0] : p.flight.to}`;
-      sub = `${from ? from.name.split(',')[0] : ''} to ${to ? to.name.split(',')[0] : ''}   ${Math.max(0, Math.round((p.flight.end - snap.tick) / 20))} s left`;
+      const rd = p.flight.ride ? rides[p.flight.to] : null;
+      const to = rd || pts[p.flight.to], from = pts[p.flight.from];
+      label = `${rd ? (p.flight.ride === 'ferry' ? 'Ferry to' : 'Ore cart to') : 'Flying to'} ${to ? to.name.split(',')[0] : p.flight.to}`;
+      sub = rd ? `${Math.max(0, Math.round((p.flight.end - snap.tick) / 20))} s left`
+        : `${from ? from.name.split(',')[0] : ''} to ${to ? to.name.split(',')[0] : ''}   ${Math.max(0, Math.round((p.flight.end - snap.tick) / 20))} s left`;
     }
     g.fillStyle = '#3a3448'; g.fillRect(6, H - 8, W - 12, 4);
     g.fillStyle = p.flight ? '#8fc0ff' : '#f9d77a'; g.fillRect(6, H - 8, Math.round((W - 12) * k), 4);
@@ -84,6 +90,8 @@ export function flightOptions(d, act) {
     else out.push({ icon: 'icon_lantern', label: 'Make this inn your home.', color: 'white', on: () => { act.send({ t: 'set_home', npc: d.ent }); d.inn = { ...d.inn, home: true }; } });
   }
   if (d.flight) out.push({ icon: 'icon_feather', label: 'Show me where the kites fly.', color: 'white', on: () => { d.page = 'flight'; d.scroll = 0; } });
+  // wave 3: a ride (the ore cart, the ferry): one route, free, any level
+  if (d.ride) out.push({ icon: 'icon_feather', label: d.ride.label, color: 'white', on: () => { act.send({ t: 'ride', npc: d.ent }); act.closeDialog(); } });
   return out;
 }
 

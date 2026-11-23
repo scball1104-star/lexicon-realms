@@ -19,7 +19,7 @@ export function dialogRectFor(L) {
 
 /** The dialog state from the sim's interact event (pure). */
 export function dialogFromInteract(ev) {
-  return { ent: ev.id, npc: ev.npc, trainer: ev.trainer || null, vendor: ev.vendor || null, inn: ev.inn || null, flight: ev.flight || null, offers: [], turnins: [], progress: [], soon: [],
+  return { ent: ev.id, npc: ev.npc, trainer: ev.trainer || null, vendor: ev.vendor || null, inn: ev.inn || null, flight: ev.flight || null, ride: ev.ride || null, offers: [], turnins: [], progress: [], soon: [],
     page: 'main', quest: null, choice: 0, scroll: 0, line: 0 };
 }
 

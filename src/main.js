@@ -194,7 +194,7 @@ async function boot() {
     const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
     // a dead hero saves at the lantern they will wake at
     // a hero on a Lantern Kite saves where the kite lands (big world, src/sim/travel.js)
-    const fl = e.flight && content.travel ? content.travel.flight.points[e.flight.to] : null;
+    const fl = e.flight && content.travel ? content.travel.flight.points[e.flight.to] || (content.travel.rides || {})[e.flight.to] || null : null;   // a ride (wave 3) saves at its landing too
     const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : fl ? { zone: fl.zone, tx: fl.land[0], ty: fl.land[1] }
       : { zone: e.zone, tx: Math.floor(e.x / (TILE * 16)), ty: Math.floor((e.y - 1) / (TILE * 16)) };   // SUB -> tiles
     return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,

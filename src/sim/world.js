@@ -40,6 +40,7 @@ import { createParty } from './party.js';
 import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
 import { createTravel } from './travel.js';
+import { createRealmMech } from './realm_mech.js';   // wave 3: the start realms' lava, Gate waves and tide
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -184,6 +185,7 @@ function wrap(state, content0, rng, systems) {
   C.prof = PF;
   // ---- travel (big world, src/sim/travel.js): the Lantern Stone, inn homes, flight (content.travel)
   const TV = combatOn && content.travel ? createTravel(C) : null;
+  const RM = combatOn ? createRealmMech(C) : null;   // the start realms' signatures (src/sim/realm_mech.js)
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -522,6 +524,7 @@ function wrap(state, content0, rng, systems) {
       if (TR) TR.tick();                         // trades end when the two walk apart
       if (combatOn) C.life.tick(events);
       if (PF) PF.tick();                         // professions: node respawns, the gather and craft casts
+      if (RM) RM.tick();                         // wave 3: Emberpeak's lava and Gate waves, Valewyn's tide
       // 4) systems (quests): read this tick's events, may call grantXp / emit
       for (const s of systems) if (s && s.tick) s.tick(w, events);
       state.rng = rng.state;
@@ -674,7 +677,7 @@ function wrap(state, content0, rng, systems) {
       case 'b2_suggest': if (combatOn) C.b2.spendSuggested(e); return;
       case 'chest_store': case 'chest_take': case 'chest_move': case 'chest_row': case 'chest_sort': if (ST) ST.command(e, cmd); return;
       case 'prof_train': case 'prof_recipe': case 'prof_unlearn': case 'prof_craft': case 'prof_cancel': if (PF) PF.command(e, cmd); return;
-      case 'set_home': case 'fly': if (TV) TV.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
+      case 'set_home': case 'fly': case 'ride': if (TV) TV.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
       case 'interact': {
         const t = index.get(cmd.id);
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');

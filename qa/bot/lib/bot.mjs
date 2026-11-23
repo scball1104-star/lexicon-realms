@@ -462,7 +462,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const cand = [];
     // 1) trainer
     const tr = trainable().filter((a) => trainCost(a.level) <= (p.gold || 0));
-    if (tr.length) cand.push({ key: 'train', kind: 'npc', npc: trainerNpc, act: 'train', pri: 1 });
+    // the class's trainer in the zone I stand in first (a start realm's first teacher: wave 3), else the town master
+    const here = Object.keys(npcHome).find((n) => npcHome[n].zone === me().zone && C.npcs[n] && C.npcs[n].trainer && C.npcs[n].trainer.cls === cls);
+    if (tr.length) cand.push({ key: 'train', kind: 'npc', npc: here || trainerNpc, act: 'train', pri: 1 });
     // 2) a full bag -> nearest vendor
     if (bagFree() <= 1 || (sellable().length >= 6 && bagFree() <= 3)) cand.push({ key: 'sell', kind: 'vendor', pri: 2 });
     // 2b) bind the nearest lantern in this zone when my lantern is in another zone (a player learns this after one long walk back)
@@ -702,7 +704,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     // every open-world spawn near my level, wherever it stands; hunt() walks to the camp whose level is closest
     const pool = new Set();
     let zonePick = null;
-    for (const z of Object.values(C.zones)) {
+    // the zone I stand in first (a start realm reached by a ride has no road out: wave 3), then the rest
+    const order = [C.zones[p.zone], ...Object.values(C.zones).filter((z) => z.id !== p.zone)].filter(Boolean);
+    for (const z of order) {
       if (z.kind === 'dungeon' || z.kind === 'cave' || z.instanced) continue;
       for (const s of z.spawns || []) if (!s.night && s.level >= p.level - 2 && s.level <= p.level + 1) { pool.add(s.mob); zonePick = zonePick || z.id; }
     }
@@ -766,7 +770,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       for (const e of ents()) {
         if (e.kind !== 'mob') continue;
         if (!e.dead) { deadSince.delete(e.id); continue; }
-        if (e.nightHidden || (e.spawn && (e.spawn.temporary || e.spawn.night))) continue;
+        if (e.nightHidden || e.realmParked || (e.spawn && (e.spawn.temporary || e.spawn.night))) continue;   // realmParked: the tide's drowned, the Gate's waves (src/sim/realm_mech.js)
         if (!deadSince.has(e.id)) deadSince.set(e.id, now());
         const t = C.mobs[e.template] || {};
         const exp = (e.spawn.respawn ?? t.respawn ?? (t.elite ? 360 : t.kind === 'weak' ? 60 : 90)) * 20;

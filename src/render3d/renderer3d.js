@@ -43,6 +43,7 @@ import { isTouchDevice } from '../input/touch.js';
 import { BitmapFont } from '../core/font.js';
 import { createLoader, WINDOW_LIT } from './loader.js';
 import { buildZone, BLD_CUT, flushBuildingFade, LAMP_GLASS, SEE, setBuildingFade, tickWater } from './zone3d.js';
+import { tickRealm3d, makeVehicle } from './realm3d.js';   // wave 3: lava glow, tide water, ride vehicles
 import { createActors } from './actors.js';
 import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
@@ -439,6 +440,15 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       if (!a) continue;
       flying.add(e.id);
       let b = kites.get(e.id);
+      // a ride (wave 3): the ore cart or the ferry on the ground under the hero, no bird
+      if (e.flight.ride) {
+        if (b && b.userData.vehicle !== e.flight.ride) { if (b.parent) b.parent.remove(b); b = null; }
+        if (!b) { b = makeVehicle(e.flight.ride); kites.set(e.id, b); }
+        if (b.parent !== a.root) a.root.add(b);
+        b.position.set(0, e.flight.ride === 'ferry' ? -0.25 : -0.3, 0); b.visible = a.root.visible;
+        continue;
+      }
+      if (b && b.userData.vehicle) { if (b.parent) b.parent.remove(b); b = null; kites.delete(e.id); }
       if (!b) { b = makeBird(); kites.set(e.id, b); precompile(b).catch(() => null); }
       if (b.parent !== a.root) a.root.add(b);
       const k = Math.max(0, Math.min(1, e.flight.up));
@@ -730,6 +740,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (tgA && tgA.e && !tgA.e.dead && tgA.kind !== 'object') { SEE.uFocus2.value.copy(tgA.root.position).setY(Math.min(1.2, tgA.height * 0.55)); SEE.uSeeR2.value = 1.9; } else SEE.uSeeR2.value = 0;
     cutBuildings(snap, view, me, tgA, rdt);
     tickWater(now);
+    if (shown) tickRealm3d(shown.group, snap.tick, now);
     animateLineup(now, dt);
     renderer.info.reset();
     const sky = applySky(snap, view, zone, target, area, rdt);
