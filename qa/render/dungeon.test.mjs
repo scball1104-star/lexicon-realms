@@ -1,5 +1,6 @@
 // Dungeons and caves, render side (pure): the dressing plan both renderers draw from, the doors' facing, the fallback.
 import { PLACES, WORLD } from '../../src/data/maps/index.js';
+import { DUNGEONS } from '../../src/data/dungeons.js';
 import { dungeonPlan, doorMouths, isPlaceZone, cells, DG_KNOWN, DG_WALL } from '../../src/render/dungeon_plan.js';
 
 const assert = (c, m) => { if (!c) throw new Error(m || 'assertion failed'); };
@@ -42,7 +43,7 @@ export const tests = [
     name: 'doors: every dungeon and cave door on the world faces away from its rock, with a label',
     fn() {
       const ds = doorMouths(WORLD);
-      assert(ds.length === Object.keys(PLACES).length, `one door per place (${ds.length})`);
+      assert(ds.length === Object.keys(PLACES).filter((k) => !(DUNGEONS[k] && DUNGEONS[k].door.zone)).length, `one door per place (${ds.length})`);
       for (const d of ds) {
         assert(['s', 'w', 'n', 'e'].includes(d.face), `${d.id}: face ${d.face}`);
         assert(d.name && (d.label || d.levels), `${d.id}: name and label`);

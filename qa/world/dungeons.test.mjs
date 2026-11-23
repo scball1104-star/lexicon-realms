@@ -54,7 +54,7 @@ const mobIn = (w, zid, tpl) => w.state.ents.find((e) => e.kind === 'mob' && e.zo
 
 export const tests = [
   { name: 'dungeons: every door walks both ways (world -> own copy -> the door outside), the zone event carries kind, name and levels', fn() {
-    for (const id of Object.keys(DUNGEONS)) {
+    for (const id of Object.keys(DUNGEONS).filter((k) => !DUNGEONS[k].door.zone)) {     // a door in an outdoor zone (the Larch Mine): qa/world/band.test.mjs
       const { w, pid, p } = hero({ level: DUNGEONS[id].levels[1] });
       const ev = walkIn(w, pid, id);
       eq(p.zone, `${id}#${pid}`, `${id}: into the hero's own copy`);
@@ -79,6 +79,7 @@ export const tests = [
       for (const c of z.dungeon.chests) assert(ok(c.x, c.y), `${id}: chest ${c.id}`);
       assert(ok(z.lanterns[0].x, z.lanterns[0].y), `${id}: lantern`);
       const d = doorOf(id);
+      if (DUNGEONS[id].door.zone) continue;     // its door is in an outdoor zone (qa/world/band.test.mjs)
       assert(town(d.x, d.y) && town(d.out[0], d.out[1]), `${id}: the door is on foot from the town`);
       // halls 4 to 8 wide: every floor cell has a 4-wide run of floor through it across or down (rooms are wider)
       for (let y = 1; y < z.h - 1; y++) for (let x = 1; x < z.w - 1; x++) {

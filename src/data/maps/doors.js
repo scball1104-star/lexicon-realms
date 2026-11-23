@@ -2,6 +2,7 @@
 // build (tools/maps/build_world.mjs, which checks every door) and the tests call the same function.
 //
 //   withDoors(world, dungeons, places) -> the world zone with each door's join and its `doors` entry added
+//   (also any outdoor zone: only the doors whose door.zone is that zone's id; no door.zone means the world)
 //
 // A door is a join pair: the world join (the door tiles, door.area's own tiles moved by layout.js) moves a hero to the
 // place's `arrival`; the place's own exit join (generated, tools/maps/dungeon_kit.mjs) puts them back on `door.out`.
@@ -13,6 +14,7 @@ export function withDoors(world, dungeons, places) {
   for (const d of Object.values(dungeons)) {
     const z = places[d.id];
     if (!z) continue;
+    if ((d.door.zone || 'world') !== (world.id || 'world')) continue;     // a door in another outdoor zone (band lane: the Larch Mine in Larchhill)
     const [x, y] = d.door.area ? toWorld(d.door.area, d.door.x, d.door.y) : [d.door.x, d.door.y];
     const out = d.door.area ? toWorld(d.door.area, d.door.out[0], d.door.out[1]) : [...d.door.out];
     const region = d.door.area || null;

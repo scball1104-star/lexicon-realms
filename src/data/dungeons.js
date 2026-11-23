@@ -12,6 +12,8 @@
 // The Watchtower's bosses also drop their set piece (`setSlot`, src/data/items.js SETS). `daily`: the first clear of each
 // real day (the bounty boards' day, world.setDay) leaves a bonus chest by the last boss: gold, glyphs, a gear roll and
 // bonus XP worth `xpMinutes` of questing at the hero's level (4 kill XP a minute, BUILDS_2 5.2).
+import { BAND_DUNGEONS } from './band_dungeons.js';
+
 export const DUNGEON_RULES = Object.freeze({
   resetSec: 1800,                        // a copy with no hero inside for 30 minutes of sim time resets
   dark: Object.freeze({ dungeon: 0.55, cave: 0.45 }),
@@ -76,4 +78,6 @@ export const DUNGEONS = {
     chest: { gold: [30, 45], rarity: 'magic', ilvl: 16 },
   },
 };
+// the 20 to 30 band's cave (src/data/band_dungeons.js: the Larch Mine, its door in Larchhill)
+Object.assign(DUNGEONS, BAND_DUNGEONS);
 export const DUNGEON_IDS = Object.freeze(Object.keys(DUNGEONS));

@@ -9,6 +9,8 @@
 // times walking speed along a fixed route, over walls and water. You cannot act while flying; you land beside the master.
 // Spots are tiles in their own zone (the world is one zone, the Rootbound another). Text is original; no em dashes.
 
+import { BAND_INNS, BAND_POINTS, BAND_ROUTES, BAND_TRAVEL_NPCS, BAND_TRAVEL_NPC_SPAWNS } from './band_travel.js';
+
 export const STONE = Object.freeze({ item: 'lantern_stone', castSec: 10, cooldownSec: 30 * 60 });
 
 /** The Lantern Stone (the items.js shape; `use.kind 'hearth'` is the sim's, and `keep` means it is never used up). */
@@ -24,6 +26,7 @@ export const INNS = Object.freeze({
   hob: Object.freeze({ id: 'lantern_inn', name: 'the Lantern Inn', zone: 'world', x: 171, y: 142 }),
   tb_innkeeper: Object.freeze({ id: 'thornfold_hearth', name: 'the Thornfold Hearth', zone: 'world', x: 75, y: 133 }),
   rb_innkeeper: Object.freeze({ id: 'lamplit_shelf', name: 'the Lamplit Shelf', zone: 'rootbound', x: 305, y: 69 }),
+  ...BAND_INNS,                  // Larch Cross and Highdrove (src/data/band_travel.js)
 });
 export const DEFAULT_HOME = 'hob';
 
@@ -38,6 +41,7 @@ export const FLIGHT = Object.freeze({
     thornfold: Object.freeze({ id: 'thornfold', name: "Thornfold, Shepherd's Downs", npc: 'fm_thornfold', zone: 'world', x: 82, y: 135, land: [82, 136] }),
     ridge_path: Object.freeze({ id: 'ridge_path', name: 'Ridge Path, the High Moor', npc: 'fm_ridge', zone: 'world', x: 83, y: 92, land: [83, 93] }),
     willow_library: Object.freeze({ id: 'willow_library', name: 'The Willow Library, the Rootbound', npc: 'rb_kitemaster', zone: 'rootbound', x: 296, y: 64, land: [296, 65] }),
+    ...BAND_POINTS,
   }),
   // the routes between points, each a list of legs { zone, pts: [[x, y] tiles] } in flying order (reversed for the way
   // back). A route between two zones ends one leg at the pass and starts the next where the pass lands.
@@ -49,6 +53,7 @@ export const FLIGHT = Object.freeze({
       { zone: 'world', pts: [[178, 145], [182, 128], [184, 112], [186, 96], [186, 79]] },
       { zone: 'rootbound', pts: [[288, 2], [288, 24], [292, 50], [296, 64]] },
     ] }),
+    ...BAND_ROUTES.map((r) => Object.freeze(r)),
   ]),
 });
 
@@ -66,6 +71,7 @@ export const TRAVEL_NPCS = Object.freeze({
     talk: ['Yes, a kite flies underground. It flies up the Root Stair and out into the sky. They love it.', 'Come back when you are grown, and the kites will take you anywhere you have been.'] },
   rb_innkeeper: { id: 'rb_innkeeper', name: 'Bryony', sprite: 'npc_innkeeper', title: 'Keeper of the Lamplit Shelf', faction: 'friendly', roles: ['innkeeper'], vendor: null, trainer: null, innkeeper: true,
     talk: ['Every bed here is a bookshelf with a blanket on it. You will sleep like a closed book.', 'Make this your home and the Lantern Stone will always find its way back down.'] },
+  ...BAND_TRAVEL_NPCS,                  // Larch Cross and Highdrove (src/data/band_travel.js)
 });
 
 /** Where the travel npcs stand (spawns, CONTRACTS 7: zone, x, y tiles). */
@@ -76,6 +82,7 @@ export const TRAVEL_NPC_SPAWNS = Object.freeze([
   { npc: 'fm_ridge', zone: 'world', x: 83, y: 92, dir: 'down' },
   { npc: 'rb_kitemaster', zone: 'rootbound', x: 296, y: 64, dir: 'down' },
   { npc: 'rb_innkeeper', zone: 'rootbound', x: 306, y: 68, dir: 'down' },
+  ...BAND_TRAVEL_NPC_SPAWNS,
 ]);
 
 /** The flight graph's shortest route from a to b (a list of legs), or null. Pure: the sim and the tests use it. */

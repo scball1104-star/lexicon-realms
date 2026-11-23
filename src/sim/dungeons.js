@@ -150,7 +150,10 @@ export function createDungeons(D) {
     let out = spec;
     if (spec.zone != null && isPlace(spec.zone)) {
       const [x, y] = doorOut(zoneBase(spec.zone));
-      out = { ...out, zone: world() ? world().id : content.start.zone, x, y };
+      // a place whose door stands in another outdoor zone (the Larch Mine in Larchhill) loads outside it, there
+      const ex = ((zones[zoneBase(spec.zone)] || {}).joins || [])[0];
+      const outZone = ex && zones[ex.to] && !(world() && ex.to === world().id) && !((world() || {}).doors || []).some((d) => d.id === zoneBase(spec.zone)) ? ex.to : null;
+      out = { ...out, zone: outZone || (world() ? world().id : content.start.zone), x, y };
     }
     if (spec.lantern && isPlace(spec.lantern.zone)) {
       const L = spec.lanternOut && !isPlace(spec.lanternOut.zone) ? spec.lanternOut : nearestWorldLantern(...doorOut(zoneBase(spec.lantern.zone)));

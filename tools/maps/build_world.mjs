@@ -243,27 +243,43 @@ for (const d of Object.values(DUNGEONS)) {
 // (the big-zone kit), checked like an area (finish: everything reachable from its arrival, no pits), and every join
 // between it and the world lands on a walkable cell the other side can walk back from.
 const outdoor = [];
-for (const id of ['rootbound']) {
+for (const id of ['rootbound', 'larchhill', 'drovers_reach']) {
+  if (!fs.existsSync(path.join(path.dirname(fileURLToPath(import.meta.url)), `zone_${id}.mjs`))) { problems.push(`outdoor ${id}: no zone_${id}.mjs`); continue; }
   const z = (await import(`./zone_${id}.mjs`)).build(db);
   z.source = `tools/maps/zone_${id}.mjs`;
   outdoor.push(finish(z));
 }
 {
-  const W3 = world;
-  const seenW = reach(W3, W3.arrival[0], W3.arrival[1]);
+  // every join between the world and an outdoor zone, or between two outdoor zones (band lane: Larchhill to Drovers'
+  // Reach), lands on a walkable cell the other side can reach from its own arrival, its cells are reachable on this
+  // side, and the other side has a join back; every outdoor zone can be reached from the world through its joins
+  const all = { [world.id]: world, ...Object.fromEntries(outdoor.map((o) => [o.id, o])) };
+  const seen = Object.fromEntries(Object.values(all).map((z) => [z.id, reach(z, z.arrival[0], z.arrival[1])]));
+  const linked = new Set([world.id]);
+  for (let pass = 0; pass < outdoor.length + 1; pass++) for (const z of Object.values(all)) for (const j of z.joins) if (all[j.to] && linked.has(z.id)) linked.add(j.to);
+  for (const o of outdoor) if (!linked.has(o.id)) problems.push(`${o.id}: no chain of joins from the world`);
+  for (const z of Object.values(all)) for (const j of z.joins) {
+    const o = all[j.to];
+    if (!o || (z.id === world.id && o.id === world.id)) continue;
+    if (!(o.collision[j.ty] && o.collision[j.ty][j.tx] === '.' && seen[o.id][j.ty * o.w + j.tx])) problems.push(`${z.id} join -> ${o.id} lands on ${j.tx},${j.ty}, not a walkable, reachable cell`);
+    let any = false;
+    for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) if (seen[z.id][y * z.w + x]) any = true;
+    if (!any) problems.push(`${z.id} join -> ${o.id} at ${j.x},${j.y} is not reachable from ${z.id}'s arrival`);
+    if (!o.joins.some((k) => k.to === z.id)) problems.push(`${z.id} join -> ${o.id}: no join back`);
+    if (z.id !== world.id) console.log(`pass ${z.id} -> ${o.id}: ${z.id} ${j.x},${j.y} lands ${o.id} ${j.tx},${j.ty}`);
+  }
+  // doors in an outdoor zone (src/data/dungeons.js door.zone): walkable, reachable, the exit lands on the door's out
+  const placeById = Object.fromEntries(places.map((p) => [p.id, p]));
   for (const o of outdoor) {
-    const there = W3.joins.filter((j) => j.to === o.id);
-    if (!there.length) problems.push(`world: no join to ${o.id}`);
-    for (const j of there) {
-      if (!(o.collision[j.ty] && o.collision[j.ty][j.tx] === '.')) problems.push(`world join -> ${o.id} lands on ${j.tx},${j.ty}, not walkable`);
-      let any = false;
-      for (let y = j.y; y < j.y + j.h; y++) for (let x = j.x; x < j.x + j.w; x++) if (seenW[y * W3.w + x]) any = true;
-      if (!any) problems.push(`world join -> ${o.id} at ${j.x},${j.y} is not reachable from the town`);
+    const Z = withDoors(o, DUNGEONS, placeById);
+    for (const dr of Z.doors || []) {
+      for (let y = dr.y; y < dr.y + dr.h; y++) for (let x = dr.x; x < dr.x + dr.w; x++) if (Z.collision[y][x] !== '.' || !seen[o.id][y * o.w + x]) problems.push(`door ${dr.id} in ${o.id}: ${x},${y} is not walkable and reachable`);
+      const [ox, oy] = dr.out;
+      if (Z.collision[oy][ox] !== '.' || !seen[o.id][oy * o.w + ox]) problems.push(`door ${dr.id} in ${o.id}: out ${ox},${oy} is not a walkable, reachable cell`);
+      const ex = placeById[dr.id].joins[0];
+      if (ex.tx !== ox || ex.ty !== oy || ex.to !== o.id) problems.push(`door ${dr.id} in ${o.id}: the exit lands on ${ex.to} ${ex.tx},${ex.ty}, not the door's out`);
+      console.log(`door ${dr.id}: ${o.id} ${dr.x},${dr.y}, out ${ox},${oy}  "${dr.name}" ${dr.label}`);
     }
-    const back = o.joins.filter((j) => j.to === W3.id);
-    if (!back.length) problems.push(`${o.id}: no join back to the world`);
-    for (const j of back) if (!(W3.collision[j.ty] && W3.collision[j.ty][j.tx] === '.' && seenW[j.ty * W3.w + j.tx])) problems.push(`${o.id} join -> world lands on ${j.tx},${j.ty}, not a walkable, reachable cell`);
-    console.log(`pass world <-> ${o.id}: ${there.map((j) => `world ${j.x},${j.y}`).join(' ')} / ${back.map((j) => `${o.id} ${j.x},${j.y}`).join(' ')}`);
   }
 }
 

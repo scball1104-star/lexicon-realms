@@ -379,6 +379,7 @@ export const tests = [
           else if (o.kind === 'deliver') { const n = at(o.to); w.enqueue(id, { t: 'interact', id: n.id }); run(w, 2); }
         });
         assert(e.quests[qid] && e.quests[qid].state === 'ready', `${qid}: ready (${JSON.stringify(e.quests[qid])})`);
+        e.bag = [];     // room for the reward (band lane: more foes in the content shifted the drop rolls; the bag filled)
         const t = at(q.turnIn);
         w.enqueue(id, { t: 'quest_turnin', quest: qid, npc: t.id, choice: 0 });
         run(w, 2);

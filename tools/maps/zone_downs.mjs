@@ -165,6 +165,7 @@ export function build(db) {
   // the barrow door stands open since the dungeons build (2026-11-22): its doorway (27..29, 7) is walkable and is the
   // Wethers' Barrow's door (src/data/dungeons.js; the join is added on the world by src/data/maps/doors.js)
   open.push([27, 7], [28, 7], [29, 7]);
+  open.push([19, 93], [20, 93], [21, 93]);
   RING.forEach(([x, y], i) => d.add(i % 3 === 1 ? 'x1_menhir_b' : 'x1_menhir_a', x, y));
   d.add('x1_cairn_moor', RING_C[0], RING_C[1] - 1);
   d.add('x1_blank_slab', 40, 14);                           // the thirteenth stone, apart
@@ -193,7 +194,8 @@ export function build(db) {
   // the closed roads
   d.add('x1_drovers_chain', 99, 92);
   d.add('signboard', 103, 90);
-  d.add('x1_chain_gate', 19, 93);
+  // the Larchhill gate stands open since the band zones (2026-11-22): its gap (19..21, 93) is walkable and the road runs
+  // on south to the pass into Larchhill (its own zone, tools/maps/zone_larchhill.mjs)
   d.add('signboard', 23, 92);
 
   const LANTERNS = [
@@ -269,13 +271,12 @@ export function build(db) {
     { id: 'town_lane', x: 141, y: 40, text: 'EAST: WILLOWMERE, BY ORCHARD LANE.' },
     { id: 'moor_sign', x: 73, y: 2, text: 'NORTH: THE HIGH MOOR. FOLLOW THE CHIME POSTS.' },
     { id: 'drovers_chain', x: 103, y: 90, text: 'ROAD CLOSED. THE WEIR BROKE AND NOBODY CAME. - F.', hook: 'x1_millrace' },
-    { id: 'larchhill_gate', x: 23, y: 92, text: 'LARCHHILL. MIND THE BEES.', hook: 'x1_larchhill' },
+    { id: 'larchhill_gate', x: 23, y: 92, text: 'LARCHHILL. MIND THE BEES. The gate is open again: the road runs south into the larches.' },
     { id: 'blank_slab', x: 40, y: 14, text: 'A pale slab, apart from the ring. No name on it at all.' },
     { id: 'barrow_door', x: 26, y: 8, text: "A turf mound with a low doorway under a blank stone. The Wethers' Barrow. From under it, very faintly, something is counting." },
   ];
   const hooks = [
     { id: 'x1_millrace', to: 'x1_millrace', x: 100, y: 90, text: "Ferrick's chain is across the Drovers' Road. The road beyond is closed." },
-    { id: 'x1_larchhill', to: 'x1_larchhill', x: 20, y: 92, text: 'The Larchhill gate is shut. Somewhere past it, bees.' },
   ];
   // the barrow door (28, 8) is the Wethers' Barrow's door since the dungeons build (src/data/dungeons.js): no hook
   const joins = [
@@ -283,7 +284,7 @@ export function build(db) {
     { x: 143, y: 42, w: 1, h: 2, to: 'willowmere', tx: 1, ty: 16, dir: 'right' },
     { x: 74, y: 0, w: 4, h: 1, to: 'moor', tx: 78, ty: 97, dir: 'up' },
     { x: 99, y: 95, w: 3, h: 1, to: 'x1_millrace', tx: 4, ty: 1, dir: 'down' },
-    { x: 19, y: 95, w: 3, h: 1, to: 'x1_larchhill', tx: 31, ty: 1, dir: 'down' },
+    { x: 19, y: 95, w: 3, h: 1, to: 'larchhill', tx: 545, ty: 5, dir: 'down' },     // Larchhill (zone_larchhill.mjs GATE.arrive)
   ];
 
   return {
