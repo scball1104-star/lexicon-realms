@@ -17,6 +17,9 @@ frames), a 5th is told the game is full, a guest leaves and its saved hero has t
 host drops and the guests get a clear message with their hero saved. Group play (src/sim/party.js, trade.js): the guest
 opens a trade from the host's target strip, a bound item is refused, both press Ready and the items and gold swap; the
 guest dies, presses Wait for a rez and the host wakes them with lantern-ash from the party frame's Rez button.
+Flight (polish 2026-11-22): the guest talks to the Willowmere kitemaster, opens the kites page and presses Fly with real
+clicks; the host's sim flies the guest (gold paid, untargetable on the kite), the guest's own screen follows the kite
+and the hero lands at Thornfold on both screens.
 Screenshots: qa/out/integrate/coop_*.png.
 Prints COOP_DONE ok (or COOP_DONE fail: <what>).
 """
@@ -271,6 +274,7 @@ def run(browser):
     check(G1.me()['x'] == x_before, 'typing (w, a, s, d among the letters) did not walk the hero')
 
     group_checks(every, H, G1)
+    flight_checks(every, H, G1)
 
     log('phone guest joins with touch')
     join_by_code(every, G2, code, shot='phone_join')
@@ -410,6 +414,42 @@ def group_checks(every, H, G1):
     # back to full, so the bandwidth check below is not measuring a mana bar refilling (every point of mana resends the
     # guest's whole HUD block, about 22 KiB/s while it refills: a frames.js matter, not group play)
     H.ev(f'() => {{ const g = __realms.world.get({ids["g"]}); g.hp = g.hpMax; if (g.res) g.res.cur = g.res.kind === "resolve" ? 0 : g.res.max; }}')
+
+
+def flight_checks(every, H, G1):
+    """A guest flies with a kitemaster: the command goes to the host, the host's sim moves the guest, both see it land."""
+    log('flight: the guest flies from Willowmere to Thornfold (host-authoritative)')
+    ids = H.ev('''() => { const w = __realms.world, R = __realms; const g = w.state.ents.find((e) => e.kind === 'player' && e.name === 'Gusta');
+        const fm = w.state.ents.find((e) => e.kind === 'npc' && e.template === 'fm_willowmere');
+        g.level = Math.max(g.level, 8); w.internals.stats.recalc(g); g.hp = g.hpMax;
+        g.flights = [...new Set([...(g.flights || []), 'willowmere', 'thornfold'])]; g.gold = 100;
+        g.zone = fm.zone; g.x = fm.x; g.y = fm.y + 256; g.mx = 0; g.my = 0; g.target = null; g.inCombat = false; g.lastCombat = -99999;
+        return { g: g.id, fm: fm.id, land: __realms.content.travel.flight.points.thornfold.land }; }''')
+    wait(every, lambda: G1.ev(f'__realms.snapshot().entities.some((e) => e.id === {ids["fm"]})'), 'the guest sees the kitemaster')
+    G1.ev(f'() => __realms.ui.act.send({{ t: "interact", id: {ids["fm"]} }})')
+    wait(every, lambda: G1.ev('!!(__realms.ui.state.dialog && __realms.ui.state.dialog.flight)'), 'the guest sees the kitemaster window')
+    G1.ev('__realms.redraw()')
+    G1.press_button('Show me where the kites fly.')
+    G1.ev('__realms.redraw()')
+    wait(every, lambda: G1.region_xy('Fly'), 'the guest sees a lit Fly button')
+    G1.shot('flight_page')
+    G1.press_button('Fly')
+    wait(every, lambda: H.ev(f'!!__realms.world.get({ids["g"]}).flight'), 'the host flies the guest')
+    gold = H.ev(f'__realms.world.get({ids["g"]}).gold')
+    check(gold < 100, f'the guest paid for the kite (100 -> {gold})')
+    wait(every, lambda: G1.ev('!!(__realms.player() || {}).flight'), "the guest's own screen has the kite")
+    x0 = G1.me()['x']
+    time.sleep(2.0)
+    wait(every, lambda: abs(G1.me()['x'] - x0) > 16, 'the guest moves on its own screen while flying')
+    H.shot('flight_host'); G1.shot('flight_guest')
+    lx, ly = ids['land'][0] * 16 + 8, ids['land'][1] * 16 + 8
+    wait(every, lambda: not H.ev(f'!!__realms.world.get({ids["g"]}).flight'), 'the guest lands (host)', timeout=180)
+    hp = H.ev(f'(() => {{ const g = __realms.world.get({ids["g"]}); return {{ x: g.x / 16, y: g.y / 16, zone: g.zone }}; }})()')
+    check(abs(hp['x'] - lx) < 40 and abs(hp['y'] - ly) < 40, f'landed at Thornfold on the host ({hp}, want ~{lx},{ly})')
+    wait(every, lambda: not G1.ev('!!(__realms.player() || {}).flight') and abs(G1.me()['x'] - lx) < 40 and abs(G1.me()['y'] - ly) < 40, 'landed at Thornfold on the guest screen', timeout=10)
+    results['flight'] = {'gold_after': gold, 'landed': hp}
+    # back beside the host for the rest of the run
+    H.ev(f'''() => {{ const w = __realms.world, R = __realms; const h = w.get(R.playerId), g = w.get({ids["g"]}); g.zone = h.zone; g.x = h.x + 256; g.y = h.y; g.mx = 0; g.my = 0; }}''')
 
 
 def run_live(browser):

@@ -10,6 +10,7 @@
 import { TICK_HZ } from './constants.js';
 import { distPx } from './geom.js';
 import { resolveItem } from './loot.js';
+import { gearEffects, minorsOf } from './affixes.js';
 
 export function createStats(C) {
   const P = C.P;
@@ -127,6 +128,12 @@ export function createStats(C) {
       if (m.add != null) add += m.add;
       if (m.mul != null) mul *= m.mul;
     }
+    // rare minor powers worn (src/sim/affixes.js; recalcPlayer lists the ids on e.minors)
+    if (e.minors) for (const pw of minorsOf(C.content, e)) for (const m of pw.mods || []) {
+      if (m.stat !== stat || !matches(m, ctx) || !cond(e, m.when, ctx)) continue;
+      if (m.add != null) add += m.add;
+      if (m.mul != null) mul *= m.mul;
+    }
     for (const a of e.auras) {
       const mods = a.def.mods;
       if (!mods) continue;
@@ -200,7 +207,17 @@ export function createStats(C) {
       }
       if (!main) main = weaponFor(cls.weapons[0], 1);
       if (cls.auto.offHand && !off) off = weaponFor(cls.weapons[1], 1);
+      // weapon affixes that live in combat, not on the sheet (polish 2026-11-22, src/sim/affixes.js): Gleaming's dps on the
+      // weapon's own swing, of Leeching and of Embers on e.derived (set below)
+      const fx = gearEffects(C.content, e);
+      if (fx.dps.main && main) main = { ...main, min: main.min + fx.dps.main * main.speed, max: main.max + fx.dps.main * main.speed };
+      if (fx.dps.off && off) off = { ...off, min: off.min + fx.dps.off * off.speed, max: off.max + fx.dps.off * off.speed };
+      e.gearFx = fx.any ? { leech: fx.leech, onHit: fx.onHit } : null;
+      if (fx.minors.length) e.minors = fx.minors; else if (e.minors) delete e.minors;
     }
+    // flat points from auras (elixirs, flasks, Well Fed: `{ stat: 'main' | 'str' | 'agi' | 'int' | 'spi' | 'sta', add }`)
+    for (const k of ['str', 'agi', 'int', 'spi', 'sta']) { const a = mod(e, k).add; if (a) st[k] += Math.round(a); }
+    { const a = mod(e, 'main').add; if (a && st[cls.mainStat] != null) st[cls.mainStat] += Math.round(a); }
     const hpMul = mod(e, 'maxHp').mul, armorMul = mod(e, 'armor').mul, manaMul = mod(e, 'manaMax').mul;
     const hpMax = Math.round((cls.hpPerSta * st.sta + cls.base.hp) * hpMul);
     st.armor = Math.round(armor * armorMul);
@@ -287,5 +304,5 @@ export function createStats(C) {
     else if (e.kind === 'mob') recalcMob(e);
   }
 
-  return { mod, cond, slowOf, hasFlag, findAura, recalc, weaponFor, isSolo, powersOf };
+  return { mod, cond, slowOf, hasFlag, findAura, recalc, weaponFor, isSolo, powersOf, minorsOf: (e) => minorsOf(C.content, e) };
 }

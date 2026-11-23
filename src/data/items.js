@@ -10,15 +10,17 @@
 // armorType, weaponType } }; base gear (gear_*) always drops or sells with one.
 
 import { glyphItems } from './storage.js';
-import { LEGENDARY_POWERS } from './legendary_powers.js';
+import { LEGENDARY_POWERS, MINOR_RULE, LEGEND_DROPS } from './legendary_powers.js';
 
 export const RARITY = {
   common: { id: 'common', name: 'Common', color: '#e8e8e8', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 1.0 },
   magic: { id: 'magic', name: 'Magic', color: '#6f8cff', affixes: [1, 2], prefixMax: 1, suffixMax: 1, sellMult: 1.6 },
-  rare: { id: 'rare', name: 'Rare', color: '#ffd34d', affixes: [3, 4], prefixMax: 2, suffixMax: 2, sellMult: 2.5 },
+  // minor: the rare minor powers (BUILDS_2 6.1; src/data/legendary_powers.js MINOR_RULE, src/sim/loot.js rollGear)
+  rare: { id: 'rare', name: 'Rare', color: '#ffd34d', affixes: [3, 4], prefixMax: 2, suffixMax: 2, sellMult: 2.5, minor: MINOR_RULE },
   // epic (GAP B4, 2026-11-22): purple, between rare (gold) and legendary; the dungeons' last bosses and the world rares' 1 in 20
-  epic: { id: 'epic', name: 'Epic', color: '#a335ee', affixes: [4, 5], prefixMax: 3, suffixMax: 2, sellMult: 3.2 },
-  legendary: { id: 'legendary', name: 'Legendary', color: '#ff8a2a', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 4.0, placedOnly: true },
+  epic: { id: 'epic', name: 'Epic', color: '#a335ee', affixes: [4, 5], prefixMax: 3, suffixMax: 2, sellMult: 3.2, minor: MINOR_RULE },
+  // random: the small chance from world rares and bosses (src/data/legendary_powers.js LEGEND_DROPS, src/sim/legend_drops.js)
+  legendary: { id: 'legendary', name: 'Legendary', color: '#ff8a2a', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 4.0, placedOnly: true, random: LEGEND_DROPS },
   set: { id: 'set', name: 'Set', color: '#3cdc6a', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 4.0, placedOnly: true },
 };
 
@@ -76,7 +78,10 @@ const SLOT_VALUE = { two: 1.8, main: 1.5, chest: 1.2, off: 1.0, head: 1.0, legs:
 // PROGRESSION 4.7 affixes. values[tier - 1] = [min, max]; tier by ilvl: 1-3 T1, 4-6 T2, 7-9 T3, 10-12 T4, 13-15 T5.
 const ARMOR_SLOTS = ['head', 'chest', 'legs', 'feet', 'hands'];
 export const AFFIXES = {
-  gleaming: { kind: 'prefix', name: 'Gleaming', stat: 'dps', slots: ['main', 'two'], values: [[0.4, 0.4], [0.8, 0.8], [1.2, 1.2], [1.6, 1.6], [2.0, 2.0]] },
+  // combat: what the affix does in a fight (polish 2026-11-22, src/sim/affixes.js). dps: added to that weapon's damage per
+  // second (its swing grows by value x speed); leech: `per` of the damage you deal a point comes back as health; onHit: a
+  // direct hit has `chance` to deal value x `per` more damage of `school` (no crit, no further procs)
+  gleaming: { kind: 'prefix', name: 'Gleaming', stat: 'dps', combat: { kind: 'dps' }, slots: ['main', 'two'], values: [[0.4, 0.4], [0.8, 0.8], [1.2, 1.2], [1.6, 1.6], [2.0, 2.0]] },
   keen: { kind: 'prefix', name: 'Keen', stat: 'crit', slots: ['main', 'two', 'hands'], values: [[1, 1], [1, 1], [2, 2], [2, 2], [3, 3]] },
   mighty: { kind: 'prefix', name: 'Mighty', stat: 'str', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
   nimble: { kind: 'prefix', name: 'Nimble', stat: 'agi', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
@@ -88,8 +93,8 @@ export const AFFIXES = {
   of_the_lantern: { kind: 'suffix', name: 'of the Lantern', stat: 'spi', slots: ['head', 'chest', 'trinket', 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5]] },
   of_echoes: { kind: 'suffix', name: 'of Echoes', stat: 'mana', slots: ['head', 'off', 'trinket'], values: [[10, 10], [15, 15], [20, 20], [30, 30], [40, 40]] },
   of_mending: { kind: 'suffix', name: 'of Mending', stat: 'sp', slots: ['main', 'off', 'trinket'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]] },
-  of_leeching: { kind: 'suffix', name: 'of Leeching', stat: 'leech', slots: ['main', 'two'], values: [[2, 2], [3, 3], [4, 4], [5, 5], [6, 6]] },
-  of_embers: { kind: 'suffix', name: 'of Embers', stat: 'fireOnHit', slots: ['main', 'two'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]] },
+  of_leeching: { kind: 'suffix', name: 'of Leeching', stat: 'leech', combat: { kind: 'leech', per: 0.01 }, slots: ['main', 'two'], values: [[2, 2], [3, 3], [4, 4], [5, 5], [6, 6]] },
+  of_embers: { kind: 'suffix', name: 'of Embers', stat: 'fireOnHit', combat: { kind: 'onHit', chance: 0.25, per: 4, school: 'fire', ability: 'affix_embers' }, slots: ['main', 'two'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]] },
   // resistances (src/data/resist.js): percentage points of that school's damage shrugged off on average
   of_inkward: { kind: 'suffix', name: 'of Inkward', stat: 'resInk', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8]] },
   of_shadeward: { kind: 'suffix', name: 'of Shadeward', stat: 'resShadow', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8]] },

@@ -24,6 +24,7 @@
 import * as THREE from '../vendor/three/three.module.min.js';
 import { radial } from './textures.js';
 import { cells, doorMouths, hashXY, DG_WALL } from '../render/dungeon_plan.js';
+import { dressCave } from './cave3d.js';
 
 export const LIP = 0.55;
 export const CUT = { uCutZ: { value: 0 }, uCutOn: { value: 0 }, uLip: { value: LIP } };
@@ -186,9 +187,8 @@ export async function buildPlaceWalls(L, zone, B, plan) {
           const rows0 = [0, LIP, LIP + (t0 - LIP) * 0.55, t0], rows1 = [0, LIP, LIP + (t1 - LIP) * 0.55, t1];
           for (let k = 0; k < 3; k++) {
             const P = [jit(p0[0], rows0[k], p0[1]), jit(p1[0], rows1[k], p1[1]), jit(p1[0], rows1[k + 1], p1[1]), jit(p0[0], rows0[k + 1], p0[1])];
-            const sh = (v) => (v <= 0.01 ? 0.45 : 0.75 + 0.25 * Math.min(1, v / 2));
             Q.quad(M.rock, P, n, [[along(p0), rows0[k] * 0.5], [along(p1), rows1[k] * 0.5], [along(p1), rows1[k + 1] * 0.5], [along(p0), rows0[k + 1] * 0.5]],
-              [sh(rows0[k]), sh(rows1[k]), sh(rows1[k + 1]), sh(rows0[k + 1])].map((v) => [v, v * 0.95, v * 0.88]));
+              P.map((q) => caveTint(q[0], q[1], q[2])));
           }
         }
       }
@@ -234,6 +234,20 @@ export async function buildPlaceWalls(L, zone, B, plan) {
   // ---- columns: a lone rock cell (dressed column, or a stalagmite in a cave)
   for (const [x, y] of plan.columns) column(B, M, x + 0.5, y + 0.5, cave, hashXY(x, y, 9));
   for (const p of plan.props) if (p.t === 'dg_column' || p.t === 'dg_stalagmite') column(B, M, p.x + 0.5, p.y + 0.5, cave || p.t === 'dg_stalagmite', p.r);
+}
+
+/** Cave rock colour at a wall vertex (polish 2026-11-22): a damp dark foot, mottled stone, warm and cool strata bands and
+ *  a little moss low down; a function of the position only, so the faces meeting at a corner agree. */
+function caveTint(x, y, z) {
+  const kx = Math.round(x * 4), kz = Math.round(z * 4), ky = Math.round(y * 4);
+  const base = y <= 0.01 ? 0.34 : 0.72 + 0.28 * Math.min(1, y / 2);
+  const mott = 0.82 + hashXY(kx, kz, ky + 31) * 0.36;
+  const band = Math.sin(y * 3.1 + hashXY(Math.round(x), Math.round(z), 37) * 1.5);
+  const warm = band > 0.55 ? 1.08 : band < -0.6 ? 0.9 : 1;
+  const v = base * mott;
+  let c = [v * warm, v * 0.95, v * 0.88 / warm];
+  if (y < 1.1 && hashXY(kx, kz, 41) < 0.22) { const m = 1 - y / 1.1; c = [c[0] * (1 - 0.35 * m), c[1] * (1 + 0.1 * m), c[2] * (1 - 0.3 * m)]; }   // moss
+  return c;
 }
 
 function column(B, M, x, z, cave, r) {
@@ -364,8 +378,11 @@ export async function dressPlace(L, P, B, zone, plan, lamps) {
     else B.mergeGroup(rubble(cx, cz, r));     // an id this renderer does not know yet: a little rubble, never a crash
   }
   await Promise.all(jobs);
+  // caves (polish 2026-11-22, cave3d.js): floor patches, gravel, stalagmites, glow fungus and puddles; its fungus glows
+  const cv = cave ? dressCave(B, zone, plan) : null;
+  const withCave = (m) => { if (!cv || !cv.children.length) return m; if (m) cv.add(m); return cv; };
   // warm pools of light on the floor under every fire: one additive mesh (also the light on phones, which get 2 lights)
-  if (!fires.length) return null;
+  if (!fires.length) return withCave(null);
   const R = 2.6, pos = [], uv = [];
   for (const f of fires) {
     const x0 = f.x - R, x1 = f.x + R, z0 = f.z - R, z1 = f.z + R, y = 0.03;
@@ -376,7 +393,7 @@ export async function dressPlace(L, P, B, zone, plan, lamps) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   const mat = new THREE.MeshBasicMaterial({ map: radial('rgba(255,190,120,1)', 'rgba(255,140,60,0.3)'), color: '#ff9a50', transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false });
   const m = new THREE.Mesh(geo, mat); m.renderOrder = 1; m.name = 'dg_glow';
-  return m;
+  return withCave(m);
 }
 
 // ---------------------------------------------------------------- the doors on the world

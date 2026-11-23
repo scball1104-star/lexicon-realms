@@ -71,7 +71,13 @@ export function createQuests(Q) {
   const done = (p, id) => ensure(p).questsDone.includes(id);
   // a story chain step counts as done when the hero has done or holds a LATER step of it (src/data/worldlife.js storyLater):
   // a save that finished part of a chain out of order is never locked out by the prerequisites the chain added
-  const doneOrLater = (p, id) => done(p, id) || ((C.storyLater || {})[id] || []).some((x) => done(p, x) || !!p.quests[x]);
+  // a quest may stand for another (`standsFor`, polish 2026-11-22): the Rootbound's Up the Root Stair ends at Elder Mael as
+  // Hob's A Name Written Twice does, so a hero who started in the Rootbound is never locked out of the valley chain and the
+  // Willowmere board, and is not paid twice for meeting Mael (the realm's own first quest pays as Hob's does)
+  const STOOD = {};
+  for (const [qid, q] of Object.entries(QUESTS)) for (const x of q.standsFor || []) (STOOD[x] = STOOD[x] || []).push(qid);
+  const stoodFor = (p, id) => (STOOD[id] || []).some((x) => done(p, x));
+  const doneOrLater = (p, id) => done(p, id) || stoodFor(p, id) || ((C.storyLater || {})[id] || []).some((x) => done(p, x) || !!p.quests[x]);
   const active = (p) => ORDER.filter((id) => ensure(p).quests[id]);
 
   // ---------------------------------------------------------------- status
@@ -82,6 +88,7 @@ export function createQuests(Q) {
     if (q.bounty ? bountyDoneToday(p, id) : done(p, id)) return 'done';
     const s = p.quests[id];
     if (s) return s.state === 'ready' ? 'ready' : 'active';
+    if (stoodFor(p, id)) return 'done';                              // a quest that stands for it is done (standsFor)
     if (q.bounty && !bountiesToday().includes(id)) return 'locked';   // not on the board today
     const req = q.requires || {};
     if ((req.quests || []).some((r) => !doneOrLater(p, r))) return 'locked';
