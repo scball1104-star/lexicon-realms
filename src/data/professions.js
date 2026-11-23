@@ -105,6 +105,7 @@ const MATS = [
 // (src/sim/professions.js): prof_aura (an elixir, flask, food, whetstone, oil or bandage: one buff per `slot`),
 // prof_restore (health and mana at once), learn_recipe (a Pattern).
 const aura = (id, name, icon, dur, mods, extra = {}) => ({ id, name, icon, kind: 'buff', duration: dur, mods, unique: 'global', ...extra });
+const DMG = (k) => [{ stat: 'damageDone', mul: 1 + k }, { stat: 'healingDone', mul: 1 + k }];   // scrolls and step 2 (professions2.js)
 const HP = (k, armor = 0) => [{ stat: 'maxHp', mul: 1 + k }, ...(armor ? [{ stat: 'armor', mul: 1 + armor }] : [])];
 const pct = (k) => `${Math.round(k * 100)}%`;
 // flat points (polish 2026-11-22, D:/LQOnline/professions/BRIEF.md 4: "a level 20 elixir +8 main stat", "a Master flask +10

@@ -29,6 +29,8 @@ const ROAD = { zone: 'world', x: 160, y: 120 };   // the North Road, open ground
 function rider(kinds = ['bay_horse'], extra = {}) {
   const w = world();
   const id = w.addPlayer({ name: 'Rook', cls: 'warden', level: 20, gold: 0, ...ROAD, known: kinds.map((k) => MOUNTS[k].ability), ...extra });
+  const e0 = w.get(id);                               // no foe near the test road (a rare can roll its spawn here)
+  for (const m of w.state.ents) if (m.kind === 'mob' && m.zone === e0.zone && (Math.hypot(m.x - e0.x, m.y - e0.y) < 40 * 16 || /^rare_/.test(m.template))) { m.dead = true; m.hp = 0; m.respawnAt = 1e9; }
   run(w, 25);                                         // past the first global cooldown
   return { w, id, e: w.get(id) };
 }
