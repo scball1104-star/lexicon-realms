@@ -899,6 +899,15 @@ function wrap(state, content0, rng, systems) {
         slot = lvl('off') < lvl('main') ? 'off' : 'main';
       }
     } else if (cmd.slot != null && cmd.slot !== slot && cmd.slot !== it.slot) return invFail(e, cmd, 'slot');
+    // a two-hand weapon over a main hand and an off hand frees one bag slot and needs two: with a full bag bagAdd dropped
+    // the second piece and it was lost (fix20, 2026-11-23). Refuse first, before anything comes off.
+    {
+      const offs = [slot];
+      if (it.slot === 'two') offs.push('off');
+      if (slot === 'off') { const mainIt = e.equip.main && resolveItem(content, e.equip.main, e.cls); if (mainIt && mainIt.slot === 'two') offs.push('main'); }
+      const n = offs.filter((s) => e.equip[s]).length;
+      if (n > 1 && bagFree(e, content) + 1 < n) return invFail(e, cmd, 'bag_full');
+    }
     const out = [];
     const take = (s) => { if (e.equip[s]) { out.push(e.equip[s]); delete e.equip[s]; } };
     take(slot);

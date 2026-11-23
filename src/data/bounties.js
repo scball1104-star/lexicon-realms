@@ -31,7 +31,9 @@ export const NAMED_SPAWNS = [
   { zone: 'valley', mob: 'inkpot', level: 6, x: 74, y: 43, wander: 1, respawn: 180, group: 'bounty_inkpot' },
   { zone: 'downs', mob: 'black_tup', level: 10, x: 111, y: 68, wander: 2, respawn: 180, group: 'bounty_black_tup' },
   { zone: 'downs', mob: 'cold_count', level: 12, x: 16, y: 30, wander: 2, respawn: 180, group: 'bounty_cold_count' },
-  { zone: 'moor', mob: 'grimmet', level: 15, x: 40, y: 8, wander: 2, respawn: 180, group: 'bounty_grimmet' },
+  // fix20 (2026-11-23): Grimmet stood at 40,8, beside the walk from Odo's hut to chime post 5 (Fifty Paces, level 13):
+  // 7 of the audit's deaths on that post were his. He keeps the Chime Road's north west end now, 12+ tiles off the walk.
+  { zone: 'moor', mob: 'grimmet', level: 15, x: 5, y: 21, wander: 2, respawn: 180, group: 'bounty_grimmet' },
   { zone: 'moor', mob: 'drowned_clerk', level: 17, x: 50, y: 20, wander: 2, respawn: 180, group: 'bounty_drowned_clerk' },
 ];
 
@@ -98,7 +100,7 @@ const LIST = {
   ],
   tarn_overlook: [
     b('bounty_mo_grimmet', 'named', 15, 'Grimmet',
-      [{ kind: 'kill', mob: 'grimmet', count: 1, where: [at('moor', 40, 8, 4)], label: 'Grimmet slain' }],
+      [{ kind: 'kill', mob: 'grimmet', count: 1, where: [at('moor', 5, 21, 4)], label: 'Grimmet slain' }],
       { offer: 'Board by the cutting: GRIMMET. A mist wolf with one white eye, up the north end of the Chime Road. Fast. Faster than you. Took my second-best spade.',
         progress: 'Grimmet runs the north road. Do not try to outrun him.', complete: 'Grimmet. Huh. No spade on him? Pity. Your bounty, then.' }),
     b('bounty_mo_drowned_clerk', 'named', 17, 'The Drowned Clerk',
