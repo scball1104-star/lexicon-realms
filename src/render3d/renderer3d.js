@@ -180,7 +180,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     return p;
   }
   const actors = createActors(scene, L, { items, quality, compile: (o) => precompile(o) });
-  const fx3 = createFx3d(scene, { abilities, maxParticles: low ? 300 : 700 });
+  // effects: the FX kit (fx3d.js); who/mats let it pick a hero's blow and tint a struck body (body.mats)
+  const fx3 = createFx3d(scene, { abilities, low, who: (id) => { const a = actors.get(id); return a && a.e ? { kind: a.kind, cls: a.e.cls } : null; }, mats: (id) => { const a = actors.get(id); return a ? a.mats : null; } });
   const font = assets.has && assets.has('font') ? new BitmapFont(assets.json('font'), assets.img('font'), { id: 'r3d' }) : null;
   const fontFrom = (j, im) => (j && im ? new BitmapFont(j, im, { id: 'num' }) : null);
   let numFont = null;
@@ -703,6 +704,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const hz = dist * Math.cos(pitchC);
     camera.position.set(target.x + bx * hz, target.y + dist * Math.sin(pitchC), target.z + bz * hz);
     camera.lookAt(target);
+    // the FX kit's gentle kick on the player's own big hits and crits (Options: Screen shake off turns it off)
+    { const sh = view.shake === false ? 0 : fx3.screen.shake; if (sh > 0.01) { camera.position.x += Math.sin(now * 83) * sh * 0.25; camera.position.y += Math.cos(now * 71) * sh * 0.2; } }
     camera.updateMatrixWorld();
     frustum.setFromProjectionMatrix(projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
     // distance culling (the one world is far bigger than any view): only the 48 m cells within reach of the focus stay
@@ -715,7 +718,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const warmR = shown.more ? 170 : 1e6;
     if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? warmR : (dev.cullR || (flightView ? flightView.cullR : 80)), farR);
     dev.far = shown.lastCull ? shown.lastCull.far : 0;
-    actors.sync(prevSnap, snap, alpha, view.zone, now, dt, fx3, focus, (14 + 18 / (view.zoom || 1)) * distK, inView);
+    actors.sync(prevSnap, snap, alpha, view.zone, now, fx3.screen.hitstop > 0 ? dt * 0.25 : dt, fx3, focus, (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
     rideKites(snap, view, now, rdt);
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
@@ -757,7 +760,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       ringMat.opacity = 0.75 + 0.25 * Math.sin(now * 6);
     } else targetRing.visible = false;
     const at = (id, w) => actors.at(id, w);
-    fx3.update(dt, now, at);
+    fx3.update(dt, now, at, camera);
     assignLights(sky, target, me ? me.root.position : null);
     drawTelegraphs(snap);
     if (trans && trans.warm) warmBefore();

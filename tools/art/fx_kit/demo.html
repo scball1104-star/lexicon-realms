@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FX and Anim Kit</title>
+<style>
+  html, body { margin: 0; background: #111; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; }
+  #wrap { position: relative; width: 1600px; height: 900px; }
+  #out { display: block; }
+  #gl { position: absolute; left: -9999px; top: 0; }
+  .cap { position: absolute; color: #fff6e0; font-size: 24px; text-shadow: 0 2px 4px #000; padding: 5px 12px; background: rgba(20,16,10,0.55); border-radius: 8px; white-space: nowrap; }
+  .sub { position: absolute; color: #fff6e0; font-size: 15px; text-shadow: 0 1px 3px #000; padding: 3px 9px; background: rgba(20,16,10,0.5); border-radius: 6px; white-space: nowrap; }
+  .line { position: absolute; background: #fff6e0; opacity: 0.75; }
+  #hud { position: absolute; left: 12px; bottom: 10px; color: #fff; font: 14px sans-serif; text-shadow: 0 1px 2px #000; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="out" width="1600" height="900"></canvas></div>
+<canvas id="gl"></canvas>
+<script type="module">
+import * as THREE from '../../../src/vendor/three/three.module.min.js';
+import { EffectComposer } from '../../../src/vendor/three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from '../../../src/vendor/three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from '../../../src/vendor/three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from '../../../src/vendor/three/addons/postprocessing/OutputPass.js';
+import { assemble } from '../../../src/render3d/hero.js';
+import { heroSpec, dress } from '../../../src/render3d/gear.js';
+import { createLoader } from '../../../src/render3d/loader.js';
+import { createCreature } from '../../../src/render3d/creatures.js';
+import { createFx3d } from '../../../src/render3d/fx3d.js';
+import { ITEMS } from '../../../src/data/items.js';
+import { ABILITIES } from '../../../src/data/abilities.js';
+import { CLASSES } from '../../../src/data/classes.js';
+import { createFxKit } from '../../../src/render3d/fx_kit.js';
+import { RECIPES } from '../../../src/render3d/fx_recipes.js';
+import { createAnimKit } from '../../../src/render3d/anim_kit.js';
+import * as AK from '../../../src/render3d/anim_kit.js';
+
+const q = new URLSearchParams(location.search);
+const sceneName = q.get('scene') || 'effects';
+const W = 1600, H = 900;
+const wrap = document.getElementById('wrap');
+const out = document.getElementById('out').getContext('2d');
+const glc = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas: glc, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// the game's own output settings (src/render3d/renderer3d.js): ACES, sRGB, bloom 0.45 / 0.45 / 0.85
+renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const L = createLoader('../../../assets3d/');
+
+// ---------- stages ----------
+function canvasTex(w, h, paint, rep = 1) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h; paint(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep, rep); t.anisotropy = 8; return t;
+}
+function lcg(seed) { let s = seed; return () => ((s = (s * 16807) % 2147483647) / 2147483647); }
+const GRASS = canvasTex(512, 512, (g) => {
+  g.fillStyle = '#56763a'; g.fillRect(0, 0, 512, 512);
+  const r = lcg(12345);
+  const w4 = (fn) => { for (const ox of [-512, 0, 512]) for (const oy of [-512, 0, 512]) fn(ox, oy); };
+  for (let i = 0; i < 220; i++) { const x = r() * 512, y = r() * 512, rr = 12 + r() * 46, c2 = r() < 0.5 ? '96,128,58' : '66,96,42'; g.fillStyle = `rgba(${c2},0.22)`; w4((ox, oy) => { g.beginPath(); g.arc(x + ox, y + oy, rr, 0, 6.3); g.fill(); }); }
+  for (let i = 0; i < 9000; i++) { const x = r() * 512, y = r() * 512, dx = (r() - 0.5) * 3, dy = -3 - r() * 5; g.strokeStyle = r() < 0.5 ? 'rgba(150,180,90,0.25)' : 'rgba(30,55,22,0.25)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(x, y); g.lineTo(x + dx, y + dy); g.stroke(); }
+}, 7);
+const STONE = canvasTex(512, 512, (g) => {
+  g.fillStyle = '#2a2a30'; g.fillRect(0, 0, 512, 512);
+  const r = lcg(777);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    const v = 38 + r() * 18, ox = (y % 2) * 32;
+    g.fillStyle = `rgb(${v},${v - 2},${v + 4})`; g.fillRect(x * 64 + ox + 2, y * 64 + 2, 60, 60);
+    for (let k = 0; k < 30; k++) { g.fillStyle = `rgba(0,0,0,${r() * 0.15})`; g.fillRect(x * 64 + ox + r() * 60, y * 64 + r() * 60, 2 + r() * 6, 2 + r() * 6); }
+  }
+  g.strokeStyle = 'rgba(10,10,14,0.9)'; g.lineWidth = 3;
+  for (let y = 0; y <= 8; y++) { g.beginPath(); g.moveTo(0, y * 64); g.lineTo(512, y * 64); g.stroke(); }
+}, 5);
+function stage(kind = 'grass') {
+  const s = new THREE.Scene();
+  if (kind === 'dungeon') {
+    s.background = new THREE.Color('#07080c'); s.fog = new THREE.Fog('#07080c', 9, 22);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshStandardMaterial({ map: STONE, roughness: 0.95 }));
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
+    s.add(new THREE.HemisphereLight('#5a6488', '#1a141e', 1.3));
+    const key = new THREE.DirectionalLight('#8a9ad0', 0.9); key.position.set(-3, 8, 6); s.add(key);
+    for (const [x, z] of [[-4.5, -2.5], [4.5, -2.5]]) { const l = new THREE.PointLight('#ff9a4a', 14, 11, 1.5); l.position.set(x, 2.2, z); s.add(l); const fl = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffc070' })); fl.position.copy(l.position); s.add(fl); }
+    // a back wall
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(30, 6), new THREE.MeshStandardMaterial({ map: STONE, color: '#9a9aa8', roughness: 1 }));
+    wall.position.set(0, 3, -3.2); s.add(wall);
+  } else {
+    s.background = new THREE.Color('#9fb8c8'); s.fog = new THREE.Fog('#9fb8c8', 16, 40);
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: GRASS, roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; s.add(ground);
+    s.add(new THREE.HemisphereLight('#dfeeff', '#4a5a30', 1.2));
+    const sun = new THREE.DirectionalLight('#fff0d6', 2.4); sun.position.set(4, 9, 7); sun.target.position.set(0, 0, 0);
+    sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.radius = 4; sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+    const sc = sun.shadow.camera; sc.left = -6; sc.right = 6; sc.top = 6; sc.bottom = -6; sc.near = 1; sc.far = 30;
+    s.add(sun, sun.target);
+  }
+  // the fx light pool (the game keeps a small capped pool too)
+  s.userData.pool = [];
+  for (let i = 0; i < 4; i++) { const l = new THREE.PointLight('#ffffff', 0, 7, 1.6); s.add(l); s.userData.pool.push(l); }
+  return s;
+}
+function feedLights(s, reqs) {
+  const pool = s.userData.pool;
+  for (let i = 0; i < pool.length; i++) { const r = reqs[i]; if (r) { pool[i].position.copy(r.pos); pool[i].color.copy(r.color); pool[i].intensity = 7 * r.k; pool[i].distance = 9 + 3 * Math.min(1, r.k); } else pool[i].intensity = 0; }
+}
+
+// ---------- bodies ----------
+const START = Object.fromEntries(Object.entries(CLASSES).map(([k, c]) => [k, c.startGear]));
+async function hero(cls, look = 0) {
+  const spec = heroSpec(cls, look, START[cls], ITEMS);
+  const ch = await assemble(L, spec);
+  const local = new THREE.Group();
+  await dress(L, ch, spec, local);
+  ch.o.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+  return { ch, spec, local };
+}
+async function foe(template = 'gorse_boar', sprite = 'gorse_boar') { return createCreature(L, template, sprite, {}); }
+
+// ---------- panel rendering: each panel renders at its own size through the bloom chain, then lands on the 2D canvas ----------
+let composer = null, bloom = null, cSize = '';
+function renderPanel(s, cam, x, y, w, h, { post = true } = {}) {
+  renderer.setSize(w, h, false);
+  cam.aspect = w / h; cam.updateProjectionMatrix();
+  if (post) {
+    if (cSize !== `${w}x${h}`) {
+      composer = new EffectComposer(renderer); composer.setPixelRatio(1); composer.setSize(w, h);
+      composer.addPass(new RenderPass(s, cam));
+      bloom = new UnrealBloomPass(new THREE.Vector2(w / 2, h / 2), 0.45, 0.45, 0.85); composer.addPass(bloom);
+      composer.addPass(new OutputPass());
+      cSize = `${w}x${h}`;
+    }
+    composer.passes[0].scene = s; composer.passes[0].camera = cam;
+    composer.render();
+  } else renderer.render(s, cam);
+  out.drawImage(glc, 0, 0, w, h, x, y, w, h);
+}
+function cap(text, x, y, cls = 'cap') { const d = document.createElement('div'); d.className = cls; d.textContent = text; d.style.left = x + 'px'; d.style.top = y + 'px'; wrap.appendChild(d); return d; }
+function line(x, y, w, h) { const d = document.createElement('div'); d.className = 'line'; Object.assign(d.style, { left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px' }); wrap.appendChild(d); }
+function camAt(pos, look, fov = 30) { const c = new THREE.PerspectiveCamera(fov, 16 / 9, 0.1, 100); c.position.set(...pos); c.lookAt(...look); c.updateMatrixWorld(); return c; }
+
+/** Step a timeline at 60 fps: fn(t, dt) each frame, until T. */
+function run(T, fn) { const dt = 1 / 60; let t = 0; for (; t < T - 1e-6; t += dt) fn(t, dt); return t; }
+
+// ---------- scene: poses (calibration sheet, not an approval still) ----------
+async function poses() {
+  const cls = q.get('cls') || 'warden';
+  const H0 = await hero(cls);
+  const A = createAnimKit(THREE, H0.ch, { cls });
+  const list = [
+    ['idle', (t) => ({ t })], ['combat', (t) => ({ t, combat: 1 })],
+    ['run a', (t) => ({ t, moving: 1, speed: 4.2 }), 1.0], ['run b', (t) => ({ t, moving: 1, speed: 4.2 }), 1.18],
+    ['wind', (t) => ({ t, combat: 1, attackT: 1 }), 1.24], ['hit', (t) => ({ t, combat: 1, attackT: 1 }), 1.31],
+    ['follow', (t) => ({ t, combat: 1, attackT: 1 }), 1.46], ['charge', (t) => ({ t, combat: 1, castT: 0.5, castDur: 2 }), 2.0],
+    ['release', (t) => ({ t, combat: 1, castT: 0.2, castDur: 2, releaseT: 2.2 }), 2.32], ['hurt', (t) => ({ t, combat: 1, hurtT: 1.0 }), 1.07],
+    ['death mid', (t) => ({ t, deadT: 1.0 }), 1.55], ['death end', (t) => ({ t, deadT: 1.0 }), 2.6],
+  ];
+  const cols = 6, pw = W / cols, ph = H / 2;
+  const s = stage('grass');
+  s.add(H0.ch.o, H0.local);
+  const view = q.get('view') || 'side';
+  list.forEach(([name, st, T = 2], i) => {
+    H0.ch.o.rotation.y = view === 'front' ? 0.5 : Math.PI / 2;
+    run(T, (t, dt) => A.update(dt, st(t)));
+    const c = camAt(view === 'front' ? [1.6, 1.5, 4.2] : [0.6, 1.6, 4.4], [0, 0.9, 0], 32);
+    renderPanel(s, c, (i % cols) * pw, Math.floor(i / cols) * ph, pw, ph, { post: false });
+    cap(name, (i % cols) * pw + 8, Math.floor(i / cols) * ph + 8, 'sub');
+  });
+}
+
+// ---------- scene: try (calibration: authored poses from the query, side view on top, front view below) ----------
+async function tryPoses() {
+  const cls = q.get('cls') || 'warden';
+  const H0 = await hero(cls);
+  const A = createAnimKit(THREE, H0.ch, { cls });
+  const list = JSON.parse(q.get('p'));
+  const n = list.length, pw = W / n, ph = H / 2;
+  const s = stage('grass'); s.add(H0.ch.o, H0.local);
+  list.forEach(([name, po], i) => {
+    const P = Object.assign({}, po.base === 'combat' ? AK.COMBAT[cls] : po.base === 'ready' ? AK.READY_LEGS : po.base === 'relax' ? AK.RELAX : {}, po);
+    delete P.base;
+    A.hold(P);
+    for (const [row, rot, cp] of [[0, Math.PI / 2, [0.6, 1.5, 4.2]], [1, 0, [0.9, 1.5, 4.0]]]) {
+      H0.ch.o.rotation.y = rot; H0.ch.o.updateMatrixWorld(true);
+      renderPanel(s, camAt(cp, [0, 0.95, 0], 32), i * pw, row * ph, pw, ph, { post: false });
+    }
+    cap(name, i * pw + 8, 8, 'sub');
+  });
+}
+
+// ---------- shared shot runner ----------
+const heroCache = new Map();
+async function heroFor(cls, key = '') { const k = cls + key; if (!heroCache.has(k)) { const h = await hero(cls); h.A = createAnimKit(THREE, h.ch, { cls }); heroCache.set(k, h); } return heroCache.get(k); }
+const chestOf = (c, p) => new THREE.Vector3(p.x, c.height * 0.55, p.z);
+const yawTo = (a, b) => Math.atan2(b.x - a.x, b.z - a.z);
+/**
+ * One kit moment: a hero (anim kit) and a foe on a stage, effects fired on a timeline, stepped at 60 fps to `until`.
+ * shot = { stage, cls, hp, fp, until, st(t), fx: [[t, fn(ctx)]], foeHurt, cam }
+ */
+async function kitShot(shot) {
+  const s = stage(shot.stage);
+  const H0 = await heroFor(shot.cls);
+  const A = H0.A; A.reset();
+  const c = await foe(shot.foeT || 'gorse_boar', shot.foeS || 'gorse_boar');
+  const hp = shot.hp, fp = shot.fp;
+  H0.ch.o.position.copy(hp); H0.ch.o.rotation.set(0, yawTo(hp, fp), 0); s.add(H0.ch.o, H0.local);
+  c.o.position.copy(fp); c.o.rotation.y = yawTo(fp, hp); s.add(c.o);
+  const K = createFxKit(THREE, s, { recipes: RECIPES, seed: shot.seed || 11 });
+  const cam = shot.cam;
+  const fchest = chestOf(c, fp);
+  const ctx = { K, A, H0, c, hp, fp, fchest, live: {}, orb: () => A.point('orb', new THREE.Vector3()), hand: (w) => A.point(w, new THREE.Vector3()) };
+  const fx = [...(shot.fx || [])].sort((a, b) => a[0] - b[0]);
+  let fi = 0;
+  run(shot.until, (t, dt) => {
+    A.update(dt, shot.st(t));
+    c.update(dt, { t, moving: false, speed: 0, hurtT: shot.foeHurt != null && t >= shot.foeHurt ? shot.foeHurt : undefined });
+    while (fi < fx.length && fx[fi][0] <= t + 1e-6) { fx[fi][1](ctx, t); fi++; }
+    K.update(dt, t, cam);
+  });
+  feedLights(s, K.lights);
+  s.updateMatrixWorld(true);
+  return { s, cam, K, ctx };
+}
+
+// ---------- still 1: today vs the kit, the same moment (a Scribe's Inkbolt landing on a Gorse Boar) ----------
+async function beforeAfter() {
+  const hp = new THREE.Vector3(-1.9, 0, 0.6), fp = new THREE.Vector3(1.9, 0, -0.4);
+  const castT = 0.4, rel = 2.0, after = Number(q.get('after') || 0.06);
+  const stageKind = q.get('stage') || 'grass';
+  const mk = () => camAt([0.2, 4.4, 9.6], [0, 0.7, 0], 30);
+  // both sides fly at the sim's 240 px/s (15 m/s); the frame is `after` s past the kit bolt's landing
+  const flight = 3.6 / 15;
+  const until = rel + flight + after;
+  const kit = await kitShot({
+    stage: stageKind, cls: 'scribe', hp, fp, until, cam: mk(),
+    st: (t) => ({ t, combat: 1, castT, castDur: rel - castT, releaseT: rel }),
+    fx: [[castT, (x) => { x.live.ch = x.K.play('charge_ink', { at: x.orb, ground: 0 }); }],
+      [rel, (x) => { x.K.stop(x.live.ch); x.K.play('scribe_inkbolt', { from: x.orb, to: () => x.fchest, ground: 0, mats: x.c.mats }); }]],
+    foeHurt: rel + flight,
+  });
+  // today: the game's own hero clips and its fx3d, fed the same sim events
+  const s0 = stage(stageKind);
+  const old = await hero('scribe');
+  const c0 = await foe();
+  old.ch.o.position.copy(hp); old.ch.o.rotation.y = yawTo(hp, fp); s0.add(old.ch.o, old.local);
+  c0.o.position.copy(fp); c0.o.rotation.y = yawTo(fp, hp); s0.add(c0.o);
+  const F = createFx3d(s0, { abilities: ABILITIES, maxParticles: 700 });
+  F.setScale(900 / (2 * Math.tan(THREE.MathUtils.degToRad(30 / 2))));
+  const mixer = old.ch.mixer;
+  const idle = mixer.clipAction(old.ch.clip('Spell_Simple_Idle_Loop')); idle.play();
+  const shoot = mixer.clipAction(old.ch.clip('Spell_Simple_Shoot')); shoot.setLoop(THREE.LoopOnce, 1); shoot.clampWhenFinished = true; shoot.timeScale = 1.3;
+  const at = (id, w) => {
+    if (id === 1) { if (w === 'hand') return old.ch.bones.hand_l.getWorldPosition(new THREE.Vector3()); if (w === 'feet') return hp.clone(); if (w === 'head') return hp.clone().setY(1.82); return hp.clone().setY(1.82 * 0.58); }
+    if (w === 'feet') return fp.clone(); if (w === 'head') return fp.clone().setY(c0.height); return fp.clone().setY(c0.height * 0.58);
+  };
+  const cam0 = mk();
+  let hurtT = null; const fired = [false, false];
+  run(until, (t, dt) => {
+    const ev = [];
+    if (!fired[0] && t >= castT) { fired[0] = true; ev.push({ type: 'cast_start', src: 1, ability: 'scribe_inkbolt', castTicks: 32 }); }
+    if (!fired[1] && t >= rel) {
+      fired[1] = true;
+      ev.push({ type: 'cast_stop', src: 1, ability: 'scribe_inkbolt', reason: 'done' }, { type: 'projectile', src: 1, dst: 2, ability: 'scribe_inkbolt', speed: 240 },
+        { type: 'damage', src: 1, dst: 2, ability: 'scribe_inkbolt', school: 'ink', amount: 31, result: 'hit' });
+      shoot.reset().play(); shoot.crossFadeFrom(idle, 0.1, false);
+    }
+    if (ev.length) F.feed(ev, t, 1, at);
+    const h = F.hints(2); if (h && h.hurtT0 != null) hurtT = h.hurtT0;
+    mixer.update(dt); old.ch.applyPost();
+    c0.update(dt, { t, moving: false, speed: 0, hurtT: hurtT ?? undefined });
+    F.update(dt, t, at);
+  });
+  feedLights(s0, F.lights);
+  renderPanel(s0, cam0, 0, 0, 800, 900);
+  renderPanel(kit.s, kit.cam, 800, 0, 800, 900);
+  cap('Today', 20, 18); cap('FX kit + anim kit', 820, 18);
+  cap(`Scribe's Inkbolt lands on a Gorse Boar (${after.toFixed(2)} s after impact)`, 20, 856, 'sub');
+  line(799, 0, 3, 900);
+}
+
+// ---------- still 2: one signature effect per class, top row on grass, bottom row in a dungeon ----------
+const SIG = {
+  scribe: { name: 'Inkbolt', until: 2.0 + 0.13, st: (t) => ({ t, combat: 1, castT: 0.4, castDur: 1.6, releaseT: 2.0 }),
+    fx: [[0.4, (x) => { x.live.ch = x.K.play('charge_ink', { at: x.orb }); }], [2.0, (x) => { x.K.stop(x.live.ch); x.K.play('scribe_inkbolt', { from: x.orb, to: () => x.fchest, mats: x.c.mats }); }]], hurt: 2.2 },
+  warden: { name: 'Sweeping Blow', until: 1.0 + 0.24 + 0.25, st: (t) => ({ t, combat: 1, attackT: 1.0 }),
+    fx: [[1.24, (x) => { x.K.play('warden_sweeping_blow', { from: x.hp, to: () => x.fchest, at: x.hp.clone().setY(1.0), mats: x.c.mats }); }]], hurt: 1.4 },
+  mender: { name: 'Mend', until: 1.6 + 0.5, st: (t) => ({ t, combat: 1, castT: 0.3, castDur: 1.3, releaseT: 1.6 }),
+    fx: [[0.3, (x) => { x.live.ch = x.K.play('charge_light', { at: x.orb }); }], [1.6, (x) => { x.K.stop(x.live.ch); x.K.play('mender_mend', { at: x.hp.clone().setY(1.0), dir: yawTo(x.hp, x.fp), mats: x.H0.ch.mats }); }]] },
+  wayfinder: { name: 'Aimed Shot', until: 2.0 + 0.075, st: (t) => ({ t, combat: 1, castT: 0.4, castDur: 1.6, releaseT: 2.0 }),
+    fx: [[0.4, (x) => { x.live.ch = x.K.play('charge_aim', { at: () => x.hand('hand_l') }); }], [2.0, (x) => { x.K.stop(x.live.ch); x.K.play('wayfinder_aimed_shot', { from: () => x.hand('hand_l'), to: () => x.fchest, mats: x.c.mats }); }]], hurt: 2.1 },
+  inkblade: { name: 'Inkstep', until: 1.0 + 0.24 + 0.17, st: (t) => ({ t, combat: 1, attackT: 1.0 }),
+    fx: [[1.18, (x) => { x.K.play('inkblade_inkstep', { from: x.hp, to: () => x.fchest, mats: x.c.mats }); }]], hurt: 1.31 },
+};
+async function effects() {
+  const order = (q.get('only') || 'warden,mender,scribe,wayfinder,inkblade').split(',');
+  const pw = W / order.length, ph = H / 2;
+  for (const [row, kind] of [[0, 'grass'], [1, 'dungeon']]) {
+    for (let i = 0; i < order.length; i++) {
+      const cls = order[i], S = SIG[cls];
+      const near = cls === 'warden' || cls === 'inkblade';
+      const hp = new THREE.Vector3(near ? -0.35 : -0.05, 0, near ? 0.9 : 1.5), fp = new THREE.Vector3(near ? 0.35 : 0.6, 0, near ? -0.75 : -1.7);
+      const cam = camAt([near ? 2.0 : 1.5, 2.7, near ? 4.6 : 5.2], [-0.1, 0.75, near ? 0.0 : -0.1], 40);
+      const shot = await kitShot({ stage: kind, cls, hp, fp, until: S.until, st: S.st, fx: S.fx, foeHurt: S.hurt, cam, seed: 5 + i });
+      renderPanel(shot.s, shot.cam, i * pw, row * ph, pw, ph);
+      if (row === 0) { cap(S.name, i * pw + 10, 10); cap(cls[0].toUpperCase() + cls.slice(1), i * pw + 10, 52, 'sub'); }
+    }
+  }
+  for (let i = 1; i < order.length; i++) line(i * pw - 1, 0, 2, H);
+  line(0, ph - 1, W, 2);
+  cap('Grass', 8, ph - 34, 'sub'); cap('Dungeon', 8, H - 34, 'sub');
+}
+
+// ---------- still 3: a hero moving: swing wind-up, swing follow-through, cast charge, hit reaction ----------
+async function motion() {
+  const swing = (x) => x.K.play('warden_strike', { from: x.hp, to: () => x.fchest, at: x.hp.clone().setY(1.05), mats: x.c.mats });
+  const frames = [
+    ['Warden swing: wind-up (anticipation)', 'warden', 1.0 + 0.22, (t) => ({ t, combat: 1, attackT: 1.0 }), [[1.24, swing]], null],
+    ['Warden swing: follow-through', 'warden', 1.0 + 0.45, (t) => ({ t, combat: 1, attackT: 1.0 }), [[1.24, swing]], 1.31],
+    ['Mender two-hand cast: charge', 'mender', 1.1, (t) => ({ t, combat: 1, castT: 0.3, castDur: 1.6 }), [[0.3, (x) => { x.live.ch = x.K.play('charge_light', { at: x.orb }); }]], null],
+    ['Warden hit reaction: knocked back', 'warden', 1.0 + 0.075, (t) => ({ t, combat: 1, hurtT: 1.0 }), [[1.0, (x) => x.K.play('warden_strike_hit', { from: x.fp.clone().setY(0.6), to: () => x.hand('spine_02'), surface: 0.1, mats: x.H0.ch.mats })]], null],
+  ];
+  for (let i = 0; i < 4; i++) {
+    const [name, cls, until, st, fx, hurt] = frames[i];
+    const hp = new THREE.Vector3(-0.7, 0, 0.3), fp = new THREE.Vector3(1.15, 0, -0.45);
+    const cam = cls === 'mender' ? camAt([2.2, 1.7, 3.5], [0.1, 1.0, -0.1], 32) : camAt([0.1, 1.75, 4.5], [0.1, 0.95, 0], 32);
+    const shot = await kitShot({ stage: 'grass', cls, hp, fp, until, st, fx, foeHurt: hurt, cam, seed: 21 + i });
+    const x = (i % 2) * 800, y = Math.floor(i / 2) * 450;
+    renderPanel(shot.s, shot.cam, x, y, 800, 450);
+    cap(name, x + 14, y + 12);
+  }
+  line(799, 0, 2, 900); line(0, 449, 1600, 2);
+}
+
+
+// ---------- live: the five signature moments on a loop, real time (for watching motion; not a still) ----------
+async function live() {
+  const kind = q.get('stage') || 'grass';
+  const s = stage(kind);
+  const cam = camAt([0.4, 3.6, 8.2], [0, 0.8, 0], 32);
+  const K = createFxKit(THREE, s, { recipes: RECIPES, seed: 3 });
+  const c = await foe(); const fp = new THREE.Vector3(1.6, 0, -0.3); c.o.position.copy(fp); s.add(c.o);
+  const order = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
+  const HE = {}; for (const cls of order) HE[cls] = await heroFor(cls);
+  const hud = document.createElement('div'); hud.id = 'hud'; wrap.appendChild(hud);
+  let idx = -1, t0 = 0, cur = null, fired = new Set(), hurtAt = null;
+  const fchest = chestOf(c, fp);
+  function next(now) {
+    if (cur) s.remove(cur.ch.o, cur.local);
+    idx = (idx + 1) % order.length; const cls = order[idx]; cur = HE[cls]; cur.A.reset();
+    const near = cls === 'warden' || cls === 'inkblade';
+    const hp = new THREE.Vector3(near ? 0.1 : -1.8, 0, 0.3); cur.hp = hp;
+    cur.ch.o.position.copy(hp); cur.ch.o.rotation.set(0, yawTo(hp, fp), 0); s.add(cur.ch.o, cur.local);
+    c.o.rotation.y = yawTo(fp, hp);
+    t0 = now; fired = new Set(); hurtAt = null;
+  }
+  let last = performance.now() / 1000, simT = 0, cost = 0, frames = 0;
+  function frame() {
+    const real = performance.now() / 1000; let dt = Math.min(0.05, real - last); last = real;
+    if (K.screen.hitstop > 0) dt *= 0.15;   // hit-stop: the world nearly pauses for a few frames on a heavy hit
+    simT += dt;
+    if (!cur || simT - t0 > 3.4) next(simT);
+    const t = simT - t0, cls = order[idx], S = SIG[cls];
+    const x = { K, A: cur.A, H0: cur, c, hp: cur.hp, fp, fchest, live: cur.live || (cur.live = {}), orb: () => cur.A.point('orb', new THREE.Vector3()), hand: (w) => cur.A.point(w, new THREE.Vector3()) };
+    S.fx.forEach(([ft, fn], i) => { if (!fired.has(i) && t >= ft - 0.5) { fired.add(i); fn(x, t); } });
+    if (S.hurt != null && hurtAt == null && t >= S.hurt - 0.5) hurtAt = simT;
+    cur.A.update(dt, S.st(t + 0.5));
+    c.update(dt, { t: simT, moving: false, speed: 0, hurtT: hurtAt ?? undefined });
+    const a = performance.now();
+    K.update(dt, simT, cam);
+    cost += performance.now() - a; frames++;
+    feedLights(s, K.lights);
+    // camera shake from the kit's screen state
+    const sh = K.screen.shake * 0.06;
+    cam.position.set(0.4 + Math.sin(simT * 91) * sh, 3.6 + Math.cos(simT * 77) * sh, 8.2);
+    renderPanel(s, cam, 0, 0, W, H);
+    if (frames % 20 === 0) { const st = K.stats; hud.textContent = `${SIG[cls].name}   kit update ${(cost / frames).toFixed(3)} ms/frame   quads ${st.add}+${st.ink}   ribbons ${st.ribbons}   effects ${st.effects}`; cost = 0; frames = 0; }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------- bench: a busy fight's worth of effects at once, CPU cost of the kit's update per frame ----------
+async function bench() {
+  const s = stage('grass');
+  const cam = camAt([0, 6, 12], [0, 0.8, 0], 32);
+  const K = createFxKit(THREE, s, { recipes: RECIPES, seed: 9 });
+  const names = ['scribe_inkbolt', 'warden_sweeping_blow', 'mender_mend', 'wayfinder_aimed_shot', 'inkblade_inkstep', 'charge_ink', 'mender_warding_word', 'mender_steady_name'];
+  const dt = 1 / 60; let t = 0, peak = { add: 0, ink: 0, ribbons: 0, effects: 0 }, total = 0, n = 0;
+  // 8 heroes each firing one effect every 0.5 s at 8 foes, for 6 s
+  for (let f = 0; f < 360; f++, t += dt) {
+    if (f % 30 === 0) names.forEach((nm, i) => { const a = new THREE.Vector3(-4 + i, 1.2, 2), b = new THREE.Vector3(-4 + i, 0.8, -3); K.play(nm, { from: a, to: b, at: b, ground: 0 }); });
+    const t1 = performance.now(); K.update(dt, t, cam); const c = performance.now() - t1;
+    if (f > 30) { total += c; n++; }
+    const st = K.stats; for (const k of Object.keys(peak)) peak[k] = Math.max(peak[k], st[k]);
+  }
+  renderPanel(s, cam, 0, 0, W, H);
+  window.__bench = { msPerFrame: +(total / n).toFixed(3), peak };
+  cap(`bench: ${JSON.stringify(window.__bench)}`, 20, 20, 'sub');
+}
+
+const SCENES = { poses, try: tryPoses, before_after: beforeAfter, effects, motion, live, bench };
+try {
+  await (SCENES[sceneName] || poses)();
+  window.__kit = { ready: true };
+} catch (e) { console.error(e); window.__kit = { error: String(e && e.stack || e) }; }
+</script>
+</body>
+</html>

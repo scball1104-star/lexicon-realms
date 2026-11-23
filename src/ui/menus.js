@@ -663,6 +663,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   };
   choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x']);
   choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
+  choice('Screen shake', 'shake', [true, false], ['On', 'Off']);
   choice('Graphics (reloads)', 'r3d', [false, true], ['2D', '3D preview']);
   // ---- bottom buttons
   const bh = Math.max(16, env.L.minHit || 0);

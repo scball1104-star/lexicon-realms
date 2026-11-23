@@ -15,6 +15,7 @@ import { createCreature } from './creatures.js';
 import { radial } from './textures.js';
 import { gatherLook, animateGather, gatherPick, workClip } from './gather3d.js';
 import { createRider, createYard } from './mount3d.js';
+import { createAnimKit } from './anim_kit.js';   // heroes' combat moments over the clips (approved 2026-11-23)
 
 const PX = 16;
 const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
@@ -149,6 +150,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     if (e.kind === 'player' || e.kind === 'npc') {
       const spec = e.kind === 'player' ? heroSpec(e.cls, e.look, e.equip, items) : npcSpec(e.template, e.sprite);
       const ch = await assemble(L, spec);
+      if (e.kind === 'player') ch.anim = createAnimKit(THREE, ch, { cls: spec.cls });   // before anything moves the bones
       const local = new THREE.Group();   // per-body world-space extras (cape, trails)
       const dressed = await dress(L, ch, spec, local);
       ch.o.scale.multiplyScalar(spec.scale || 1);
@@ -229,10 +231,28 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
 
   const FLY_H = 14;
   const smooth01 = (k) => { const t = Math.max(0, Math.min(1, k || 0)); return t * t * (3 - 2 * t); };
+  /** The anim kit's combat moments for a hero, blended over the clips the mixer just posed (anim_kit.js overlay). */
+  function kitOverlay(a, e, st, snap, alpha, dt, moving) {
+    const h = st.hints || {}, now = st.t, cls = e.cls;
+    if (h.attackT0 != null && h.attackT0 !== a.kitAtk) { a.kitAtk = h.attackT0; a.kitMirror = cls === 'inkblade' ? !a.kitMirror : false; }
+    const c = e.cast;
+    let castT = null, castDur = 0;
+    if (c && c.endTick > c.startTick) { castDur = (c.endTick - c.startTick) / 20; castT = now - Math.max(0, (snap.tick + alpha - c.startTick) / 20); }
+    if (c && castT != null) a.kitCastT = castT; else if (a.kitCastT != null && !c) a.kitCastT = null;
+    const ks = a.kitSt || (a.kitSt = {});
+    ks.t = now; ks.moving = moving; ks.speed = st.speed; ks.mirror = !!a.kitMirror;
+    ks.attackT = cls === 'wayfinder' ? null : h.attackT0; ks.shotT = cls === 'wayfinder' ? h.shotT0 : null;
+    ks.castT = a.kitCastT; ks.castDur = castDur || 2; ks.releaseT = c ? null : h.releaseT0;
+    ks.hurtT = h.hurtT0; ks.hurtK = 1; ks.deadT = e.dead ? (h.deathT0 != null && now - h.deathT0 < 30 ? h.deathT0 : now - 5) : null;
+    a.kitW = a.body.ch.anim.overlay(dt, ks);
+  }
+
   function heroAnim(a, e, st) {
     const b = a.body, an = b.anim, now = st.t, cls = e.cls;
     const h = st.hints || {};
     const recent = (t0, d) => t0 != null && now - t0 >= 0 && now - t0 < d;
+    const kit = !!b.ch.anim;
+    if (e.dead && kit) { an.endOne(); an.play(CLASS_COMBAT[cls] || 'Idle_Loop', { now }); return; }   // the anim kit's death fall over it
     if (e.dead) { if (an.name !== 'Death01') an.play('Death01', { clamp: true, now, fade: 0.12 }); return; }
     if (an.name === 'Death01') an.endOne();
     const stealth = (e.auras || []).some((x) => /stealth|fade/.test(String(x.id)));
@@ -247,6 +267,13 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     }
     // one-shots: an attack, a finished cast, a shot, a hit
     const fresh = (k) => h[k] != null && h[k] !== a['seen_' + k] && recent(h[k], 0.25);
+    if (kit) {
+      // swings, casts, shots and hits are the anim kit's (overlay after the mixer); the clips keep idle, walk and run
+      { const wc = workClip(e); if (wc) { if (wc.loop) an.play(wc.name, { now }); else if (!an.busy(now)) an.play(wc.name, { once: true, ts: wc.ts, now, fade: 0.12 }); return; } }
+      if (e.sitting) { an.play('Sitting_Idle_Loop', { now }); return; }
+      an.play(stealth ? 'Crouch_Idle_Loop' : (e.inCombat || e.autoOn || e.cast) ? CLASS_COMBAT[cls] || 'Idle_Loop' : CLASS_IDLE[cls] || 'Idle_Loop', { now });
+      return;
+    }
     if (fresh('attackT0') || fresh('shotT0')) {
       a.seen_attackT0 = h.attackT0; a.seen_shotT0 = h.shotT0;
       const clip = cls === 'warden' || (e.kind === 'npc' && b.spec.main && b.spec.main.kind === 'sword') ? 'Sword_Attack'
@@ -321,6 +348,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
         rider.step(a, e, snap.tick, now, fdt, moving);   // mounts: the animal under (or, summoning, beside) the hero
         heroAnim(a, e, st);
         b.ch.mixer.update(fdt);
+        if (b.ch.anim) kitOverlay(a, e, st, snap, alpha, fdt, moving);
         // the library's sit is a chair sit: on open ground the body drops to sit on the grass
         const sy = b.anim.name === 'Sitting_Idle_Loop' ? -0.42 * (b.spec.scale || 1) : 0;
         b.ch.o.position.y += (sy - b.ch.o.position.y) * Math.min(1, dt * 8);
@@ -382,6 +410,8 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       if (!a) return null;
       const p = a.root.position;
       if (which === 'feet') return p.clone();
+      if (which === 'orb' && a.body && a.body.ch && a.body.ch.anim) return a.body.ch.anim.point('orb', new THREE.Vector3());
+      if (which === 'orb') which = 'hand';
       if (which === 'hand') { const hb = handBone(a); if (hb) return hb.getWorldPosition(tmp).clone(); return new THREE.Vector3(p.x, p.y + a.height * 0.6, p.z); }
       if (which === 'head') return new THREE.Vector3(p.x, p.y + a.height, p.z);
       return new THREE.Vector3(p.x, p.y + a.height * 0.58, p.z);
