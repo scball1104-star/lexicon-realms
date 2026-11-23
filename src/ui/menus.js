@@ -32,20 +32,24 @@ export function frame(ctx, env, r, title, regions, act, id) {
 const STAT_NAME = { str: 'Strength', agi: 'Agility', int: 'Intellect', spi: 'Spirit', sta: 'Stamina',
   resInk: 'Ink Resistance', resShadow: 'Shadow Resistance', resLight: 'Light Resistance', resFire: 'Fire Resistance', resNature: 'Nature Resistance', resAll: 'All Resistances',
   // the weapon affixes that act in a fight (src/sim/affixes.js)
-  dps: 'damage per second', leech: 'Life Leech', fireOnHit: 'Embers (fire damage on hit)' };
+  dps: 'damage per second', leech: 'Life Leech', fireOnHit: 'Embers (fire damage on hit)',
+  // every other stat gear can carry, spelled out (Scott, 2026-11-22: "sp" meant nothing to a player)
+  crit: 'Critical Strike chance', sp: 'Spell Power', mana: 'Mana', speed: 'Movement Speed', armorPct: 'Armor', main: 'Main Stat',
+  dodge: 'Dodge chance', maxHp: 'Health', armor: 'Armor', haste: 'Haste' };
+const PCT_STAT = new Set(['crit', 'speed', 'armorPct', 'dodge', 'leech']);
 /** Green / red lines: what wearing `i` instead of `worn` changes (CRITIQUE_1 item 13). */
 export function compareLines(i, worn) {
   const w = worn ? itemInfo(worn) : null;
   if (!i || !i.slot) return [];
   const out = [];
-  const add = (label, d) => { if (d) out.push({ text: `${d > 0 ? '+' : ''}${d} ${label}`, color: d > 0 ? 'green' : 'red' }); };
+  const add = (label, d, pct = false) => { if (d) out.push({ text: `${d > 0 ? '+' : ''}${d}${pct ? '%' : ''} ${label}`, color: d > 0 ? 'green' : 'red' }); };
   if (!w) { out.push({ text: 'Nothing worn there yet.', color: 'green' }); return out; }
   if (w.id === i.id && w.name === i.name) return [];
   add('armor', (i.armor || 0) - (w.armor || 0));
   const avg = (x) => (x && x.damage ? (x.damage[0] + x.damage[1]) / 2 : 0);
   if (i.damage || w.damage) add('damage', Math.round(avg(i) - avg(w)));
   const keys = new Set([...Object.keys(i.stats || {}), ...Object.keys(w.stats || {})]);
-  for (const k of keys) add(STAT_NAME[k] || k, ((i.stats || {})[k] || 0) - ((w.stats || {})[k] || 0));
+  for (const k of keys) add(STAT_NAME[k] || k, ((i.stats || {})[k] || 0) - ((w.stats || {})[k] || 0), k.startsWith('res') || PCT_STAT.has(k));
   if (!out.length) out.push({ text: 'Same as what you wear.', color: 'gray' });
   return out.map((o, n) => (n === 0 ? { ...o, text: `vs ${w.name}: ${o.text}` } : o));
 }
@@ -62,7 +66,7 @@ export function itemTooltip(it, extra, worn) {
   const body = [];
   if (i.damage) body.push(`${i.damage[0]} to ${i.damage[1]} damage, speed ${i.speed}`);
   if (i.armor) body.push(`${i.armor} armor`);
-  for (const [k, v] of Object.entries(i.stats || {})) body.push(`+${v}${k.startsWith('res') || k === 'leech' ? '%' : ''} ${STAT_NAME[k] || k}`);
+  for (const [k, v] of Object.entries(i.stats || {})) body.push(`+${v}${k.startsWith('res') || PCT_STAT.has(k) ? '%' : ''} ${STAT_NAME[k] || k}`);
   if (i.text) body.push(i.text);
   if (i.kind === 'quest') body.push('Quest item.');
   // Inscriptions (src/sim/glyphs.js glyphView): the margins, their letters and a spelled word
