@@ -412,8 +412,11 @@ export function drawMap(ctx, env, m, st, regions, act) {
   // zone tabs
   let tx = r.x + 120;
   const th = Math.max(16, env.L.minHit || 0);
-  for (const z of zones.length > 1 ? zones : []) {     // one world: no tabs
+  // outdoor zones get tabs (plus the one shown, if it is a dungeon or cave); tabs stop short of the close button
+  const tabZones = zones.filter((z) => z.id === cur || z.id === here || !env.zoneKind || env.zoneKind(z.id) === 'field');
+  for (const z of tabZones.length > 1 ? tabZones : []) {     // one world: no tabs
     const w = g.textW(z.name) + 14;
+    if (tx + w > r.x + r.w - 28) break;
     const on = z.id === cur;
     g.window(ctx, tx, r.y + 4, w, Math.min(th, 18), 'thin', on ? 'ember' : 'slate', 0.95);
     g.text(ctx, z.name, tx + 7, r.y + 7, on ? 'cream' : 'gray');
@@ -451,11 +454,14 @@ export function drawMap(ctx, env, m, st, regions, act) {
   const zone = mapBook.zone(cur);
   if (!zone) return;
   const area = { x: lg.x + lg.w + 6, y: r.y + 28, w: r.x + r.w - 10 - (lg.x + lg.w + 6), h: r.h - 52 };
-  const ppt = Math.max(1, Math.floor(Math.min(area.w / zone.w, area.h / zone.h)));
-  const img = mapBook.image(cur, ppt);
+  // a zone bigger than the window (the big realms) is drawn scaled down, so ppt can be below 1
+  const fit = Math.min(area.w / zone.w, area.h / zone.h);
+  const ppt = fit >= 1 ? Math.floor(fit) : fit;
+  const src = mapBook.image(cur, Math.max(1, Math.floor(ppt)));
+  const img = { width: Math.floor(zone.w * ppt), height: Math.floor(zone.h * ppt) };
   const mx = area.x + Math.floor((area.w - img.width) / 2), my = area.y + Math.floor((area.h - img.height) / 2);
   g.rect(ctx, mx - 2, my - 2, img.width + 4, img.height + 4, '#14101e');
-  ctx.drawImage(img, mx, my);
+  ctx.drawImage(src, mx, my, img.width, img.height);
   const exitHere = nav && nav.exit && cur === here ? nav.exit : null;
   // joins (edges to other zones)
   for (const j of zone.joins || []) {

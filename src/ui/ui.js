@@ -375,7 +375,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     st.layer = { W: L.W, H: L.H };
     // big world: the hero's known flight points (the world map lights them, menus.js drawMap)
     const meS = snap && playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
-    const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, flights: (meS && meS.flights) || [] };
+    const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, zoneKind: (id) => (zones[id] || {}).kind, flights: (meS && meS.flights) || [] };
     const regions = [];
     ctx.imageSmoothingEnabled = false;
     if (st.mode !== 'game' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
