@@ -416,19 +416,30 @@ export function drawMap(ctx, env, m, st, regions, act) {
   const cur = st.mapZone || goalZone || here || (zones[0] && zones[0].id);
   st.mapShown = cur;
   const pulse = ((st.now || 0) * 1.2) % 1;
-  // zone tabs
-  let tx = r.x + 120;
-  const th = Math.max(16, env.L.minHit || 0);
-  // outdoor zones get tabs (plus the one shown, if it is a dungeon or cave); tabs stop short of the close button
+  // zone picker: < name > (nine outdoor zones and growing: tabs no longer fit). Outdoor zones, plus the one shown or
+  // stood in if it is a dungeon or cave; it stops short of the close button.
   const tabZones = zones.filter((z) => z.id === cur || z.id === here || !env.zoneKind || env.zoneKind(z.id) === 'field');
-  for (const z of tabZones.length > 1 ? tabZones : []) {     // one world: no tabs
-    const w = g.textW(z.name) + 14;
-    if (tx + w > r.x + r.w - 28) break;
-    const on = z.id === cur;
-    g.window(ctx, tx, r.y + 4, w, Math.min(th, 18), 'thin', on ? 'ember' : 'slate', 0.95);
-    g.text(ctx, z.name, tx + 7, r.y + 7, on ? 'cream' : 'gray');
-    regions.push({ rect: { x: tx, y: r.y + 4, w, h: th }, kind: 'button', label: `map_zone:${z.id}`, on: () => { st.mapZone = z.id; } });
-    tx += w + 4;
+  if (tabZones.length > 1) {
+    const th = Math.max(16, env.L.minHit || 0);
+    const bh = Math.min(th, 22);
+    const right = r.x + r.w - 8 - th;
+    const ci = Math.max(0, tabZones.findIndex((z) => z.id === cur));
+    const step = (d) => () => { st.mapZone = tabZones[(ci + d + tabZones.length) % tabZones.length].id; };
+    const bw = Math.max(18, th);
+    let px = r.x + 150;
+    const nameW = Math.max(60, right - px - 2 * bw - 12);
+    g.window(ctx, px, r.y + 4, bw, bh, 'thin', 'slate', 0.95);
+    g.text(ctx, '<', px + bw / 2, r.y + 4 + Math.floor((bh - 11) / 2), 'cream', { align: 'center' });
+    regions.push({ rect: { x: px, y: r.y + 4, w: bw, h: th }, kind: 'button', label: 'map_zone:prev', tip: { title: 'Previous map' }, on: step(-1) });
+    px += bw + 4;
+    const nm = (tabZones[ci] || {}).name || cur;
+    g.window(ctx, px, r.y + 4, nameW, bh, 'thin', 'ember', 0.95);
+    g.text(ctx, g.clip(`${nm}  (${ci + 1} of ${tabZones.length})`, nameW - 10), px + nameW / 2, r.y + 4 + Math.floor((bh - 11) / 2), 'cream', { align: 'center' });
+    regions.push({ rect: { x: px, y: r.y + 4, w: nameW, h: th }, kind: 'button', label: 'map_zone:next_name', tip: { title: 'Next map' }, on: step(1) });
+    px += nameW + 4;
+    g.window(ctx, px, r.y + 4, bw, bh, 'thin', 'slate', 0.95);
+    g.text(ctx, '>', px + bw / 2, r.y + 4 + Math.floor((bh - 11) / 2), 'cream', { align: 'center' });
+    regions.push({ rect: { x: px, y: r.y + 4, w: bw, h: th }, kind: 'button', label: 'map_zone:next', tip: { title: 'Next map' }, on: step(1) });
   }
   // your quests (a tap selects one; the map moves to its zone)
   const sel = m.selectedQuest ? (m.quests || []).find((q) => q.id === m.selectedQuest) : null;
@@ -462,29 +473,37 @@ export function drawMap(ctx, env, m, st, regions, act) {
   if (!zone) return;
   const area = { x: lg.x + lg.w + 6, y: r.y + 28, w: r.x + r.w - 10 - (lg.x + lg.w + 6), h: r.h - 52 };
   // a zone bigger than the window (the big realms) is drawn scaled down, so ppt can be below 1
-  const fit = Math.min(area.w / zone.w, area.h / zone.h);
-  const ppt = fit >= 1 ? Math.floor(fit) : fit;
-  const src = mapBook.image(cur, Math.max(1, Math.floor(ppt)));
+  // the map fills the window: ppt can be fractional (scaled up or down from the nearest whole-pixel image)
+  const ppt = Math.min(area.w / zone.w, area.h / zone.h);
+  const src = mapBook.image(cur, Math.max(1, Math.ceil(ppt)));
   const img = { width: Math.floor(zone.w * ppt), height: Math.floor(zone.h * ppt) };
   const mx = area.x + Math.floor((area.w - img.width) / 2), my = area.y + Math.floor((area.h - img.height) / 2);
   g.rect(ctx, mx - 2, my - 2, img.width + 4, img.height + 4, '#14101e');
+  const smooth = ctx.imageSmoothingEnabled;
+  ctx.imageSmoothingEnabled = ppt < 1;
   ctx.drawImage(src, mx, my, img.width, img.height);
+  ctx.imageSmoothingEnabled = smooth;
+  const placed = [];   // every label's box: a label that would overlap one already drawn is left out
+  const hits = (box) => placed.some((q) => q.x < box.x + box.w && box.x < q.x + q.w && q.y < box.y + box.h && box.y < q.y + q.h);
   const exitHere = nav && nav.exit && cur === here ? nav.exit : null;
   // joins (edges to other zones)
   for (const j of zone.joins || []) {
     const z2 = zones.find((o) => o.id === j.to);
-    const label = z2 ? `To ${z2.name}` : 'Unexplored';
+    if (!z2) continue;                      // an edge with nothing behind it yet: no label (it only cluttered)
+    const label = `To ${z2.name}`;
     const jx = mx + (j.x + j.w / 2) * ppt, jy = my + (j.y + j.h / 2) * ppt;
     const lw = g.textW(label);
     const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, jx - lw / 2));
     const lyy = Math.max(my + 2, Math.min(my + img.height - 13, jy - 5));
     const isExit = exitHere && j.to === exitHere.to;
+    const jb = { x: lx - 2, y: lyy - 1, w: lw + 4, h: 12 };
+    if (!isExit && hits(jb)) continue;
+    placed.push(jb);
     g.scrim(ctx, lx - 2, lyy - 1, lw + 4, 12, isExit ? 220 : 170);
     g.text(ctx, label, lx, lyy - 1, isExit ? 'cream' : z2 ? 'gold' : 'dim');
   }
   // place names (the Fork, the North Landing...): quest text names them, so the map does too (CRITIQUE_1 item 9)
   const view = { x: mx, y: my, w: img.width, h: img.height };
-  const placed = [];
   // the big areas first (one world: the High Moor, the Downs, Willowmere, the valley), in gold, so they win any overlap
   const big = (ar) => /^region_/.test(ar.id);
   for (const ar of [...(zone.areas || []).filter(big), ...(zone.areas || []).filter((a) => !big(a))]) {
@@ -493,7 +512,7 @@ export function drawMap(ctx, env, m, st, regions, act) {
     const lx = Math.round(mx + (ar.x + ar.w / 2) * ppt - lw / 2), lyy = Math.round(my + (ar.y + ar.h / 2) * ppt - 5);
     const box = { x: lx - 2, y: lyy - 1, w: lw + 4, h: 12 };
     if (box.x < mx || box.y < my || box.x + box.w > mx + img.width || box.y + box.h > my + img.height) continue;
-    if (placed.some((b) => b.x < box.x + box.w && box.x < b.x + b.w && b.y < box.y + box.h && box.y < b.y + b.h)) continue;
+    if (hits(box)) continue;
     placed.push(box);
     g.scrim(ctx, box.x, box.y, box.w, box.h, big(ar) ? 200 : 110);
     g.text(ctx, ar.name, lx, lyy - 1, big(ar) ? 'gold' : 'cream');
@@ -510,9 +529,12 @@ export function drawMap(ctx, env, m, st, regions, act) {
   const areas = ((m.minimap && m.minimap.areas) || []).filter((a) => a.zone === cur);
   drawAreas(ctx, areas, view, ppt, 0, 0, cur, 2, { sel: sel ? sel.id : null, pulse });
   const named = new Set();
-  const labelAt = (w, label, color, alpha) => {
+  const labelAt = (w, label, color, alpha, force = false) => {
     const lw = g.textW(label);
     const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, mx + w.x * ppt - lw / 2)), lyy = Math.max(my + 2, Math.min(my + img.height - 12, my + (w.y + (w.r || 2)) * ppt + 3));
+    const qb = { x: lx - 2, y: lyy - 1, w: lw + 4, h: 12 };
+    if (!force && hits(qb)) return;
+    placed.push(qb);
     ctx.globalAlpha = alpha;
     g.scrim(ctx, lx - 2, lyy - 1, lw + 4, 12, 190);
     g.text(ctx, label, lx, lyy - 1, color);
@@ -537,7 +559,7 @@ export function drawMap(ctx, env, m, st, regions, act) {
       const label = g.clip(whereLabel(w, sel), 160);
       if (seen.has(label)) continue;
       seen.add(label);
-      labelAt(w, label, 'cream', 1);
+      labelAt(w, label, 'cream', 1, true);
       selLabels.push(label);
     }
   }
