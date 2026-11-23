@@ -1404,3 +1404,22 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   and pressable (region kind `mount`) only when `m.player.mounts` is not empty; `m.player.mount`, `m.player.mounts`.
   Icons: `assets/icons/mounts16`, `mounts24` (`tools/mounts/make_icons.py`). 2D: `src/render/mount2d.js` (the hero lifted
   `MOUNT_LIFT_PX`). 3D: `src/render3d/mount3d.js` (`createMount`, `createRider`, `createYard`), `renderer.dev.actor(id).mount`.
+
+## The 20 to 30 band zones: Larchhill, the Larch Mine, Drovers' Reach (2026-11-22, band lane; D:/LQOnline/world3/BRIEF.md 2, 4, 5)
+
+- **Zones.** `OUTDOOR.larchhill` (20 to 25) and `OUTDOOR.drovers_reach` (25 to 30), 1088 x 704 each, generated from
+  `tools/maps/zone_larchhill.mjs` / `zone_drovers_reach.mjs` (big-zone kit plus `tools/maps/band_kit.mjs`: the hub town,
+  rivers with fords, scatter, camp dressing). Larchhill joins the world at the Downs' old Larchhill gate (downs 19..21, 95,
+  now open; the `x1_larchhill` hook is gone) and Drovers' Reach at Drovers' Gap (Larchhill's west edge). **An outdoor
+  zone may join another outdoor zone**: `build_world.mjs` checks every pass both ways and that every outdoor zone has a
+  chain of joins from the world.
+- **A door in an outdoor zone.** A `DUNGEONS` entry may carry `door.zone` (default the world): `withDoors(zone, ...)` adds
+  only the doors whose `door.zone` is that zone's id (index.js applies it to Larchhill), the place's exit join goes back
+  to `door.zone` (`zone_larch_mine.mjs`), and `DG.loadSpec` loads a save made inside it at the door in that zone. The
+  Larch Mine (cave, 21 to 23, `src/data/band_dungeons.js`, merged into `DUNGEONS`).
+- **Content.** `src/data/band_content.js applyBand(content)` (called at the end of buildContent): the band's foes
+  (`src/data/band20.js`, registered onto `MOBS`, abilities onto `MOB_ABILITIES`; families beast, insect, humanoid, spirit),
+  people, items, 43 side quests (`src/data/larchhill.js`, `drovers_reach.js`), four rares (`content.rares`), and two
+  night events (`content.worldEvents` entries with `zone`; their night spawns in that zone). `band20.js BAND_LOOT` is the
+  band's loot tier table (reward and vendor item levels); `bandXpToNext` mirrors BUILDS_2 5.2 past 20 for quest XP.
+  Inns and flight points: `src/data/band_travel.js`, spread into `src/data/travel.js`.

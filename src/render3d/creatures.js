@@ -19,6 +19,21 @@ export function familyOf(template = '', sprite = '') {
   if (/rb_shelf_golem/.test(k)) return { f: 'golem', tint: '#6a4a2e', glow: '#9fc4ff' };
   if (/rb_echo_warden/.test(k)) return { f: 'golem', tint: '#7a8aa0', glow: '#bfe0ff' };
   if (/rb_archivore/.test(k)) return { f: 'boar', tint: '#1a1430' };
+  // the 20 to 30 band (band lane, 2026-11-22: src/data/band20.js): the closest code-built bodies until their own exist;
+  // humanoids (couriers, tallymen: hooded shades; cudgels, gangers, warders: stocky golems) are drafts
+  if (/^lh_hornet|rare_queen_bramblesting/.test(template)) return { f: 'crow', tint: '#c89a1c' };
+  if (/^lh_lynx/.test(template)) return { f: 'wolf', tint: '#a8844c', eyes: '#ffd27a' };
+  if (/^lh_grub/.test(template)) return { f: 'scarab', tint: '#d8c8a0' };
+  if (/^lh_bear|rare_old_greybark/.test(template)) return { f: 'boar', tint: '#5a4632' };
+  if (/^lh_courier_captain/.test(template)) return { f: 'shade', tint: '#3a3a44', glow: '#cfe0ff' };
+  if (/^lh_courier|^dr_tallyman|rare_tallow_mag/.test(template)) return { f: 'shade', tint: '#8a8a92', glow: '#dfe8ff' };
+  if (/^lm_gaffer|^lm_damp_miner/.test(template)) return { f: 'shade', tint: '#2a2622', glow: '#ffc46b', ghost: 0.75 };
+  if (/^dr_shade/.test(template)) return { f: 'shade', tint: '#6a6a5a', glow: '#e8e0b0', ghost: 0.7 };
+  if (/^dr_chainmaster/.test(template)) return { f: 'golem', tint: '#4a4a52', glow: '#ff9a3a' };
+  if (/^lh_cudgel|^dr_ganger|^dr_warder/.test(template)) return { f: 'golem', tint: /warder/.test(template) ? '#5a5e66' : '#7a5a3e', glow: '#ffd27a' };
+  if (/^dr_ox|rare_old_ironhorn/.test(template)) return { f: 'ram', tint: '#6a4a30' };
+  if (/^dr_hound/.test(template)) return { f: 'wolf', tint: '#3a3530', eyes: '#ff7a2a' };
+  if (/^dr_kite/.test(template)) return { f: 'crow', tint: '#6a4a2e' };
   if (/thornback/.test(k)) return { f: 'wolf', tint: '#3a2a24', thorns: true, eyes: '#ff7a2a' };
   if (/mist_wolf/.test(k)) return { f: 'wolf', tint: '#b8c4d4', eyes: '#9fe0ff', ghost: 0.75 };
   if (/wolf/.test(k)) return { f: 'wolf', tint: '#6a5a3e', eyes: '#ffb347' };

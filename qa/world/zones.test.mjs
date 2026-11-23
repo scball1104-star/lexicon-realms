@@ -113,7 +113,7 @@ export const tests = [
   {
     name: 'world hooks: the closed roads (Q19) are signed and their edges cannot be reached on foot',
     fn() {
-      const want = { valley: ['east_road', 'x1_terrace'], downs: ['x1_millrace', 'x1_larchhill'], moor: ['x1_terrace'] };
+      const want = { valley: ['east_road', 'x1_terrace'], downs: ['x1_millrace'], moor: ['x1_terrace'] };
       const W = ZONES.world, ok = reachable('world');
       for (const [id, hooks] of Object.entries(want)) {
         for (const h of hooks) {
