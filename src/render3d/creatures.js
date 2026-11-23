@@ -1,3 +1,5 @@
+// Foes. Every foe template now has a creature-kit recipe (src/render3d/creature_kit.js, creature_recipes.js) and is
+// built from it; the bodies below are the older path, kept for anything without a recipe (and the before/after still).
 // Foes. CC0 models only: the Quaternius animated Wolf and Deer for the beasts and the Ghost Skull for the barrow shade
 // (all poly.pizza, CC0), and code-built bodies for every family no CC0 model fits: ink slimes (a glossy wobbling drop
 // with a face), paper wraiths (torn written pages), scarabs, crows, boars, stone sentinels and the watch lamp.
@@ -9,6 +11,9 @@
 import * as THREE from '../vendor/three/three.module.min.js';
 import * as SkeletonUtils from '../vendor/three/addons/utils/SkeletonUtils.js';
 import { canvasTex, radial, seeded } from './textures.js';
+import { buildCreature } from './creature_kit.js';
+import { RECIPES } from './creature_recipes.js';
+import { buildHumanFoe } from './foe_human.js';
 
 /** Mob template / sprite -> family and colours. */
 export function familyOf(template = '', sprite = '') {
@@ -602,7 +607,14 @@ function lamp(fam) {
   };
 }
 
-export async function createCreature(L, template, sprite, { elite = false, rank = 'normal' } = {}) {
+export async function createCreature(L, template, sprite, { elite = false, rank = 'normal', kit = true } = {}) {
+  // the creature kit (2026-11-23): every foe with a recipe is built from it; its size already says elite or rare
+  const recipe = kit ? RECIPES[template] : null;
+  // humanoid foes wear the heroes' rigged human (src/render3d/foe_human.js); if its files fail, the kit's own body
+  if (recipe && recipe.body === 'humanoid' && L && L.gltf) {
+    try { return await buildHumanFoe(L, THREE, recipe); } catch (err) { console.warn('Lexicon Realms 3D: humanoid foe falls back to the kit body', template, err); }
+  }
+  if (recipe) { const body = buildCreature(THREE, recipe); body.family = 'kit'; return body; }
   const fam = familyOf(template, sprite);
   let body;
   if (fam.f === 'wolf' || fam.f === 'ram') body = await beast(L, fam);

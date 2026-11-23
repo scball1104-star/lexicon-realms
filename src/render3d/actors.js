@@ -185,7 +185,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     // free what this body owns: cloned materials (heroes, beasts), and the code-built geometry of creatures and
     // capes; geometry shared with the loaded glTF files stays
     if (b.type === 'hero') { for (const m of b.ch.mats) m.dispose(); if (b.local) b.local.traverse((m) => { if (m.isMesh || m.isPoints) { m.geometry.dispose(); m.material.dispose(); } }); }
-    if (b.type === 'creature') { for (const m of b.c.mats) m.dispose(); if (!/^(wolf|ram|shade)$/.test(b.c.family)) b.c.o.traverse((m) => { if (m.isMesh && !m.geometry.userData.shared) m.geometry.dispose(); }); }
+    if (b.type === 'creature') { for (const m of b.c.mats) m.dispose(); if (b.c.release) b.c.release(); if (!/^(wolf|ram|shade|human)$/.test(b.c.family)) b.c.o.traverse((m) => { if (m.isMesh && !m.geometry.userData.shared) m.geometry.dispose(); }); }
   }
   function wantSig(e) {
     if (e.kind === 'player') return heroSpec(e.cls, e.look, e.equip, items).sig;

@@ -1,66 +1,17 @@
-// Nine kit recipes for real Lexicon Realms foes (src/data/*.js). Original designs. `template` is the game's mob id,
-// so the stills can build "today's" body for the same foe with createCreature(L, template, sprite).
-export const RECIPES = [
-  { key: 'ash_hound', name: 'Ash Hound', template: 'ep_ash_hound', sprite: 'thornback_wolf', seed: 11,
-    body: 'quadruped', size: 1.0, fur: true, pattern: 'cracks',
-    proportions: { torso: 0.95, girth: 0.22, legLen: 0.52, legThick: 0.065, chest: 1.3, hips: 0.78, waist: 0.8, arch: 0.05, neck: 0.3, neckRise: 0.6, tail: 0.6, tailThick: 0.055, tailLift: 0.35, tailDroop: -0.2, belly: 0.85, lunge: 0.42 },
-    head: { len: 0.35, w: 0.15, h: 0.145, snout: 0.62, snoutW: 0.62, flatTop: 0.8, earSize: 1.3, teeth: 'fangs', eyesFront: 0.6, eye: 0.03, pitch: 0.2 },
-    parts: ['ears:swept', 'mane:ember', 'tail:ember', 'embers'],
-    palette: { base: '#57504b', belly: '#8a817a', accent: '#2a2422', eyes: '#ffb03a', glow: '#ff6a1a', dark: '#120c0a' } },
+// The approval stills' nine foes, now read from the game's recipes (src/render3d/creature_recipes.js holds one per foe).
+// `template` is the game's mob id, so the before/after still can build the old body for the same foe.
+import { RECIPES as MAP, ZONES } from '../../../src/render3d/creature_recipes.js';
 
-  { key: 'mudsnapper', name: 'Mudsnapper', template: 'vw_mudsnapper', sprite: '', seed: 23,
-    body: 'quadruped', size: 1.0, pattern: 'scales', patternScale: 1.6,
-    proportions: { torso: 0.78, girth: 0.25, legLen: 0.2, legThick: 0.085, chest: 1.0, hips: 1.0, arch: 0.0, neck: 0.18, neckRise: 0.1, tail: 0.32, tailThick: 0.06, tailLift: -0.1, tailDroop: -0.1, stance: 0.95, shellR: 1.45, lunge: 0.3, mossN: 8, claws: true },
-    head: { len: 0.32, w: 0.17, h: 0.14, beak: true, beakLen: 0.3, eyesFront: 0.45, eye: 0.025, pitch: 0.05 },
-    parts: ['shell', 'moss', 'tail:spiked'],
-    palette: { base: '#6a6a3e', belly: '#c8b87a', shell: '#5a4a2e', accent: '#9a8a5a', eyes: '#e8ff6a', moss: '#5e8a34', dark: '#16120a' } },
-
-  { key: 'bog_leech', name: 'Bog Leech', template: 'vw_bog_leech', sprite: '', seed: 31,
-    body: 'serpent', size: 1.0, pattern: 'rings', glowSpots: true, rough: 0.32, patternScale: 2.2,
-    proportions: { length: 1.5, girth: 0.17, rise: 0.32, riseFrom: 0.62, wave: 'up', amp: 0.16, waves: 1.2, lunge: 0.35, belly: 0.7, flatW: 1.15,
-      profile: [[0, 0.35], [0.12, 0.7], [0.45, 1.05], [0.8, 0.95], [1, 0.78]] },
-    head: { sucker: true },
-    parts: [],
-    palette: { base: '#3a4a2a', belly: '#7a8a4a', accent: '#a8c070', eyes: '#c8ff7a', glow: '#8aff6a', dark: '#0c1008' } },
-
-  { key: 'gorse_boar', name: 'Gorse Boar', template: 'gorse_boar', sprite: 'gorse_boar', seed: 41,
-    body: 'quadruped', size: 1.0, fur: true, pattern: 'mottle', patternScale: 0.9,
-    proportions: { torso: 1.0, girth: 0.32, legLen: 0.36, legThick: 0.085, chest: 1.12, hips: 0.88, waist: 1.02, arch: 0.08, shoulder: 0.08, neck: 0.14, neckRise: 0.05, tail: 0.18, tailThick: 0.035, tailLift: 0.4, spineN: 14, spineLen: 0.085, spineR: 0.022, lunge: 0.42 },
-    head: { len: 0.44, w: 0.22, h: 0.21, snout: 0.75, snoutW: 0.6, eyesFront: 0.35, eye: 0.028, pitch: 0.5 },
-    parts: ['ears:pointed', 'tusks', 'nose:disc', 'bristles:gorse', 'tail:tuft'],
-    palette: { base: '#6a4a30', belly: '#a8885e', pattern: '#523620', accent: '#4a5a24', eyes: '#ff8a2a', dark: '#1a100a' } },
-
-  { key: 'moss_scarab', name: 'Moss Scarab', template: 'moss_scarab', sprite: 'moss_scarab', seed: 53,
-    body: 'insect', size: 1.0, rough: 0.5, pattern: 'none',
-    proportions: { abdomen: 0.42, girth: 0.22, bodyY: 0.17, legLen: 0.34, legThick: 0.026, thorax: 0.72, abdLift: 0.02, mossN: 9, legColor: '#1e2a1c' },
-    head: { len: 0.16, eye: 0.024 },
-    parts: ['carapace', 'moss', 'horns:rhino', 'antennae'],
-    palette: { base: '#22301e', belly: '#141c12', shell: '#2a6a5a', accent: '#3a5a40', eyes: '#d6ff6a', moss: '#7aa83e', dark: '#0e140c' } },
-
-  { key: 'hollow_raven', name: 'Hollow Raven', template: 'nh_raven', sprite: 'gorse_crow', seed: 61,
-    body: 'flyer', size: 1.15,
-    proportions: { body: 0.44, girth: 0.105, span: 0.85, hover: 1.05 },
-    head: { len: 0.22, eye: 0.022 },
-    parts: ['wings:ragged', 'ruff'],
-    palette: { base: '#2a2838', belly: '#3a3a4e', accent: '#6a6a90', eyes: '#d8e4ff', dark: '#08080e' } },
-
-  { key: 'slag_golem', name: 'Slag Golem', template: 'ep_slag_golem', sprite: 'tower_sentinel', seed: 71,
-    body: 'biped', size: 1.0, flat: true, rough: 0.9, pattern: 'cracks', patternScale: 1.2,
-    proportions: { legLen: 0.42, torso: 0.9, girth: 0.42, shoulders: 0.58, armLen: 1.12, armThick: 0.15, hunch: 0.55, head: 0.19, fist: 0.24 },
-    parts: ['core', 'crystals', 'embers'],
-    palette: { base: '#4a3e38', belly: '#5a4a40', accent: '#2a2220', eyes: '#ffd24a', glow: '#ff6a14', crystal: '#1e1416', dark: '#0e0a08' } },
-
-  { key: 'sand_scorpion', name: 'Sand Scorpion', template: 'sh_scorpion', sprite: 'moss_scarab', seed: 83,
-    body: 'insect', size: 1.0, pattern: 'bands', rough: 0.55, patternScale: 1.4,
-    proportions: { abdomen: 0.42, girth: 0.17, bodyY: 0.15, legLen: 0.34, legThick: 0.02, legPairs: 4, thorax: 0.85, abdW: 1.05, abdH: 0.6, tailR: 0.32, claw: 1.35, tail: 0.6, lunge: 0.18, legColor: '#9a6a34' },
-    head: { len: 0.12, eye: 0.018, eyesFront: 0.8 },
-    parts: ['pincers', 'tail:stinger'],
-    palette: { base: '#b8843e', belly: '#e0c088', pattern: '#6a4220', accent: '#e8a040', eyes: '#2a1a10', glow: '#ffb84a', dark: '#4a2e18' } },
-
-  { key: 'brine_eel', name: 'Brine Eel', template: 'vw_brine_eel', sprite: '', seed: 97,
-    body: 'serpent', size: 1.0, pattern: 'spots', glowSpots: true, rough: 0.35, patternScale: 1.4,
-    proportions: { length: 2.3, girth: 0.13, rise: 0.62, riseFrom: 0.58, wave: 'side', amp: 0.2, waves: 1.3, lunge: 0.5, finH: 0.1, belly: 0.8 },
-    head: { len: 0.36, snout: 0.7, snoutW: 0.7, teeth: 'fangs', eye: 0.026, pitch: 0.15 },
-    parts: ['fins', 'barbels'],
-    palette: { base: '#1e4a54', belly: '#9ac8c0', pattern: '#0e2a30', accent: '#4ab8c0', eyes: '#aaffee', glow: '#5af0e0', dark: '#06141a' } },
+const PICK = [
+  ['ash_hound', 'ep_ash_hound', 'thornback_wolf', 'Ash Hound'],
+  ['mudsnapper', 'vw_mudsnapper', '', 'Mudsnapper'],
+  ['bog_leech', 'vw_bog_leech', '', 'Bog Leech'],
+  ['gorse_boar', 'gorse_boar', 'gorse_boar', 'Gorse Boar'],
+  ['moss_scarab', 'moss_scarab', 'moss_scarab', 'Moss Scarab'],
+  ['hollow_raven', 'nh_raven', 'gorse_crow', 'Hollow Raven'],
+  ['slag_golem', 'ep_slag_golem', 'tower_sentinel', 'Slag Golem'],
+  ['sand_scorpion', 'sh_scorpion', 'moss_scarab', 'Sand Scorpion'],
+  ['brine_eel', 'vw_brine_eel', '', 'Brine Eel'],
 ];
+export const RECIPES = PICK.map(([key, template, sprite, name]) => ({ ...MAP[template], key, template, sprite, name }));
+export { MAP, ZONES };
