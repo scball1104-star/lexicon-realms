@@ -553,7 +553,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
       if (status(q) !== 'available') continue;
       const qd = C.quests[q];
       if (qd.level > p.level + 2) continue;
-      { const h = npcHome[qd.giver]; if (h && zb(h.zone) !== zb(p.zone) && !nav.zoneRoute(p.zone, h.zone)) continue; }   // a giver the hero cannot walk to yet (a one-way start realm)
+      { const h = npcHome[qd.giver]; if (h && !reachable(h.zone)) continue; }   // a giver the hero cannot walk to yet (a one-way start realm)
       cand.push({ key: 'accept:' + q, kind: 'npc', npc: qd.giver, act: 'accept', quest: q, pri: 5 });
     }
     // 6) work active objectives, lowest quest level first
@@ -601,9 +601,21 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   }
 
   /** go to an npc; once in reach run `onReach(npcEnt)` (returns true when the errand is finished) */
+  // a start realm reached by a ride (the Emberpeak ore cart, the Valewyn ferry) has no road out: take the ride whose
+  // master stands in this zone and whose far end reaches the zone I want (audit 2026-11-23: before, the Warden and the
+  // Mender stood in their realms at level 8 for five hours, the last hand-in up in Willowmere)
+  function rideOut(zone) {
+    const here = me().zone;
+    if (zb(here) === zb(zone) || nav.zoneRoute(here, zone)) return null;
+    return Object.values((C.travel && C.travel.rides) || {}).find((rd) => npcHome[rd.npc] && npcHome[rd.npc].zone === here
+      && (zb(rd.zone) === zb(zone) || nav.zoneRoute(rd.zone, zone))) || null;
+  }
+  const reachable = (zone) => zb(zone) === zb(me().zone) || !!nav.zoneRoute(me().zone, zone) || !!rideOut(zone);
   function goNpc(g, tpl, onReach) {
     const n = npcEnt(tpl);
     if (!n) { viol('npc_missing', { key: tpl, npc: tpl }); goalBan.set(g.key, now() + 600 * 20); return; }
+    if (me().flight) { hold(0, 0); return; }
+    { const rd = n.zone !== me().zone ? rideOut(n.zone) : null; if (rd && rd.npc !== tpl) return goNpc(g, rd.npc, (rn) => { cmd({ t: 'ride', npc: rn.id }); R.counters.rides = (R.counters.rides || 0) + 1; }); }
     const r = walkToEnt('npc:' + tpl, n, 30);
     if (r === 'fail') { const f = (route && route.fails) || 0; if (f > 3) { viol('npc_unreachable', { key: tpl, npc: tpl, from: me().zone, tile: tileOfSub(me()) }); goalBan.set(g.key, now() + 300 * 20); } return; }
     if (n.zone === me().zone && (r === 'arrived' || dpx(me(), n) <= 36)) { hold(0, 0); onReach(n); }
