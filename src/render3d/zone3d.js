@@ -882,6 +882,14 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
           B.instance(fence, M4(x + 0.5, 0, y + 0.5, ry, 1 / fLen, 1, 1 / fLen));
         } else if (id === 'wall_low') {
           const s = new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.5), MAT.stone); s.position.set(x + 0.5, 0.3, y + 0.5); s.updateMatrixWorld(); B.mergeGeo(s.geometry, MAT.stone, s.matrixWorld);
+        } else if (id === 'x1_drystone' && zone.collision[y] && zone.collision[y][x] === '#') {
+          // a dry-stone wall (the Downs' folds and field walls): knee-high so it reads as a wall, not paving (Scott, 2026-11-22)
+          const isD = (a, c) => a >= 0 && c >= 0 && a < W && c < H && legendAt[c][a] === 'x1_drystone';
+          const ew = isD(x - 1, y) || isD(x + 1, y), ns = isD(x, y - 1) || isD(x, y + 1);
+          const h = 0.5 + hashXY(x, y, 7) * 0.15;
+          const put = (sx, sz) => { const s = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sz), MAT.stone); s.position.set(x + 0.5, h / 2, y + 0.5); s.updateMatrixWorld(); B.mergeGeo(s.geometry, MAT.stone, s.matrixWorld); };
+          if (ew || !ns) put(1.02, 0.55);
+          if (ns) put(0.55, 1.02);
         } else if (/_face$/.test(id)) {
           const i = Math.floor(hashXY(x, y, 3) * 3);
           const h = 1.8 + hashXY(x, y, 5) * 0.8;
