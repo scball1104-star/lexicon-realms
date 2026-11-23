@@ -731,6 +731,14 @@ LIVE since the integration wave (2026-11-19):
   A bolt or arrow flies from the sim's `projectile` event at the event's `speed` (the ability data), so it lands on the
   tick the sim's `damage` lands; `snap.projectiles` with no event visual (late join) are drawn as a small bolt at the
   sim's interpolated spot.
+- 3D effects and hero combat animation (FX kit, approved 2026-11-23): `src/render3d/fx3d.js` turns the same plan into
+  FX kit recipes (`fx_kit.js` engine, `fx_recipes.js` data: `ABILITY_FX` has one line per class ability, checked by
+  `qa/tests/fx_kit.test.mjs`; mobs and new skills fall back by school and shape). It reads sim events only, writes
+  nothing back; light requests stay `{ pos, color, k }` for the renderer's capped pool; `F.screen` (camera kick,
+  hit-stop) fires only for the player's own crits and heavy blows, and `options.shake = false` turns the kick off.
+  Hit-stop slows body animation only, never the sim. Heroes: the clip library plays idle, walk and run; `anim_kit.js`
+  `overlay()` blends the swing, cast charge and release, bow draw, hit reaction and death over them (actors.js).
+  Foe hit tint goes through `body.mats` (emissive, restored after); creature code is not touched.
 - Mob atlases `assets/sprites/mobs/<id>.json` (17, `sprites.js MOB_ATLASES`), keyed by `entity.sprite`, then
   `entity.template`; LQ `enemies_field` is the fallback while one loads. idle / walk (not `stationary`), attack
   (windupFrame then hitFrame, 0.3 s, from the `damage` event), cast while `e.cast`, hurt 0.14 s, death. `emissive`

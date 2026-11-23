@@ -113,7 +113,7 @@ async function boot() {
       setZoom: (z) => { if (ZOOMS.includes(z)) view.zoom = z; },
       // Settings > Graphics: save, then reload into the other renderer (a ?r= in the link would override it, so drop it)
       setGraphics: () => { ui.saveProgress(); const u = new URL(window.location.href); u.searchParams.delete('r'); window.location.replace(u.toString()); },
-      optionsChanged: (o) => { view.fx = fxOverride || o.fx; audio.setVolumes({ master: 1, music: o.music, sfx: o.sfx }); },
+      optionsChanged: (o) => { view.fx = fxOverride || o.fx; view.shake = o.shake !== false; audio.setVolumes({ master: 1, music: o.music, sfx: o.sfx }); },
       enterWorld: (c) => {
         // a hero joining a friend's game: the friend's world made it (coop.js); this tab plays back their frames
         const gid = coop.takeGuestId();
@@ -151,6 +151,7 @@ async function boot() {
   view.touch = touch;
   if (touch && !ui.options.zoomSet && !q.get('zoom')) view.zoom = 1.5;
   view.fx = fxOverride || ui.options.fx;
+  view.shake = ui.options.shake !== false;   // the 3D effects' camera kick (Options)
   audio.setVolumes({ master: 1, music: ui.options.music, sfx: ui.options.sfx });
   if (touch) createTouch({ canvas, input, ui });
   // the Lantern Chest's Shared tab (every hero on this device): its own key, never inside a hero save (src/ui/save.js)
