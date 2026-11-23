@@ -110,6 +110,7 @@ export function createAi(C) {
       r = Math.max(8, r);
     }
     r += stats.mod(p, 'noticeRange').add;
+    if (C.realms2) r = C.realms2.sense(m, p, r);     // realms2: the storm hides you, a lantern finds you (src/sim/realms2.js)
     return Math.max(16, r);
   }
 

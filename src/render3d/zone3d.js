@@ -20,6 +20,7 @@ import { WINDOW_LIT } from './loader.js';
 import { dyeMaterial } from './hero.js';
 import { canvasTex, groundDetail, radial, waterNormal, woodTex } from './textures.js';
 import { treeDims, edgeCell } from './flora.js';
+import { r2CanopyProto, r2DomeHouse } from './realms2_3d.js';   // wave 3 realms2: dunes, roofs, saffron domes
 import { regionInfo, underAt } from '../data/maps/compose.js';
 // dungeons and caves (zone kind 'dungeon' | 'cave'): walls, cut, props; the world's doors into them
 import { buildPlaceWalls, buildDoorMouths, cutMat, doorAt, dressPlace } from './dungeon3d.js';
@@ -915,7 +916,16 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
         fx0 = d.x + Math.min(...xs); fz0 = d.y + Math.min(...ys); fw = Math.max(...xs) - Math.min(...xs) + 1; fd = Math.max(...ys) - Math.min(...ys) + 1;
       } else if (/bench|anvil|tree_willow/.test(t)) fw = 2; else if (/crates_barrels|hedge_flowers/.test(t)) fw = 3;
       const cx = fx0 + fw / 2, cz = fz0 + fd / 2;
-      if (BUILDING[t]) {
+      // realms2: Saffron Haven's deep dunes and the Hollow's walls of houses (code-built canopies), Saffron's domed houses
+      if (zone.canopy === 'roofs' ? (d.deep || d.line) && t === 'tree_pine' : zone.canopy === 'dunes' && d.deep) {
+        const dk = d.deep > 1 ? d.deep : 1, dunes = zone.canopy === 'dunes';
+        const wk = (dunes ? 3.4 + r(5) * 1.6 : 2.3 + r(5) * 0.4) * dk, k = dunes ? 1.6 + r(4) * 1.8 : 3.2 + r(4) * 1.6;
+        B.instance(r2CanopyProto(zone.canopy, Math.floor(r(1) * 3)), M4(d.x + 0.5, 0, d.y + 0.5, dunes ? r(3) * 0.6 : Math.floor(r(3) * 4) * Math.PI / 2, wk, k, wk));
+        farAdd(FAR_CONE, dunes ? '#c8985a' : '#3a3a48', d.x + 0.5, d.y + 0.5, wk * 0.9, k, wk * 0.9);
+      } else if (zone.style === 'saffron' && BUILDING[t]) {
+        buildings.push(r2DomeHouse(B, fx0, fz0, fw, fd, bldSlot(), d.x * 7 + d.y));
+        farAdd(FAR_BOX, '#e0c49a', cx, cz, fw, 2.6, fd);
+      } else if (BUILDING[t]) {
         const def = BUILDING[t];
         const door = meta && meta.doorAt ? meta.doorAt[0] : Math.floor(fw / 2);
         const o = { town: townAt(d.x, d.y), bld: bldSlot() };
@@ -949,7 +959,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       else if (t === 'bush') jobs.push(placeModel(r(1) < 0.25 ? 'nature/Bush_Common_Flowers.gltf' : 'nature/Bush_Common.gltf', d.x + 0.5, d.y + 0.5, { h: 0.9 + r(2) * 0.5, ry: r(3) * 6.28 }));
       else if (/^x1_gorse/.test(t)) jobs.push(placeModel('nature/Bush_Common_Flowers.gltf', cx, d.y + 0.5, { h: 0.8 + r(2) * 0.4, ry: r(3) * 6.28, tint: '#c8b060' }));
       else if (t === 'hedge_flowers') for (let i = 0; i < 3; i++) jobs.push(placeModel('nature/Bush_Common_Flowers.gltf', d.x + 0.5 + i, d.y + 0.5, { h: 0.9, ry: r(i) * 6.28 }));
-      else if (t === 'x1_boulder_a') { const i = Math.floor(r(1) * 3); jobs.push(placeModel(`nature/Rock_Medium_${i + 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: 0.6 + r(2) * 0.6, ry: r(3) * 6.28, tint: roots ? '#5a5048' : '#7a746a' })); }
+      else if (t === 'x1_boulder_a') { const i = Math.floor(r(1) * 3); jobs.push(placeModel(`nature/Rock_Medium_${i + 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: 0.6 + r(2) * 0.6, ry: r(3) * 6.28, tint: roots ? '#5a5048' : zone.style === 'saffron' ? '#d8b088' : '#7a746a' })); }   // realms2: sandstone in Saffron
       else if (t === 'x1_blank_slab' && library) B.mergeGroup(bookcase(d.x + 0.5, d.y + 0.5, d.x * 31 + d.y));
       else if (/^x1_menhir|x1_blank_slab|prop_milestone/.test(t)) { const i = Math.floor(r(1) * 3); jobs.push(placeModel(`nature/Rock_Medium_${i + 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: t === 'prop_milestone' ? 0.8 : 2.3, s: 1, ry: r(3) * 6.28, tint: '#7a766e' })); }
       else if (t === 'x1_cairn_moor') { for (let i = 0; i < 3; i++) jobs.push(placeModel(`nature/Pebble_Round_${i % 2 ? 3 : 1}.gltf`, d.x + 0.5, d.y + 0.5, { h: 0.4 - i * 0.08, y: i * 0.32, ry: i * 2, tint: '#8a8680' })); }

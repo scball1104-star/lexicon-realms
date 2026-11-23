@@ -18,6 +18,7 @@ import { build as buildWilds } from './zone_wilds.mjs';
 import { composeWorld } from '../../src/data/maps/compose.js';
 import { withDoors } from '../../src/data/maps/doors.js';
 import { DUNGEONS } from '../../src/data/dungeons.js';
+import { REALMS2_ZONES } from './zone_realms2.mjs';   // wave 3 realms2: Saffron Haven, the Nameless Hollow
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 // --out <dir> writes the zone modules elsewhere (diffing a change); --no-assets skips assets/tiles (the map lane only
@@ -243,7 +244,7 @@ for (const d of Object.values(DUNGEONS)) {
 // (the big-zone kit), checked like an area (finish: everything reachable from its arrival, no pits), and every join
 // between it and the world lands on a walkable cell the other side can walk back from.
 const outdoor = [];
-for (const id of ['rootbound']) {
+for (const id of ['rootbound', ...REALMS2_ZONES]) {
   const z = (await import(`./zone_${id}.mjs`)).build(db);
   z.source = `tools/maps/zone_${id}.mjs`;
   outdoor.push(finish(z));
@@ -253,7 +254,9 @@ for (const id of ['rootbound']) {
   const seenW = reach(W3, W3.arrival[0], W3.arrival[1]);
   for (const o of outdoor) {
     const there = W3.joins.filter((j) => j.to === o.id);
-    if (!there.length) problems.push(`world: no join to ${o.id}`);
+    // realms2 (wave 3): Saffron Haven and the Nameless Hollow leave by a one-way ride (the sand-ship, the Fading Road;
+    // their joins carry `ride`): the world has no join back, the way home is the Lantern Kite
+    if (!there.length && !o.joins.some((j) => j.to === W3.id && j.ride)) problems.push(`world: no join to ${o.id}`);
     for (const j of there) {
       if (!(o.collision[j.ty] && o.collision[j.ty][j.tx] === '.')) problems.push(`world join -> ${o.id} lands on ${j.tx},${j.ty}, not walkable`);
       let any = false;

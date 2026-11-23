@@ -9,12 +9,14 @@
 // the root stair up to Willowmere. Text is original. No em dashes.
 import { MOBS, MOB_SPRITES, mobStats } from './mobs.js';
 import { makeGear } from './rares.js';
+import { R2_START_REALMS } from './realms2.js';   // wave 3 realms2: the Wayfinder's and the Inkblade's realms
 
 // ---------------------------------------------------------------- start realms (one so far; the brief's other four come later)
 /** Class -> the realm a new hero of that class may start in (the default on character creation). */
 export const START_REALMS = Object.freeze({
   scribe: Object.freeze({ zone: 'rootbound', name: 'The Rootbound', x: 288, y: 70, lantern: { zone: 'rootbound', id: 'rb_library', x: 288, y: 64 }, home: 'lamplit_shelf',
     line: 'Under the Great Willow, a library grown in its roots. The Scribe\'s first home.' }),
+  ...R2_START_REALMS,
 });
 
 // ---------------------------------------------------------------- foes

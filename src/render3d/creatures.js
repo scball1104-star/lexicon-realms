@@ -19,6 +19,19 @@ export function familyOf(template = '', sprite = '') {
   if (/rb_shelf_golem/.test(k)) return { f: 'golem', tint: '#6a4a2e', glow: '#9fc4ff' };
   if (/rb_echo_warden/.test(k)) return { f: 'golem', tint: '#7a8aa0', glow: '#bfe0ff' };
   if (/rb_archivore/.test(k)) return { f: 'boar', tint: '#1a1430' };
+  // wave 3 realms2: Saffron Haven (sand scorpions, dust devils, dune hyenas, the Scorch Riders, Sahra the dune lion, Ravi)
+  if (/sh_scorpion|glasstail/.test(k)) return { f: 'scarab', tint: /glasstail/.test(k) ? '#bcd8d0' : '#b07a3a' };
+  if (/sh_dust_devil/.test(k)) return { f: 'wraith', tint: '#d8b47a', glow: '#ffe0a0' };
+  if (/sh_hyena/.test(k)) return { f: 'wolf', tint: '#a8844a', eyes: '#ffd27a' };
+  if (/sh_dune_lion/.test(k)) return { f: 'wolf', tint: '#c8984a', eyes: '#ffb347', size: 1.3 };
+  if (/sh_ravi/.test(k)) return { f: 'shade', tint: '#8a3a1a', glow: '#ff9a3a' };
+  if (/sh_rider/.test(k)) return { f: 'shade', tint: '#7a4a2a', glow: '#ffb35c' };
+  // the Nameless Hollow (ravens, the faceless, the grey watch with their lanterns, mirror shades, the Steward)
+  if (/nh_raven/.test(k)) return { f: 'crow', tint: '#2a2836' };
+  if (/nh_watchman|nh_captain/.test(k)) return { f: 'golem', tint: /captain/.test(k) ? '#4a4c58' : '#6a6c78', glow: '#ffcf78' };
+  if (/nh_faceless|tallow/.test(k)) return { f: 'shade', tint: '#8a8c98', glow: /tallow/.test(k) ? '#ffc46b' : '#c8ccd8' };
+  if (/nh_shade|nh_reflection/.test(k)) return { f: 'wraith', tint: '#a8b0c8', glow: '#dfe6ff' };
+  if (/nh_steward/.test(k)) return { f: 'shade', tint: '#2a2440', glow: '#b8a8ff' };
   if (/thornback/.test(k)) return { f: 'wolf', tint: '#3a2a24', thorns: true, eyes: '#ff7a2a' };
   if (/mist_wolf/.test(k)) return { f: 'wolf', tint: '#b8c4d4', eyes: '#9fe0ff', ghost: 0.75 };
   if (/wolf/.test(k)) return { f: 'wolf', tint: '#6a5a3e', eyes: '#ffb347' };

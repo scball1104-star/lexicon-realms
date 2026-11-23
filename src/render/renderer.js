@@ -31,6 +31,7 @@ import { createOcclusion } from './occlude.js';
 import { flyLift, drawKite2d, KITE_LIFT_PX } from './kite2d.js';
 import { isPlaceZone, doorMouths } from './dungeon_plan.js';
 import { placeLive, drawBrazier, drawFlames, drawDoorMouth, drawTelegraphs2d, drawDoorLabels2d } from './dungeon2d.js';
+import { drawRealms2Ground, drawRealms2Over } from './realms2_2d.js';   // wave 3 realms2: lantern cones, fog banks, the sandstorm
 
 function canvas2d(w, h) {
   const c = document.createElement('canvas');
@@ -269,6 +270,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     for (const [e, x, y] of grounds) objArt.drawGround(g, e, x, y, cam, now);
     // red ground warnings for telegraphed casts (bosses), under every actor
     dev.telegraphs = drawTelegraphs2d(g, snap, abilities, (id) => { const p = pos.get(id); return p || null; }, cam, zoneId);
+    dev.cones = drawRealms2Ground(g, snap, (id) => pos.get(id) || null, cam, zoneId);
 
     // shadows (lean with the sun, fainter at night) and the target ring go under every sprite
     const lean = sky.sun.lean;
@@ -469,6 +471,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     fx.drawWorld(g, cam, W, H, now);
     if (snap.projectiles && snap.projectiles.length) drawSimProjectiles(g, prevSnap, snap, alpha, zoneId);
     drawZoneGrade(g, zone, zoneId, W, H, now, fxLevel);
+    dev.realms2 = drawRealms2Over(g, snap, (id) => pos.get(id) || null, cam, zoneId, W, H, view.followId, now);
     atmos.update(dt, cam, W, H, fxLevel === 'low' ? { rain: weather.rain, leaves: false, pollen: false } : weather, sky, zone);
     atmos.drawParticles(g, cam, W, H, sky);
 

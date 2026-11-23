@@ -462,7 +462,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const cand = [];
     // 1) trainer
     const tr = trainable().filter((a) => trainCost(a.level) <= (p.gold || 0));
-    if (tr.length) cand.push({ key: 'train', kind: 'npc', npc: trainerNpc, act: 'train', pri: 1 });
+    // the class's teacher in the zone the hero stands in, if there is one (a start realm's first teacher), else the town master
+    const here = Object.keys(npcHome).find((k) => npcHome[k].zone === p.zone && C.npcs[k] && C.npcs[k].trainer && C.npcs[k].trainer.cls === cls);
+    if (tr.length) cand.push({ key: 'train', kind: 'npc', npc: here || trainerNpc, act: 'train', pri: 1 });
     // 2) a full bag -> nearest vendor
     if (bagFree() <= 1 || (sellable().length >= 6 && bagFree() <= 3)) cand.push({ key: 'sell', kind: 'vendor', pri: 2 });
     // 2b) bind the nearest lantern in this zone when my lantern is in another zone (a player learns this after one long walk back)
@@ -702,7 +704,8 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     // every open-world spawn near my level, wherever it stands; hunt() walks to the camp whose level is closest
     const pool = new Set();
     let zonePick = null;
-    for (const z of Object.values(C.zones)) {
+    // the zone the hero stands in first (a start realm with a one-way road out grinds at home)
+    for (const z of [C.zones[p.zone], ...Object.values(C.zones)].filter(Boolean)) {
       if (z.kind === 'dungeon' || z.kind === 'cave' || z.instanced) continue;
       for (const s of z.spawns || []) if (!s.night && s.level >= p.level - 2 && s.level <= p.level + 1) { pool.add(s.mob); zonePick = zonePick || z.id; }
     }

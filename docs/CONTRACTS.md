@@ -1346,3 +1346,21 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `flight { from, to, start, end, k, up }` while flying (`up` 0..1: off the ground). Friends' frames keep them.
 - **Content.** `content.travel = { stone, inns, defaultHome, flight, routes }` (`src/data/travel.js travelContent`);
   `content.startRealms`; the Rootbound's foes, people, items, 14 quests (`sideQuests`), rare (`src/data/rootbound.js`).
+
+## Wave 3 realms2: Saffron Haven and the Nameless Hollow (2026-11-22; WORLD_2.md 1.4 and 1.5)
+
+- **Zones.** `OUTDOOR.saffron` and `OUTDOOR.hollow` (576 x 384 each, `src/data/realms2.js R2_OUTDOOR`, generated from
+  `tools/maps/zone_saffron.mjs` / `zone_hollow.mjs`; the list is `tools/maps/zone_realms2.mjs`). Each leaves by a **one-way
+  join** onto the world: a join with `ride: '<line>'` needs no world join back (build_world.mjs allows it), the way home is
+  the Lantern Kite (`saffron_haven`, `blank_sign` flight points, routes from `willowmere`) or the Lantern Stone. The `zone`
+  event carries `ride` (the line) and the loading card shows it as its flavour. Zone fields: `chimes: [[x, y]]` (Saffron's
+  storm shelter), `fog: [{ id, route, r, speed }]` (the Hollow's drifting banks), `areas[].shelter`, `canopy: 'dunes' |
+  'roofs'`, `style: 'saffron'` (domed houses), `atmos` (an outdoor dark mood, the CAVERN shape: `renderer3d.js`), `grade`.
+- **content.realms2** (`R2_RULES`: `storm`, `watch`). Sim: `src/sim/realms2.js` (`C.realms2`: `tick()`, `sense(m, p, r)` called
+  at the end of `ai.js aggroRadius`). Mob template flags: `stormRider` (sees further in a storm), `watch` (sees only in
+  its lantern cone, the way it faces, or within `bumpTiles`; raises the alarm), `spotter` (squawks `squawkSec` after its
+  fight starts and alarms the watch). A quest objective may carry `unseen: true`: the watch seeing the hero resets it.
+  Events: `mob_emote { text, to }` (storm warnings, the alarm, the fog), `yell { id, text }` (the alarm). Pure helpers for
+  renderers and tests: `src/data/realms2.js stormAt(tick)`, `fogBanksAt(tick)` (the sim mirrors them).
+- **Start realms.** `START_REALMS.wayfinder` (Saffron Haven) and `START_REALMS.inkblade` (the Nameless Hollow) come from
+  `R2_START_REALMS`; an entry may carry `welcome` (the first chat line, `src/ui/ui.js`).

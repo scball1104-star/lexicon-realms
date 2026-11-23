@@ -380,6 +380,8 @@ export const tests = [
         });
         assert(e.quests[qid] && e.quests[qid].state === 'ready', `${qid}: ready (${JSON.stringify(e.quests[qid])})`);
         const t = at(q.turnIn);
+        // a player sells their junk now and then: keep only quest items, so a full bag (luck of the drops) never blocks the reward
+        e.bag = (e.bag || []).filter((b) => b && C.items[b.item] && C.items[b.item].kind === 'quest');
         w.enqueue(id, { t: 'quest_turnin', quest: qid, npc: t.id, choice: 0 });
         run(w, 2);
         assert(e.questsDone.includes(qid), `${qid}: turned in`);
