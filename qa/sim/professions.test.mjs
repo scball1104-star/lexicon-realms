@@ -39,11 +39,12 @@ function giveSkill(p, prof, v, rank = 5) { p.prof.skills[prof] = { v, rank }; }
 
 export const tests = [
   {
-    name: 'data: recipe counts (Smithing 34, Alchemy 26, Cooking 18, First Aid 8), every reagent and product exists, sources and Patterns',
+    name: 'data: recipe counts (Smithing 44, Alchemy 26, Cooking 31, First Aid 11, Leatherwork 39, Tailoring 35, Inscription 28), every reagent and product exists, sources and Patterns',
     fn() {
       const C = content();
-      eq(RECIPES_BY_PROF.smithing.length, 34, 'smithing'); eq(RECIPES_BY_PROF.alchemy.length, 26, 'alchemy');
-      eq(RECIPES_BY_PROF.cooking.length, 18, 'cooking'); eq(RECIPES_BY_PROF.first_aid.length, 8, 'first aid');
+      eq(RECIPES_BY_PROF.smithing.length, 44, 'smithing'); eq(RECIPES_BY_PROF.alchemy.length, 26, 'alchemy');
+      eq(RECIPES_BY_PROF.cooking.length, 31, 'cooking'); eq(RECIPES_BY_PROF.first_aid.length, 11, 'first aid');
+      eq(RECIPES_BY_PROF.leatherwork.length, 39, 'leatherwork'); eq(RECIPES_BY_PROF.tailoring.length, 35, 'tailoring'); eq(RECIPES_BY_PROF.inscription.length, 28, 'inscription');
       for (const r of Object.values(RECIPES)) {
         assert(C.items[r.makes.item], `${r.id} makes ${r.makes.item}`);
         for (const [i, k] of r.reagents) assert(C.items[i] && k > 0, `${r.id} needs ${i}`);
@@ -72,6 +73,8 @@ export const tests = [
       const sum = (s) => Object.values(s).reduce((a, b) => a + b, 0);
       for (const it of crafted) {
         assert(['common', 'magic', 'rare'].includes(it.rarity), `${it.id} rarity ${it.rarity}`);
+        // the 20 to 30 band (build step 2): no dungeon of its own yet, so blues stay at most level 29 and never yellow
+        if (it.level > 19) { assert(it.level <= 29 && it.rarity !== 'rare', `${it.id} ilvl ${it.level} ${it.rarity} in the 20 to 30 band`); continue; }
         const band = it.level <= 12 ? 'barrow' : 'watchtower';
         const dungeon = Object.values(C.items).filter((d) => d.dungeon === band && (d.rarity === 'rare' || d.rarity === 'epic') && !d.set);
         const top = Math.max(...dungeon.map((d) => d.level));

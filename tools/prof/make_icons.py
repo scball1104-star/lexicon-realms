@@ -82,6 +82,34 @@ SHAPES = {
     'book': [
         '............', '.kkkkkkkkk..', 'kaaaaaaaabk.', 'kabbbbbbabk.', 'kabaaaabab.k', 'kabbbbbbabk.',
         'kaaaaaaaabk.', 'kaaaaaaaabk.', 'kaaaaaaaabk.', 'kddddddddwk.', '.kkkkkkkkk..', '............'],
+    # build step 2
+    'hide': [
+        '............', '.kk......kk.', 'kbak....kabk', '.kaakkkkaak.', '..kaabbaak..', '..kabaaabk..',
+        '..kaaaaaak..', '..kaabaaak..', '.kaaaaaadak.', 'kbak.kk.kabk', '.kk......kk.', '............'],
+    'cloth': [
+        '............', '............', '.kkkkkkkkk..', 'kbbbbbbbbbk.', 'kaaaaaaaaak.', '.kaaaaaaaaak',
+        '.kbbbbbbbbbk', 'kaaaaaaaaak.', 'kdddddddddk.', '.kkkkkkkkk..', '............', '............'],
+    'bolt': [
+        '............', '............', '...kkkkkk...', '..kbbbbbbk..', '.kbaaaaaabk.', '.kaaaaaaaak.',
+        '.kaaaaaaaak.', '.kdaaaaaadk.', '..kddddddk..', '...kkkkkk...', '............', '............'],
+    'fish': [
+        '............', '............', '....kkkk....', '..kkbbbbk.k.', '.kbaaaaabkbk', 'kwkaaaaaaakk',
+        'kaaaabaaaakk', '.kdaaaaadkbk', '..kkddddk.k.', '....kkkk....', '............', '............'],
+    'scroll': [
+        '............', '..kkkkkkkk..', '.kwbbbbbbwk.', '..kbaaaabk..', '..kbbbbbbk..', '..kbaaabbk..',
+        '..kbbbbbbk..', '..kbaaaabk..', '..kbbbbbbk..', '.kwbbbbbbwk.', '..kkkkkkkk..', '............'],
+    'bag': [
+        '............', '....kkkk....', '...kd..dk...', '..kkkkkkkk..', '.kbbbbbbbbk.', '.kaaaaaaaak.',
+        '.kaaawwaaak.', '.kaaawwaaak.', '.kaaaaaaaak.', '.kdddddddak.', '..kkkkkkkk..', '............'],
+    'quiver': [
+        '..w..w..w...', '..k..k..k...', '..kk.k.kk...', '..kakkkak...', '..kbaaabk...', '..kaaaaak...',
+        '..kaabaak...', '..kaaaaak...', '..kaabaak...', '..kdaaadk...', '...kkkkk....', '............'],
+    'patch': [
+        '............', '..kkkkkkkk..', '.kbwbwbwbwk.', '.kwaaaaaabk.', '.kbabbbbawk.', '.kwabaababk.',
+        '.kbabaababk.', '.kwabbbbabk.', '.kbaaaaaawk.', '.kwbwbwbwbk.', '..kkkkkkkk..', '............'],
+    'knife': [
+        '............', '.........kk.', '........kwk.', '.......kwbk.', '......kwbk..', '.....kwbk...',
+        '....kwbk....', '..kkkbk.....', '..kaakk.....', '.kaak.......', '.kdk........', '..k.........'],
 }
 
 OUTLINE = (0x14, 0x10, 0x1e, 255)

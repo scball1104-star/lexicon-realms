@@ -22,7 +22,7 @@ const TRIM = ['bag', 'qbag', 'pendingLoot', 'quests', 'questsDone', 'known', 'ta
 // event types that belong to one hero only (menus, bags, quest log, xp)
 const PRIVATE = new Set(['interact', 'interact_fail', 'inventory', 'inventory_fail', 'quest', 'loot', 'loot_pending', 'loot_lost', 'gold', 'xp',
   'cmd_reject', 'cast_fail', 'secret_found', 'lantern', 'sit', 'target', 'bounty']);
-const PRIVATE_RE = /^(b2_|chest|train|talent|storage|vendor|respec)/;
+const PRIVATE_RE = /^(b2_|chest|train|talent|storage|vendor|respec|glyph)/;   // glyph: Inscriptions
 const REF_KEYS = ['id', 'src', 'dst', 'killer', 'target', 'tagger'];
 
 /** Event filter for guest `me` with the set of entity ids in its view. */

@@ -39,6 +39,7 @@ import { createWorldLife } from './worldlife.js';
 import { createParty } from './party.js';
 import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
+import { createGlyphs } from './glyphs.js';
 import { createTravel } from './travel.js';
 import { createLegendDrops } from './legend_drops.js';
 import { createMounts } from './mounts.js';
@@ -184,6 +185,10 @@ function wrap(state, content0, rng, systems) {
     combat: () => C.combat, grantXp: (e, amount, reason) => C.prog.grantXp(e, amount, reason), onBag: (e) => { if (QS) QS.onBag(e); },
   }) : null;
   C.prof = PF;
+  // ---- Inscriptions (src/sim/glyphs.js): socket letters into margins, a smith takes them out, glyph drops
+  const GL = combatOn && content.glyphs && content.items ? createGlyphs({ state, content, emit, get: (id) => index.get(id) || null, reach: INTERACT_RANGE_PX + 24,
+    recalc: (e) => { const f = e.hpMax > 0 ? e.hp / e.hpMax : 1; C.stats.recalc(e); e.hp = Math.max(1, Math.min(e.hpMax, Math.round(e.hpMax * f))); } }) : null;
+  C.glyphs = GL;
   // ---- travel (big world, src/sim/travel.js): the Lantern Stone, inn homes, flight (content.travel)
   const TV = combatOn && content.travel ? createTravel(C) : null;
   const LD = combatOn && content.items ? createLegendDrops({ content, rng, state, emit }) : null;   // src/sim/legend_drops.js
@@ -204,6 +209,7 @@ function wrap(state, content0, rng, systems) {
     if (TR) TR.onDrop(mob, drop);                   // a dungeon boss's drops bind on pickup
     if (combatOn) C.life.extraLoot(mob, p, drop);   // a rare's named item and blue piece; Night at the Stones gear
     if (PF) PF.extraLoot(mob, p, drop);             // professions: meat, world Patterns, dungeon Patterns and materials
+    if (GL) GL.extraLoot(mob, p, drop);             // Inscriptions: a glyph about 1 kill in 20
     const got = [], pending = [];
     for (const it of drop.items) {
       const n = bagAdd(p, it.item, it.qty, it.inst || null, content);
@@ -683,7 +689,8 @@ function wrap(state, content0, rng, systems) {
       case 'b2_auto': if (combatOn) C.b2.setAuto(e, cmd); return;
       case 'b2_suggest': if (combatOn) C.b2.spendSuggested(e); return;
       case 'chest_store': case 'chest_take': case 'chest_move': case 'chest_row': case 'chest_sort': if (ST) ST.command(e, cmd); return;
-      case 'prof_train': case 'prof_recipe': case 'prof_unlearn': case 'prof_craft': case 'prof_cancel': if (PF) PF.command(e, cmd); return;
+      case 'glyph_socket': case 'glyph_remove': if (GL) GL.command(e, cmd); return;
+      case 'prof_train': case 'prof_recipe': case 'prof_unlearn': case 'prof_craft': case 'prof_cancel': case 'prof_fish': if (PF) PF.command(e, cmd); return;
       case 'set_home': case 'fly': if (TV) TV.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
       case 'mount': if (MT) MT.command(e, cmd); return;                  // mounts: Z / the horseshoe (summon, or get off)
       case 'interact': {
@@ -697,6 +704,10 @@ function wrap(state, content0, rng, systems) {
           return;
         }
         if (t.kind === 'object' && t.chest) { if (ST) ST.open(e, t); return; }
+        if (t.kind === 'mob' && t.dead && PF) {         // Skinning a dead beast (src/sim/professions.js)
+          if (distPx(e, t) > INTERACT_RANGE_PX) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
+          PF.skin(e, t); return;
+        }
         if (t.kind !== 'npc') return reject(id, cmd, 'not_interactable');
         if (distPx(e, t) > INTERACT_RANGE_PX) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
         t.dir = facingToward(t, e);
@@ -1074,6 +1085,7 @@ function wrap(state, content0, rng, systems) {
       if (mt.rare) o.rare = true;                // a rare named foe (src/data/rares.js): the silver mark
       o.aggro = e.ai && e.ai.mode === 'combat' ? e.ai.target : null; o.aiMode = e.ai ? e.ai.mode : null;
       // the wind-up tell (src/sim/ai.js): the glint before a swing, a heavy blow or a telegraphed cast (Ring Block reads it)
+      if (PF && e.dead) { const sk = PF.skinView(e); if (sk) o.skin = sk; }     // professions: a corpse that can be skinned
       o.windup = e.windup && !e.dead && state.tick <= e.windup.at ? { kind: e.windup.kind, start: e.windup.start, at: e.windup.at, target: e.windup.target ?? null } : null;
     }
     if (e.kind === 'object' && e.node) {

@@ -17,6 +17,7 @@
 //
 // ctx = { content, rng, questNeeds(player, item) -> bool }. questNeeds says whether the player has an active quest that
 // still needs this item; a quest-item drop only rolls when it does (CONTRACTS 7.3 `quest` on a table entry).
+import { rollMargins } from './glyphs.js';
 
 import { rollMinor, minorDef } from './affixes.js';
 
@@ -82,6 +83,8 @@ export function bagAdd(e, item, qty = 1, inst = null, content = null) {
     const k = Math.min(stack, left);
     const slot = { item, qty: k, uid: nextUid(e) };
     if (inst) slot.inst = JSON.parse(JSON.stringify(inst));
+    // Inscriptions (src/sim/glyphs.js): a piece's margin count is fixed the first time it enters a bag (from a hash)
+    if (def && content.glyphs && (def.kind === 'weapon' || def.kind === 'armor') && !(slot.inst && slot.inst.margins != null)) slot.inst = { ...(slot.inst || {}), margins: rollMargins(content.glyphs, def, slot.inst && slot.inst.rarity, slot.uid) };
     list.push(slot);
     left -= k;
   }

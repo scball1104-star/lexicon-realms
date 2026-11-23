@@ -65,6 +65,13 @@ export function itemTooltip(it, extra, worn) {
   for (const [k, v] of Object.entries(i.stats || {})) body.push(`+${v}${k.startsWith('res') || k === 'leech' ? '%' : ''} ${STAT_NAME[k] || k}`);
   if (i.text) body.push(i.text);
   if (i.kind === 'quest') body.push('Quest item.');
+  // Inscriptions (src/sim/glyphs.js glyphView): the margins, their letters and a spelled word
+  if (i.glyph) {
+    const gl = i.glyph;
+    body.push(`Margins: ${gl.glyphs.map((L) => (L ? `[${L}]` : '[ ]')).join(' ')}`);
+    if (gl.word) body.push(`Spells ${gl.wordText.replace(/\.$/, '')}`);
+    else for (const t of gl.letterText) body.push(`${t}${gl.draft ? ' (draft)' : ''}`);
+  }
   return { title: i.name, titleColor: RARITY_COLOR[i.rarity] || RARITY_COLOR.common, right: i.level ? `Lv ${i.level}` : '', sub,
     body: body.join('. ') + (body.length ? '.' : ''), foot: [i.value ? `Sells for ${i.value} gold` : null, extra].filter(Boolean).join('  '), footColor: 'gray',
     delta: worn !== undefined ? compareLines(i, worn) : null };

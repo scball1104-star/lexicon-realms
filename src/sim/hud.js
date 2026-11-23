@@ -1,5 +1,6 @@
 // The HUD block of the snapshot (CONTRACTS 10): everything the HUD needs about one player, already in seconds and
 // fractions, so the HUD never re-derives rules. Pure; built from state by world.snapshot().
+import { glyphView } from './glyphs.js';
 import { TICK_HZ } from './constants.js';
 import { ticks as T } from './data.js';
 import { distPx } from './geom.js';
@@ -141,6 +142,7 @@ export function createHud(C) {
     if (it.stats && Object.keys(it.stats).length) v.stats = { ...it.stats };
     if (slot.inst) v.inst = JSON.parse(JSON.stringify(slot.inst));
     if (slot.uid) v.uid = slot.uid;
+    if (C.content.glyphs && (it.kind === 'weapon' || it.kind === 'armor')) { const gv = glyphView(C.content, slot, e.cls); if (gv) v.glyph = gv; }   // Inscriptions
     // binding (src/sim/trade.js): 'pickup' or 'equip', and soulbound once a bind-on-equip piece was worn
     const bind = C.trade ? C.trade.bindOf(slot) : null;
     if (bind) v.bind = bind;

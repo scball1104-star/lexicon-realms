@@ -43,6 +43,7 @@ import { applyWorldLife } from '../worldlife.js';
 import { HIT_CONTENT } from '../hittable.js';
 import { RESIST_CONTENT } from '../resist.js';
 import { applyProfessions } from '../professions.js';
+import { GLYPHS } from '../glyphs.js';
 import { TRAVEL_ITEMS, TRAVEL_NPCS, TRAVEL_NPC_SPAWNS, travelContent } from '../travel.js';
 import { MOUNT_ABILITIES, MOUNT_ITEMS, MOUNT_NPCS, MOUNT_NPC_SPAWNS, STABLE, mountsContent } from '../mounts.js';
 import { applyBand } from '../band_content.js';
@@ -152,6 +153,7 @@ export function buildContent() {
     mounts: mountsContent(),                   // mounts: Wynn's three, the summons, the yard (src/data/mounts.js, src/sim/mounts.js)
     travel: travelContent(),                   // big world: the Lantern Stone, inn homes, flight (src/data/travel.js, src/sim/travel.js)
     // the Lantern Chests (src/data/storage.js): where they stand, tab sizes and row prices
+    glyphs: GLYPHS,                                                     // Inscriptions: margins, letters, words (src/data/glyphs.js)
     storage: STORAGE, lanternChests: LANTERN_CHESTS.map(tileRef).filter((c) => ZONES[c.zone]),
     start: { zone: WORLD_ID, x: WORLD.arrival[0], y: WORLD.arrival[1], lantern: { zone: WORLD_ID, id: sq.id, x: sq.x, y: sq.y } },
   })));      // group play (src/data/party.js): lantern-ash on two vendors, the party rules

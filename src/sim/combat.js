@@ -361,7 +361,7 @@ export function createCombat(C) {
     const id = t.cast.ability;
     const castTarget = t.cast.target;
     cancelCast(t, 'interrupt');
-    const until = now() + T(lockout || PC.interruptLock);
+    const until = now() + T((lockout || PC.interruptLock) + (src && src.kind === 'player' ? stats.mod(src, 'interruptLock').add : 0));   // + Inscriptions: HUSH
     t.cd[id] = Math.max(t.cd[id] || 0, until);
     // WoW's rule: a spell's whole school is locked, not one ability (a boss with two shadow spells cannot just cast the
     // other). Physical casts (a charge's wind-up) lock only themselves. Every known ability of the school shows the lock as
@@ -994,6 +994,7 @@ export function createCombat(C) {
     }
     procs(dst, 'damageTaken', { ability: info.ability, attacker: src, target: src, damage: total });
     if (res.result === 'block') procs(dst, 'block', { attacker: src, target: src, damage: total });
+    if (absorbed > 0) procs(dst, 'absorb', { attacker: src, target: src, damage: absorbed });     // Inscriptions: VOW
     // auras on the victim that react to hits (Brand's Kindle leech, Still Air)
     for (const a of [...dst.auras]) {
       const caster = get(a.src);
@@ -1178,6 +1179,7 @@ export function createCombat(C) {
 
   function immuneTo(e, flag) {
     for (const a of e.auras) if (a.def.immune && a.def.immune.includes(flag)) return true;
+    if (e.glyphPw) for (const pw of e.glyphPw) if (pw.immune && pw.immune.includes(flag)) return true;   // Inscriptions: OAK
     if (flag === 'slow' && e.mob && e.mob.kind === 'armored') return false;
     return false;
   }
@@ -1672,7 +1674,7 @@ export function createCombat(C) {
   function procs(e, on, pctx = {}) {
     if (!e || e.kind !== 'player' || e.dead) return;
     const tl = data.talentInfo(e).procs;
-    const list = e.powers || e.minors ? [...tl, ...powerProcs(e)] : tl;
+    const list = e.powers || e.minors || e.glyphPw ? [...tl, ...powerProcs(e)] : tl;
     for (const p of list) {
       if (p.on !== on) continue;
       if (p.ability && !abMatch(p.ability, pctx.ability)) continue;

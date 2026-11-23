@@ -13,7 +13,11 @@
 //   prof_unlearn { prof }            drop a profession (the skill and its recipes are lost)
 //   prof_craft   { recipe, qty }     craft qty (1.5 s each; each one takes its reagents at once, all or none)
 //   prof_cancel  {}                  stop the gather or craft in progress
+//   prof_fish    {}                  cast at water within 5 tiles (Fishing, build step 2): 6 to 10 s, then a catch
 //   interact on a gather node        the 2 s gather cast (world.js hands it here)
+//   interact on a dead beast         Skinning's 2 s cast (world.js hands it here; build step 2)
+// A glyph recipe (Inscription, `letters`) takes prof_craft's `letter`: the glyph is made to order.
+// World state also keeps state.prof.skinned: the dead foes already skinned (dropped once they are up again).
 // Events: prof { id, kind: learn | rank | recipe | unlearn, prof, ... }, prof_skill { id, prof, v }, prof_fail { id, reason, ... },
 // prof_work { id, kind: gather | craft, phase: start | stop | done, ... }, plus the usual loot / despawn / spawn / inventory.
 import { createRng, hashSeed } from './rng.js';
@@ -255,14 +259,21 @@ export function createProfessions(X) {
     if (can < 1) return fail(e, 'reagents', { recipe: r.id });
     if (e.work) stopWork(e, 'cancel');
     const want = Math.max(1, Math.min(can, Math.min(100, cmd.qty | 0 || 1)));
-    startWork(e, { kind: 'craft', recipe: r.id, prof: r.prof, label: `${P.list[r.prof].verb}: ${r.name}`, ticks: T(P.craftSec), left: want, total: want });
+    // a glyph made to order (Inscription): the crafter names a letter of the recipe's set
+    let letter = null;
+    if (r.letters) {
+      letter = String(cmd.letter || r.letters[0]).toUpperCase();
+      if (letter.length !== 1 || !r.letters.includes(letter)) return fail(e, 'bad_letter', { recipe: r.id });
+    }
+    const label = letter ? `${P.list[r.prof].verb}: Glyph of ${letter}` : `${P.list[r.prof].verb}: ${r.name}`;
+    startWork(e, { kind: 'craft', recipe: r.id, prof: r.prof, label, ticks: T(P.craftSec), left: want, total: want, ...(letter ? { letter } : {}) });
     return true;
   }
   /** One craft, all at once: every reagent is there and the product fits, or nothing changes. */
   function finishCraft(e, w) {
     const r = P.recipes[w.recipe];
     if (!r || makeable(e, r) < 1) { fail(e, 'reagents', { recipe: w.recipe }); return false; }
-    const m = r.makes;
+    const m = r.letters && w.letter ? { item: `glyph_${w.letter.toLowerCase()}`, qty: r.makes.qty } : r.makes;
     const def = items[m.item];
     const inst = def && (def.kind === 'weapon' || def.kind === 'armor') ? { ilvl: def.level, rarity: def.rarity, affixes: [] } : null;
     // room for the product, counting the slots the reagents free up
@@ -330,7 +341,7 @@ export function createProfessions(X) {
   const PATTERNS_BY_BAND = {};
   for (const it of Object.values(items)) {
     if (it.kind !== 'pattern' || !P.recipes[it.recipe] || P.recipes[it.recipe].source !== 'world') continue;
-    const b = Math.min(3, Math.floor(P.recipes[it.recipe].skill / 30));
+    const b = Math.min(P.worldPatterns.bands.length - 1, Math.floor(P.recipes[it.recipe].skill / 30));
     (PATTERNS_BY_BAND[b] = PATTERNS_BY_BAND[b] || []).push(it.id);
   }
   function extraLoot(mob, p, drop) {
@@ -338,6 +349,12 @@ export function createProfessions(X) {
     if (mob.level - p.level <= -5) return;           // a grey foe gives coin only (loot.js rollKill)
     const meat = P.meat[mob.template];
     if (meat && roll() < meat[1]) drop.items.push({ item: meat[0], qty: 1 });
+    // build step 2: cloth from foes that are not beasts; meat from the 20 to 30 beasts that have none of their own
+    const fam = ((content.mobs || {})[mob.template] || {}).family;
+    const tierOf = (tiers) => { let it = null; for (const [L, x] of tiers) if ((mob.level || 1) >= L) it = x; return it; };
+    if (P.cloth && P.cloth.families.includes(fam) && roll() < P.cloth.chance) { const it = tierOf(P.cloth.tiers); if (it) drop.items.push({ item: it, qty: 1 }); }
+    const MF = P.meatFallback;
+    if (!meat && MF && fam === 'beast' && (mob.level || 1) >= MF.minLevel && roll() < MF.chance) { const it = tierOf(MF.tiers); if (it) drop.items.push({ item: it, qty: 1 }); }
     const bands = P.worldPatterns.bands;
     for (let b = 0; b < bands.length; b++) {
       if (mob.level < bands[b][0] || mob.level > bands[b][1] || !PATTERNS_BY_BAND[b]) continue;
@@ -353,9 +370,127 @@ export function createProfessions(X) {
     }
   }
 
+  // ---------------------------------------------------------------- Skinning (build step 2): a dead beast
+  /** { skill, tier item } for a foe's corpse, or null when it has no hide (not a beast, humanoid, undead). */
+  function skinOf(mob) {
+    const K = P.skin;
+    if (!K || !mob || mob.kind !== 'mob') return null;
+    const t = (content.mobs || {})[mob.template] || {};
+    if (t.skin === false) return null;
+    const traits = [].concat(t.traits || [], t.tags || []);
+    if (K.never.includes(t.family) || traits.some((x) => K.never.includes(x))) return null;
+    if (t.family && !K.families.includes(t.family)) return null;
+    const skill = Math.max(1, Math.min(P.max, ((mob.level || 1) - K.from) * K.perLevel));
+    let item = K.tiers[0][1];
+    for (const [s0, it] of K.tiers) if (skill >= s0) item = it;
+    return { skill, item };
+  }
+  const isSkinned = (mob) => !!(state.prof && state.prof.skinned && state.prof.skinned.includes(mob.id));
+  function skinnable(mob) { return !!(mob && mob.dead && skinOf(mob) && !isSkinned(mob)); }
+  /** What the snapshot says about a corpse (the 2D/3D sparkle, the node card, tracking): { skill } or null. */
+  function skinView(mob) { const k = skinnable(mob) ? skinOf(mob) : null; return k ? { skill: k.skill } : null; }
+  function skin(e, t) {
+    if (e.dead) return fail(e, 'dead');
+    const k = skinOf(t);
+    if (!k || !t.dead) return fail(e, 'not_skinnable', { node: t.id });
+    if (isSkinned(t)) return fail(e, 'empty', { node: t.id });
+    if (e.work) { if (e.work.node === t.id) return false; stopWork(e, 'cancel'); }
+    if (!knows(e, 'skinning')) return fail(e, 'unknown_prof', { prof: 'skinning', node: t.id, need: k.skill });
+    if (skillOf(e, 'skinning') < k.skill) return fail(e, 'skill', { prof: 'skinning', need: k.skill, node: t.id });
+    if (bagFree(e, content) < 1 && !bagHasRoom(e, k.item)) return fail(e, 'bag_full', { node: t.id });
+    e.dir = faceDir(e, t);
+    startWork(e, { kind: 'gather', node: t.id, prof: 'skinning', skin: true, label: `Skinning: ${t.name}`, ticks: T(P.gatherSec) });
+    return true;
+  }
+  function finishSkin(e, w) {
+    const t = get(w.node);
+    if (!skinnable(t)) { fail(e, 'empty'); return; }
+    const k = skinOf(t), K = P.skin, Y = P.yield;
+    let r = roll(), qty = 1;
+    for (const [n, p] of Y.qtyWeights) { if (r < p) { qty = n; break; } r -= p; }
+    const got = [{ item: k.item, qty }];
+    if (roll() < K.vellum[1]) got.push({ item: K.vellum[0], qty: 1 });
+    if (k.skill >= K.minRareSkill && roll() < K.rare[1]) got.push({ item: K.rare[0], qty: 1 });
+    const added = [];
+    for (const it of got) { const n = bagAdd(e, it.item, it.qty, null, content); if (n) added.push({ item: it.item, qty: n }); }
+    if (!added.length) { fail(e, 'bag_full', { node: t.id }); return; }
+    const st = ensureState();
+    (st.skinned = st.skinned || []).push(t.id);
+    emit({ type: 'loot', id: e.id, from: t.id, gold: 0, items: added, skin: t.template });
+    skillUp(e, 'skinning', k.skill, true);
+    if (X.onBag) X.onBag(e);
+  }
+
+  // ---------------------------------------------------------------- Fishing (build step 2): cast at water
+  /** The catch table for where the hero stands: a world region or zone by id, else by the area's levels. */
+  function fishArea(e) {
+    const F = P.fish, Z = content.zones[e.zone];
+    if (!F || !Z) return null;
+    const tx = Math.floor(e.x / TILE), ty = Math.floor((e.y - 1) / TILE);
+    const reg = (Z.regions || []).find((q) => tx >= q.x && ty >= q.y && tx < q.x + q.w && ty < q.y + q.h);
+    const id = reg ? reg.id : String(e.zone).split('#')[0];
+    if (F.areas[id]) return { id, ...F.areas[id] };
+    const lv = (reg && reg.levels) || Z.levels || [1, 1];
+    const mid = (lv[0] + lv[lv.length - 1]) / 2;
+    const band = (F.bands.find(([top]) => mid <= top) || F.bands[F.bands.length - 1])[1];
+    return { id: band, ...F.areas[band] };
+  }
+  /** The nearest water tile within reach of the hero's feet, or null. */
+  function waterNear(e) {
+    const Z = content.zones[e.zone];
+    if (!Z || !Z.collision) return null;
+    const R = P.fish.range, tx = Math.floor(e.x / TILE), ty = Math.floor((e.y - 1) / TILE);
+    let best = null, bd = Infinity;
+    for (let y = ty - R; y <= ty + R; y++) {
+      const row = Z.collision[y];
+      if (!row) continue;
+      for (let x = tx - R; x <= tx + R; x++) {
+        if (row[x] !== '~') continue;
+        const d = (x - tx) * (x - tx) + (y - ty) * (y - ty);
+        if (d <= R * R && d < bd) { bd = d; best = [x, y]; }
+      }
+    }
+    return best;
+  }
+  function fish(e) {
+    if (e.dead) return fail(e, 'dead');
+    if (!knows(e, 'fishing')) return fail(e, 'unknown_prof', { prof: 'fishing' });
+    if (e.inCombat) return fail(e, 'combat');
+    const at = waterNear(e);
+    if (!at) return fail(e, 'no_water');
+    if (bagFree(e, content) < 1) return fail(e, 'bag_full');
+    if (e.work) stopWork(e, 'cancel');
+    const [a, b] = P.fish.castSec;
+    e.dir = faceDir(e, { x: at[0] * TILE + TILE / 2, y: at[1] * TILE + TILE / 2 });
+    startWork(e, { kind: 'fish', prof: 'fishing', label: 'Fishing', ticks: T(a + roll() * (b - a)), at });
+    return true;
+  }
+  function finishFish(e, w) {
+    const A = fishArea(e);
+    if (!A) { fail(e, 'no_water'); return; }
+    const sk = skillOf(e, 'fishing');
+    if (sk < A.skill) {
+      const L = P.fish.lowSkill;
+      if (roll() >= Math.max(L.min, 1 - (A.skill - sk) / L.per)) { emit({ type: 'prof_fail', id: e.id, reason: 'got_away', area: A.id, need: A.skill }); return; }
+    }
+    let item = A.catch[0][0];
+    if (A.rare && roll() < A.rare[1]) item = A.rare[0];
+    else {
+      const total = A.catch.reduce((n, c) => n + c[1], 0);
+      let r = roll() * total;
+      for (const [it, wt] of A.catch) { if (r < wt) { item = it; break; } r -= wt; }
+    }
+    const n = bagAdd(e, item, 1, null, content);
+    if (!n) { fail(e, 'bag_full'); return; }
+    emit({ type: 'loot', id: e.id, from: null, gold: 0, items: [{ item, qty: 1 }], fish: A.id });
+    skillUp(e, 'fishing', Math.min(sk, A.skill), false);     // recipe colours from the water's skill; below it a catch is orange
+    if (X.onBag) X.onBag(e);
+  }
+
   // ---------------------------------------------------------------- the tick
   function tick() {
     const st = ensureState();
+    if (st.skinned && st.skinned.length && state.tick % 20 === 0) st.skinned = st.skinned.filter((id) => { const m = get(id); return m && m.dead; });
     // nodes coming back
     if (st.pending.length) {
       const due = st.pending.filter((q) => q.at <= now());
@@ -374,11 +509,16 @@ export function createProfessions(X) {
       if (e.hp < w.hp) { stopWork(e, 'interrupt'); continue; }
       if (e.cast) { stopWork(e, 'cast'); continue; }
       if (w.kind === 'gather' && !get(w.node)) { stopWork(e, 'empty'); continue; }
+      if (w.skin && !skinnable(get(w.node))) { stopWork(e, 'empty'); continue; }
       if (now() < w.until) continue;
       if (w.kind === 'gather') {
         e.work = null;
         emit({ type: 'prof_work', id: e.id, kind: 'gather', phase: 'done', node: w.node });
-        finishGather(e, w);
+        if (w.skin) finishSkin(e, w); else finishGather(e, w);
+      } else if (w.kind === 'fish') {
+        e.work = null;
+        emit({ type: 'prof_work', id: e.id, kind: 'fish', phase: 'done' });
+        finishFish(e, w);
       } else {
         const ok = finishCraft(e, w);
         w.left = (w.left || 1) - 1;
@@ -397,6 +537,7 @@ export function createProfessions(X) {
       case 'prof_unlearn': return unlearn(e, cmd);
       case 'prof_craft': return craft(e, cmd);
       case 'prof_cancel': if (e.work) stopWork(e, 'cancel'); return true;
+      case 'prof_fish': return fish(e, cmd);
       default: return false;
     }
   }
@@ -416,10 +557,10 @@ export function createProfessions(X) {
     return out;
   }
   /** The public part of a hero's work (others see a hero mining). */
-  const workView = (e) => (e.work ? { kind: e.work.kind, prof: e.work.prof, node: e.work.node ?? null } : null);
+  const workView = (e) => (e.work ? { kind: e.work.kind, prof: e.work.prof, node: e.work.node ?? null, ...(e.work.at ? { at: [...e.work.at] } : {}) } : null);
 
   return {
-    spawnNodes, tick, command, gather, restore, saveOf, hudOf, workView, extraLoot, useItem,
+    spawnNodes, tick, command, gather, restore, saveOf, hudOf, workView, extraLoot, useItem, skin, skinView, skinOf, fishArea, waterNear,
     canUse: (u) => !!u && USE_KINDS.has(u.kind),
     skillOf, rankOf, capOf, knows, color, makeable,
   };

@@ -7,6 +7,7 @@
 // Player stat at level L = floor(base + perLevel * (L - 1)) + gear (CLASSES 0.2). Gear comes from content.items when an
 // equipped item exists there; otherwise ("design gear", PROGRESSION 9.1) the player carries the design's expected kit:
 // weapon ilvl = gear level, +floor(0.7 L) to the main stat and stamina, full-kit armor.
+import { glyphPowers } from './glyphs.js';
 import { TICK_HZ } from './constants.js';
 import { distPx } from './geom.js';
 import { resolveItem } from './loot.js';
@@ -30,6 +31,7 @@ export function createStats(C) {
     const items = C.content.items || {};
     const out = [];
     for (const id of e.powers || []) { const d = items[id]; if (d && d.power) out.push(d.power); }
+    if (e.glyphPw) out.push(...e.glyphPw);                 // Inscriptions: worn letters and spelled words (src/sim/glyphs.js)
     return out;
   }
 
@@ -123,7 +125,7 @@ export function createStats(C) {
       }
     }
     // legendary item powers worn (src/data/legendary_powers.js; recalcPlayer lists the item ids on e.powers)
-    if (e.powers) for (const pw of powersOf(e)) for (const m of pw.mods || []) {
+    if (e.powers || e.glyphPw) for (const pw of powersOf(e)) for (const m of pw.mods || []) {
       if (m.stat !== stat || !matches(m, ctx) || !cond(e, m.when, ctx)) continue;
       if (m.add != null) add += m.add;
       if (m.mul != null) mul *= m.mul;
@@ -218,6 +220,9 @@ export function createStats(C) {
     // flat points from auras (elixirs, flasks, Well Fed: `{ stat: 'main' | 'str' | 'agi' | 'int' | 'spi' | 'sta', add }`)
     for (const k of ['str', 'agi', 'int', 'spi', 'sta']) { const a = mod(e, k).add; if (a) st[k] += Math.round(a); }
     { const a = mod(e, 'main').add; if (a && st[cls.mainStat] != null) st[cls.mainStat] += Math.round(a); }
+    // Inscriptions (src/sim/glyphs.js): the worn letters and words, read before the health and armor mods below
+    const gp = gearLevel == null ? glyphPowers(C.content, e) : null;
+    if (gp) { e.glyphPw = gp; e.moveCharges = gp.reduce((n, p) => n + (p.moveCharges || 0), 0) || 0; } else { delete e.glyphPw; delete e.moveCharges; }
     const hpMul = mod(e, 'maxHp').mul, armorMul = mod(e, 'armor').mul, manaMul = mod(e, 'manaMax').mul;
     const hpMax = Math.round((cls.hpPerSta * st.sta + cls.base.hp) * hpMul);
     st.armor = Math.round(armor * armorMul);

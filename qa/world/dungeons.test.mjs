@@ -272,6 +272,7 @@ export const tests = [
     // a copy's cache chest opens once per hero
     const cache = w.state.ents.find((e) => e.zone === p.zone && e.dchest && e.dchest.kind === 'cache');
     at(p, ...tileOf(cache));
+    p.bag.length = Math.min(p.bag.length, 8);      // professions step 2: three clears now also drop cloth, Patterns and materials; make room
     w.enqueue(pid, { t: 'interact', id: cache.id });
     assert(w.step().some((e) => e.type === 'chest_open' && e.kind === 'cache'), 'the cache opens');
   } },
