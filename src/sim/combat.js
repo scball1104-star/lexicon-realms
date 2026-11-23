@@ -977,7 +977,7 @@ export function createCombat(C) {
     }
     // procs
     const pctx = { ability: info.ability, target: dst, damage: total, periodic: !!info.periodic, school: info.school, opener: !!info.opener, cleave: !!info.cleave };
-    if (!info.periodic) {
+    if (!info.periodic && !info.gearFx) {          // a gear chance-on-hit never procs again
       procs(src, 'hit', pctx);
       if (res.crit) procs(src, 'crit', pctx);
       // Builds 2 Sand Rush, Kick and Shoot: a buff that lasts a number of hits
@@ -1008,10 +1008,21 @@ export function createCombat(C) {
     // leech (Flame That Mends, Ink to Paper, Spreading Stain)
     if (src.kind === 'player' && total > 0) {
       const lm = stats.mod(src, 'leech', { ability: info.ability, periodic: !!info.periodic, school: info.school });
-      if (lm.add > 0) heal(src, src, total * lm.add, { ability: 'leech', canCrit: false, noThreat: true });
+      // gear: of Leeching on direct hits (src/sim/affixes.js; e.gearFx from stats.js recalcPlayer)
+      const gl = src.gearFx && !info.periodic && !info.gearFx ? src.gearFx.leech : 0;
+      if (lm.add + gl > 0) heal(src, src, total * (lm.add + gl), { ability: 'leech', canCrit: false, noThreat: true });
       // Builds 2 Radiance: part of the damage heals the lowest friend (you, alone)
       const ll = stats.mod(src, 'leechLowest', { ability: info.ability, periodic: !!info.periodic, school: info.school }).add;
       if (ll > 0) { const to = lowestAlly(src); if (to) heal(src, to, total * ll, { ability: 'leech', canCrit: false, noThreat: true }); }
+    }
+    // gear: chance on hit (of Embers): a direct hit by the hero, not a cleave, copy or another gear hit; its own damage
+    // never procs again (info.gearFx)
+    if (src.kind === 'player' && src.gearFx && src.gearFx.onHit.length && total > 0 && !info.periodic && !info.cleave && !info.copied && !info.gearFx && !dst.dead) {
+      for (const oh of src.gearFx.onHit) {
+        if (dst.dead) break;
+        if (oh.chance < 1 && !rng.chance(oh.chance)) continue;
+        dealDamage(src, dst, oh.amount, { ability: oh.ability, school: oh.school, canCrit: false, gearFx: true, threatMult: 1 });
+      }
     }
   }
 
@@ -1651,12 +1662,14 @@ export function createCombat(C) {
   function powerProcs(e) {
     const out = [];
     for (const pw of stats.powersOf(e)) for (const p of pw.procs || []) out.push({ ...p, src: `power_${pw.id}` });
+    // rare minor powers (src/data/legendary_powers.js MINOR_POWERS, src/sim/affixes.js): the same records, own ICD keys
+    if (e.minors) for (const pw of stats.minorsOf(e)) for (const p of pw.procs || []) out.push({ ...p, src: `minor_${pw.id}` });
     return out;
   }
   function procs(e, on, pctx = {}) {
     if (!e || e.kind !== 'player' || e.dead) return;
     const tl = data.talentInfo(e).procs;
-    const list = e.powers ? [...tl, ...powerProcs(e)] : tl;
+    const list = e.powers || e.minors ? [...tl, ...powerProcs(e)] : tl;
     for (const p of list) {
       if (p.on !== on) continue;
       if (p.ability && !abMatch(p.ability, pctx.ability)) continue;

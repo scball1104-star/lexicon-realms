@@ -1346,3 +1346,31 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `flight { from, to, start, end, k, up }` while flying (`up` 0..1: off the ground). Friends' frames keep them.
 - **Content.** `content.travel = { stone, inns, defaultHome, flight, routes }` (`src/data/travel.js travelContent`);
   `content.startRealms`; the Rootbound's foes, people, items, 14 quests (`sideQuests`), rare (`src/data/rootbound.js`).
+
+## Polish: start realms, consumables, random legendaries, minor powers, live affixes, humanoids, caves (2026-11-22)
+
+- **Quests `standsFor: [questId]`** (src/sim/quests.js): when a quest that stands for another is done, the other counts as
+  done for its status and for every `requires.quests` (unless the hero holds it in the log, then it can still be handed
+  in). The Rootbound's `rb_up_the_root_stair` stands for Hob's `wm_name_twice`: a hero who started in the Rootbound opens
+  the valley chain and the Willowmere board at Mael, and is not paid twice (the realm's `rb_speak_and_be_kept` pays as Hob's).
+- **Flat-stat aura mods** (src/sim/stats.js recalcPlayer): `{ stat: 'str' | 'agi' | 'int' | 'spi' | 'sta', add }` and
+  `{ stat: 'main', add }` (the class's main stat) on any aura add points to the sheet; the aura needs `recalc: true`.
+  Battle elixirs (+2 / 4 / 6 / 8 main), the damage flasks (+8 / +10 main) and Well Fed (+1 to +3 Stamina and main by the
+  food's tier) use them (src/data/professions.js). Guardian elixirs, whetstones, oil and potions keep their shares.
+- **Affix `combat`** (src/data/items.js AFFIXES, src/sim/affixes.js): `{ kind: 'dps' }` adds to that weapon's swing,
+  `{ kind: 'leech', per }` heals `value x per` of direct damage dealt, `{ kind: 'onHit', chance, per, school, ability }`
+  deals `value x per` damage of `school` on a direct hit (no crit; info `gearFx`, which never procs again). recalcPlayer
+  puts `e.gearFx = { leech, onHit } | null` and `e.minors` on the hero; the weapon's min and max carry the dps.
+- **Minor powers** (`content.rarity.rare.minor` and `.epic.minor` = `{ fromIlvl: 15, chance: 0.1, powers }`,
+  src/data/legendary_powers.js MINOR_POWERS): `rollGear` may put `inst.minor = id` on a rare or epic; `resolveItem` adds the
+  power's `text` and `minor`; worn ids on `e.minors`; `stats.mod` adds their mods and `combat.procs` their procs (ICD key
+  `minor_<id>:<on>`), like a legendary power.
+- **Random legendaries** (`content.rarity.legendary.random` = `{ fromLevel, rare, boss, ilvlOver }`, src/sim/legend_drops.js):
+  after a kill's dungeon drops, a world rare or a boss that is not a place's own legendary roller rolls once per hero
+  sharing the kill; own rng stream (`state.legendRng`). Event `legendary { id, item, source: 'rare' | 'boss', template, chance }`.
+- **Humanoids**: a foe template with `family: 'humanoid'` runs at `MOB_RULES.flee.humanoid` (15%) and calls its kind
+  (src/sim/ai.js fleeAt); no foe in today's data is humanoid (all are beasts, spirits, constructs, oozes or insects).
+  New bandit or cultist foes only need the family.
+- **Caves in 3D** (src/render3d/cave3d.js dressCave, called by dungeon3d.js dressPlace for `kind: 'cave'`): floor patches,
+  gravel, stalagmites, glow fungus with additive light pools, puddles, by hashXY of the cell (no rng); cave walls take
+  vertex colours from `caveTint` (dungeon3d.js). dressPlace may now return a Group (the fire glow plus the fungus glows).

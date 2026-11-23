@@ -18,6 +18,8 @@
 // ctx = { content, rng, questNeeds(player, item) -> bool }. questNeeds says whether the player has an active quest that
 // still needs this item; a quest-item drop only rolls when it does (CONTRACTS 7.3 `quest` on a table entry).
 
+import { rollMinor, minorDef } from './affixes.js';
+
 // ---------------------------------------------------------------- bags
 export function bagCapacity(e, content) {
   const items = content.items || {};
@@ -169,7 +171,11 @@ export function rollGear(ctx, { ilvl, source = 'normal', cls = null, rarity = nu
     base = `gear_${a}_${slotKey}`;
   }
   const slot = C.items[base].slot;
-  return { item: base, qty: 1, inst: { ilvl, rarity: rar, affixes: rollAffixes(ctx, slot, ilvl, rar) } };
+  const inst = { ilvl, rarity: rar, affixes: rollAffixes(ctx, slot, ilvl, rar) };
+  // a rare or epic from item level 15 may roll a minor power (BUILDS_2 6.1, src/sim/affixes.js)
+  const minor = rollMinor(C, ctx.rng, rar, ilvl);
+  if (minor) inst.minor = minor;
+  return { item: base, qty: 1, inst };
 }
 
 // ---------------------------------------------------------------- a kill
@@ -257,6 +263,9 @@ export function resolveItem(content, entry, cls) {
   }
   if (def.kind === 'armor' && def.slot !== 'trinket' && out.armorType) out.icon = `armor_${def.slot}_${out.armorType}`;
   if (def.kind === 'weapon' && out.weaponType) out.icon = `weapon_${out.weaponType}`;
+  // a rolled minor power: its line on the tooltip (src/sim/affixes.js)
+  const mn = inst && inst.minor ? minorDef(content, inst.minor) : null;
+  if (mn) { out.minor = mn.id; out.text = out.text ? `${out.text} ${mn.text}` : mn.text; }
   out.name = itemName(content, { item: id, inst });
   return out;
 }

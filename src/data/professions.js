@@ -100,9 +100,14 @@ const MATS = [
 // (src/sim/professions.js): prof_aura (an elixir, flask, food, whetstone, oil or bandage: one buff per `slot`),
 // prof_restore (health and mana at once), learn_recipe (a Pattern).
 const aura = (id, name, icon, dur, mods, extra = {}) => ({ id, name, icon, kind: 'buff', duration: dur, mods, unique: 'global', ...extra });
-const DMG = (k) => [{ stat: 'damageDone', mul: 1 + k }, { stat: 'healingDone', mul: 1 + k }];
 const HP = (k, armor = 0) => [{ stat: 'maxHp', mul: 1 + k }, ...(armor ? [{ stat: 'armor', mul: 1 + armor }] : [])];
 const pct = (k) => `${Math.round(k * 100)}%`;
+// flat points (polish 2026-11-22, D:/LQOnline/professions/BRIEF.md 4: "a level 20 elixir +8 main stat", "a Master flask +10
+// main stat", "food +3 Stamina and +3 main stat"): battle elixirs, the damage flasks and Well Fed give points the way WoW's
+// do; `main` is the hero's own main stat (src/sim/stats.js recalcPlayer). Guardian elixirs (health and armor), whetstones,
+// oil and the potions keep their shares: that is their design.
+const MAIN = (n) => [{ stat: 'main', add: n }];
+const STA = (n) => [{ stat: 'sta', add: n }];
 // [id, name, value, art, use, text, reqLevel]
 const CONS = [
   // Alchemy: potions and ethers (they share the vendor potions' 60 s cooldown)
@@ -119,17 +124,17 @@ const CONS = [
   ['moorstar_draught', 'Moorstar Draught', 20, ['potion', '#d0a020', '#fff0a0'], { kind: 'heal_pct', amount: 0.6, cooldown: 60, group: 'potion' }, 'Restores 60% of your health.', 24],
   ['moorstar_ether', 'Moorstar Ether', 20, ['potion', '#2a6ad0', '#c0e0ff'], { kind: 'mana_pct', amount: 0.6, cooldown: 60, group: 'potion' }, 'Restores 60% of your mana.', 24],
   // Alchemy: battle elixirs (damage and healing), guardian elixirs (health, armor), flasks (both, an hour, kept through death)
-  ['elixir_small_courage', 'Elixir of Small Courage', 3, ['elixir', '#d06a30', '#ffc890'], { kind: 'prof_aura', slot: 'battle', aura: aura('prof_battle', 'Small Courage', 'elixir_small_courage', 1800, DMG(0.02)), cooldown: 1, group: 'elixir' }, `Battle elixir: damage and healing +${pct(0.02)} for 30 min.`, 3],
+  ['elixir_small_courage', 'Elixir of Small Courage', 3, ['elixir', '#d06a30', '#ffc890'], { kind: 'prof_aura', slot: 'battle', aura: aura('prof_battle', 'Small Courage', 'elixir_small_courage', 1800, MAIN(2), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Battle elixir: main stat +2 for 30 min.', 3],
   ['elixir_shepherds_coat', 'Elixir of the Shepherd\'s Coat', 3, ['elixir', '#8a8a5a', '#f0f0c0'], { kind: 'prof_aura', slot: 'guardian', aura: aura('prof_guardian', 'Shepherd\'s Coat', 'elixir_shepherds_coat', 1800, HP(0.02, 0.03), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Guardian elixir: health +2% and armor +3% for 30 min.', 4],
-  ['elixir_of_the_ram', 'Elixir of the Ram', 6, ['elixir', '#b04020', '#ffa070'], { kind: 'prof_aura', slot: 'battle', aura: aura('prof_battle', 'The Ram', 'elixir_of_the_ram', 1800, DMG(0.03)), cooldown: 1, group: 'elixir' }, `Battle elixir: damage and healing +${pct(0.03)} for 30 min.`, 8],
+  ['elixir_of_the_ram', 'Elixir of the Ram', 6, ['elixir', '#b04020', '#ffa070'], { kind: 'prof_aura', slot: 'battle', aura: aura('prof_battle', 'The Ram', 'elixir_of_the_ram', 1800, MAIN(4), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Battle elixir: main stat +4 for 30 min.', 8],
   ['elixir_of_fold_stone', 'Elixir of Fold Stone', 6, ['elixir', '#707070', '#d8d8d8'], { kind: 'prof_aura', slot: 'guardian', aura: aura('prof_guardian', 'Fold Stone', 'elixir_of_fold_stone', 1800, HP(0.03, 0.05), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Guardian elixir: health +3% and armor +5% for 30 min.', 9],
   ['elixir_of_the_uncounted', 'Elixir of the Uncounted', 9, ['elixir', '#c0a040', '#fff0a0'], { kind: 'prof_aura', slot: 'guardian', aura: aura('prof_guardian', 'The Uncounted', 'elixir_of_the_uncounted', 1800, HP(0.04, 0.06), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Guardian elixir: health +4% and armor +6% for 30 min.', 10],
-  ['elixir_of_gloamfire', 'Elixir of Gloamfire', 10, ['elixir', '#3a70d0', '#b0e0ff'], { kind: 'prof_aura', slot: 'battle', aura: aura('prof_battle', 'Gloamfire', 'elixir_of_gloamfire', 1800, DMG(0.04)), cooldown: 1, group: 'elixir' }, `Battle elixir: damage and healing +${pct(0.04)} for 30 min.`, 13],
+  ['elixir_of_gloamfire', 'Elixir of Gloamfire', 10, ['elixir', '#3a70d0', '#b0e0ff'], { kind: 'prof_aura', slot: 'battle', aura: aura('prof_battle', 'Gloamfire', 'elixir_of_gloamfire', 1800, MAIN(6), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Battle elixir: main stat +6 for 30 min.', 13],
   ['elixir_of_the_long_watch', 'Elixir of the Long Watch', 10, ['elixir', '#506080', '#c0d0f0'], { kind: 'prof_aura', slot: 'guardian', aura: aura('prof_guardian', 'The Long Watch', 'elixir_of_the_long_watch', 1800, HP(0.05, 0.06), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Guardian elixir: health +5% and armor +6% for 30 min.', 14],
-  ['elixir_of_inkthorn', 'Elixir of Inkthorn', 14, ['elixir', '#4a2a80', '#c0a0ff'], { kind: 'prof_aura', slot: 'battle', aura: aura('prof_battle', 'Inkthorn', 'elixir_of_inkthorn', 1800, DMG(0.05)), cooldown: 1, group: 'elixir' }, `Battle elixir: damage and healing +${pct(0.05)} for 30 min.`, 18],
+  ['elixir_of_inkthorn', 'Elixir of Inkthorn', 14, ['elixir', '#4a2a80', '#c0a0ff'], { kind: 'prof_aura', slot: 'battle', aura: aura('prof_battle', 'Inkthorn', 'elixir_of_inkthorn', 1800, MAIN(8), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Battle elixir: main stat +8 for 30 min.', 18],
   ['elixir_of_barrow_stone', 'Elixir of Barrow Stone', 14, ['elixir', '#605848', '#e0d0b0'], { kind: 'prof_aura', slot: 'guardian', aura: aura('prof_guardian', 'Barrow Stone', 'elixir_of_barrow_stone', 1800, HP(0.06, 0.08), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Guardian elixir: health +6% and armor +8% for 30 min.', 20],
-  ['flask_of_the_last_lamp', 'Flask of the Last Lamp', 16, ['flask', '#d0a030', '#fff0a0'], { kind: 'prof_aura', slot: 'flask', aura: aura('prof_flask', 'Last Lamp', 'flask_of_the_last_lamp', 3600, [...DMG(0.05), ...HP(0.03)], { recalc: true }), cooldown: 1, group: 'elixir' }, 'Flask: damage and healing +5%, health +3% for 1 hour. Stays through death. Replaces your elixirs.', 17],
-  ['flask_of_the_lantern', 'Flask of the Lantern', 24, ['flask', '#e8c050', '#ffffff'], { kind: 'prof_aura', slot: 'flask', aura: aura('prof_flask', 'The Lantern', 'flask_of_the_lantern', 3600, [...DMG(0.06), ...HP(0.04)], { recalc: true }), cooldown: 1, group: 'elixir' }, 'Flask: damage and healing +6%, health +4% for 1 hour. Stays through death. Replaces your elixirs.', 24],
+  ['flask_of_the_last_lamp', 'Flask of the Last Lamp', 16, ['flask', '#d0a030', '#fff0a0'], { kind: 'prof_aura', slot: 'flask', aura: aura('prof_flask', 'Last Lamp', 'flask_of_the_last_lamp', 3600, [...MAIN(8), ...HP(0.03)], { recalc: true }), cooldown: 1, group: 'elixir' }, 'Flask: main stat +8, health +3% for 1 hour. Stays through death. Replaces your elixirs.', 17],
+  ['flask_of_the_lantern', 'Flask of the Lantern', 24, ['flask', '#e8c050', '#ffffff'], { kind: 'prof_aura', slot: 'flask', aura: aura('prof_flask', 'The Lantern', 'flask_of_the_lantern', 3600, [...MAIN(10), ...HP(0.04)], { recalc: true }), cooldown: 1, group: 'elixir' }, 'Flask: main stat +10, health +4% for 1 hour. Stays through death. Replaces your elixirs.', 24],
   ['flask_of_the_hearth', 'Flask of the Hearth', 24, ['flask', '#c05030', '#ffc080'], { kind: 'prof_aura', slot: 'flask', aura: aura('prof_flask', 'The Hearth', 'flask_of_the_hearth', 3600, HP(0.08, 0.1), { recalc: true }), cooldown: 1, group: 'elixir' }, 'Flask: health +8% and armor +10% for 1 hour. Stays through death. Replaces your elixirs.', 24],
   ['lamplighters_oil', 'Lamplighter\'s Oil', 2, ['oil', '#d0a040', '#fff0b0'], { kind: 'prof_aura', slot: 'oil', aura: aura('prof_oil', 'Lamplighter\'s Oil', 'lamplighters_oil', 600, [{ stat: 'speed', add: 0.1 }]), cooldown: 1, group: 'oil' }, 'Rub it on your boots: walking speed +10% for 10 min.', 4],
   ['lantern_glass_vial', 'Lantern-Glass Vial', 1, ['vial', '#d8c890', '#ffffff'], null, 'A vial blown from glass sand. Alchemists use it.', 1],
@@ -149,7 +154,10 @@ const CONS = [
     `Heals ${pct(k)} of your health over 6 sec. Works in combat.`, lvl]),
 ];
 // Cooking: food. `rest` = health a second while you sit and eat (as the Honey Roll); `fed` = Well Fed for 30 min after
-const fed = (id, name, hp, dmg) => aura('prof_food', 'Well Fed', id, 1800, [...(hp ? HP(hp) : []), ...(dmg ? DMG(dmg) : [])], { recalc: !!hp });
+// Well Fed in flat points by the food's tier (polish 2026-11-22): a food with a value in the hp column gives Stamina, one in
+// the dmg column the main stat; 1 point below level 6, 2 below 13, 3 from there (the brief's "+3 Stamina and +3 main stat")
+const fedTier = (lvl) => (lvl < 6 ? 1 : lvl < 13 ? 2 : 3);
+const fed = (id, hp, dmg, lvl) => aura('prof_food', 'Well Fed', id, 1800, [...(hp ? STA(fedTier(lvl)) : []), ...(dmg ? MAIN(fedTier(lvl)) : [])], { recalc: true });
 const FOOD = [
   // [id, name, value, art colours, rest, hp, dmg, reqLevel]
   ['wayleaf_flatbread', 'Wayleaf Flatbread', 1, ['#d8b878', '#88c060'], 0.12, 0, 0, 1],
@@ -173,10 +181,10 @@ const FOOD = [
 ];
 for (const [id, name, value, [c1, c2], rest, hp, dmg, lvl] of FOOD) {
   const parts = [];
-  if (hp) parts.push(`health +${pct(hp)}`);
-  if (dmg) parts.push(`damage and healing +${pct(dmg)}`);
+  if (hp) parts.push(`Stamina +${fedTier(lvl)}`);
+  if (dmg) parts.push(`main stat +${fedTier(lvl)}`);
   const text = `Sit and eat: restores ${pct(rest)} of your health each second.${parts.length ? ` Then Well Fed: ${parts.join(', ')} for 30 min.` : ''}`;
-  CONS.push([id, name, value, [rest >= 0.2 ? 'feast' : 'food', c1, c2], { kind: 'prof_aura', slot: 'food', rest, ooc: true, aura: hp || dmg ? fed(id, name, hp, dmg) : null, cooldown: 0, group: 'food' }, text, lvl]);
+  CONS.push([id, name, value, [rest >= 0.2 ? 'feast' : 'food', c1, c2], { kind: 'prof_aura', slot: 'food', rest, ooc: true, aura: hp || dmg ? fed(id, hp, dmg, lvl) : null, cooldown: 0, group: 'food' }, text, lvl]);
 }
 
 // ---------------------------------------------------------------- crafted gear

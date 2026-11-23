@@ -40,6 +40,7 @@ import { createParty } from './party.js';
 import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
 import { createTravel } from './travel.js';
+import { createLegendDrops } from './legend_drops.js';
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -184,6 +185,7 @@ function wrap(state, content0, rng, systems) {
   C.prof = PF;
   // ---- travel (big world, src/sim/travel.js): the Lantern Stone, inn homes, flight (content.travel)
   const TV = combatOn && content.travel ? createTravel(C) : null;
+  const LD = combatOn && content.items ? createLegendDrops({ content, rng, state, emit }) : null;   // src/sim/legend_drops.js
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -194,6 +196,7 @@ function wrap(state, content0, rng, systems) {
     if (!content.items) return;
     const drop = rollKill({ content, rng, questNeeds: QS ? QS.needsItem : () => false }, mob, p);
     if (DG) DG.onKill(mob, p, drop);                 // a boss's named piece, set piece, rare, legendary roll; the daily chest
+    if (LD) LD.onKill(mob, p, drop);                 // polish: a small legendary chance from world rares and other bosses
     if (TR) TR.onDrop(mob, drop);                   // a dungeon boss's drops bind on pickup
     if (combatOn) C.life.extraLoot(mob, p, drop);   // a rare's named item and blue piece; Night at the Stones gear
     if (PF) PF.extraLoot(mob, p, drop);             // professions: meat, world Patterns, dungeon Patterns and materials

@@ -265,7 +265,9 @@ export const RB_QUESTS = {
       progress: 'The willow\'s heart. Watch the ground. Move when it darkens.',
       complete: 'Every word on the walls just lit up at once. You did it. And look what was in its nest: a page. A list of names, in a hand I do not know. And at the bottom, more names.',
     } }),
-  rb_up_the_root_stair: Q({ id: 'rb_up_the_root_stair', num: 114, name: 'Up the Root Stair', level: 6, minLevel: 5, giver: 'rb_ottilie', turnIn: 'mael',
+  // standsFor (src/sim/quests.js): it ends at Elder Mael as Hob's first quest does, so it counts as that one (the valley chain
+  // and the Willowmere board open; Speak, and Be Kept already paid what Hob's would: 100 XP and 5 gold)
+  rb_up_the_root_stair: Q({ id: 'rb_up_the_root_stair', num: 114, name: 'Up the Root Stair', level: 6, minLevel: 5, giver: 'rb_ottilie', turnIn: 'mael', standsFor: ['wm_name_twice'],
     requires: { quests: ['rb_eater_of_names'], cls: null, level: 5 }, chain: { id: 'rootbound', step: 14 },
     objectives: [{ kind: 'deliver', item: 'rb_written_list', to: 'mael', where: [{ zone: 'world', x: 168 * 16 + 8, y: 144 * 16 + 8, r: 24 }], label: 'Take the list to Elder Mael in Willowmere' }],
     giveOnAccept: [{ item: 'rb_written_list', qty: 1 }],
