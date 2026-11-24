@@ -141,7 +141,8 @@ export function createGlyphUI({ st, act, send, toast, say, hero }) {
     const mm = L.minimap;
     if (!mm || !m.minimap || !m.player || m.player.dead) return;
     const s = L.touch ? Math.max(18, Math.min(28, L.minHit || 18)) : 14;
-    const x = L.touch ? mm.x - 3 * (s + 3) : mm.x - s - 3, y = L.touch ? mm.y : mm.y + mm.h - 3 * s - 6;
+    const mb = L.touch && L.mapBtns && L.mapBtns[1];
+    const x = mb ? mb.x : L.touch ? mm.x - 3 * (s + 3) : mm.x - s - 3, y = mb ? mb.y : L.touch ? mm.y : mm.y + mm.h - 3 * s - 6;
     g.window(ctx, x, y, s, s, 'thin', st.open.has('glyphs') ? 'violet' : 'slate', 0.95);
     drawGlyphStone(g, ctx, x + 1, y + 1, s - 2, 'A', 1);
     regions.push({ rect: { x, y, w: s, h: s }, kind: 'button', label: 'glyph_book', on: () => { if (st.open.has('glyphs')) act.close('glyphs'); else open(); },

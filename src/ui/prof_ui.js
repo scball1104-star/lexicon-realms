@@ -476,7 +476,8 @@ export function createProfUI({ st, act, send, toast, say, hero, storage = null }
     }
     const s = L.touch ? Math.max(18, Math.min(28, L.minHit || 18)) : 14;
     const bx = mm.x - s - 3;
-    const spots = L.touch ? [[bx - s - 3, mm.y], [bx, mm.y]] : [[bx, mm.y + mm.h - 2 * s - 3], [bx, mm.y + mm.h - s]];
+    const spots = L.touch && L.mapBtns ? [[L.mapBtns[0].x, L.mapBtns[0].y], [L.mapBtns[2].x, L.mapBtns[2].y]]
+      : L.touch ? [[bx - s - 3, mm.y], [bx, mm.y]] : [[bx, mm.y + mm.h - 2 * s - 3], [bx, mm.y + mm.h - s]];
     const kinds = gatherKinds(v);
     if (kinds.length) {
       const [x, y] = spots[1];

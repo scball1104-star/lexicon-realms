@@ -326,7 +326,7 @@ export const tests = [
         assert(Lw.hudW >= 640 && Lw.hudH >= 360, 'menu windows fit their 640x360 designs');
         const T = hudLayout({ touch: true, minHit: hitPx(L.base / dpr), W: L.hudW, H: L.hudH });
         for (const b of [...T.cluster, ...T.menuBar, T.minimap, T.player]) assert(b.x >= 0 && b.y >= 0 && b.x + b.w <= L.hudW && b.y + b.h <= L.hudH, `${b.id || 'box'} on screen at ${w}x${h}`);
-        const all = [...T.cluster, ...T.menuBar, T.minimap];
+        const all = [...T.cluster, ...T.menuBar, ...T.mapBtns, T.minimap, T.tracker.header];
         for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert(!rectsOverlap(all[i], all[j]), `overlap at ${w}x${h}`);
       }
       const d = layoutFor(1920, 1080, 1);
@@ -362,7 +362,7 @@ export const tests = [
           const chatBox = { x: T.chat.x, y: T.chat.bottom - (4 + 11 * T.chat.lines + 2), w: T.chat.w, h: 4 + 11 * T.chat.lines + 2 };
           assert(!rectsOverlap(b, chatBox), `${b.id} clear of the chat ${tag}`);
         }
-        const all = [...T.cluster, ...T.menuBar, T.minimap, T.player, T.target];
+        const all = [...T.cluster, ...T.menuBar, ...T.mapBtns, T.minimap, T.zoneLabel, T.player, T.target, T.tracker.header];
         for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert(!rectsOverlap(all[i], all[j]), `${all[i].id || i} overlaps ${all[j].id || j} ${tag}`);
         // the HUD layer itself stays inside the safe area (the notch side and the home bar)
         assert(L.ox >= (inset.l || 0) && L.ox + L.hudW * L.base <= Math.round(w * dpr) - (inset.r || 0), `inside the safe area ${tag}`);

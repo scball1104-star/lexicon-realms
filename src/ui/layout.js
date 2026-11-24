@@ -73,7 +73,14 @@ function touchLayout(minHit, LW, LH) {
     .map((b) => ({ ...b, slot: /^slot(\d)$/.test(b.id) ? Number(b.id.slice(4)) : null }));
   const clusterTop = bottom - 2 * p;
   const mmW = 64, mmH = 44;
-  const trY = 15 + mmH + 3;
+  // the three small buttons that sat left of the minimap (professions, tracking, glyphs) ran into the menu buttons on
+  // phones (Scott 2026-11-24, screenshot): they now sit in a row under the minimap, right aligned, and the tracker
+  // starts below them. mapBtns[0] is the profession book, [1] the glyph stone, [2] tracking (shown only
+  // once you gather, so it goes on the outer end and leaves no gap).
+  const sb = Math.max(18, Math.min(28, minHit || 18));
+  const mbRowY = 15 + mmH + 3;
+  const mapBtns = [0, 1, 2].map((i) => ({ id: ['prof_book', 'glyph_book', 'prof_track'][i], x: W - 4 - (i + 1) * sb - i * 3, y: mbRowY, w: sb, h: sb }));
+  const trY = mbRowY + sb + 3;
   return {
     touch: true, minHit: m, W, H,
     player: { x: 4, y: 4, w: 150, h: 34 },
@@ -90,7 +97,7 @@ function touchLayout(minHit, LW, LH) {
     cast: { x: Math.floor((W - 150) / 2), y: Math.min(H - 64, clusterTop - 6), w: 150 },
     xp: { y: H - 10 },
     chat: { x: 4, w: Math.min(170, W - 6 * p - 16), lines: 3, bottom: H - 16, passive: true },
-    menuBar: mb, cluster,
+    menuBar: mb, cluster, mapBtns,
     // mounts: the horseshoe (shown once you own one) in the free spot above slot 8, by the bar's left end
     mountBtn: { id: 'mount', x: right - 6 * p, y: bottom - 2 * p, w: p, h: p },
   };
