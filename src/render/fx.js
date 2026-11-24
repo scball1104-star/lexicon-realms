@@ -12,7 +12,10 @@
 //
 // Fallbacks: every sprite effect has a procedural pixel version, used when assets/fx/fx.png is missing or lacks
 // the animation. Drawn at whole world pixels only.
-import { planEvents, floaterMotion } from './fxplan.js';
+// Combat feel pass (wave 6): createFx({ feel: true, hold(spec), phone(), ceil() }) draws the numbers with
+// feel_numbers.js (larger own and hits-on-you numbers, no overlaps, a number waits for its 3D bolt via hold).
+import { planEvents, planEvent, floaterMotion } from './fxplan.js';
+import { drawFeelNumbers, releaseHeld } from './feel_numbers.js';
 import { AURA_LOOKS } from './fx_table.js';
 import { BAYER4 } from './lighting.js';
 
@@ -39,7 +42,9 @@ export function createFx(opts) {
   const anim = (name) => { const s = sheet(); return s && s.json.fx && s.json.fx[name] ? s.json.fx[name] : null; };
 
   function feed(events, now) {
-    for (const s of planEvents(events, { playerId, abilities })) start(s, now);
+    if (!opts.feel) { for (const s of planEvents(events, { playerId, abilities })) start(s, now); return; }
+    // combat feel: a number remembers who dealt it (own, a friend's, a foe's), and so also waits for its bolt
+    for (const ev of events || []) for (const s of planEvent(ev, { playerId, abilities })) { if (s.kind === 'number') s.src = ev.src; start(s, now); }
   }
 
   function start(s, now) {
@@ -75,7 +80,9 @@ export function createFx(opts) {
 
   function land(s, now) {
     if (s.kind === 'number') {
-      floats.push({ ...s, t0: now, seed: seq++ });
+      const f = { ...s, t0: now, seed: seq++ };
+      if (opts.feel) { f.held = !!(opts.hold && opts.hold(s)); f.born = now; }   // wait for the 3D bolt to land
+      floats.push(f);
       if (floats.length > 40) floats.shift();
       return;
     }
@@ -132,7 +139,8 @@ export function createFx(opts) {
       if (now - p.t0 > p.life) { sparks.splice(i, 1); continue; }
       p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.96;
     }
-    for (let i = floats.length - 1; i >= 0; i--) if (!floaterMotion(floats[i].style, now - floats[i].t0, floats[i].seed)) floats.splice(i, 1);
+    if (opts.feel) releaseHeld(floats, now, opts.hold);
+    for (let i = floats.length - 1; i >= 0; i--) if (!floats[i].held && !floaterMotion(floats[i].style, now - floats[i].t0, floats[i].seed)) floats.splice(i, 1);
     // cast glow sparkles rise from the hands
     for (const [id, c] of casting) {
       const a = lastPos.get(id);
@@ -345,6 +353,10 @@ export function createFx(opts) {
 
   function drawNumbers(g, toHud, now) {
     const nf = numFont(), bf = bigFont();
+    if (opts.feel) {
+      drawFeelNumbers(g, floats, { toHud, now, nf, playerId, lastPos, phone: !!(opts.phone && opts.phone()), ceil: opts.ceil ? opts.ceil() : 0, fallbackText });
+      return;
+    }
     for (const n of floats) {
       const m = floaterMotion(n.style, now - n.t0, n.seed);
       if (!m) continue;

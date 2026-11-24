@@ -672,7 +672,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   };
   choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x']);
   choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
-  choice('Screen shake', 'shake', [true, false], ['On', 'Off']);
+  choice('Screen shake and hit stop', 'shake', [true, false], ['On', 'Off']);   // wave 6 combat feel: Off turns both off
   // a phone: the left column is full after Screen shake (Graphics used to spill below the panel), so Graphics and
   // Camera go in the right column under the sliders
   if (touch) { cx = ox; cw = ow; y = ySound - 4; }

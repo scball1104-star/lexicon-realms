@@ -4,15 +4,21 @@
 // anything new fall back by school and shape. Projectiles fly at the sim's own speed (so they land when the damage
 // does), light requests go to the renderer's capped light pool, and the player's own big hits and crits give a gentle
 // camera kick and hit-stop (screen).
+// Combat feel pass (wave 6, 2026-11-24, feel_recipes.js): every hit the player lands gets a weight layer (white body
+// flash, sparks by weight, a shock ring) and a short hit stop; crits and heavy blows kick the camera, scaled by the
+// foe's size. Low quality and phones (lite) play only the small spark size. feel: false keeps the look from before.
 //
-//   const F = createFx3d(scene, { abilities, low, who, mats })   who(id) -> { kind, cls } | null, mats(id) -> [Material]
+//   const F = createFx3d(scene, { abilities, low, feel, who, mats })   who(id) -> { kind, cls, height } | null, mats(id) -> [Material]
 //   F.feed(events, now, playerId, at)      F.update(dt, now, at, camera)   at(id, 'feet'|'chest'|'hand'|'head') -> Vector3 | null
 //   F.lights -> [{ pos, color, k }]        F.hints(id) -> { attackT0, attackAbility, shotT0, hurtT0, deathT0, castT0, releaseT0 }
 //   F.screen -> { shake, hitstop }         F.counts -> { particles, projectiles, casting }
+//   F.pending(dst, src) -> a 3D bolt from src is still flying at dst (its number waits)   F.lite = true: Low or phone
+//   F.stopRate -> body animation rate while F.screen.hitstop runs
 import * as THREE from '../vendor/three/three.module.min.js';
 import { planEvent } from '../render/fxplan.js';
 import { createFxKit } from './fx_kit.js';
 import { RECIPES, ABILITY_FX, AURA_FX, SPRITE_FX, PROJ_FX } from './fx_recipes.js';
+import { FEEL, createHitWeigher, tierOf, hitStopFor, flashOf, feelName, STOP_RATE } from './feel_recipes.js';
 
 const PX = 16;
 const GAME_SCALE = 1.25;      // the game camera sits 13 to 20 m out: everything a quarter bigger than the approval stills
@@ -20,8 +26,46 @@ const MELEE_LEAD = 0.17;      // a hero's blow: the swing starts a little before
 const MELEE = new Set(['warden', 'inkblade', 'mender', 'scribe']);
 const WORDS = new Set(['miss', 'dodge', 'parry', 'resist', 'immune']);
 
-export function createFx3d(scene, { abilities = null, low = false, who = () => null, mats = () => null } = {}) {
-  const K = createFxKit(THREE, scene, { recipes: RECIPES, scale: GAME_SCALE, screenLayers: false, seed: 2468,
+// combat feel: how light a struck body is (linear 0 to 1), so a pale foe gets a dimmed or tinted flash, not plain white
+const texLum = new WeakMap(), bodyLum = new WeakMap();
+function texLight(tex) {
+  if (!tex || !tex.image || typeof document === 'undefined') return null;
+  if (texLum.has(tex)) return texLum.get(tex);
+  let v = null;
+  try {
+    const c = document.createElement('canvas'); c.width = c.height = 8;
+    const g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(tex.image, 0, 0, 8, 8);
+    const d = g.getImageData(0, 0, 8, 8).data; let s = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 128) continue; s += ((0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) / 255) ** 2.2; n++; }
+    v = n ? s / n : null;
+  } catch { v = null; }
+  if (v != null) texLum.set(tex, v);
+  return v;
+}
+// drivers and tests: the last weight layer played ({ tier, flash, lum, w, stop }); read it by importing this module
+let lastFeel = null;
+export const feelProbe = () => lastFeel;
+export function bodyLight(ms) {
+  if (!ms || !ms.length) return 0;
+  if (bodyLum.has(ms)) return bodyLum.get(ms);
+  let s = 0, n = 0, sure = true;
+  // the hide (textured materials) is what the flash lights up; eyes, teeth and trinkets only when nothing is textured
+  const hide = ms.filter((m) => m && m.map && m.emissive);
+  for (const m of hide.length ? hide : ms) {
+    if (!m || !m.color || !m.emissive) continue;
+    let t = 1;
+    if (m.map) { const v = texLight(m.map); if (v == null) sure = false; else t = v; }
+    // a body that already glows (a rare's sheen, a ghost) counts its glow too: that is what a white flash blows out
+    const e = m.emissive && m.emissive.r != null ? (0.2126 * m.emissive.r + 0.7152 * m.emissive.g + 0.0722 * m.emissive.b) * (m.emissiveIntensity ?? 1) * (m.emissiveMap ? 0.5 : 1) : 0;
+    s += (0.2126 * m.color.r + 0.7152 * m.color.g + 0.0722 * m.color.b) * t + e; n++;
+  }
+  const v = n ? s / n : 0;
+  if (sure) bodyLum.set(ms, v);
+  return v;
+}
+
+export function createFx3d(scene, { abilities = null, low = false, feel = true, who = () => null, mats = () => null } = {}) {
+  const K = createFxKit(THREE, scene, { recipes: feel ? { ...RECIPES, ...FEEL } : RECIPES, scale: GAME_SCALE, screenLayers: false, seed: 2468,
     maxAdd: low ? 1024 : 2048, maxInk: low ? 512 : 1024, density: low ? 0.6 : 1 });
   const hints = new Map();
   const hint = (id) => { if (!hints.has(id)) hints.set(id, {}); return hints.get(id); };
@@ -29,6 +73,9 @@ export function createFx3d(scene, { abilities = null, low = false, who = () => n
   const projs = [];             // { src, dst, ability, land: [specs], done }
   const later = [];             // [t, fn] impacts waiting for a hero's blade
   let pid = null;
+  let lite = low;               // combat feel: Low quality or a phone (the renderer sets F.lite each frame)
+  const weigher = createHitWeigher();
+  const sizeOf = (id) => { const w = who(id); return Math.max(1, Math.min(1.7, ((w && w.height) || 1.7) / 1.7)); };
 
   const schoolOf = (id, fallback) => (ABILITY_FX[id] && ABILITY_FX[id].school) || (abilities && abilities[id] && abilities[id].school) || fallback || 'physical';
   const lineOf = (id) => ABILITY_FX[id] || null;
@@ -58,10 +105,24 @@ export function createFx3d(scene, { abilities = null, low = false, who = () => n
     // no tint on a struck hero: the anim kit's knock-back carries the hit there
     const opts = { from: src || at(s.dst, 'feet'), to: live(at, s.dst, 'chest'), at: live(at, s.dst, 'chest'), school, mats: (who(s.dst) || {}).kind === 'player' && !heal ? null : mats(s.dst), scale: sc * (s.heavy ? 1.1 : 1) };
     opts.ground = (at(s.dst, 'feet') || { y: 0 }).y;
+    // combat feel: the weight layer first (its body flash wins over the ability's tint), scaled by the hit's weight
+    const own = feel && s.src === pid && !heal && s.sprite !== 'tick';
+    let w = 1;
+    if (own) {
+      w = weigher.weigh(s.amount || 0, !!s.crit);
+      const lum = opts.mats ? bodyLight(opts.mats) : 0, size = sizeOf(s.dst), fl = flashOf(lum, size), tier = tierOf(w, !!s.crit, lite);
+      lastFeel = { tier, flash: fl, lum: +lum.toFixed(3), size: +size.toFixed(2), w: +w.toFixed(2), stop: hitStopFor(w, { crit: !!s.crit, auto: !s.ability || s.ability === 'auto' }), dst: s.dst  };
+      K.play(feelName(tier, fl), { ...opts, scale: opts.scale * (0.8 + 0.25 * Math.min(w, 2.2)) });
+      opts.scale *= 0.9 + 0.12 * Math.min(w, 2.2);
+    }
     K.play(name, opts);
     if (s.crit && !heal) K.play('hit_crit', opts);
     // the player's own big blows: a gentle kick and a few frames of hit-stop (never a foe's hit on the player)
-    if (s.src === pid && !heal && (s.crit || s.heavy || (L && L.scale >= 1.15))) K.kick(s.crit ? 0.32 : 0.18, s.crit ? 0.055 : 0.03);
+    // combat feel: every own landed hit gets a short hit stop (render only); the kick stays for crits and heavy blows,
+    // bigger on bigger foes (Options: "Screen shake and hit stop" Off turns both off, in the renderer)
+    const big = s.crit || s.heavy || (L && L.scale >= 1.15);
+    if (own) K.kick(big ? (s.crit ? 0.32 : 0.18) * sizeOf(s.dst) : 0, hitStopFor(w, { crit: !!s.crit, auto: !s.ability || s.ability === 'auto' }));
+    else if (s.src === pid && !heal && big) K.kick(s.crit ? 0.32 : 0.18, s.crit ? 0.055 : 0.03);
   }
 
   function start(s, now, at) {
@@ -164,6 +225,7 @@ export function createFx3d(scene, { abilities = null, low = false, who = () => n
           if (s.ability == null && ev.ability) s.ability = ev.ability;
           if (s.kind === 'castglow') s.castTicks = ev.castTicks;
           if (s.kind === 'hurt' && s.src == null) s.src = ev.src;
+          if (s.kind === 'impact' && ev.type === 'damage') s.amount = ev.amount;
           start(s, now, at);
         }
         // a cast the plan gives no glow (a foe's spell, a channel with its own look): the kit's charge anyway
@@ -173,6 +235,11 @@ export function createFx3d(scene, { abilities = null, low = false, who = () => n
       }
     },
     hints(id) { return hints.get(id) || null; },
+    /** combat feel: a 3D bolt from src is still flying at dst (its floating number waits for the landing) */
+    pending(dst, src) { return projs.some((p) => !p.done && p.dst === dst && (src == null || p.src === src)); },
+    get stopRate() { return feel ? STOP_RATE : 0.25; },
+    get lite() { return lite; },
+    set lite(v) { lite = !!v || low; },
     get lights() { return K.lights; },
     get screen() { return K.screen; },
     get counts() { const st = K.stats; return { particles: st.add + st.ink, projectiles: projs.filter((p) => !p.done).length, casting: casting.size, effects: st.effects }; },

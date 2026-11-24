@@ -167,7 +167,7 @@ export function saveShared(storage, tab) {
 
 export const DEFAULT_OPTIONS = Object.freeze({
   v: 1, music: 0.7, sfx: 0.8, zoom: 1, fx: 'high',
-  shake: true,               // the 3D effects' small camera kick on your own big hits (fx kit, 2026-11-23)
+  shake: true,               // the 3D effects' small camera kick on your own big hits (fx kit, 2026-11-23) and, since wave 6, the hit stop
   cam: 'fixed',              // 3D camera: 'fixed' (today's north-up, the default) or 'horizon' (wave 5b, an option)
   synth: true,               // synth music for places with no track of their own and live synth sounds (wave 5b, 2026-11-24)
   r3d: false,                // the 3D preview renderer (Scott 2026-11-19: a switch in Settings instead of the ?r=3d link)
