@@ -3,7 +3,7 @@
 //
 //   node qa/bot/questbot.mjs                       5 classes x 3 seeds, parallel child runs, summary
 //   node qa/bot/questbot.mjs --cls warden --seed 1 --cap 240     one run (sim minutes cap), JSON to qa/out/bot/runs/
-//   options: --seeds 1,2,3  --jobs 5  --stop 10  --timeout 600 (wall seconds per run)
+//   options: --seeds 1,2,3  --classes warden,scribe  --jobs 5  --stop 10  --timeout 600 (wall seconds per run)
 //   to 20 (cap 30 lane): --stop 20 --cap 900 --timeout 3600 (about 12 to 15 wall minutes a run)
 // Prints QUESTBOT_DONE: runs=<n> reached10=<n> errors=<n> violations=<n> (machine-read sentinel).
 import { spawn } from 'node:child_process';
@@ -20,7 +20,7 @@ import { REALMS2_ORDER } from '../../src/data/start_realms2.js';
 const REALM_ORDER = { rootbound: RB_QUEST_ORDER, saffron: SH_QUEST_ORDER, hollow: NH_QUEST_ORDER, ...REALMS2_ORDER };
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = join(HERE, '..', 'out', 'bot', 'runs');
+const OUT = process.env.QUESTBOT_OUT || join(HERE, '..', 'out', 'bot', 'runs');   // QUESTBOT_OUT: another run folder (quests20)
 mkdirSync(OUT, { recursive: true });
 const arg = (k, d) => { const i = process.argv.indexOf('--' + k); return i >= 0 ? process.argv[i + 1] : d; };
 const CLASSES = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
@@ -88,7 +88,8 @@ async function main() {
   const jobs = Number(arg('jobs', 5));
   const timeout = Number(arg('timeout', 900)) * 1000;
   const queue = [];
-  for (const cls of CLASSES) for (const seed of seeds) queue.push([cls, seed]);
+  const only = arg('classes') ? String(arg('classes')).split(',') : CLASSES;   // --classes warden,scribe (quests20 lane)
+  for (const cls of only) for (const seed of seeds) queue.push([cls, seed]);
   const results = [];
   let running = 0;
   await new Promise((resolve) => {

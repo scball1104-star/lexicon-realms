@@ -438,6 +438,24 @@ The player counts twelve. (Episode 1 begins the night the thirteenth tolls; the 
 
 ---
 
+### 5.7 The Moor band (quests20 lane, 2026-11-23): 25 more quests for 13 to 20
+
+Data and text: `src/data/moor_band.js` (side quests, offered after the chain and the bounties). Why: a bot audit found
+13 to 20 was 50 to 75% grinding (about 10 quests on the path, quest XP 43% against 2.3's 70%). Four story chains with a
+card at the end, two escorts, deliveries between the Ridge Path, the Tarn Overlook, Odo's hut, Thornfold and Willowmere,
+explore steps and short side jobs. Every foe is an existing moor foe (quest drops added to mist wolves, moss scarabs,
+page and ink wraiths, only while the quest needs them), every person an existing look, every reward choice an existing
+reward item. XP is 2.2 at small sizes, 0.15 to 0.3 (the band already has the chain and three boards; at
+full sizes the questbot went 13 to 20 in about 70 minutes, half of PROGRESSION 1's 154, with quests and bounties at 88%
+of the XP); gold about 1.5 x level (x2 on a chain's last step).
+
+New people: Linnet Lake (surveyor, the Ridge Path), Agnes Thatch (carter, the Ridge Path), Osric Reed (reed-cutter, the
+tarn's south shore), Ewan Strake (chime walker, the Chime Road north; Odo's old partner, who rings the posts backwards),
+Corra Vane (glass-grinder, by the Stile), and two escorts, Old Jory (a Thornfold shepherd lost in the mist) and Pim
+(Sorrel's nephew, who wants to be a boar-watcher). New lore: the paces between the posts have grown because the words on
+the posts are thinning (the moor itself is the same size); Ewan and Odo each kept half of the slate that read KEPT; the
+watchers carry WATCH THE ROADS inside them; something like a bell hums under Tarn Hollow.
+
 ## 6. New lore invented (everything here that Lexicon Quest does not already say)
 
 1. **The Quiet Month** setting: Realms happens in the month before Episode 1; small thinning at the valley's edges
