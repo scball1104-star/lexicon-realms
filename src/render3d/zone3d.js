@@ -115,6 +115,7 @@ export const BLD_CUT = { lo: 1.3, hi: 1.8, floor: 0.12 };   // the cut starts at
 export const SEE = {
   uCam: { value: new THREE.Vector3() }, uFocus: { value: new THREE.Vector3() }, uSeeR: { value: 2.8 },
   uFocus2: { value: new THREE.Vector3() }, uSeeR2: { value: 0 }, uBld: { value: BLD_TEX },
+  uNearR: { value: 0 },   // wave 5b horizon camera: scenery within this many m of the camera fades out (0: off, today)
 };
 const patched = new WeakSet();
 function seeThrough(mat) {
@@ -141,7 +142,7 @@ attribute float lrBld;
         vLrW = (modelMatrix * lrW).xyz; }`);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
 varying vec3 vLrW; varying float vLrBld; uniform sampler2D uBld;
-uniform vec3 uCam; uniform vec3 uFocus; uniform float uSeeR; uniform vec3 uFocus2; uniform float uSeeR2;
+uniform vec3 uCam; uniform vec3 uFocus; uniform float uSeeR; uniform vec3 uFocus2; uniform float uSeeR2; uniform float uNearR;
 float lrB2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
 float lrBayer(vec2 a) { return lrB2(0.5 * a) * 0.25 + lrB2(a); }
 float lrCover(vec3 P, vec3 F, float R) {
@@ -154,6 +155,7 @@ float lrCover(vec3 P, vec3 F, float R) {
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
       if (vLrW.y > 0.3) {
         float lrC = min(lrCover(vLrW, uFocus, uSeeR), lrCover(vLrW, uFocus2, uSeeR2));
+        if (uNearR > 0.0) lrC = min(lrC, smoothstep(uNearR * 0.45, uNearR, length(vLrW - uCam)));
         if (vLrBld > 0.5) {
           float lrI = floor(vLrBld + 0.5);
           float lrF = texture2D(uBld, (vec2(mod(lrI, ${BLD_N}.0), floor(lrI / ${BLD_N}.0)) + 0.5) / ${BLD_N}.0).r;

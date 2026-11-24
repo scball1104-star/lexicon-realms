@@ -23,6 +23,8 @@ import { BitmapFont } from './core/font.js';
 import { createRenderer } from './render/renderer.js';
 import { createInput } from './input/input.js';
 import { createTouch, isTouchDevice } from './input/touch.js';
+import { attachHorizonInput } from './input/horizon_input.js';   // wave 5b: the optional horizon camera
+import { createHorizonCam } from './render3d/horizon_cam.js';
 import { createUI } from './ui/ui.js';
 import { padBar, loadOptions, loadShared, saveShared, SHARED_KEY } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
@@ -113,7 +115,7 @@ async function boot() {
       setZoom: (z) => { if (ZOOMS.includes(z)) view.zoom = z; },
       // Settings > Graphics: save, then reload into the other renderer (a ?r= in the link would override it, so drop it)
       setGraphics: () => { ui.saveProgress(); const u = new URL(window.location.href); u.searchParams.delete('r'); window.location.replace(u.toString()); },
-      optionsChanged: (o) => { view.fx = fxOverride || o.fx; view.shake = o.shake !== false; audio.setVolumes({ master: 1, music: o.music, sfx: o.sfx }); },
+      optionsChanged: (o) => { view.fx = fxOverride || o.fx; view.shake = o.shake !== false; audio.setVolumes({ master: 1, music: o.music, sfx: o.sfx }); setCam(o.cam); },
       enterWorld: (c) => {
         // a hero joining a friend's game: the friend's world made it (coop.js); this tab plays back their frames
         const gid = coop.takeGuestId();
@@ -154,7 +156,18 @@ async function boot() {
   view.fx = fxOverride || ui.options.fx;
   view.shake = ui.options.shake !== false;   // the 3D effects' camera kick (Options)
   audio.setVolumes({ master: 1, music: ui.options.music, sfx: ui.options.sfx });
-  if (touch) createTouch({ canvas, input, ui });
+  const touchCtl = touch ? createTouch({ canvas, input, ui }) : null;
+  // the horizon camera (wave 5b, 3D only, an option): ?cam=horizon|fixed in the link wins, else Options: Camera.
+  // Off (the default) leaves view.cam null and every horizon listener idle, so today's camera and controls are unchanged
+  const hcam = renderer.is3d ? createHorizonCam({ touch }) : null;
+  const hin = hcam ? attachHorizonInput({ canvas, cam: hcam, input, ui, touchCtl }) : null;
+  function setCam(mode) {
+    const want = ['horizon', 'fixed'].includes(q.get('cam')) ? q.get('cam') : mode;
+    const on = !!hcam && want === 'horizon';
+    view.cam = on ? hcam : null;
+    if (hin) hin.setOn(on);
+  }
+  setCam(ui.options.cam);
   // the Lantern Chest's Shared tab (every hero on this device): its own key, never inside a hero save (src/ui/save.js)
   world.setShared(loadShared(storage));
   window.addEventListener('storage', (ev) => { if (ev.key === SHARED_KEY) world.setShared(loadShared(storage)); });   // another tab wrote it

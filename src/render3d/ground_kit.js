@@ -13,6 +13,7 @@
 //   kit.attach(group)     the swaying grass and the flower patches: two instanced meshes (two draw calls) for the
 //                         chunks near the hero, refilled when the hero crosses into a new chunk (kit.cull)
 //   kit.cull(x, z)        keep the grass round (x, z) m        kit.dispose()
+//   kit.view              null (today) or { r, dx, dz }: the horizon camera's wider grass ring, centred ahead (wave 5b)
 //   tickGround(t)         the wind clock (the renderer calls it with the fx clock, so a pinned clock pins the grass)
 import * as THREE from '../vendor/three/three.module.min.js';
 import { groundMasks, grassChunk, hash2, heightField, kitOn, planSquare } from './ground_plan.js';
@@ -252,13 +253,15 @@ export function createGroundKit(zone, { terr, quality, place = false, tilesDb = 
       flowerMesh = new THREE.InstancedMesh(flowerGeo(), swayMat({ groundTex, W, H, flower: true }), 1);
       for (const m of [grassMesh, flowerMesh]) { m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(3).fill(1), 3); m.count = 0; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = true; m.name = 'lr_kit_grass'; group.add(m); }
     },
+    view: null,
     cull(x, z) {
       if (!grassMesh) return;
-      const keys = [];
-      const i0 = Math.floor((x - GRASS_R) / GCH), i1 = Math.floor((x + GRASS_R) / GCH), j0 = Math.floor((z - GRASS_R) / GCH), j1 = Math.floor((z + GRASS_R) / GCH);
+      const keys = [], v = kit.view, GR = v ? v.r : GRASS_R;
+      if (v) { x += v.dx; z += v.dz; }
+      const i0 = Math.floor((x - GR) / GCH), i1 = Math.floor((x + GR) / GCH), j0 = Math.floor((z - GR) / GCH), j1 = Math.floor((z + GR) / GCH);
       for (let j = Math.max(0, j0); j <= Math.min(Math.ceil(H / GCH) - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(Math.ceil(W / GCH) - 1, i1); i++) {
         const cx = (i + 0.5) * GCH, cz = (j + 0.5) * GCH;
-        if (Math.hypot(cx - x, cz - z) - GCH * 0.71 < GRASS_R) keys.push(`${i},${j}`);
+        if (Math.hypot(cx - x, cz - z) - GCH * 0.71 < GR) keys.push(`${i},${j}`);
       }
       const key = keys.join(';');
       if (key === live) return;

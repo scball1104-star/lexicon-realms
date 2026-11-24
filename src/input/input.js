@@ -32,6 +32,7 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
   let tabCycle = [];             // ids in the last Tab order, to step through them
   let queued = null;             // a cast pressed near the end of the global cooldown: { intent, until (s of game time) }
   let goal = null;               // tap-to-walk / walk-to-talk: { x, y, reach, then: cmd | null, best, stuck, n }
+  let moveXf = null;             // wave 5b horizon camera: held keys turned to the camera (horizon_input.js); null = today
 
   const onKey = (down) => (ev) => {
     if (ev.repeat && down) { if (ev.code === 'Tab') ev.preventDefault(); return; }
@@ -63,7 +64,8 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
    * hostile target's feet, else 48 px in front of the player.
    */
   function groundPoint(snap, me, target, toWorld) {
-    if (!touchMode && mouse && toWorld) { const [wx, wy] = toWorld(mouse[0], mouse[1]); return { x: Math.round(wx), y: Math.round(wy) }; }
+    const mw = !touchMode && mouse && toWorld ? toWorld(mouse[0], mouse[1]) : null;   // null: the horizon camera's sky
+    if (mw) return { x: Math.round(mw[0]), y: Math.round(mw[1]) };
     const t = target != null ? snap.entities.find((o) => o.id === target) : null;
     if (t && t.zone === me.zone && !t.dead && t.kind !== 'npc') return { x: Math.round(t.x), y: Math.round(t.y) };
     const d = { down: [0, 1], up: [0, -1], left: [-1, 0], right: [1, 0] }[me.dir] || [0, 1];
@@ -110,6 +112,8 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
     /** Phone: ground spells aim at the target (or in front of you) instead of the mouse. */
     setTouch(on) { touchMode = !!on; },
     setMouse(devX, devY) { mouse = [devX, devY]; },
+    /** Horizon camera (wave 5b): fn(dx, dy) -> [dx, dy] turns held keys to the camera; null restores today's keys. */
+    setMoveTransform(fn) { moveXf = fn || null; },
 
     poll({ snap, playerId, pick, toWorld = null }) {
       const out = [];
@@ -120,6 +124,7 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
       let dx = 0, dy = 0;
       for (const c of held) { dx += MOVE_KEYS[c][0]; dy += MOVE_KEYS[c][1]; }
       dx = Math.sign(dx); dy = Math.sign(dy);
+      if (moveXf && (dx || dy)) [dx, dy] = moveXf(dx, dy);
       if (held.size) goal = null;
       if (goal && me && !me.dead) {
         const s = walkStep(me);
@@ -173,7 +178,8 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
           // a tap on empty ground walks there (CRITIQUE_1 item 8)
           const id = pick ? pick(it.x, it.y) : null;
           if (id == null) {
-            if (it.k === 'tap' && toWorld && !me.dead) { const [wx, wy] = toWorld(it.x, it.y); walkTo(Math.round(wx), Math.round(wy) + 2, 3, null); }
+            const tw = it.k === 'tap' && toWorld && !me.dead ? toWorld(it.x, it.y) : null;   // null: the horizon camera's sky
+            if (tw) walkTo(Math.round(tw[0]), Math.round(tw[1]) + 2, 3, null);
             continue;
           }
           if (id === me.id) continue;

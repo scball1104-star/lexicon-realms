@@ -113,6 +113,8 @@ def main():
     ap.add_argument('--cpu', type=float, default=4.0, help='phone profile: CPU slowdown (CDP throttling rate)')
     ap.add_argument('--perf-s', type=float, default=3.0, help='seconds of real loop per view for the frame sample')
     ap.add_argument('--no-perf', action='store_true')
+    ap.add_argument('--query', default='', help='extra URL query on every view, e.g. cam=horizon (the horizon camera)')
+    ap.add_argument('--campose', default='', help='horizon camera pose JSON written to view.cam, e.g. {"yaw":0,"pitch":12,"dist":10}')
     ap.add_argument('--budget', default=os.path.join(HERE, 'budget.json'))
     a = ap.parse_args()
     out = os.path.join(a.out, a.tag)
@@ -144,7 +146,7 @@ def main():
             t0 = time.time()
             try:
                 q = 'r=3d' if action == 'title' else FIX
-                page.goto(f'{base}?{q}&{query}', timeout=30000)
+                page.goto(f'{base}?{q}&{query}' + (f'&{a.query}' if a.query and action != 'title' else ''), timeout=30000)
                 page.wait_for_function('window.__realms && (window.__realms.ready || window.__realms.error)', timeout=60000)
                 if ev('window.__realms.error || null'):
                     raise RuntimeError(ev('window.__realms.error'))
@@ -160,6 +162,8 @@ def main():
                     time.sleep(3.0)
                 else:
                     ev(f'window.__realms.renderer.dev && (window.__realms.renderer.dev.clock = {a.clock})')
+                    if a.campose:                    # the horizon camera's pose (only when it is on: ?cam=horizon)
+                        rec['campose'] = ev(f'(() => {{ const c = window.__realms.view.cam; if (!c) return null; Object.assign(c, {a.campose}); return {{ yaw: c.yaw, pitch: c.pitch, dist: c.dist }}; }})()')
                     for _ in range(40):              # settle the camera ease and background building
                         ev(f'window.__realms.redraw({a.clock})')
                         time.sleep(0.03)
