@@ -16,6 +16,7 @@ import { radial } from './textures.js';
 import { gatherLook, animateGather, gatherPick, workClip } from './gather3d.js';
 import { createRider, createYard } from './mount3d.js';
 import { createAnimKit } from './anim_kit.js';   // heroes' combat moments over the clips (approved 2026-11-23)
+import { groundY } from './ground_plan.js';   // wave 5 ground kit: the visible ground height
 
 const PX = 16;
 const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
@@ -319,7 +320,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       a.speed = a.speed == null ? tickV : a.speed + (tickV - a.speed) * Math.min(1, dt * 10);
       const moving = !e.dead && (e.moving || tickV > 0.2);
       // big world: a hero on a Lantern Kite flies FLY_H m up (eased at take-off and landing, snapshot flight.up)
-      a.root.position.set(nx, e.flight ? FLY_H * smooth01(e.flight.up) : 0, nz);
+      a.root.position.set(nx, e.flight ? FLY_H * smooth01(e.flight.up) : groundY(nx, nz), nz);   // groundY: the ground kit's gentle hills (0 when off)
       // facing: the way it moves, else its target while fighting or casting, else the snapshot's direction
       let want = a.yaw;
       if (moving && Math.hypot(mvx, mvz) > 1e-4) want = Math.atan2(mvx, mvz);

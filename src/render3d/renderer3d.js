@@ -57,6 +57,8 @@ import { createRealms2Fx3 } from './realms2_3d.js';   // wave 3 realms2: lantern
 import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 import { createSkyKit } from './sky_kit.js';     // wave 5 Track A: sky dome, light rig, 3D weather, far hills
 import { skyTier } from './sky_rig.js';
+import { tickGround } from './ground_kit.js';   // wave 5 ground kit: the grass wind clock
+import { groundY, setGroundY } from './ground_plan.js';   // the shown zone's visible ground height (gentle hills)
 
 const PX = 16;
 const PITCH = THREE.MathUtils.degToRad(40);
@@ -109,7 +111,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   const q = new URLSearchParams(location.search);
   const touchDev = isTouchDevice(window, q);
   const low = q.get('q3d') === 'low' || (q.get('q3d') !== 'high' && touchDev);
-  const quality = { low, shadows: !low, bloom: !low, maxLights: low ? 2 : 6, grass: !low, maxScale: low ? 1.5 : 2 };
+  const quality = { low, shadows: !low, bloom: !low, maxLights: low ? 2 : 6, grass: !low, maxScale: low ? 1.5 : 2, ground: !low && q.get('ground') !== 'off' };   // ground: the wave 5 ground kit (ground_kit.js)
 
   // ---- canvases: WebGL under, the game canvas (2D: numbers, nameplates, HUD) over it
   const gl = document.createElement('canvas');
@@ -581,7 +583,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const R = (ab.area.radius || 32) / PX;
       const shape = ab.telegraph === 'cone' || ab.area.shape === 'cone' ? 'cone' : ab.telegraph === 'line' || ab.area.shape === 'line' ? 'line' : 'circle';
       const yaw = tgt && shape !== 'circle' ? Math.atan2(tgt.x - self.x, tgt.z - self.z) : 0;
-      g.position.set(p.x, 0.04, p.z); g.rotation.y = shape === 'circle' ? 0 : yaw;
+      g.position.set(p.x, groundY(p.x, p.z) + 0.04, p.z); g.rotation.y = shape === 'circle' ? 0 : yaw;
       if (shape === 'line') {
         const wd = (ab.area.width || 16) / PX;
         d.geometry = tgGeo.line[0]; f.geometry = tgGeo.line[0];
@@ -667,6 +669,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       if (shown) { scene.remove(shown.group); for (const bb of shown.buildings || []) { bb.k = 0; setBuildingFade(bb.id, 0); } }
       shown = z;
       if (shown) scene.add(shown.group);
+      setGroundY(shown && shown.groundY);   // bodies and ground marks stand on the ground kit's hills (flat when off)
       actors.clear(view.followId);     // the hero keeps its body across zones (no rebuild on the step through)
     }
     state.zoneId = view.zone;
@@ -749,7 +752,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     SEE.uFocus.value.copy(me ? me.root.position : focus).setY(1.0); SEE.uSeeR.value = me ? 3.2 : 0;
     if (tgA && tgA.e && !tgA.e.dead && tgA.kind !== 'object') { SEE.uFocus2.value.copy(tgA.root.position).setY(Math.min(1.2, tgA.height * 0.55)); SEE.uSeeR2.value = 1.9; } else SEE.uSeeR2.value = 0;
     cutBuildings(snap, view, me, tgA, rdt);
-    tickWater(now);
+    tickWater(now); tickGround(now);
     if (shown) tickRealm3d(shown.group, snap.tick, now);
     animateLineup(now, dt);
     renderer.info.reset();
@@ -759,7 +762,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     if (tg && tg.e && !tg.e.dead && tg.kind !== 'object') {
       targetRing.visible = true;
-      targetRing.position.copy(tg.root.position).setY(0.04);
+      targetRing.position.copy(tg.root.position).setY(groundY(tg.root.position.x, tg.root.position.z) + 0.04);
       const r = Math.max(0.8, Math.min(2.2, tg.height * 0.55));
       targetRing.scale.setScalar(r * (1 + 0.06 * Math.sin(now * 6)));
       ringMat.color.set(RING_COL[tg.e.faction] || RING_COL.neutral);
