@@ -10,10 +10,13 @@
 //   coop.takeGuestId()             main.js enterWorld: the id the host gave this hero (once)
 //   coop.onLogout(id) -> true when it was a guest hero (main.js must not touch its own world for it)
 //   coop.setPump({ loop, tick })   a host in a background tab keeps ticking (Web Worker timer)
+//   coop.invite()                  Options: start hosting (solo) or show the host panel with its invite link
+//   coop.watchId                   a drop-in watcher: the host hero the camera follows (null otherwise)
 import { ICE_DEFAULT, signalFor, hostRoom, joinRoom, makeOffer, makeAnswer, encodeCode, decodeCode, newRoomCode, cleanRoomCode, validRoomCode } from './transport.js';
 import { createHostSession, createGuestSession, MAX_PLAYERS } from './session.js';
 import { createNetUI } from './netui.js';
 import { emoteFromChat } from '../sim/emotes.js';   // wave 7 anim: /wave /cheer /sit /dance /jump in party chat
+import { readInvite, createDropFlow } from './dropin.js';   // wave 8: drop-in with one link (invite links, watching)
 
 const SUB_TILE = 256;     // sim units per tile (src/sim/constants.js TILE), for placing a guest beside the host
 
@@ -50,6 +53,12 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
   let guestSess = null, pendingId = null, guestCharId = null, endedGuestId = null, guestHost = '';
   let guestPid = null, guestLast = null;  // the hero id the host gave us and its latest save (kept until logout is done)
   const sysLog = [];                    // system actions besides joins: { tick, sys: 'party', id, party }
+  // drop-in (src/net/dropin.js): invite links, and watchers (no hero; the camera follows the host's)
+  let invited = typeof window !== 'undefined' ? readInvite(window.location) : null;
+  const drop = createDropFlow({ nui, ui, kind, iceServers, WHY, heroBlob: (c) => heroBlob(c), startGuest: (...a) => startGuest(...a),
+    hostGame: (c) => hostGame(c), hostPanel: () => hostPanel(), openChat: () => openChat(), heroId,
+    st: { get role() { return role; }, set role(v) { role = v; }, get sess() { return guestSess; }, set sess(v) { guestSess = v; },
+      get host() { return guestHost; }, set host(v) { guestHost = v; }, set charId(v) { guestCharId = v; }, get roomCode() { return roomCode; } } });
   const say = (text) => ui.say('party', text);
 
   // ---------------------------------------------------------------- host
@@ -76,6 +85,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     hostSess = createHostSession({ world, hostId, hostName, party, room: null, build, spawnGuest, saveOf: (id) => saveState(id), on: {
       join: (g) => { say(`${g.name} joined the party.`); ui.notify(`${g.name} joined.`, 3); hostBar(); },
       leave: (g, why) => { say(`${g.name} ${why === 'left' ? 'left' : 'dropped out'}.`); hostBar(); },
+      watch: () => { ui.notify('A friend is watching your game.', 3); hostBar(); }, unwatch: () => hostBar(),   // drop-in (draft)
       chat: (from, text) => say(`[Party] ${from}: ${text}`),
       commandLogged: (id, cmd) => { if (onCommand) onCommand(id, cmd); },
       joinLogged: (tick, spec) => { if (onJoin) onJoin(tick, spec); },
@@ -136,8 +146,8 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     box.textContent = '';
     const { el } = nui;
     if (roomState === 'open') {
-      box.append(el('p', { text: 'Your room code:' }), el('div', { class: 'net-code', id: 'net-room-code', text: roomCode }),
-        el('p', { text: 'Friends open Lexicon Realms, pick a hero, tap Join a game and type this code.' }));
+      box.append(el('p', { text: 'Your room code:' }), el('div', { class: 'net-code', id: 'net-room-code', text: roomCode }));
+      drop.inviteBlock(box, api);         // drop-in: the invite link (src/net/dropin.js)
     } else if (roomState === 'opening') box.append(el('p', { text: 'Opening a room...' }));
     else {
       box.append(el('p', { text: 'Room codes are not working right now (the free room-code service did not answer).' }),
@@ -152,7 +162,8 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     const n = hostSess ? hostSess.count : 1;
     nui.setBar([
       { label: roomState === 'open' ? `Room ${roomCode}` : roomState === 'opening' ? 'Opening room' : 'Room: join codes', id: 'net-bar-room', on: () => hostPanel() },
-      { label: `${n} of ${MAX_PLAYERS}`, id: 'net-bar-count' },
+      roomState === 'open' ? { label: 'Invite', id: 'net-bar-invite', on: () => drop.shareInvite(null) } : null,
+      { label: `${n} of ${MAX_PLAYERS}${hostSess && hostSess.watching ? (compact() ? ` +${hostSess.watching}` : `, ${hostSess.watching} watching`) : ''}`, id: 'net-bar-count' },
       { label: 'Chat', id: 'net-bar-chat', on: () => openChat() },
       { label: compact() ? 'End' : 'End game', id: 'net-bar-leave', cls: 'net-quiet', on: () => { if (confirmEnd()) endHosting('host_left'); } },
     ]);
@@ -228,11 +239,13 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
       setTimeout(() => inp.focus(), 0);
     } });
   }
-  function startGuest(link, c, api) {
-    api.status('Connected. Joining...', 'ok');
+  function startGuest(link, c, api, watch = false) {
+    api.status(watch ? 'Connected. Watching while you choose.' : 'Connected. Joining...', 'ok');
     let sess = null;
-    sess = createGuestSession({ link, hero: heroBlob(c), build, on: {
+    sess = createGuestSession({ link, hero: c ? heroBlob(c) : null, build, watch, on: {
       welcome: (w) => {
+        if (w.watch) { drop.startWatching(sess, w); return; }      // drop-in: a watcher first (no hero)
+        c = drop.playerWelcome() || c;                             // a watcher picked a hero: now a player
         guestSess = sess; role = 'guest'; pendingId = w.id; guestPid = w.id; guestLast = sess.lastSave; guestCharId = c.id; guestHost = w.host || 'your friend';
         api.close();
         ui.act.enter(c.id);
@@ -243,7 +256,8 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
           { label: 'Leave', id: 'net-bar-leave', cls: 'net-quiet', on: () => ui.act.logout() },
         ]);
       },
-      save: (hero) => { if (guestPid === sess.id) guestLast = hero; ui.saveHero(c.id, hero); },
+      save: (hero) => { if (guestPid === sess.id) guestLast = hero; if (c) ui.saveHero(c.id, hero); },
+      nope: (why) => drop.refused(why),
       chat: (from, text) => say(`[Party] ${from}: ${text}`),
       sys: (text) => { say(text); ui.notify(text, 3); },
       end: (reason) => guestEnded(sess, reason, api),
@@ -260,6 +274,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     if (!wasPlaying) return;        // left on purpose (onLogout already went back to the select screen)
     role = null;
     nui.setBar(null);
+    if (drop.ended((ENDED[reason] || ENDED.closed).slice(0, 1))) return;   // a watcher: no hero to log out
     endedGuestId = ui.playerId;
     ui.act.logout();
     const m = ENDED[reason] || ENDED.closed;
@@ -276,7 +291,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     });
   }
   window.addEventListener('keydown', (ev) => {
-    if (!role || ui.mode !== 'game' || nui.chatOpen || nui.panelOpen) return;
+    if (!role || (ui.mode !== 'game' && ui.mode !== 'watch') || nui.chatOpen || nui.panelOpen) return;
     if (ev.code === 'Enter' || ev.code === 'NumpadEnter') { ev.preventDefault(); openChat(); }
   }, true);
 
@@ -312,9 +327,17 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     get roomCode() { return roomCode; },
     get roomState() { return roomState; },
     get kind() { return kind; },
+    get watchId() { return drop.follow; },
+    get watching() { return drop.watching; },
     sysLog,
     ui: nui,
-    setBuild(v) { build = v || null; },
+    setBuild(v) {
+      build = v || null;
+      if (invited) { const c = invited; invited = null; drop.dropIn(c); }   // a #join link: after the build is known
+      // a link opened in a tab that already has the game (the page does not reload): the same, from the title or hero list
+      window.addEventListener('hashchange', () => { const c = readInvite(window.location); if (c && !role && ui.mode !== 'game') drop.dropIn(c); });
+    },
+    invite: () => drop.invite(),
     onCommandLogged(fn) { onCommand = fn; },
     onJoinLogged(fn) { onJoin = fn; },
     setPump(p) { pump = p; },
@@ -346,6 +369,8 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
         guest: guestSess ? guestSess.stats : null,
         guestHost,
         guestCharId,
+        watching: drop.watching, watchId: drop.follow,
+        watchers: hostSess ? hostSess.watching : 0,
       };
     },
   };

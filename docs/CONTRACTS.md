@@ -1714,3 +1714,19 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 - **Sound.** Bank loop `'loop:falls'` (src/audio/synth/falls_sfx.js); `src/audio/water_sound.js` `fallsFeet(zone)`,
   `fallsMix(me, feet)` (14 tiles, panned) drive it from synth_game.js `nearby()` beside the brook loop. Synth sound Off
   stops it with the rest of the synth.
+
+## Drop-in with one link and watching (wave 8 dropin, 2026-11-24; PLAN section 6; docs/NET.md "Invite links")
+
+- **Link.** `inviteLink(location, code)` in src/net/dropin.js: the page address, plus `net` / `stun` / `dev` only when the
+  host's page has them (tests), then `#join=<ROOM CODE>`. Nothing else ever goes in it (no name, hero, save or device
+  detail). `readInvite(location)` reads it; coop.js opens the join screen once `setBuild` has run (and on `hashchange`
+  from the title or hero list), and `clearInvite()` drops the `#join` from the address bar.
+- **Watcher protocol** (src/net/session.js): `hello { watch: 1 }` (no hero) -> `welcome { watch: 1, id: null, follow }`;
+  later `play { hero }` -> `welcome { id }` (a second welcome; the guest clears its frame state) or `nope { reason }`
+  (full | bad_hero; still watching). A watcher may chat (as `WATCHER_NAME`) and say bye; its other messages are ignored.
+  At most `MAX_WATCHERS` (4); watchers are not players (`count`), `watching` counts them.
+- **Watcher frames.** `framesFor(null, { follow: hostId })` (src/net/frames.js): the view centres on the host, every hero
+  is trimmed (the host too), no HUD block, public events only. `publicFilter(null, vis)` matches no hero's own events.
+- **UI.** `ui.mode === 'watch'`: the world draws, the canvas UI draws nothing (the co-op bar is HTML). main.js render
+  follows `coop.watchId` while there is no hero. Options has "Invite a friend" in its title bar (`act.invite`,
+  `act.canInvite`; hooks `invite`, `canInvite`), hidden for a hero in a friend's game.

@@ -2,9 +2,13 @@
 // No DOM here (timers only), so the protocol reads top to bottom.
 //
 // Guest -> host   { t:'hello', proto, build, hero }    hero: the guest's stored character (name, cls, look, state)
+//                 { t:'hello', proto, build, watch:1 }  a watcher (drop-in spectate): no hero, the view follows the host
+//                 { t:'play', hero }                    a watcher picks a hero and joins as a player
 //                 { t:'cmd', c:[cmd...], s }           the same command objects local input makes; s = sequence number
 //                 { t:'chat', text }  { t:'ping', at }  { t:'bye' }
 // Host -> guest   { t:'welcome', id, host, room, party, proto }
+//                 { t:'welcome', watch:1, id:null, follow, host, room, party, proto }   a watcher; follow = the host's hero
+//                 { t:'nope', reason }                 a watcher's play was refused (full | bad_hero); it keeps watching
 //                 { t:'f', ... }                       a frame (src/net/frames.js), every host tick; a = last cmd s applied
 //                 { t:'save', hero, final? }           the guest's hero as a save (every 5 s when it changed, and on leave)
 //                 { t:'chat', from, text }  { t:'sys', text }  { t:'pong', at }
@@ -14,6 +18,8 @@ import { framesFor, createTickCache, createFrameState, applyFrame } from './fram
 
 export const PROTO = 1;
 export const MAX_PLAYERS = 4;          // the host plus three friends (DESIGN: "start up to 4")
+export const MAX_WATCHERS = 4;         // drop-in watchers (no hero; a frame costs about what a friend's does)
+export const WATCHER_NAME = 'A watcher';   // draft: a watcher's chat name (they have no hero yet)
 const SAVE_EVERY_TICKS = 100;          // 5 s
 const GUEST_SILENT_MS = 45000;         // a guest who sends nothing (not even a ping) this long is dropped
 const HOST_SILENT_MS = 8000;           // the host sends a frame every tick; this long without one is a lost host
@@ -41,7 +47,9 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
   const guests = new Set();              // every link, joined or not: { link, pid, name, frames, cmds, seen, ack, saveStr }
   let closed = false;
   const byPid = () => [...guests].filter((g) => g.pid != null);
-  const sendAll = (msg, except = null) => { for (const g of byPid()) if (g !== except) g.link.send(msg); };
+  const watchers = () => [...guests].filter((g) => g.watch);
+  const live = () => [...guests].filter((g) => g.pid != null || g.watch);   // everyone who gets frames, chat and sys lines
+  const sendAll = (msg, except = null) => { for (const g of live()) if (g !== except) g.link.send(msg); };
 
   function sendSave(g, final = false) {
     if (g.pid == null) return;
@@ -55,11 +63,30 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
   function removeGuest(g, reason) {
     if (!guests.has(g)) return;
     guests.delete(g);
+    if (g.watch && on.unwatch) on.unwatch(g, reason);
     if (g.pid != null) {
       world.removePlayer(g.pid);
       sendAll({ t: 'sys', text: `${g.name} left.` });
       if (on.leave) on.leave(g, reason);
     }
+  }
+  /** A hero into the world beside the host: { pid } or { reason } (full | bad_hero). */
+  function spawn(g, hero) {
+    if (byPid().length >= MAX_PLAYERS - 1) return { reason: 'full' };
+    let pid = null;
+    let spec = null;
+    try { spec = spawnGuest(hero); if (spec) { spec = { ...spec, party }; pid = world.addPlayer(spec); } } catch (e) { pid = null; }
+    if (pid == null) return { reason: 'bad_hero' };
+    if (on.joinLogged) on.joinLogged(world.tick, spec);      // the replay log's addPlayer call (CONTRACTS 2.3)
+    g.pid = pid;
+    g.watch = false;
+    g.name = (world.get(pid) || {}).name || 'Friend';
+    g.frames = framesFor(pid);
+    g.link.send({ t: 'welcome', id: pid, host: hostName, room, party, proto: PROTO });
+    sendSave(g);
+    sendAll({ t: 'sys', text: `${g.name} joined.` }, g);
+    if (on.join) on.join(g);
+    return { pid };
   }
   function onMessage(g, m) {
     if (closed || !m || typeof m.t !== 'string') return;
@@ -69,19 +96,34 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
       if (g.pid != null) return;
       const refuse = (reason) => { g.link.send({ t: 'refuse', reason }); setTimeout(() => g.link.close('refused'), 500); guests.delete(g); };
       if (m.proto !== PROTO || (build && m.build && m.build !== build)) return refuse('version');
-      if (byPid().length >= MAX_PLAYERS - 1) return refuse('full');
-      let pid = null;
-      let spec = null;
-      try { spec = spawnGuest(m.hero); if (spec) { spec = { ...spec, party }; pid = world.addPlayer(spec); } } catch (e) { pid = null; }
-      if (pid == null) return refuse('bad_hero');
-      if (on.joinLogged) on.joinLogged(world.tick, spec);      // the replay log's addPlayer call (CONTRACTS 2.3)
-      g.pid = pid;
-      g.name = (world.get(pid) || {}).name || 'Friend';
-      g.frames = framesFor(pid);
-      g.link.send({ t: 'welcome', id: pid, host: hostName, room, party, proto: PROTO });
-      sendSave(g);
-      sendAll({ t: 'sys', text: `${g.name} joined.` }, g);
-      if (on.join) on.join(g);
+      if (g.watch) return;
+      if (m.watch) {
+        // drop-in: watch first (no hero), pick a hero later with { t:'play' }
+        if (watchers().length >= MAX_WATCHERS) return refuse('full');
+        g.watch = true; g.name = WATCHER_NAME;
+        g.frames = framesFor(null, { follow: hostId });
+        g.link.send({ t: 'welcome', watch: 1, id: null, follow: hostId, host: hostName, room, party, proto: PROTO });
+        if (on.watch) on.watch(g);
+        return;
+      }
+      const r = spawn(g, m.hero);
+      if (r.reason) return refuse(r.reason);
+      return;
+    }
+    if (g.watch) {
+      // a watcher: may pick a hero, chat, or leave; nothing else (it has no hero for commands to move)
+      if (m.t === 'play') {
+        const r = spawn(g, m.hero);
+        if (r.reason) g.link.send({ t: 'nope', reason: r.reason });
+        else if (on.unwatch) on.unwatch(g, 'play');
+      } else if (m.t === 'chat') {
+        const text = cleanChat(m.text);
+        if (text) { sendAll({ t: 'chat', from: g.name, text }); if (on.chat) on.chat(g.name, text); }
+      } else if (m.t === 'bye') {
+        g.link.send({ t: 'bye', reason: 'left' });
+        removeGuest(g, 'left');
+        setTimeout(() => g.link.close('left'), 1500);
+      }
       return;
     }
     if (g.pid == null) return;
@@ -105,15 +147,18 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
   return {
     get guests() { return byPid().map((g) => ({ id: g.pid, name: g.name, stats: g.link.stats, buffered: g.link.buffered })); },
     get count() { return 1 + byPid().length; },
+    /** Drop-in watchers (no hero). */
+    get watching() { return watchers().length; },
+    get watcherStats() { return watchers().map((g) => ({ stats: g.link.stats, buffered: g.link.buffered })); },
     get room() { return room; },
     /** A friend's data channel opened (by room code or by copy-paste). They have 10 s to say hello. */
     addLink(link) {
       if (closed) { link.close('closed'); return; }
-      const g = { link, pid: null, name: 'Friend', frames: null, cmds: [], seen: now(), ack: 0, saveStr: null };
+      const g = { link, pid: null, watch: false, name: 'Friend', frames: null, cmds: [], seen: now(), ack: 0, saveStr: null };
       guests.add(g);
       link.on('message', (m) => onMessage(g, m));
       link.on('close', (why) => removeGuest(g, why || 'closed'));
-      setTimeout(() => { if (g.pid == null && guests.has(g)) { guests.delete(g); link.close('no_hello'); } }, 10000);
+      setTimeout(() => { if (g.pid == null && !g.watch && guests.has(g)) { guests.delete(g); link.close('no_hello'); } }, 10000);
     },
     /** Before world.step(): every guest's commands into the sim's queue (and the command log). */
     beforeStep() {
@@ -128,12 +173,12 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
       if (closed) return;
       const cache = createTickCache();
       const t = now();
-      for (const g of byPid()) {
+      for (const g of live()) {
         if (t - g.seen > GUEST_SILENT_MS) { g.link.close('timeout'); removeGuest(g, 'timeout'); continue; }
         const msg = g.frames.frame(snap, events, cache);
         msg.a = g.ack;
         g.link.send(msg);
-        if (snap.tick % SAVE_EVERY_TICKS === 0) sendSave(g);
+        if (g.pid != null && snap.tick % SAVE_EVERY_TICKS === 0) sendSave(g);
       }
     },
     chat(text) {
@@ -145,7 +190,7 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
     /** The host ends the game: every guest gets their hero as a final save, then a goodbye. */
     close(reason = 'host_left') {
       if (closed) return;
-      for (const g of byPid()) { sendSave(g, true); g.link.send({ t: 'bye', reason }); }
+      for (const g of live()) { sendSave(g, true); g.link.send({ t: 'bye', reason }); }
       closed = true;
       for (const g of [...guests]) {
         const pid = g.pid;
@@ -162,7 +207,7 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
  * The guest side. hero: the stored character sent in hello. on: { welcome(w), save(hero, final), chat(from, text),
  * sys(text), end(reason) }. Frames queue up as they arrive; the game loop takes one per tick (nextFrame).
  */
-export function createGuestSession({ link, hero, build = null, on = {} }) {
+export function createGuestSession({ link, hero, build = null, watch: asWatcher = false, on = {} }) {
   const fs = createFrameState(null);
   const queue = [];
   const sentAt = new Map();               // cmd sequence -> when it was sent (input-to-ack timing)
@@ -180,7 +225,11 @@ export function createGuestSession({ link, hero, build = null, on = {} }) {
     if (ended || !m) return;
     lastMsg = now();
     switch (m.t) {
-      case 'welcome': welcome = m; fs.me = m.id; if (on.welcome) on.welcome(m); break;
+      case 'welcome':
+        // a watcher who picks a hero gets a second welcome: start the view again from the host's next (full) frame
+        if (welcome) { fs.ents.clear(); fs.hud = null; fs.proj = []; queue.length = 0; }
+        welcome = m; fs.me = m.id == null ? null : m.id; if (on.welcome) on.welcome(m); break;
+      case 'nope': if (on.nope) on.nope(m.reason || 'full'); break;
       case 'f': {
         if (!welcome) break;
         const snap = applyFrame(fs, m);
@@ -206,11 +255,16 @@ export function createGuestSession({ link, hero, build = null, on = {} }) {
     if (now() - lastMsg > HOST_SILENT_MS) { end('timeout'); return; }
     link.send({ t: 'ping', at: now() });
   }, 2000);
-  link.send({ t: 'hello', proto: PROTO, build, hero });
+  link.send(asWatcher ? { t: 'hello', proto: PROTO, build, watch: 1 } : { t: 'hello', proto: PROTO, build, hero });
 
   return {
     get welcome() { return welcome; },
     get id() { return welcome ? welcome.id : null; },
+    /** A watcher (no hero yet): the host hero id the view follows. */
+    get watching() { return !!(welcome && welcome.watch); },
+    get follow() { return welcome && welcome.watch ? welcome.follow : null; },
+    /** A watcher picks a hero: the host answers with a welcome (in) or a nope (full, bad hero; still watching). */
+    play(h) { if (!ended && welcome && welcome.watch) link.send({ t: 'play', hero: h }); },
     get lastSave() { return lastSave; },
     get ended() { return ended; },
     get stats() { return { ...stats, link: link.stats, queued: queue.length }; },

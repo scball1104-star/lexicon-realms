@@ -6,10 +6,10 @@
 const CSS = `
 #net-ui { position: fixed; inset: 0; pointer-events: none; z-index: 20; font: 15px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; color: #f6f4ee; }
 #net-ui * { box-sizing: border-box; }
-#net-ui .net-scrim { position: absolute; inset: 0; background: rgba(8, 6, 14, 0.55); pointer-events: auto; }
+#net-ui .net-scrim { position: absolute; inset: 0; background: rgba(8, 6, 14, 0.55); pointer-events: auto; z-index: 2; }
 #net-ui .net-box { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100vw - 24px));
   max-height: calc(100dvh - 24px); overflow: auto; background: #1b1528; border: 2px solid #8a76b8; border-radius: 6px; padding: 14px 16px;
-  pointer-events: auto; box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+  pointer-events: auto; box-shadow: 0 6px 24px rgba(0,0,0,0.6); z-index: 3; }
 #net-ui h2 { margin: 0 0 8px; font-size: 18px; color: #ffd75a; font-weight: 700; }
 #net-ui p { margin: 6px 0; color: #e8e2d4; }
 #net-ui .net-dim { color: #a79fb8; font-size: 13px; }

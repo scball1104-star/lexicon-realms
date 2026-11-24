@@ -13,6 +13,8 @@
 //   - npcs and objects in its zone: always (they change rarely, so they cost almost nothing after the first frame)
 //   - foes and projectiles: within VIEW_PX of its hero (square), so a far camp costs nothing
 //   - events: its own, and public ones about something in view; another hero's vendor, xp, loot, quest lines stay private
+// A watcher (drop-in spectate, docs/NET.md) has no hero: framesFor(null, { follow: hostId }) centres the view on the
+// host, trims every hero (the host's too), sends no HUD block and only public events.
 
 export const VIEW_PX = 960;   // 60 tiles: wider than any zoom shows, so foes never pop in at the screen edge
 
@@ -29,7 +31,7 @@ const REF_KEYS = ['id', 'src', 'dst', 'killer', 'target', 'tagger'];
 export function publicFilter(me, visible) {
   return (ev) => {
     if (!ev || typeof ev !== 'object') return false;
-    if (ev.id === me || ev.src === me) return true;
+    if (me != null && (ev.id === me || ev.src === me)) return true;
     if (PRIVATE.has(ev.type) || PRIVATE_RE.test(ev.type || '')) return false;
     let refs = false;
     for (const k of REF_KEYS) {
@@ -74,7 +76,7 @@ function inView(e, me, viewPx) {
   return Math.abs(e.x - me.x) <= viewPx && Math.abs(e.y - me.y) <= viewPx;
 }
 
-export function framesFor(me, { viewPx = VIEW_PX } = {}) {
+export function framesFor(me, { viewPx = VIEW_PX, follow = null } = {}) {
   const sent = new Map();          // id -> { s: the entity JSON last sent, keys: Map field -> JSON }
   let hudStr = null, projStr = '[]';
   return {
@@ -82,7 +84,8 @@ export function framesFor(me, { viewPx = VIEW_PX } = {}) {
     /** Forget what was sent: the next frame is a full one (after a resync request). */
     reset() { sent.clear(); hudStr = null; projStr = '[]'; },
     frame(snap, events = [], cache = createTickCache()) {
-      const meE = snap.entities.find((e) => e.id === me) || null;
+      const centre = me != null ? me : follow;   // a watcher's view follows the hero it watches
+      const meE = centre != null ? snap.entities.find((e) => e.id === centre) || null : null;
       const vis = new Set();
       const u = [], q = [];
       for (const e of snap.entities) {
@@ -108,7 +111,7 @@ export function framesFor(me, { viewPx = VIEW_PX } = {}) {
       if (u.length) msg.u = u;
       if (q.length) msg.q = q;
       if (x.length) msg.x = x;
-      const hud = snap.hud ? snap.hud[me] : null;
+      const hud = snap.hud && me != null ? snap.hud[me] : null;
       if (hud) { const s = JSON.stringify(hud); if (s !== hudStr) { hudStr = s; msg.h = hud; } }
       if (snap.projectiles) {
         const pr = meE ? snap.projectiles.filter((p) => p.zone === meE.zone && Math.abs(p.x - meE.x) <= viewPx && Math.abs(p.y - meE.y) <= viewPx) : [];

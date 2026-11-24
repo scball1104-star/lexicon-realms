@@ -141,6 +141,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (hooks.hostGame) hooks.hostGame(store.get(id));
     },
     join(id) { const c = store.get(id); if (c && hooks.joinGame) hooks.joinGame(c); },
+    /** Options: Invite a friend (drop-in, src/net/dropin.js); canInvite false for a hero in a friend's game. */
+    invite() { act.close('menu'); if (hooks.invite) hooks.invite(); },
+    canInvite: () => !!hooks.invite && !(hooks.canInvite && !hooks.canInvite()),
     enter(id) {
       const c = store.get(id);
       if (!c) return;
@@ -406,10 +409,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, zoneKind: (id) => (zones[id] || {}).kind, flights: (meS && meS.flights) || [] };
     const regions = [];
     ctx.imageSmoothingEnabled = false;
-    if (st.mode !== 'game' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
+    if (st.mode !== 'game' && st.mode !== 'watch' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
     if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'create') looks.drawCreate(ctx, env, regions, t, centred, L);
+    else if (st.mode === 'watch') { /* drop-in watcher (src/net/dropin.js): the world only, the co-op bar is HTML */ }
     else {
       let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones });
       if (demoExtra) m = applyDemo(m);
