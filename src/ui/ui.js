@@ -40,6 +40,7 @@ import { START_REALMS } from '../data/rootbound.js';   // big world: the welcome
 import { createUiSounds } from '../audio/ui_sounds.js';   // menu sounds (pure observer; hooks.sound plays them)
 import { applySkin, skinFromOptions, textSizeFrom } from './skin.js';   // wave 6 uiskin: Lantern and Vellum, text size
 import { createTalkUI } from './talk_ui.js';   // wave 6 quest scenes: the talk panel and flourishes (view.talk)
+import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing hints for a new hero (Help turns them off)
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -95,6 +96,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const send = (cmd) => { if (hooks.command) hooks.command(cmd); };
   const uiSnd = createUiSounds((k) => { if (hooks.sound) hooks.sound(k); });
   const talkUi = createTalkUI({ g, zones, zoneNames, hooks, options: () => options });
+  const onb = createOnboard({ g, store, options: () => options, hooks });   // wave 7 onboarding (src/ui/onboard.js)
 
   // ---- the action surface menus and screens call
   const act = {
@@ -151,7 +153,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (c.start === 'realm' && START_REALMS[c.cls]) say('system', `Welcome to ${START_REALMS[c.cls].name}, ${c.name}. ${START_REALMS[c.cls].welcome || 'Ottilie the Head Archivist has a word for you: look for the gold ! over her head.'}`);
         else say('system', `Welcome to Willowmere, ${c.name}. Hob the innkeeper has a word for you: look for the gold ! over his head.`);
       } else say('system', `Welcome back, ${c.name}.`);
-      if (!c.hinted) { st.hint = { t0: st.now }; store.update(id, { hinted: true }); }
+      onb.start(c);   // wave 7: by-doing hints stand in for the controls card while they are on (Help turns them off)
+      if (!c.hinted) { if (!onb.live) st.hint = { t0: st.now }; store.update(id, { hinted: true }); }
     },
     close(id) { if (id === 'dialog') { act.closeDialog(); return; } st.open.delete(id); st.confirm = null; st.rebinding = null; st.talentSel = null; },
     send,
@@ -317,7 +320,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     logout() {
       saveProgress();
       if (hooks.logout) hooks.logout(playerId);
-      playerId = null; st.charId = null; st.dialog = null; st.hint = null; st.mirror = null; st.open.clear(); lastModel = null;
+      playerId = null; st.charId = null; st.dialog = null; st.hint = null; st.mirror = null; st.open.clear(); lastModel = null; onb.stop();
       act.go(store.list().length ? 'select' : 'title');
     },
   };
@@ -448,7 +451,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
           if (st.open.has('talents') && !isBuilds2(m)) g.smallScope(() => drawTalents(ctx, env, m, st, regions, act));   // its tree is a fixed small-text grid
           if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
-          if (st.open.has('help')) drawHelp(ctx, env, st, regions, act, options.binds);
+          if (st.open.has('help')) drawHelp(ctx, env, st, regions, act, options.binds, options);   // options: the hints switch (wave 7)
           if (st.open.has('prof')) prof.drawWindow(ctx, env, m, regions);   // professions (prof_ui.js)
           if (st.open.has('glyphs')) glyphs.drawWindow(ctx, env, m, regions);   // Inscriptions (glyph_ui.js)
         }), env);
@@ -463,6 +466,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (st.slotCard) sizeScope(() => drawSlotCard(ctx, env, m, L, regions));
         if (isBuilds2(m)) builds2Prompts(ctx, L, m);
         if (st.hint) drawHint(ctx, L, regions);
+        // wave 7 onboarding: one by-doing hint, never over a window, the npc window, the boss card or a banner
+        onb.frame(st, m, snap, playerId, t, L, !!(st.open.size || st.dialog || st.bossUp || st.levelUp || st.chest || st.mirror || st.barPick || st.slotCard || st.hint || st.story || m.player.dead || (m.group && (m.group.trade || m.group.ready))));
+        sizeScope(() => onb.draw(ctx, L, regions, t));
         if (st.mirror) looks.drawMirror(ctx, env, regions, t, centred, L);   // the free mirror covers the HUD
       }
     }
@@ -1161,12 +1167,13 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     /** Quest scenes: view.talk for the 3D renderer (talk_ui.js view), and the talk state for drivers. */
     talkView: (snap) => (st.mode === 'game' ? talkUi.view(st, snap, playerId, st.metrics.touch) : null),
     talk: talkUi,
+    onboard: onb,   // wave 7 onboarding hints (drivers and tests)
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */
     owns(x, y) { return st.mode !== 'game' || !!topRegion(x, y); },
     handleEvents(events, ctx) {
       for (const ev of events) {
         for (const l of eventLines(ev, { me: playerId, resourceKind: resKindNow(), ...ctx })) (l.quiet ? quietSay(l.text) : say(l.ch, l.text));
-        if (playerId != null) onOwnEvent(ev);
+        if (playerId != null) { onb.onEvent(ev, playerId); onOwnEvent(ev); }   // wave 7 onboarding sees what the hero did
       }
     },
     /** The npc template whose mark is gold after a level-up with new abilities (main.js adds it to the quest marks). */

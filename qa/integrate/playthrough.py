@@ -324,8 +324,10 @@ def run():
         g.shot('02_create', 'character creation, Warden picked, name typed')
         g.key('Enter', 1.5)
         assert g.ev('__drv.mode()') == 'game', 'entered the world'
-        g.shot('03_welcome', 'new hero in Willowmere: welcome line, controls card, ! over Hob')
-        g.click_region(kind='window', id='hint')
+        time.sleep(1.8)   # wave 7: the first hint (walk) comes in after a moment; the old controls card is gone while hints are on
+        g.shot('03_welcome', 'new hero in Willowmere: welcome line, the walk hint, ! over Hob')
+        if g.ev("window.__realms.ui.regions.some((r) => r.kind === 'window' && r.id === 'hint')"):
+            g.click_region(kind='window', id='hint')
 
         # ---- first quest: Hob -> Mael
         d = g.talk('hob')

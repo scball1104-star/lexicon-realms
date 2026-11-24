@@ -7,7 +7,8 @@
 //
 // Schema v2 (key `lexicon_realms.chars`; Builds 2, docs/design/BUILDS_2.md section 8):
 //   { v: 2, nextId: 3, seq: 9, chars: [{ id, name, cls, look, level, xp, zone, zoneName, x, y, createdSeq, lastPlayedSeq,
-//     state?, hinted?, build?, migratedFrom? }] }
+//     state?, hinted?, tips?, build?, migratedFrom? }] }
+//   tips: the onboarding hints this hero has done (wave 7, src/ui/onboard.js); missing on a hero from before them
 //   state: the full character (CONTRACTS 2.4 addPlayer restore) with `v: 2` and `build` (src/data/builds2.js newBuild:
 //   talent ranks, undo, skill picks, signatures, leaning, auto-spend, respec counter, free respec flag).
 //   build at the top level: only for a v1 hero that never entered the world (no state yet); entering moves it into state.
@@ -177,6 +178,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
   skin: 'lantern',           // window style (wave 6 uiskin): 'lantern' (Lantern and Vellum, the default) or 'classic' (one wave)
   text: 'auto',              // text size: 'auto' (Large on a phone, Normal on PC), 'normal' or 'large' once picked in Settings
   binds: {},                 // action -> KeyboardEvent.code overrides (see keymap.js ACTIONS for defaults)
+  hints: true,               // wave 7 onboarding: by-doing hints for a new hero (the switch is in Help, src/ui/onboard.js)
 });
 
 export function loadOptions(storage) {
