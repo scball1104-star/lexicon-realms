@@ -708,6 +708,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   choice(short ? 'Graphics' : 'Graphics (reloads)', 'r3d', [false, true], ['2D', short ? '3D' : '3D preview'], touch);
   choice(short ? 'Camera' : 'Camera (3D)', 'cam', ['fixed', 'horizon'], ['Fixed', 'Horizon'], touch);   // wave 5b horizon camera (an option)
   choice(short ? 'Synth' : 'Synth sound', 'synth', [true, false], ['On', 'Off'], touch);   // wave 5b synth sound (off = today's sounds)
+  choice(short ? 'Scenes' : 'Quest scenes', 'questScenes', [true, false], ['On', 'Off']);   // wave 6 quest scenes (off = today's npc window)
   placeChoices();               // new choice(...) rows go above this line
   // ---- bottom buttons
   const btn = (x, w, label, on) => {

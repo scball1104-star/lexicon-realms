@@ -25,6 +25,7 @@ import { musicFor, bedFor, placeKey, ZONE_BEDS } from './beds.js';
 import { createCombatMusic } from './combat_music.js';
 import { createSynthGame } from './synth_game.js';
 import { synthPlaceFor } from './synth_places.js';
+import { createTalkVoice } from './talk_voice.js';   // wave 6 quest scenes: the voice murmur and the flourish sounds
 
 const KEY_GAP_MS = 1200;          // keyed sounds (fail buzzers) at most this often, unless the sound names its own gap
 const BATTLE = 'battle';
@@ -39,7 +40,7 @@ export function createAudio(opts = {}) {
   const noop = () => {};
   if (!hasWindow) {
     return { unlock: () => Promise.resolve(false), setVolumes: noop, music: noop, zone: noop, ambience: noop, sfx: noop, ui: noop, jingle: noop,
-      frame: noop, setSynth: noop, attach: () => noop, debug: () => ({ available: false }), ready: Promise.resolve(null) };
+      frame: noop, setSynth: noop, talk: noop, attach: () => noop, debug: () => ({ available: false }), ready: Promise.resolve(null) };
   }
   let base = opts.base == null ? 'assets/audio/' : String(opts.base);
   if (base && !base.endsWith('/')) base += '/';
@@ -60,6 +61,7 @@ export function createAudio(opts = {}) {
   // wave 5b: the synth beside the LQ engine (synth_game.js): themes for places with no track of their own, live sounds
   const syn = eng ? createSynthGame({ engine: eng, onTrackReady: () => { synthPick = true; } }) : null;
   let synthPick = false, synthField = false, roadSince = null, family = null;
+  const talkVoice = createTalkVoice(syn);   // wave 6 quest scenes: audio.talk({ say: { npc, text } } | { stop } | { flourish })
   const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   function playField(id, fade = 1.0) {
@@ -116,6 +118,8 @@ export function createAudio(opts = {}) {
     ambience: (id) => { bedKey = id ? `${id}@1` : ''; ready.then(safe(() => eng.ambience(id || null, { fade: 1.5 }))); },
     sfx: safe((id, o) => eng.sfx(id, o)),
     ui: (kind) => { const id = UI_SOUNDS[kind]; if (id) api.sfx(id, { volume: UI_VOLUME[kind] ?? 0.8 }); },
+    /** Quest scenes (talk_voice.js): { say: { npc, text } } starts the murmur, { stop: true } ends it, { flourish: kind }. */
+    talk: (m = {}) => { try { if (m.say) talkVoice.say(m.say); else if (m.stop) talkVoice.stop(); else if (m.flourish) talkVoice.flourish(m.flourish, m); } catch (e) { console.warn('[audio] talk', e); } },
     jingle: safe((id, o = {}) => eng.jingle(id, { duckMusic: o.duck ?? 0.3, volume: o.volume ?? 1 })),
     debug: () => ({ ...(eng ? eng.debugState() : { available: false }), battle: cm.state, field, bed: bedKey, synth: syn ? syn.debug() : null }),
 
@@ -126,6 +130,7 @@ export function createAudio(opts = {}) {
         ents.clear();
         if (snap && snap.entities) for (const e of snap.entities) if (e.kind === 'player') ents.set(e.id, e);
         if (syn) syn.frame(t == null ? nowMs() : t, { me, snap, zone });
+        talkVoice.frame(t == null ? nowMs() : t);   // wave 6 quest scenes: the murmur's phrases on time
         if (!me) return;
         if (place && zone) {
           const k = placeKey(fresh ? null : placeK, { zoneId: me.zone, region: place.region });

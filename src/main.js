@@ -144,6 +144,7 @@ async function boot() {
       // wave 6 (customization kit): can the creation screen show the 3D hero, and a class's starting gear for it
       has3d: () => !!(renderer.is3d && renderer.stageOk),
       startGear: (cls) => ((content.classes[cls] || {}).startGear || {}),
+      scenes: () => !!renderer.is3d, talkVoice: (m) => audio.talk(m),   // wave 6 quest scenes (src/ui/talk_ui.js)
     },
   });
   // online co-op (src/net/): host a game for up to 3 friends, or join one by room code or copy-paste codes
@@ -364,6 +365,7 @@ async function boot() {
     view.dpr = window.devicePixelRatio || 1; view.hud = ui.hudMode;
     view.stage = ui.stage;             // wave 6: the creation screen's or the mirror's turntable (renderer3d draws only it)
     view.inset = ui.mode === 'game' ? insets : null;   // title screens: the art covers the notch strips too
+    view.talk = ui.talkView(snap);                     // wave 6 quest scenes: the talk camera (null: today's)
     // secret caches this hero has opened draw open, without their glint
     for (const e of snap.entities) if (e.node && e.node.secret) e.opened = (e.node.openedBy || []).includes(playerId);
     renderer.draw(prev, snap, alpha, view);

@@ -57,6 +57,8 @@ class Game:
         return self.p.evaluate(js, arg) if arg is not None else self.p.evaluate(js)
 
     def boot(self, url):
+        if os.environ.get('R3D') == '1':   # R3D=1: the same run in the 3D renderer (wave 6: quest scenes, the talk camera on)
+            url += ('&' if '?' in url else '?') + 'r=3d'
         self.p.goto(url, timeout=30000)
         self.p.wait_for_function('window.__realms && (window.__realms.ready || window.__realms.error)', timeout=30000)
         err = self.ev('window.__realms.error || null')

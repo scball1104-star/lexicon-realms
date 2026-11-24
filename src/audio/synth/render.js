@@ -12,6 +12,7 @@ import { createSequencer, textureArrangement, combatArrangement } from './sequen
 import { SFX } from './sfx.js';
 import { VOICES, BARK_SHAPES } from './voices.js';
 import { makeRng } from './rng.js';
+import { MURMUR_RECIPES } from './murmur.js';
 
 const hasOffline = () => typeof OfflineAudioContext !== 'undefined';
 const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -113,6 +114,7 @@ Object.assign(RECIPES, {
   'chime:area': { variants: 3, slot: 2.2, play: (S, t, i) => VOICES.chime(S, t, { notes: [[74, 78, 81], [76, 79, 83], [71, 74, 78]][i] }) },
   'chime:rest': { variants: 1, slot: 2.4, play: (S, t) => VOICES.chime(S, t, { notes: [69, 74, 78, 81] }) },
 });
+Object.assign(RECIPES, MURMUR_RECIPES);   // wave 6 quest scenes: the talk murmur and the accept / turn-in flourishes
 // seamless loops: rendered a second long and folded back onto themselves
 const LOOPS = {
   'loop:fire': { len: 6, play: (S, t, len) => SFX.fire(S, t, { dur: len + 1.2, loop: true }) },
