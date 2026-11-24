@@ -60,8 +60,8 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     ls.slice(0, 4).forEach((ln, i) => g.text(ctx, ln, tx, y + i * g.lh, 'cream'));
     y += Math.max(hasPortrait ? 36 : 0, Math.min(4, ls.length) * g.lh + 6);
     const opts = [];
-    for (const id of d.turnins) opts.push({ icon: 'emote_question_0', label: (questInfo(id) || { name: id }).name, color: 'gold', on: () => { d.page = 'quest'; d.quest = id; d.textPage = 0; d.choice = 0; } });
-    for (const id of d.offers) opts.push({ icon: 'emote_exclaim_0', label: (questInfo(id) || { name: id }).name, color: 'gold', on: () => { d.page = 'quest'; d.quest = id; d.textPage = 0; } });
+    for (const id of d.turnins) opts.push({ icon: 'emote_question_0', label: (questInfo(id) || { name: id }).name, color: 'gold', lit: true, on: () => { d.page = 'quest'; d.quest = id; d.textPage = 0; d.choice = 0; } });
+    for (const id of d.offers) opts.push({ icon: 'emote_exclaim_0', label: (questInfo(id) || { name: id }).name, color: 'gold', lit: true, on: () => { d.page = 'quest'; d.quest = id; d.textPage = 0; } });
     for (const id of d.progress) opts.push({ icon: 'emote_question_0', dim: true, label: (questInfo(id) || { name: id }).name, color: 'gray', on: () => { d.page = 'quest'; d.quest = id; d.textPage = 0; } });
     if (d.trainer && d.trainer.cls === m.player.cls) opts.push({ icon: 'icon_book', label: 'Train me.', color: 'white', on: () => { d.page = 'train'; d.scroll = 0; } });
     else if (d.trainer) opts.push({ icon: 'icon_book', label: `I only train ${(classInfo(d.trainer.cls) || { name: d.trainer.cls }).name}s.`, color: 'gray', on: () => {} });
@@ -72,7 +72,8 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     opts.push({ icon: null, label: 'Goodbye.', color: 'cream', on: () => act.closeDialog() });
     for (const o of opts) {
       const ry = y;
-      g.rect(ctx, x0, ry, w0, rowH - 1, 'rgba(20,16,30,0.35)');
+      g.rect(ctx, x0, ry, w0, rowH - 1, o.lit ? 'rgba(150,110,30,0.38)' : 'rgba(20,16,30,0.35)');
+      if (o.lit) g.rect(ctx, x0, ry, 2, rowH - 1, '#f0c040');   // a quest offer or hand-in stands out from trainer and shop rows (onboarding, Scott 2026-11-24)
       if (o.icon) g.iconIn(ctx, o.icon, x0 + 1, ry, 16, rowH - 1, o.dim ? 0.45 : 1);
       g.text(ctx, g.clip(o.label, w0 - 24), x0 + 20, ry + Math.floor((rowH - g.lh) / 2), o.color);
       regions.push({ rect: { x: x0, y: ry, w: w0, h: rowH - 1 }, kind: 'button', on: o.on, label: o.label });

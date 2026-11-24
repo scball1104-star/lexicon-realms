@@ -7,7 +7,7 @@ import { abilityName, questInfo, itemInfo, resourceWord } from './gamedata.js';
 const FAIL = {
   cooldown: 'That is not ready yet.', range: 'Out of range.', los: 'You cannot see your target.',
   requires: 'You cannot do that now.', silenced: 'You cannot speak right now.', moving: 'You must stand still for that.',
-  target: 'You need a target for that.', combo: 'Not enough Ink Marks on that target.', stunned: 'You are stunned.', busy: 'You are busy.',
+  target: 'You need a target for that.', combo: 'Not enough Ink Marks on that target.', stunned: 'You are stunned.', busy: 'Wait for your cast to finish.',
   combat: 'Not while in combat.', locked: 'That school of magic is locked out for now.', indoors: 'You cannot ride here.',
 };
 const SCHOOL_WORD = { ink: 'ink', light: 'light', shadow: 'shadow', fire: 'fire', nature: 'nature', spell: 'spell' };
