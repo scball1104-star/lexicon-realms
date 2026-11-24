@@ -18,6 +18,7 @@ import { gatherLook, animateGather, gatherPick, workClip } from './gather3d.js';
 import { createRider, createYard } from './mount3d.js';
 import { createAnimKit } from './anim_kit.js';   // heroes' combat moments over the clips (approved 2026-11-23)
 import { groundY } from './ground_plan.js';   // wave 5 ground kit: the visible ground height
+import { createEmoteKit } from './emote_kit.js';   // wave 7 anim: jump, emotes, NPC work loops (approved 2026-11-24)
 
 const PX = 16;
 const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
@@ -148,12 +149,14 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
   const corpses = new Map();   // mob id -> death time (fx clock)
   const tmp = new THREE.Vector3();
   const rider = createRider(L), yard = createYard(L, layer);   // mounts (mount3d.js): the animal under a hero, Wynn's yard
+  const emotes = createEmoteKit(THREE, L, quality, { off: typeof location !== 'undefined' && new URLSearchParams(location.search).get('anim') === '0' });   // ?anim=0: today's look
 
   async function buildBody(a, e) {
     if (e.kind === 'player' || e.kind === 'npc') {
       const spec = e.kind === 'player' ? heroSpec(e.cls, e.look, e.equip, items, e.app) : npcSpec(e.template, e.sprite);
       const ch = await assemble(L, spec);
       if (e.kind === 'player') ch.anim = createAnimKit(THREE, ch, { cls: spec.cls });   // before anything moves the bones
+      else if (emotes.npcKit(e)) ch.npcKit = createAnimKit(THREE, ch, { cls: 'warden' });   // wave 7 anim: work loops, a look round
       const local = new THREE.Group();   // per-body world-space extras (cape, trails)
       const dressed = await dress(L, ch, spec, local);
       await finishApp(L, ch, spec);      // no app: nothing (today's look)
@@ -350,12 +353,14 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       if (b && b.type === 'hero') {
         gatherPick(a, e, L);               // professions: the pickaxe while mining (gather3d.js)
         rider.step(a, e, snap.tick, now, fdt, moving);   // mounts: the animal under (or, summoning, beside) the hero
-        heroAnim(a, e, st);
-        b.ch.mixer.update(fdt);
+        const em = emotes.clip(a, e, b, now, snap, alpha, focus);   // wave 7 anim: jump, dance, sit-down; a job NPC is held
+        if (!em) heroAnim(a, e, st);
+        if (em !== 'held') b.ch.mixer.update(fdt);
         if (b.ch.anim) kitOverlay(a, e, st, snap, alpha, fdt, moving);
         // the library's sit is a chair sit: on open ground the body drops to sit on the grass
         const sy = b.anim.name === 'Sitting_Idle_Loop' ? -0.42 * (b.spec.scale || 1) : 0;
         b.ch.o.position.y += (sy - b.ch.o.position.y) * Math.min(1, dt * 8);
+        emotes.pose(a, e, b, now, fdt);    // wave 7 anim: wave, cheer, the hop, weapons away, the townsfolk at work
         if (rider.pose(a, now) == null && b.ch.o.rotation.x) b.ch.o.rotation.x = 0;   // mounts: seat, legs, reins, the bounce
         if (b.ch.cape) b.ch.cape.state.flare = moving ? 0.55 : 0.15;
         b.ch.applyPost();

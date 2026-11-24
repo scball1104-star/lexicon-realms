@@ -155,6 +155,11 @@ Internal state is the same object plus a few internal fields; positions inside t
   cls, look, xp, xpToLevel, bar: ['warden_strike', ...], known: [...], talents: { id: ranks }, gold,
   combo: { target, n, until } | null,                 // Inkblade Ink Marks on `target` (CLASSES 7)
   lantern: { zone, id, x, y }, inCombat, autoOn, sitting,
+  emote: { id: 'jump' | 'wave' | 'cheer' | 'dance', tick } | null,   // wave 7 anim (src/sim/emotes.js): cosmetic ONLY, no rng,
+                                                      // position or stats; command { t: 'emote', id }; ends on a move (not a jump),
+                                                      // combat, a cast, death, a mount, sitting, work, or its time; jump 0.8 s cooldown
+  // npcs (snapshot): job: 'smith' | 'baker' | 'guard' (wave 7 anim work loop, render3d/emote_kit.js): e.job wins, else the
+  //   NPC data's `job` (src/data/npcs.js); a townsfolk routine sets e.job (null: no loop) to switch it
   bag: [{ item, qty, inst? }], bags: ['starter_satchel'], equip: { main, off, head, chest, legs, feet, hands, trinket },
   quests: { id: { state, counts, escort? } }, questsDone: [ids],
   // mobs (snapshot): elite, mobKind, rank: 'normal' | 'weak' | 'elite' | 'boss', aggro (target id while fighting), aiMode

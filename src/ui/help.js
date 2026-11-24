@@ -19,6 +19,8 @@ export function helpSections(binds) {
       ['Speed', 'Always full speed', 'Always full speed'],
       ['Sit and rest', k(b, 'sit'), 'Out of a fight you heal on your own'],
       ['Ride a mount', `${k(b, 'mount')} (buy one from Wynn in Willowmere)`, 'Horseshoe button'],
+      ['Jump', k(b, 'jump'), 'Hold your portrait, then Jump'],
+      ['Emotes', `${k(b, 'emotes')}: wave, cheer, sit, dance. Party chat: /wave`, 'Hold your portrait'],
     ] },
     { title: 'Fighting', rows: [
       ['Pick a foe', `Click it, or ${k(b, 'next_target')}`, 'Tap it, or Next'],

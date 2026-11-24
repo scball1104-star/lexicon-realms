@@ -33,7 +33,7 @@ export const NPCS = {
 
   holt: {
     id: 'holt', name: 'Sergeant Holt', sprite: 'npc_guard', title: 'Warden Trainer', faction: 'friendly', roles: ['quest', 'trainer'],
-    vendor: null, trainer: { cls: 'warden' }, innkeeper: false, lq: 'holt',
+    vendor: null, trainer: { cls: 'warden' }, innkeeper: false, lq: 'holt', job: 'guard',   // job: the 3D work loop (render3d/emote_kit.js)
     talk: [
       'Stand where the trouble has to go through you. That is the whole of the job.',
       'A gate is only a gate if somebody stands at it. Today that is me.',
@@ -101,7 +101,7 @@ export const NPCS = {
 
   oren: {
     id: 'oren', name: 'Oren', sprite: 'npc_baker', title: 'Baker', faction: 'friendly', roles: ['quest', 'vendor'],
-    vendor: { items: [{ item: 'honey_roll' }] }, trainer: null, innkeeper: false, lq: 'oren',
+    vendor: { items: [{ item: 'honey_roll' }] }, trainer: null, innkeeper: false, lq: 'oren', job: 'baker',
     talk: [
       'Honey rolls, fresh! Well. Fresh this morning. Fresh enough.',
       'Shh. The dough is rising. It gets shy if you watch.',
@@ -119,7 +119,7 @@ export const NPCS = {
         { item: 'gear_shield', ilvl: 6 },
       ],
     },
-    trainer: null, innkeeper: false, lq: 'garrick',
+    trainer: null, innkeeper: false, lq: 'garrick', job: 'smith',
     talk: [
       'Do not rush a forge.',
       'Respect the rhythm.',

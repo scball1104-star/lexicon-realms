@@ -8,6 +8,8 @@ export const ACTIONS = [
   { id: 'move_left', label: 'Move left', key: 'KeyA', group: 'Movement' },
   { id: 'move_right', label: 'Move right', key: 'KeyD', group: 'Movement' },
   { id: 'mount', label: 'Ride / get off', key: 'KeyZ', group: 'Movement' },     // mounts (src/sim/mounts.js)
+  { id: 'jump', label: 'Jump', key: 'Space', group: 'Movement' },            // wave 7 anim (src/ui/emote_ui.js)
+  { id: 'emotes', label: 'Emotes', key: 'KeyG', group: 'Movement' },
   { id: 'slot1', label: 'Ability 1', key: 'Digit1', group: 'Combat' },
   { id: 'slot2', label: 'Ability 2', key: 'Digit2', group: 'Combat' },
   { id: 'slot3', label: 'Ability 3', key: 'Digit3', group: 'Combat' },

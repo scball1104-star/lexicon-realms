@@ -29,6 +29,8 @@ three.js r170 (MIT) is vendored separately in `src/vendor/three/` with its licen
 
 The four animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf https://poly.pizza/m/P1gU3Qkr9r, Deer https://poly.pizza/m/T6Cs7tmMHJ, Horse https://poly.pizza/m/qvTrSG9pZF (the Bay Horse and Grey Charger mounts), Stag https://poly.pizza/m/tQdzbZ1Cmw (the Moor Stag mount).
 
+`ual/UAL_clips.glb` holds these clips of the Universal Animation Library: Idle_Loop, Walk_Loop, Jog_Fwd_Loop, Sword_Attack, Sword_Idle, Spell_Simple_Shoot, Spell_Simple_Idle_Loop, Hit_Chest, Death01, Sitting_Idle_Loop, Punch_Jab, Punch_Cross, Crouch_Idle_Loop, Crouch_Fwd_Loop, Idle_Torch_Loop, Pistol_Aim_Neutral, Pistol_Shoot, Idle_Talking_Loop, Jump_Start, Jump_Loop, Jump_Land, Dance_Loop, Sitting_Enter.
+
 The Ghost Skull (the barrow shade) is a Quaternius model published on poly.pizza as CC0 1.0: https://poly.pizza/m/TX8r9WBXpe. The other foes are built in code (src/render3d/creatures.js).
 
 Total size: 25.5 MB in 302 files.
