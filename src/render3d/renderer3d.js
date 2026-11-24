@@ -60,7 +60,9 @@ import { makeBird, tickBird } from './bird.js';   // big world: the Lantern Kite
 import { createRealms2Fx3 } from './realms2_3d.js';   // wave 3 realms2: lantern cones, fog banks, the sandstorm
 import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 import { createSkyKit } from './sky_kit.js';     // wave 5 Track A: sky dome, light rig, 3D weather, far hills
-import { skyTier } from './sky_rig.js';
+import { skyTier, weatherState } from './sky_rig.js';
+import { createTownLife } from './townlife3d.js';   // wave 7 world life: townsfolk, critters, showers (townlife_plan.js)
+import { showerAt } from './townlife_plan.js';
 import { horizonPose, H_PITCH, H_PITCH_LITE } from './horizon_cam.js';   // wave 5b: the optional horizon camera (view.cam)
 import { createTurntable } from './turntable.js';   // wave 6: the creation screen's 3D hero (view.stage)   // wave 5b: the optional horizon camera (view.cam)
 import { createTalkCam } from './talk_cam.js';   // wave 6 quest scenes: the talk camera (view.talk)
@@ -159,6 +161,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 3;
   scene.add(sun); scene.add(sun.target);
   const skyKit = createSkyKit(THREE, scene, { tier: skyTier({ q3d: q.get('q3d'), sky: q.get('sky'), touchLow: touchDev && q.get('q3d') !== 'high' }) });
+  const townLife = createTownLife(THREE, scene, { quality, tilesDb: assets.has && assets.has('tiles') ? assets.json('tiles') : null, q });   // null with ?life=off
   // the target ring: a pulsing ring at the target's feet, coloured by faction (as in 2D)
   const ringMat = new THREE.MeshBasicMaterial({ color: '#ff5a3c', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const targetRing = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.52, 40).rotateX(-Math.PI / 2), ringMat);
@@ -794,6 +797,13 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     actors.sync(prevSnap, snap, alpha, view.zone, now, fx3.screen.hitstop > 0 && view.shake !== false ? dt * fx3.stopRate : dt, fx3, focus, hpose ? dev.actorR || hpose.actorR : (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
     rideKites(snap, view, now, rdt);
+    // wave 7 world life (townlife3d.js): passing showers from the sim tick when no weather is set (?showers=0 off), and
+    // the townsfolk and critters of a town near the focus, who go indoors at night and in the rain
+    const shower = view.weather == null && q.get('showers') !== '0' ? showerAt(snap.tick, zone) : 0;
+    const wview = shower > 0 ? { ...view, weather: { rain: shower } } : view;
+    const openSky = !!zone && !isPlaceZone(zone) && !zone.cavern && !zone.atmos;
+    if (townLife && !townLife.compiled) { townLife.compiled = true; for (const o of [townLife.mesh, townLife.critterMesh]) { o.visible = true; precompile(o).catch(() => null); } }   // their shaders, once
+    if (townLife) dev.life = townLife.frame({ zone: isPlace(view.zone) ? null : zone, kit: shown.kit, snap, f: dayFraction(snap, view), rain: openSky ? weatherState(wview.weather, zone, area).rain : 0, now, focus, inView });
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
     // a zone edge finds its neighbour ready. A dungeon or cave behind a door on the world only once the hero is near
     // that door (five small places nobody needs on the road); ?nopre=1 turns this off (drivers: the cold path)
@@ -823,7 +833,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     animateLineup(now, dt);
     renderer.info.reset();
     const sky = applySky(snap, view, zone, target, area, rdt);
-    if (skyKit) dev.skyKit = skyKit.frame({ f: dayFraction(snap, view), sky, view, zone, area, now, camera, focus, hemi, sun, under: !!(zone && (isPlaceZone(zone) || zone.cavern || zone.atmos)), dev });
+    if (skyKit) dev.skyKit = skyKit.frame({ f: dayFraction(snap, view), sky, view: wview, zone, area, now, camera, focus, hemi, sun, under: !!(zone && (isPlaceZone(zone) || zone.cavern || zone.atmos)), dev });
     dev.realms2 = r2fx.update(snap, view.zone, actors, camera, now, focus);
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     if (tg && tg.e && !tg.e.dead && tg.kind !== 'object') {
