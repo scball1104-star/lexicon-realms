@@ -4,6 +4,7 @@ import { createCore } from './core.js';
 import { createSequencer, standardArrangement } from './sequencer.js';
 import { THEMES } from './themes.js';
 import { SFX } from './sfx.js';
+import { VOICES, BARK_SHAPES } from './voices.js';
 
 const W = THEMES.willowmere;
 const TAIL = 4;
@@ -64,6 +65,28 @@ export const CLIPS = {
       t += rel + 0.32; mark('impact');
       SFX.impact(S, t, { power: 1 });
       S.marks = marks;
+      return S;
+    },
+  },
+  // (d) wave 5b: the second pass on the boar and the barks (first pass first, for comparison), then every family
+  voices_v2: {
+    seconds: () => 39,
+    build(ctx) {
+      const S = createCore(ctx, { seed: 777, reverbDecay: 1.2 });
+      S.music.gain.value = 0;
+      const marks = [];
+      let t = 0.4;
+      const mark = (name) => marks.push([name, Math.round(t * 10) / 10]);
+      mark('boar, first pass'); t += SFX.creatureVoice(S, t, { kind: 'boar', mood: 'aggro' }) + 0.9;
+      for (const m of ['aggro', 'hurt', 'flee', 'death']) { mark(`boar, second pass: ${m}`); t += VOICES.voiceOf(S, t, { family: 'boar', mood: m }) + 0.8; }
+      t += 0.4;
+      mark('barks, first pass'); t += SFX.bark(S, t, { voice: 0.35, shape: 'hey' }) + 0.5; t += SFX.bark(S, t, { voice: 0.75, shape: 'oh' }) + 0.9;
+      mark('barks, second pass: six shapes, low, mid and high voices');
+      BARK_SHAPES.forEach((sh, i) => { t += VOICES.npcBark(S, t, { voice: [0.12, 0.45, 0.8][i % 3], shape: sh, seed: 40 + i }) + 0.45; });
+      t += 0.5;
+      for (const f of ['wolf', 'bird', 'insect', 'ooze', 'spirit', 'construct', 'humanoid']) { mark(`${f}: aggro, then death`); t += VOICES.voiceOf(S, t, { family: f, mood: 'aggro' }) + 0.35; t += VOICES.voiceOf(S, t, { family: f, mood: 'death' }) + 0.7; }
+      S.marks = marks;
+      S.endAt = t;
       return S;
     },
   },

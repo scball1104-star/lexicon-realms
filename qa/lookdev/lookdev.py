@@ -114,6 +114,7 @@ def main():
     ap.add_argument('--perf-s', type=float, default=3.0, help='seconds of real loop per view for the frame sample')
     ap.add_argument('--no-perf', action='store_true')
     ap.add_argument('--budget', default=os.path.join(HERE, 'budget.json'))
+    ap.add_argument('--extra', default='', help="extra query for every view, e.g. 'synth=0' (wave 5b: synth on and off)")
     a = ap.parse_args()
     out = os.path.join(a.out, a.tag)
     os.makedirs(out, exist_ok=True)
@@ -144,7 +145,7 @@ def main():
             t0 = time.time()
             try:
                 q = 'r=3d' if action == 'title' else FIX
-                page.goto(f'{base}?{q}&{query}', timeout=30000)
+                page.goto(f'{base}?{q}&{query}' + (f'&{a.extra}' if a.extra else ''), timeout=30000)
                 page.wait_for_function('window.__realms && (window.__realms.ready || window.__realms.error)', timeout=60000)
                 if ev('window.__realms.error || null'):
                     raise RuntimeError(ev('window.__realms.error'))

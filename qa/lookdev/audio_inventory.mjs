@@ -21,6 +21,9 @@ const imp = (p) => import(pathToFileURL(path.join(GAME, p)).href);
 const man = JSON.parse(fs.readFileSync(path.join(GAME, 'assets/audio/manifest.json'), 'utf8'));
 const { soundsFor, UI_SOUNDS, MUSIC_ALIAS } = await imp('src/audio/sfx_table.js');
 const beds = await imp('src/audio/beds.js');
+// wave 5b: the synth's own event sounds and place themes (when the Settings switch is on, the default)
+const { synthSoundsFor } = await imp('src/audio/synth_table.js');
+const { synthPlaceFor, synthTrackId } = await imp('src/audio/synth_places.js');
 
 // every event type the sim emits (a regex: a few hits are data fields named type, not events; the JSON lists the file)
 const simDir = path.join(GAME, 'src/sim');
@@ -53,6 +56,12 @@ const variants = (t) => {
   if (t === 'join' || t === 'leave') v.push({ ...base, id: FR });
   return v;
 };
+// the synth table reads entities: 9 is a foe (a Gorse Boar), 8 an NPC
+const SENTS = { 9: { kind: 'mob', template: 'gorse_boar', x: 0, y: 0, zone: 'world' }, 8: { kind: 'npc', template: 'npc_probe', x: 0, y: 0, zone: 'world' } };
+const synthCtx = () => ({ me: ME, isPlayer: (id) => id === ME || id === FR, ent: (id) => SENTS[id] || null, family: () => null });
+const synthVariants = (t) => [...variants(t), { type: t, mob: 9, top: ME }, { type: t, src: ME, id: 9, npc: 'npc_probe', ent: 8, offers: [] },
+  { type: t, id: 9, kind: 'mob', killer: ME, text: 'x' }, { type: t, src: ME, dst: 9, amount: 5 }, { type: t, src: ME, reason: 'cancel' },
+  { type: t, id: ME, name: 'Probe Lane' }, { type: t, id: ME, from: 'world', to: 'barrow', kind: 'dungeon' }];
 // the battle track is not an event sound: combat_music.js starts it from the hero's inCombat flag (the `combat` event)
 const MUSIC_EVENTS = { combat: 'music:battle', zone: 'music:zone_track' };
 // (zone: beds.js musicFor picks the new zone's track in audio.frame, so a zone change is heard as the music changing)
@@ -66,7 +75,10 @@ for (const [t, files] of [...types].sort()) {
     const fe = { ...ev, src: swap(ev.src), dst: swap(ev.dst), id: swap(ev.id), tagger: FR, killer: FR, target: 9, by: FR };
     for (const s of soundsFor(fe, ctxFor())) if (s.from === FR) friend.add(`${s.kind}:${s.id}`);
   }
-  rows.push({ type: t, files: [...files].sort(), mine: [...mine].sort(), friend: [...friend].sort() });
+  const synth = new Set();
+  for (const ev of synthVariants(t)) for (const s of synthSoundsFor(ev, synthCtx())) synth.add(`synth:${s.name}`);
+  for (const x of synth) mine.add(x);
+  rows.push({ type: t, files: [...files].sort(), mine: [...mine].sort(), friend: [...friend].sort(), synth: [...synth].sort() });
 }
 // zone music and ambience (each world region and the roads, then every other zone)
 const { buildContent } = await imp('src/data/maps/index.js');
@@ -76,7 +88,8 @@ for (const [id, z] of Object.entries(C.zones)) {
   const regs = (z.regions || []).filter((r) => r.id && id === 'world');
   for (const r of regs) zones.push({ id: `${id}/${r.id}`, kind: z.kind || 'field', music: beds.musicFor({ zoneId: id, track: MUSIC_ALIAS[r.music] || r.music }), ambience: beds.bedFor({ zoneId: id, zoneKind: z.kind, region: r.id }) });
   const track = MUSIC_ALIAS[z.music] || z.music || null;
-  zones.push({ id: regs.length ? `${id}/roads` : id, kind: z.kind || 'field', music: regs.length ? '(keeps the music you came with)' : beds.musicFor({ zoneId: id, track }), ambience: beds.bedFor({ zoneId: id, zoneKind: z.kind, region: null }) });
+  const sp = synthPlaceFor({ zoneId: id, zoneKind: z.kind, zoneName: z.name, region: null, onRoad: !!regs.length });
+  zones.push({ id: regs.length ? `${id}/roads` : id, kind: z.kind || 'field', music: sp ? synthTrackId(sp, 'day') : regs.length ? '(keeps the music you came with)' : beds.musicFor({ zoneId: id, track }), ambience: beds.bedFor({ zoneId: id, zoneKind: z.kind, region: null }) });
 }
 // menu sounds and the battle track: who calls them
 const grepSrc = (re, skip = ['vendor', 'audio']) => {
@@ -109,4 +122,6 @@ const byTrack = {};
 for (const z of zones) (byTrack[z.music || 'none'] = byTrack[z.music || 'none'] || []).push(z.id);
 console.log('Music by zone: ' + Object.entries(byTrack).map(([t, z]) => `${t} <- ${z.join(' ')}`).join(' | '));
 console.log('Ambience by zone: ' + zones.map((z) => `${z.id}=${z.ambience ? `${z.ambience.id}@${z.ambience.volume}` : 'none'}`).join(', '));
-console.log(`AUDIO_INVENTORY: files=${files} events=${rows.length} sounding=${rows.length - silent.length} silent=${silent.length} friend=${report.friendAudible.length}`);
+const bySynth = rows.filter((r) => r.synth.length);
+console.log(`Synth event sounds (${bySynth.length}): ${bySynth.map((r) => r.type).join(', ')}`);
+console.log(`AUDIO_INVENTORY: files=${files} events=${rows.length} sounding=${rows.length - silent.length} silent=${silent.length} friend=${report.friendAudible.length} synth=${bySynth.length}`);

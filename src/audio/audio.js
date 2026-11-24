@@ -23,10 +23,13 @@ import { createAudio as createEngine } from './engine.js';
 import { soundsFor, JINGLE_RANK, UI_SOUNDS, UI_VOLUME, MUSIC_ALIAS, FRIEND, friendGain, friendPan } from './sfx_table.js';
 import { musicFor, bedFor, placeKey, ZONE_BEDS } from './beds.js';
 import { createCombatMusic } from './combat_music.js';
+import { createSynthGame } from './synth_game.js';
+import { synthPlaceFor } from './synth_places.js';
 
 const KEY_GAP_MS = 1200;          // keyed sounds (fail buzzers) at most this often, unless the sound names its own gap
 const BATTLE = 'battle';
 const BATTLE_IN_S = 1.5, BATTLE_OUT_S = 2.5;
+const ROAD_MS = 8000;             // a synth road theme only after this long on a road (no flapping at region edges)
 
 // the four world regions' beds, kept under this name for older readers (the look-dev audio inventory)
 export const ZONE_AMBIENCE = Object.fromEntries(['willowmere', 'valley', 'downs', 'moor'].map((k) => [k, ZONE_BEDS[k].id]));
@@ -36,7 +39,7 @@ export function createAudio(opts = {}) {
   const noop = () => {};
   if (!hasWindow) {
     return { unlock: () => Promise.resolve(false), setVolumes: noop, music: noop, zone: noop, ambience: noop, sfx: noop, ui: noop, jingle: noop,
-      frame: noop, attach: () => noop, debug: () => ({ available: false }), ready: Promise.resolve(null) };
+      frame: noop, setSynth: noop, attach: () => noop, debug: () => ({ available: false }), ready: Promise.resolve(null) };
   }
   let base = opts.base == null ? 'assets/audio/' : String(opts.base);
   if (base && !base.endsWith('/')) base += '/';
@@ -54,6 +57,9 @@ export function createAudio(opts = {}) {
   // the latest snapshot's heroes: who is a friend and where they stand (their sounds fall off with distance)
   let meNow = null;
   const ents = new Map();
+  // wave 5b: the synth beside the LQ engine (synth_game.js): themes for places with no track of their own, live sounds
+  const syn = eng ? createSynthGame({ engine: eng, onTrackReady: () => { synthPick = true; } }) : null;
+  let synthPick = false, synthField = false, roadSince = null, family = null;
   const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
   function playField(id, fade = 1.0) {
@@ -64,7 +70,10 @@ export function createAudio(opts = {}) {
   function battle(action) {
     if (action === 'start') {
       battleOver = field;
-      ready.then(safe(() => eng.pushMusic(BATTLE, { fade: BATTLE_IN_S, fadeIn: BATTLE_IN_S })));
+      // a synth place fights to its own theme's combat layer once that loop is rendered, else the shipped battle track
+      const own = field && field.startsWith('synth:') ? field.replace(/:(day|night)$/, ':combat') : null;
+      const track = own && syn && syn.hasTrack(own) ? own : BATTLE;
+      ready.then(safe(() => eng.pushMusic(track, { fade: BATTLE_IN_S, fadeIn: BATTLE_IN_S })));
     } else if (action === 'stop') {
       const back = field, was = battleOver;
       battleOver = null;
@@ -90,7 +99,9 @@ export function createAudio(opts = {}) {
   const api = {
     ready,
     unlock: safe(() => eng.unlock()),
-    setVolumes: safe((v = {}) => eng.setVolumes({ master: v.master, music: v.music, sfx: v.sfx, ambience: v.ambience ?? v.sfx })),
+    setVolumes: safe((v = {}) => { eng.setVolumes({ master: v.master, music: v.music, sfx: v.sfx, ambience: v.ambience ?? v.sfx }); if (syn) syn.setVolumes(v); }),
+    /** The Settings switch: false falls back to today's sounds and tracks everywhere. */
+    setSynth: (on) => { try { if (syn) { syn.setEnabled(on); synthPick = true; } } catch (e) { console.warn('[audio] synth', e); } },
     // after the manifest is in (a track asked for at boot would otherwise resolve against an empty manifest)
     music: (id, o) => {
       const t = id ? MUSIC_ALIAS[id] || id : null;
@@ -106,7 +117,7 @@ export function createAudio(opts = {}) {
     sfx: safe((id, o) => eng.sfx(id, o)),
     ui: (kind) => { const id = UI_SOUNDS[kind]; if (id) api.sfx(id, { volume: UI_VOLUME[kind] ?? 0.8 }); },
     jingle: safe((id, o = {}) => eng.jingle(id, { duckMusic: o.duck ?? 0.3, volume: o.volume ?? 1 })),
-    debug: () => ({ ...(eng ? eng.debugState() : { available: false }), battle: cm.state, field, bed: bedKey }),
+    debug: () => ({ ...(eng ? eng.debugState() : { available: false }), battle: cm.state, field, bed: bedKey, synth: syn ? syn.debug() : null }),
 
     /** Once per drawn frame (main.js render): place music and bed, the battle track, friends' positions. */
     frame(t, { me = null, snap = null, place = null, zone = null, fresh = false } = {}) {
@@ -114,10 +125,26 @@ export function createAudio(opts = {}) {
         meNow = me;
         ents.clear();
         if (snap && snap.entities) for (const e of snap.entities) if (e.kind === 'player') ents.set(e.id, e);
+        if (syn) syn.frame(t == null ? nowMs() : t, { me, snap, zone });
         if (!me) return;
         if (place && zone) {
           const k = placeKey(fresh ? null : placeK, { zoneId: me.zone, region: place.region });
-          if (k !== placeK) {
+          // a synth theme for a place with no track of its own (synth_places.js); while it renders, today's track plays
+          const tNow = t == null ? nowMs() : t;
+          if (me.zone === 'world' && !place.region) { if (roadSince == null) roadSince = tNow; } else roadSince = null;
+          const spec = syn && syn.enabled ? synthPlaceFor({ zoneId: me.zone, zoneKind: zone.kind, zoneName: zone.name, region: place.region, onRoad: roadSince != null && tNow - roadSince > ROAD_MS }) : null;
+          const sid = spec ? syn.theme(spec, snap && snap.night ? 'night' : 'day') : null;
+          if (sid) {
+            placeK = k; synthField = true;
+            if (field !== sid) playField(sid, 2.0);
+            syn.theme(spec, 'combat');                                  // its combat layer, ready for the first fight
+          } else if (synthField || synthPick) {
+            synthField = false; synthPick = false;
+            placeK = k;
+            const track = place.region ? place.music : zone.music;
+            const want = musicFor({ zoneId: me.zone, track: MUSIC_ALIAS[track] || track });
+            if (field !== want && !(spec && field)) playField(want, 2.0);    // keep what plays while a synth loop renders
+          } else if (k !== placeK) {
             placeK = k;
             const track = place.region ? place.music : zone.music;
             playField(musicFor({ zoneId: me.zone, track: MUSIC_ALIAS[track] || track }));
@@ -130,7 +157,8 @@ export function createAudio(opts = {}) {
 
     // followPlace: the game picks music by the area you stand in (one world, src/main.js), so zone / respawn events
     // do not switch it here
-    attach(bus, { playerId = () => null, cls = () => null, zoneMusic = null, followPlace = false } = {}) {
+    attach(bus, { playerId = () => null, cls = () => null, zoneMusic = null, followPlace = false, mobFamily = null } = {}) {
+      family = mobFamily;
       const isPlayer = (id) => ents.has(id);
       const clsOf = (id) => { const e = ents.get(id); return e ? e.cls : null; };
       return bus.on('*', (ev) => {
@@ -143,6 +171,9 @@ export function createAudio(opts = {}) {
           // the battle track: real fights only (combat_music.js)
           if (ev.type === 'damage' && (ev.src === me || ev.dst === me) && !ev.periodic && ev.amount > 0) cm.hit(t);
           if (ev.type === 'boss' && ev.kind === 'pull' && (!myZone || ev.zone === myZone)) cm.boss(t);
+          // the synth's sounds first: a door's rattle or a chest can stand in for the table's sound (replace)
+          const replaced = syn ? syn.event(ev, { me, isPlayer: ents.size ? isPlayer : null, family }) : false;
+          if (replaced) return;
           for (const s of soundsFor(ev, { me, cls: cls(), zone: myZone, isPlayer: ents.size ? isPlayer : null, clsOf })) {
             let vol = s.volume != null ? s.volume : 1, pan = 0;
             if (s.from != null) {

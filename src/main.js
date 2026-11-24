@@ -87,11 +87,13 @@ async function boot() {
   if (q.has('tod')) { const v = Number(q.get('tod')); if (Number.isFinite(v)) view.tod = ((v % 1) + 1) % 1; }
   if (q.has('weather')) view.weather = q.get('weather');
   const fxOverride = ['low', 'high'].includes(q.get('fx')) ? q.get('fx') : null;
+  const synthQ = q.get('synth');      // ?synth=0 / 1: the synth switch for QA and the frame budget (Settings otherwise)
 
   // ---- audio (CONTRACTS 11): music after the first user input (browser rule), zone themes, event sfx
   const audio = createAudio({ base: 'assets/audio/' });
   // one world: music and the HUD's place name follow the area you stand in (render() below), not zone events
-  audio.attach(bus, { playerId: () => playerId, cls: () => (heroEnt() || {}).cls, zoneMusic: (z) => (content.zones[z] || {}).music, followPlace: true });
+  audio.attach(bus, { playerId: () => playerId, cls: () => (heroEnt() || {}).cls, zoneMusic: (z) => (content.zones[z] || {}).music, followPlace: true,
+    mobFamily: (tpl) => ((content.mobs || {})[tpl] || {}).family || null });
   let place = null;                    // placeAt() of the hero's tile, refreshed each frame (HUD place name)
   let musicArea = null;                // the area whose music is playing; null: pick on the next frame
   const unlockAudio = () => audio.unlock();
@@ -113,7 +115,7 @@ async function boot() {
       setZoom: (z) => { if (ZOOMS.includes(z)) view.zoom = z; },
       // Settings > Graphics: save, then reload into the other renderer (a ?r= in the link would override it, so drop it)
       setGraphics: () => { ui.saveProgress(); const u = new URL(window.location.href); u.searchParams.delete('r'); window.location.replace(u.toString()); },
-      optionsChanged: (o) => { view.fx = fxOverride || o.fx; view.shake = o.shake !== false; audio.setVolumes({ master: 1, music: o.music, sfx: o.sfx }); },
+      optionsChanged: (o) => { view.fx = fxOverride || o.fx; view.shake = o.shake !== false; audio.setVolumes({ master: 1, music: o.music, sfx: o.sfx }); audio.setSynth(synthQ === '0' ? false : o.synth !== false); },
       enterWorld: (c) => {
         // a hero joining a friend's game: the friend's world made it (coop.js); this tab plays back their frames
         const gid = coop.takeGuestId();
@@ -154,6 +156,8 @@ async function boot() {
   view.fx = fxOverride || ui.options.fx;
   view.shake = ui.options.shake !== false;   // the 3D effects' camera kick (Options)
   audio.setVolumes({ master: 1, music: ui.options.music, sfx: ui.options.sfx });
+  // Settings: synth music and sounds (wave 5b); off = today's sounds only. ?synth=0 / 1 overrides it (QA, the frame budget)
+  audio.setSynth(synthQ === '0' ? false : synthQ === '1' ? true : ui.options.synth !== false);
   if (touch) createTouch({ canvas, input, ui });
   // the Lantern Chest's Shared tab (every hero on this device): its own key, never inside a hero save (src/ui/save.js)
   world.setShared(loadShared(storage));

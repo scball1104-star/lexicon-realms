@@ -647,10 +647,17 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   };
   slider('Music volume', 'music');
   slider('Effects volume', 'sfx');
-  // on a phone the choices go under the touch notes (left column) so nothing meets the bottom buttons
-  let cx = ox, cw = ow;
+  // on a phone the choices go under the touch notes (left column) so nothing meets the bottom buttons; when that column
+  // is full they continue in the right column under the sliders (wave 5b added a row: Synth sound)
+  const rightY = y;
+  const bh = Math.max(16, env.L.minHit || 0);
+  const by = r.y + r.h - bh - 8;
+  let cx = ox, cw = ow, inRight = false, half = 0;
   if (touch) { cx = kx; cw = 250; y = r.y + 46 + 5 * 12 + 8; }
   const choice = (label, key, vals, names) => {
+    if (touch && !inRight && y + 13 + rowH > r.y + r.h - 6) { inRight = true; y = rightY; }
+    const y0 = y;
+    if (inRight) { cw = Math.floor((ow - 8) / 2); cx = ox + half * (cw + 8); }   // two choices a row under the sliders
     g.text(ctx, label, cx, y, 'white'); y += 13;
     const bw = Math.floor((cw - (vals.length - 1) * 4) / vals.length);
     vals.forEach((v, i) => {
@@ -660,14 +667,14 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
       regions.push({ rect: { x, y, w: bw, h: rowH }, kind: 'button', label: `opt:${key}:${v}`, on: () => act.setOption(key, v) });
     });
     y += rowH + 6;
+    if (inRight) { half = 1 - half; if (half) y = y0; }
   };
   choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x']);
   choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
   choice('Screen shake', 'shake', [true, false], ['On', 'Off']);
+  choice('Synth sound', 'synth', [true, false], ['On', 'Off']);
   choice('Graphics (reloads)', 'r3d', [false, true], ['2D', '3D preview']);
   // ---- bottom buttons
-  const bh = Math.max(16, env.L.minHit || 0);
-  const by = r.y + r.h - bh - 8;
   const btn = (x, w, label, on) => {
     g.window(ctx, x, by, w, bh, 'thin', 'blue', 0.95);
     g.text(ctx, label, x + w / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });

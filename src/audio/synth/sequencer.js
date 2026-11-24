@@ -12,7 +12,7 @@
 import { makeTheme, degToMidi, chordTones } from './motif.js';
 import * as I from './instruments.js';
 
-export function createSequencer(S, theme, { night = false, seedSalt = 'seq' } = {}) {
+export function createSequencer(S, theme, { night = false, crickets = true, seedSalt = 'seq' } = {}) {
   const ctx = S.ctx;
   const rng = S.rng;
   const th = makeTheme({ seed: theme.seed, beats: theme.beats, mode: theme.dayMode });
@@ -74,6 +74,7 @@ export function createSequencer(S, theme, { night = false, seedSalt = 'seq' } = 
     const root = th.chords[plan.h];
     const mode = plan.mode || (night ? nightMode : dayMode);
     const mel = plan.mel ? th.melody[plan.h] : null;
+    const hint = !mel && plan.hint ? th.melody[plan.h] : null;   // the tune, half-heard, inside a texture section
     const at = (step) => t + step * eighth;
     const ct = chordTones(root);
     const midi = (deg, base) => degToMidi(deg, base, mode);
@@ -93,6 +94,7 @@ export function createSequencer(S, theme, { night = false, seedSalt = 'seq' } = 
         pat.forEach((d, s) => I.harp(S, at(s) + hum(), midi(d, T - 12), eighth, vel(s === 0 ? 0.95 : 0.7), P.harp));
       }
       if (mel) for (const n of mel) I.flute(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth * 0.94, vel(0.95), P.flute);
+      if (hint) for (const n of hint) if (n.step % 3 === 0) I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(0.45), P.flute, { decay: 1.6, index: 1.2 });
       if (plan.perc) {
         I.frameDrum(S, at(0), vel(0.8), P.drum);
         if (!plan.final) {
@@ -119,9 +121,10 @@ export function createSequencer(S, theme, { night = false, seedSalt = 'seq' } = 
       for (const d of ct) I.pad(S, t, fold(midi(d, T - 12), 52, 64), barLen * holdBars, 0.9, P.npad, { bright: 0.12 });
       I.bass(S, at(0), midi(root, T - 24), barLen * (plan.final ? 2 : 0.95), vel(0.6), P.nbass);
       if (mel) for (const n of mel) I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(n.step % 3 === 0 ? 0.85 : 0.55), P.bell, { decay: 2.2 });
+      if (hint) for (const n of hint) if (n.step % 3 === 0) I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(0.4), P.bell, { decay: 2 });
       if (!plan.final) for (const s of [0, 3]) I.harp(S, at(s) + 0.03, midi(s ? root + 4 : root + 7, T - 12), eighth, vel(0.45), P.nharp);
       else [root, root + 4, root + 7, root + 9].forEach((d, i) => I.harp(S, t + i * 0.12, midi(d, T - 12), barLen, 0.6, P.nharp));
-      const n = rng.int(0, 2);
+      const n = crickets ? rng.int(0, 2) : 0;
       for (let i = 0; i < n; i++) I.cricket(S, t + rng.range(0, barLen - 0.3), vel(0.8), P.cricket, { pitch: rng.range(4000, 4700), chirps: rng.int(2, 4) });
     }
     return barLen;
@@ -190,6 +193,19 @@ export function createSequencer(S, theme, { night = false, seedSalt = 'seq' } = 
   }
 
   return { theme: th, barLen, eighth, layers, setMix, scheduleBar, render, play, stop };
+}
+
+/**
+ * The in-game arrangement (Scott's default 2026-11-24: mostly texture, the tune returning now and then): eight bars of
+ * texture with the opening of the tune half-heard on a bell, eight bars of the tune, eight bars of texture. Loops.
+ */
+export function textureArrangement({ perc = true } = {}) {
+  const bars = (mel, hintAt) => [0, 1, 2, 3, 4, 5, 6, 7].map((h) => ({ h, mel, perc: perc && (mel || h % 2 === 1), hint: hintAt.includes(h) }));
+  return [...bars(false, [0, 1]), ...bars(true, []), ...bars(false, [4, 5])];
+}
+/** Combat: the tune twice over the drums. */
+export function combatArrangement() {
+  return [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7].map((h) => ({ h, mel: true, perc: true }));
 }
 
 /** The standard arrangement: an intro, the phrase, the phrase again (where combat can rise), a return, an ending. */

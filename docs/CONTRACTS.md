@@ -895,9 +895,13 @@ shared and read-only. Music follows the player's zone (`zone` event + zone `musi
 `src/audio/sfx_table.js` maps `event type + ability/school/result` to an sfx id; Lexicon Quest's Suno themes and SFX
 are the source (`D:\LexiconQuest\next\assets\audio`). Audio never feeds anything back into the sim.
 
-**Synth prototype** (wave 5, PROTOTYPE, NOT WIRED): `src/audio/synth/` (`createSynth(ctx)` in `index.js`): WebAudio
-music and sound with no samples; `motif.js` is pure and seeded. Nothing in the game imports it until Scott approves
-the audio brief plus 3 clips (`qa/tests/synth.test.mjs` checks that). `demo.html` renders the clips.
+**Synth** (wave 5b, LIVE, Scott 2026-11-24 "Audio is a go"): `src/audio/synth/` makes music and sound with WebAudio, no
+samples. `audio.js` owns it through `synth_game.js`; nothing else imports it. Everything is rendered once on an
+OfflineAudioContext in the background and played as buffers (themes go to the LQ engine as blob-URL music entries
+`synth:<place>:day|night|combat`; a bank of short sounds plays on its own gain into the context). `synth_places.js`
+(pure): the synth sits beside today's tracks, a theme only where a place has none of its own (the Hollow, dungeons,
+caves, roads after 8 s). `synth_table.js` (pure): sim event -> synth sound; `replace: true` stands in for the
+sfx_table sound. `audio.setSynth(bool)` is the Settings switch (`options.synth`, default on; `?synth=0|1` for QA).
 
 ---
 
