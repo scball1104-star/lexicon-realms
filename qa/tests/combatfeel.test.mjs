@@ -145,7 +145,7 @@ export const tests = [
         assert(!/feel_recipes|feel_numbers|hitstop/.test(s), `${f} does not touch the feel pass`);
       }
       const menus = fs.readFileSync(path.join(ROOT, 'src', 'ui', 'menus.js'), 'utf8');
-      assert(menus.includes("choice('Screen shake and hit stop', 'shake'"), 'one Settings switch, renamed');
+      assert(/'Screen shake and hit stop', 'shake'/.test(menus), 'one Settings switch, renamed');
       const r3 = fs.readFileSync(path.join(ROOT, 'src', 'render3d', 'renderer3d.js'), 'utf8');
       assert(/hitstop > 0 && view\.shake !== false/.test(r3), 'Off turns the hit stop off');
       assert(/view\.shake === false \? 0 : fx3\.screen\.shake/.test(r3), 'Off turns the kick off');

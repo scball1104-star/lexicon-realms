@@ -646,7 +646,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
     g.text(ctx, 'Reset keys', kx, ky, 'cream');
     regions.push({ rect: { x: kx - 2, y: ky - 1, w: g.textW('Reset keys') + 8, h: g.ls(12) }, kind: 'button', on: () => act.setOption('binds', {}) });
     if (maxOff > 0) g.text(ctx, `${st.keyScroll + 1}-${st.keyScroll + vis} of ${ACTIONS.length}`, kx + kw, ky, 'dim', { align: 'right' });
-  } else g.text(ctx, g.clip('Phone controls: see Help.', 250), kx, r.y + 28, 'dim');
+  }   // a phone: the pointer to the phone controls in Help is drawn after the rows, where there is room (wave 6)
   // ---- right: sound and view
   const ox = r.x + 280, ow = 228;
   let y = r.y + 26;
@@ -673,7 +673,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   // under the Help line) and flow on into the right column under the sliders, so a new row never meets the bottom
   // buttons (Scott's phone, 2026-11-24). Desktop: the right column, under the sliders.
   const cols = touch
-    ? [{ x: kx, w: 250, y: r.y + 30 + g.lh + 6, bottom: r.y + r.h - 4 }, { x: ox, w: ow, y: y - 4, bottom: by - 4 }]
+    ? [{ x: kx, w: 250, y: r.y + 26, bottom: r.y + r.h - 4 }, { x: ox, w: ow, y: y - 4, bottom: by - 4 }]
     : [{ x: ox, w: ow, y: y + (big ? 2 : 0), bottom: by - 3 }];
   const ch = touch ? rowH : big ? 18 : 11, gap = touch ? 2 : big ? 3 : 5;
   const rows = [];
@@ -710,6 +710,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   choice(short ? 'Synth' : 'Synth sound', 'synth', [true, false], ['On', 'Off'], touch);   // wave 5b synth sound (off = today's sounds)
   choice(short ? 'Scenes' : 'Quest scenes', 'questScenes', [true, false], ['On', 'Off']);   // wave 6 quest scenes (off = today's npc window)
   placeChoices();               // new choice(...) rows go above this line
+  if (touch && !rows.some((o) => o.col === 1) && cols[1].y + g.lh <= by - 4) g.text(ctx, g.clip('Phone controls: see Help.', ow), ox, cols[1].y + 2, 'dim');
   // ---- bottom buttons
   const btn = (x, w, label, on) => {
     g.window(ctx, x, by, w, bh, 'thin', 'blue', 0.95);
