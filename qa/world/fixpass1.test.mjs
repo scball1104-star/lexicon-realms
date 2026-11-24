@@ -11,8 +11,10 @@ import { toWorld } from '../../src/data/maps/layout.js';
 import { regionAt } from '../../src/data/maps/compose.js';
 import { NAMED_SPAWNS } from '../../src/data/bounties.js';
 import { tilePath, walkPath } from '../tests/_helpers.mjs';
+// these tests check XP rules and the curve at full XP; PROGRESSION.xpRate (the 1 to 19 trim) has its own test (xp_rate.test.mjs)
+const rateOff = (c) => ({ ...c, progression: { ...c.progression, xpRate: [] } });
 
-const C = content();
+const C = rateOff(content());
 const SUB = 16, TILE = 256;
 const tileOf = (e) => [Math.floor(e.x / TILE), Math.floor((e.y - 1) / TILE)];
 // one world (src/data/maps/layout.js): content coords are world tiles in zone 'world'; areaOf names the area an entity

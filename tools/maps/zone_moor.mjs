@@ -171,6 +171,9 @@ export function build(db) {
   camp('gorse_boar', [11, 12, 11], [[112, 56], [120, 62], [128, 52]], 'gh_boars_a');
   camp('gorse_boar', [12, 11, 12], [[138, 66], [132, 76], [116, 72]], 'gh_boars_b');
   camp('gorse_boar', [11, 12], [[146, 56], [106, 64]], 'gh_boars_c');
+  // Scott 2026-11-23 ("Drop to 15"): the two level 16 boars nearest Sorrel ship at 15, so a level 15 hero on Peat and
+  // Tusk is not losing even fights at her door. Stats unchanged: Gorse Boars stay tough.
+  for (const s of spawns) if (s.mob === 'gorse_boar' && ((s.x === 106 && s.y === 64) || (s.x === 116 && s.y === 72))) s.shipLevel = 15;
   camp('moss_scarab', 11, [[124, 66], [140, 80], [110, 78], [148, 48]], 'gh_scarabs');
   // the Ridgeline: ink wraiths
   // fix pass 1 (PLAYTEST_BOT bug 13, critique 17): the Ridgeline wraiths sit 14+ tiles from Odo's hut, leaving a lane west

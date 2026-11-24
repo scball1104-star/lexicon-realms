@@ -8,6 +8,8 @@ import { CLASSES } from '../../src/data/classes.js';
 import { DAY_TICKS } from '../../src/sim/constants.js';
 import { dayFraction, isNight } from '../../src/sim/clock.js';
 import { bagCapacity } from '../../src/sim/loot.js';
+// these tests check XP rules and the curve at full XP; PROGRESSION.xpRate (the 1 to 19 trim) has its own test (xp_rate.test.mjs)
+const rateOff = (c) => ({ ...c, progression: { ...c.progression, xpRate: [] } });
 
 const at = (e, tx, ty) => { e.x = tx * 256 + 128; e.y = (ty + 1) * 256 - 16; };
 function trainerWorld(cls = 'warden', level = 1) {
@@ -79,7 +81,7 @@ export const tests = [
     eq(p.level, 30, 'still 30'); eq(p.xp, 0, 'no XP bar at the cap');
   } },
   { name: 'xp: a hero saved at the old cap 15 (banked cap gold, any leftover XP) loads at 15, keeps both, and levels on to 16', fn() {
-    const content = buildContent();
+    const content = rateOff(buildContent());
     const w = createWorld({ seed: 4, content });
     const at15 = w.addPlayer({ name: 'Old', cls: 'warden', level: 15, xp: 0, gold: 1234 });
     const p = w.get(at15);
@@ -178,7 +180,7 @@ export const tests = [
     assert(['reset', 'idle', 'walk', 'home'].includes(m.ai.mode), `the mob went home (${m.ai.mode})`);
   } },
   { name: 'world: the real content: kills feed quests and loot; respawns keep the spawn level; nodes and items work; night spawns follow the clock', fn() {
-    const content = buildContent();
+    const content = rateOff(buildContent());
     const w = createWorld({ seed: 11, content });
     const pid = w.addPlayer({ name: 'Q', cls: 'warden' });
     const p = w.get(pid);
@@ -221,7 +223,7 @@ export const tests = [
     void ev;
   } },
   { name: 'world: addPlayer restores a saved character (level, xp, gold, talents, bag, equip, quests, lantern); removePlayer logs out', fn() {
-    const content = buildContent();
+    const content = rateOff(buildContent());
     const w = createWorld({ seed: 2, content });
     const pid = w.addPlayer({ name: 'R', cls: 'scribe', level: 9, xp: 300, gold: 77, talents: { scribe_quill_sharp_nib: 2 },
       known: ['scribe_inkbolt', 'scribe_scrawl', 'scribe_full_stop', 'scribe_underline'], bar: ['scribe_inkbolt', 'scribe_scrawl', 'scribe_underline'],

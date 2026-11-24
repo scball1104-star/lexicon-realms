@@ -6,6 +6,8 @@ import { createWorld } from '../../src/sim/index.js';
 import { buildContent } from '../../src/data/maps/index.js';
 import { BUILDS2, RULES } from '../../src/data/builds2.js';
 import { runBuild, NAMED, B2_LEVELS, bandOk } from './builds2.mjs';
+// these tests check XP rules and the curve at full XP; PROGRESSION.xpRate (the 1 to 19 trim) has its own test (xp_rate.test.mjs)
+const rateOff = (c) => ({ ...c, progression: { ...c.progression, xpRate: [] } });
 
 const MENDER = BUILDS2.mender;
 const id = (track, slug) => `b2_mender_${track}_${slug}`;
@@ -32,7 +34,7 @@ const T = (name, fn) => tests.push({ name: `builds2: ${name}`, fn });
 
 // ------------------------------------------------------------------------------------------------ the flag
 T('ON in the live data for every class (Mender phase 1, the other four phase 2): a new hero has a point at level 1', () => {
-  const content = buildContent();
+  const content = rateOff(buildContent());
   eq(content.progression.builds2.enabled, true, 'live flag on (Scott approved the talents screen 2026-11-19)');
   eq(JSON.stringify(content.progression.builds2.classes), JSON.stringify(['mender', 'warden', 'scribe', 'wayfinder', 'inkblade']), 'all five classes');
   const w = createWorld({ seed: 1, content });

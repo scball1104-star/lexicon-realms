@@ -4,12 +4,14 @@ import { assert, eq, ofType, stepN } from './_fixtures.mjs';
 import { createWorld } from '../../src/sim/index.js';
 import { buildContent } from '../../src/data/maps/index.js';
 import { runCell } from './duel.mjs';
+// these tests check XP rules and the curve at full XP; PROGRESSION.xpRate (the 1 to 19 trim) has its own test (xp_rate.test.mjs)
+const rateOff = (c) => ({ ...c, progression: { ...c.progression, xpRate: [] } });
 
 const at = (e, tx, ty) => { e.x = tx * 256 + 128; e.y = (ty + 1) * 256 - 16; };
 
 export const tests = [
   { name: 'wiring: quest accept, talk objective and turn-in run through world commands; quest XP goes through grantXp', fn() {
-    const w = createWorld({ seed: 4, content: buildContent() });
+    const w = createWorld({ seed: 4, content: rateOff(buildContent()) });
     const pid = w.addPlayer({ name: 'Q', cls: 'mender' });
     const p = w.get(pid);
     const hob = w.state.ents.find((e) => e.kind === 'npc' && e.template === 'hob');
@@ -32,7 +34,7 @@ export const tests = [
     void ev;
   } },
   { name: 'wiring: Odo rings his chime every 20 s while the Sentinel fights; it is stunned 2 s', fn() {
-    const w = createWorld({ seed: 5, content: buildContent() });
+    const w = createWorld({ seed: 5, content: rateOff(buildContent()) });
     const pid = w.addPlayer({ name: 'W', cls: 'warden', level: 14 });
     const p = w.get(pid);
     // the Sentinel lives in the Watchtower dungeon since 2026-11-22: step into the hero's own copy first
@@ -49,7 +51,7 @@ export const tests = [
   } },
   { name: 'wiring: a 4,000-tick random session with all five classes on the real map never throws and is deterministic', fn() {
     const run = () => {
-      const w = createWorld({ seed: 99, content: buildContent() });
+      const w = createWorld({ seed: 99, content: rateOff(buildContent()) });
       const ids = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'].map((cls, i) => w.addPlayer({ name: `P${i}`, cls, zone: 'valley', x: 8 + i, y: 52, level: 6 }));
       let r = 12345;
       const rnd = () => ((r = (r * 1103515245 + 12345) >>> 0) / 4294967296);

@@ -10,9 +10,11 @@ import { RARES, STORY_CHAINS, WORLD_EVENTS, REST } from '../../src/data/worldlif
 import { regionAt } from '../../src/data/maps/compose.js';
 import { reach } from '../../tools/maps/kit.mjs';
 import { isNight } from '../../src/sim/clock.js';
+// these tests check XP rules and the curve at full XP; PROGRESSION.xpRate (the 1 to 19 trim) has its own test (xp_rate.test.mjs)
+const rateOff = (c) => ({ ...c, progression: { ...c.progression, xpRate: [] } });
 
 let _C = null;
-const content = () => _C || (_C = buildContent());
+const content = () => _C || (_C = rateOff(buildContent()));
 const W = () => ZONES.world;
 const at = (e, tx, ty) => { e.x = tx * 256 + 128; e.y = (ty + 1) * 256 - 16; };
 const npcEnt = (w, t) => w.state.ents.find((e) => e.kind === 'npc' && e.template === t);

@@ -12,6 +12,13 @@ import { ticks as T } from './data.js';
 import { distPx, distPxXY } from './geom.js';
 import { satchelGrowth } from './loot.js';
 
+// The share of an XP grant a hero of this level earns (PROGRESSION.xpRate, Scott 2026-11-23). The quest dialog shows the
+// same trimmed number (sim/quests.js rewards view), so the reward it promises is the XP the hero gets.
+export function xpRate(P, level) {
+  for (const [upTo, mult] of (P && P.xpRate) || []) if (level <= upTo) return mult;
+  return 1;
+}
+
 export function createProgression(C) {
   const { state, emit, data, stats } = C;
   const P = C.P;
@@ -37,7 +44,7 @@ export function createProgression(C) {
 
   function grantXp(e, amount, reason = 'quest', extra = {}) {
     if (!e || e.kind !== 'player' || !(amount > 0)) return 0;
-    amount = Math.round(amount);
+    amount = Math.max(1, Math.round(amount * xpRate(P, e.level)));
     if (e.level >= P.maxLevel) {
       e.xpGoldAcc = (e.xpGoldAcc || 0) + amount;
       const gold = Math.floor(e.xpGoldAcc / P.capGoldPerXp);

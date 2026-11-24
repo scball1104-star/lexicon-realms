@@ -112,7 +112,10 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       g.text(ctx, 'Objectives', x0, y, 'gold'); y += 11;
       for (const o of q.objectives) { g.text(ctx, g.clip(`${o.count > 1 ? `${o.count} ` : ''}${o.label}`, w0 - 10), x0 + 8, y, 'white'); y += 11; }
     }
-    const rw = q.rewards || {};
+    const rw0 = q.rewards || {};
+    const simRw0 = d.rewards && d.rewards[q.id];
+    // the sim's view carries the XP this hero will really get (gap and PROGRESSION.xpRate applied)
+    const rw = simRw0 && simRw0.xp != null ? { ...rw0, xp: simRw0.xp } : rw0;
     y = Math.max(y + 2, bottom - 42);
     g.text(ctx, 'Rewards', x0, y, 'gold');
     g.text(ctx, [rw.xp ? `${rw.xp} XP` : null, rw.gold ? `${rw.gold} gold` : null].filter(Boolean).join('   ') || 'None', x0 + 50, y, 'white');

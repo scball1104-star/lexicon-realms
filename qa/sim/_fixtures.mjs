@@ -81,7 +81,7 @@ export function fixtureContent({ spawns = [], items = null, builds2 = false, hit
     start: { zone: 'arena', x: 5, y: 25 },
     classes: CLASSES, abilities: ABILITIES, mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES }, talents: TALENTS, weaponTypes: WEAPON_TYPES,
     // the fixtures pick Builds 2 per test (default off, so today's talent tests keep testing today's talents for every class)
-    progression: { ...PROGRESSION, builds2: { ...PROGRESSION.builds2, enabled: !!builds2 } },
+    progression: { ...PROGRESSION, xpRate: [], builds2: { ...PROGRESSION.builds2, enabled: !!builds2 } },   // xpRate off: fixtures test the rules at full XP
     builds2: { rules: BUILDS2_RULES, classes: BUILDS2, skillPicks: SKILL_PICKS, abilities: B2_ABILITIES },
     // the hit table and resistances (src/data/hittable.js, resist.js): off by default, so the formula tests keep exact numbers;
     // the balance harness (qa/sim/builds2.mjs) and the hit table tests turn it on

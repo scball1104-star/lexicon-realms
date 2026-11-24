@@ -279,7 +279,8 @@ export function nearestWalk(zone, x, y, r = 6) {
  */
 export function respreadZone(z, table) {
   const m = (L) => (Number.isInteger(L) && table[L] != null ? table[L] : L);
-  for (const s of z.spawns || []) s.level = m(s.level);
+  // shipLevel: a spawn that must ship at a level the table cannot author (for example 15 on the Moor) names it outright
+  for (const s of z.spawns || []) { s.level = s.shipLevel != null ? s.shipLevel : m(s.level); delete s.shipLevel; }
   for (const a of z.areas || []) if (a.levels) a.levels = a.levels.map(m);
   if (z.levels) z.levels = z.levels.map(m);
   return z;

@@ -12,9 +12,11 @@ import { NODE_POINTS } from '../../src/data/prof_nodes.js';
 import { reach } from '../../tools/maps/kit.mjs';
 import { resolveItem } from '../../src/sim/loot.js';
 import { framesFor, createFrameState, applyFrame, createTickCache } from '../../src/net/frames.js';
+// these tests check XP rules and the curve at full XP; PROGRESSION.xpRate (the 1 to 19 trim) has its own test (xp_rate.test.mjs)
+const rateOff = (c) => ({ ...c, progression: { ...c.progression, xpRate: [] } });
 
 let _C = null;
-const content = () => _C || (_C = buildContent());
+const content = () => _C || (_C = rateOff(buildContent()));
 const SUBT = 256;
 const npcEnt = (w, t) => w.state.ents.find((e) => e.kind === 'npc' && e.template === t);
 const nodes = (w, pred = () => true) => w.state.ents.filter((e) => e.kind === 'object' && e.node && e.node.gather && pred(e));

@@ -32,6 +32,7 @@
 // questsDone; a turn-in goes to p.bounties = { day, done: [ids] }, so the same bounty is open again on another day.
 import { bagCount, bagAdd, bagRemove, bagFree, rollGear } from './loot.js';
 import { zoneBase } from './dungeons.js';
+import { xpRate } from './progression.js';
 import { moveAxis } from './collision.js';
 import { SUB, TILE } from './constants.js';
 
@@ -613,7 +614,7 @@ export function createQuests(Q) {
       }
       return { item: it, inst, usable, reqLevel: Math.max(1, ((inst && inst.ilvl) || def.level || 1) - 2) };
     };
-    return { xp: Math.round((r.xp || 0) * questGapMult(p.level, q.level)), gold: r.gold || 0, items: (r.items || []).map(view), choice: (r.choice || []).map(view) };
+    return { xp: Math.max(r.xp ? 1 : 0, Math.round((r.xp || 0) * questGapMult(p.level, q.level) * xpRate(Q.content.progression, p.level))), gold: r.gold || 0, items: (r.items || []).map(view), choice: (r.choice || []).map(view) };
   }
 
   function tracker(p) {
