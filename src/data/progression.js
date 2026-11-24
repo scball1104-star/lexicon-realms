@@ -16,7 +16,8 @@ export const PROGRESSION = {
   // dungeons, gathering, exploring). After the fix pass and the 25 Moor quests the questbot reached 20 in 171 to 219
   // minutes against the 300 target. 0.65 overshot (357 to 411 minutes, gold at 20 doubled from the extra grind); 0.75
   // aims at 300. [upToLevel, mult], first match wins; above every row, 1.
-  xpRate: [[19, 0.75]],
+  // Scott 2026-11-24, "Make the first 3 levels still earn at 100% XP": levels 1 to 3 earn full XP.
+  xpRate: [[3, 1], [19, 0.75]],
   capGoldPerXp: 50,                        // at the cap (now 30): 1 gold per 50 XP (OPEN_QUESTIONS Q17, kept until Renown)
   // The zone re-spread (BUILDS_2 5.5 option 1 on today's zones, PROGRESSION.md 1.1): the zone generators author foe and
   // area levels on the old 1 to 15 scale; index = authoring level, value = the shipped level. The valley (1 to 6) is

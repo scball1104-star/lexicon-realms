@@ -7,15 +7,17 @@ import { xpRate } from '../../src/sim/progression.js';
 
 export const tests = [
   {
-    name: 'xp rate: levels 1 to 19 earn the trimmed share, 20 and up earn full XP, and a grant is never rounded to 0',
+    name: 'xp rate: levels 1 to 3 earn full XP, 4 to 19 earn the trimmed share, 20 and up earn full XP, and a grant is never rounded to 0',
     fn() {
       const C = buildContent();
-      const r = xpRate(C.progression, 1);
-      assert(r > 0 && r < 1, 'a trim below level 20');
+      eq(xpRate(C.progression, 1), 1, 'full at 1 (Scott 2026-11-24)');
+      eq(xpRate(C.progression, 3), 1, 'full at 3');
+      const r = xpRate(C.progression, 4);
+      assert(r > 0 && r < 1, 'a trim from level 4 to 19');
       eq(xpRate(C.progression, 19), r, 'same at 19');
       eq(xpRate(C.progression, 20), 1, 'full at 20');
       const w = createWorld({ seed: 7, content: C });
-      const id = w.addPlayer({ name: 'Trim', cls: 'scribe', level: 3 });
+      const id = w.addPlayer({ name: 'Trim', cls: 'scribe', level: 4 });
       const e = w.state.ents.find((x) => x.id === id);
       const before = e.xp;
       eq(w.grantXp(id, 400, 'quest'), Math.round(400 * r), 'grant returns the trimmed amount');
