@@ -387,6 +387,7 @@ def run():
 
         # ---- turn in, level up
         lvl0 = g.me()['level']
+        xp0 = g.me().get('xp', 0)
         d = g.talk('oren')
         if d['page'] != 'quest':
             g.click_region(label='Not My Starter', wait=0.4)
@@ -395,7 +396,8 @@ def run():
         me = g.me()
         g.shot('09_turnin_levelup', f'quest turned in: level {lvl0} -> {me["level"]}')
         g.key('Escape', 0.2)
-        assert me['level'] > lvl0 or me['level'] >= 2, 'levelled up'
+        # the XP trim (PROGRESSION.xpRate, 2026-11-23): this turn-in no longer always reaches level 2; it must pay XP
+        assert me['level'] > lvl0 or me.get('xp', 0) > xp0, 'turn-in paid XP'
 
         # ---- Builds 2 (the Warden runs it since phase 2): the level 1 skill pick in the talents window (one of two), then
         # the trainer sells the other side back ("double gold")
