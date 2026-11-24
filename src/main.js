@@ -127,6 +127,7 @@ async function boot() {
       saveState: (id) => { const g = coop.guestSave(id); return g !== undefined ? g : saveState(id); },
       hostGame: (c) => coop.hostGame(c),
       joinGame: (c) => coop.joinGame(c),
+      invite: () => coop.invite(), canInvite: () => !coop.isGuest,   // drop-in with one link (src/net/dropin.js)
       namePlates: () => namePlates(),
       logout: (id) => {
         const wasGuest = coop.onLogout(id);
@@ -375,7 +376,8 @@ async function boot() {
     frames.last = nowMs;
     const me = playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
     // before a hero exists the world still draws (behind the title art) at the start zone
-    view.zone = me ? me.zone : content.start.zone; view.followId = playerId; view.targetId = me ? me.target : null; view.time = nowMs / 1000;
+    const watchE = !me && coop.watchId != null ? snap.entities.find((e) => e.id === coop.watchId) : null;   // a drop-in watcher follows the host
+    view.zone = me ? me.zone : watchE ? watchE.zone : content.start.zone; view.followId = watchE ? watchE.id : playerId; view.targetId = me ? me.target : null; view.time = nowMs / 1000;
     view.dpr = window.devicePixelRatio || 1; view.hud = ui.hudMode;
     view.stage = ui.stage;             // wave 6: the creation screen's or the mirror's turntable (renderer3d draws only it)
     view.inset = ui.mode === 'game' ? insets : null;   // title screens: the art covers the notch strips too

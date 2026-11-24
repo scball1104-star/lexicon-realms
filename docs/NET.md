@@ -5,7 +5,19 @@ No game server of ours. For Scott and his friends, not a public release.
 
 ## How friends connect
 
-**Room code (the normal way)**
+**Invite link (the quickest way, wave 8)**
+
+1. The host presses **Host a game** (or, already in the world alone, Options then **Invite a friend**), then **Copy
+   invite link** (on a phone, **Share** opens the share sheet). The bar's **Invite** button copies or shares it again.
+2. They send it by any message. The friend taps it: the game opens on a join screen, already connected and watching
+   the host's world behind it. They tap one of their saved heroes, or **Make hero and join** (a class and a name are
+   filled in), and their hero stands beside the host's. Or **Just watch**: no hero, the camera follows the host; the
+   bar's **Play** picks a hero later.
+3. The link is the page address and the room code after a `#` (for example `.../index.html#join=BYV57`), nothing else:
+   no name, hero, save or device detail. The part after `#` never reaches the web server. Anyone with the link can join
+   while the host is hosting, exactly as with the code; a new Host a game makes a new code, so old links stop working.
+
+**Room code**
 
 1. The host opens Lexicon Realms, picks a hero on Choose your hero and presses **Host a game**. Their hero enters the
    world and a panel shows a 5-letter room code (for example `BYV57`). They press Play and keep the tab open.
@@ -119,6 +131,31 @@ real round trip between the two homes (typically 20 to 80 ms in one country).
   host answering.
 - **Wrong-code wait**: there is no "no such room" reply on MQTT, so a wrong code waits 12 s.
 
+## Invite links and watching (wave 8, 2026-11-24)
+
+No new service: the link carries the room code, and the guest's page uses the same room-code path (the MQTT brokers,
+or `?net=local|relay` in tests) to reach the host. Opening a link first joins as a **watcher** (`hello { watch: 1 }`,
+no hero): the host sends frames that follow its own hero, with every hero trimmed, no HUD block and only public events
+(nothing from the host's bags, quest log, XP or loot). The join screen sits over that live view. Picking a hero sends
+`play { hero }` on the same data channel; the host adds the hero beside its own (the normal join path) and sends a
+second welcome. A full game answers `nope` and the friend keeps watching. Up to 4 watchers besides the 4 players; a
+watcher costs about what a friend does. Watchers can chat (as "A watcher"). The host's bar shows "2 of 4, 1 watching".
+
+Measured with `qa/integrate/dropin.py` (2026-11-24, headless browsers on one PC, relay signalling, real WebRTC; taps are
+every click, tap and key from "host on Choose your hero" to "friend's hero beside the host's", plus 1 for opening the
+game or the link; seconds are the median of 3 driven runs, page load and connect included, no human reading or typing):
+
+| Path | Room code (before) | Invite link (after) |
+|---|---|---|
+| Friend with a hero, desktop | 11 taps (host 2, friend 9: 5 of them the code), 3.9 s | 5 taps (host 3, friend 2), 4.1 s |
+| Friend with a hero, phone | 12 taps (host 2, friend 10), 4.8 s | 5 taps (host 3, friend 2), 4.1 s |
+| New friend, no hero yet | 20 taps (friend 18: make a hero, it walks in alone, Menu, Character select, Join, code), 5.5 s | 5 taps, 3.7 s (phone 3.5 s) |
+| Outside the game | host reads out or texts a 5-letter code, friend types it | host pastes the link (or Share), friend taps it |
+| Watch on a phone | not possible | 2 taps (open the link, Just watch); 2 more to play |
+
+The machine seconds are about the same both ways: page load and the connection dominate. The saving is the human part,
+reading and typing the code and the new friend's detour through the world, which a driven run does not time.
+
 ## Files
 
 - `src/net/transport.js`: data channel link (chunking, close detection), offer / answer, copy-paste codes, the MQTT,
@@ -127,9 +164,10 @@ real round trip between the two homes (typically 20 to 80 ms in one country).
 - `src/net/frames.js`: per-guest delta frames and the guest's rebuild (pure, node-tested).
 - `src/net/coop.js`: lobby flows and what `main.js` calls each tick.
 - `src/net/netui.js`: the HTML panels, the in-game bar and the chat line (`data-overlay`; `ui.js` ignores input inside).
+- `src/net/dropin.js`: invite links (`inviteLink`, `readInvite`), share or copy, the join screen for a link (wave 8).
 - `src/sim/world.js`, `src/sim/progression.js`, `src/sim/constants.js`: party id, `setParty`, kill sharing.
 - `src/main.js`: guest playback in `tick()`, host hooks around `world.step()`, name plates, save hooks.
 - `src/ui/ui.js`, `src/ui/title.js`, `src/ui/uivm.js`, `src/core/viewmodel.js`: Host / Join buttons, party frames,
   name plates, `ui.saveHero`, overlay input guard.
 - Tests: `qa/tests/coop.test.mjs` (kill sharing, setParty, frames), `qa/integrate/coop.py` (browsers; `--live` for the
-  real brokers).
+  real brokers), `qa/tests/dropin.test.mjs` and `qa/integrate/dropin.py` (invite links, watching, taps and seconds).

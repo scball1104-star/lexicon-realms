@@ -614,10 +614,21 @@ export function drawMap(ctx, env, m, st, regions, act) {
 
 // ---------------------------------------------------------------- options / game menu
 
+/** Options title bar, left of the close box: Invite a friend (src/net/dropin.js; starts hosting when solo). */
+function inviteButton(ctx, env, r, regions, act) {
+  const { g } = env;
+  const s = Math.max(16, env.L.minHit || 0), label = 'Invite a friend';
+  const w = g.textW(label) + 14, h = Math.min(s, 22), x = r.x + r.w - 10 - s - w, y = r.y + 4;
+  g.window(ctx, x, y, w, h, 'thin', 'forest', 0.95);
+  g.text(ctx, label, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
+  regions.push({ rect: { x, y, w, h }, kind: 'button', on: () => act.invite(), label });
+}
+
 export function drawOptions(ctx, env, m, st, regions, act, options) {
   const { g } = env;
   const r = { x: 60, y: 24, w: 520, h: 316 };
   frame(ctx, env, r, 'Options', regions, act, 'menu');
+  if (act.canInvite && act.canInvite()) inviteButton(ctx, env, r, regions, act);   // drop-in with one link (wave 8)
   const touch = env.L.touch, big = g.big;
   const short = touch || big;                  // short labels where room is short (a phone, or Large text)
   // key rows: 11 px a row on desktop (22 rows with 8 skill keys); Large text scrolls the list. A phone has no key list.
