@@ -1623,3 +1623,18 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 - **Dressing rule.** A square prop stands only on open floor of the square, never within its radius of a point of
   interest, never within 1 of the shortest walk from the town lantern to any point or way out, never on or by a decor
   piece; with every prop treated as solid no walk gets longer (`qa/tests/ground_kit.test.mjs`). Props are visual only.
+
+## UI skin "Lantern and Vellum" and Text size (wave 6 uiskin, 2026-11-24; Scott: "Go with all your recommendations")
+- Window style: `options.skin` 'lantern' (default for everyone) | 'classic' (today's LQ frames, kept one wave). `src/ui/skin.js`
+  `applySkin(g, art, id)` swaps `g.window` (classic stays at `g.windowClassic`) and sets `g.skin` (quest log, character
+  sheet, item slot with quality by colour and shape). Other windows draw with the existing g.* calls and never restyle
+  frames themselves. `?skin=lantern|classic` in the link overrides the option.
+- Text size: `options.text` 'auto' (Large on a phone, Normal on PC) | 'normal' | 'large'; `?text=` overrides. gfx.js:
+  `g.setTextSize`, `g.textScope(fn)` (Large applies only inside: windows, desktop npc window, desktop tracker and chat,
+  cards, tooltips; a phone's play layer is already the big legible scale), `g.smallScope(fn)`, `g.lh` (11 | 16),
+  `g.ls(n)` (n | n + 5), `g.mid(n)` (n | n + 2), `{ small: true }` / measure flag 'small'. At Normal every one gives
+  back today's number.
+- Long text scrolls instead of "...": `src/ui/textscroll.js` `scrollLines(...)`, offset in `st.textScroll[key]`, one
+  region with `scroll` (wheel) and `scrollDrag` (finger), label `scroll:<key>`.
+- Settings rows are `choice(label, key, vals, names)` lines placed by `placeChoices()` (menus.js drawOptions): they flow
+  into the next free column, so a new row never meets the bottom buttons. Add new rows above `placeChoices()`.

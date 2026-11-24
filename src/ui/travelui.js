@@ -104,8 +104,8 @@ export function drawFlightPage(ctx, env, m, d, regions, act, r, button, bottom, 
   let y = r.y + 26;
   g.text(ctx, `Kites from ${f.name.split(',')[0]}`, x0, y, 'gold', { large: true }); y += 16;
   const lvl = (m.player && m.player.level) || 1;
-  if (lvl < f.minLevel) { g.text(ctx, `The kites carry heroes from level ${f.minLevel}. Come back then.`, x0, y, 'gray'); y += 12; }
-  else { g.text(ctx, 'Pick a lit point. You cannot act while you fly.', x0, y, 'gray'); y += 12; }
+  if (lvl < f.minLevel) { g.text(ctx, `The kites carry heroes from level ${f.minLevel}. Come back then.`, x0, y, 'gray'); y += g.ls(12); }
+  else { g.text(ctx, 'Pick a lit point. You cannot act while you fly.', x0, y, 'gray'); y += g.ls(12); }
   const rowH = Math.max(16, env.L.minHit || 0);
   const gold = m.gold || 0;
   for (const p of f.to) {
@@ -113,11 +113,11 @@ export function drawFlightPage(ctx, env, m, d, regions, act, r, button, bottom, 
     const can = p.known && lvl >= f.minLevel && gold >= (p.cost || 0);
     g.rect(ctx, x0, y, w0, rowH - 1, 'rgba(20,16,30,0.35)');
     g.iconIn(ctx, 'icon_feather', x0 + 1, y, 16, rowH - 1, p.known ? 1 : 0.35);
-    g.text(ctx, g.clip(p.name, w0 - 120), x0 + 20, y + Math.floor((rowH - 11) / 2), p.known ? 'cream' : 'dim');
+    g.text(ctx, g.clip(p.name, w0 - 120), x0 + 20, y + Math.floor((rowH - g.lh) / 2), p.known ? 'cream' : 'dim');
     if (p.known) {
-      g.text(ctx, `${p.cost} gold, ${p.secs} s`, x0 + w0 - 52, y + Math.floor((rowH - 11) / 2), gold >= p.cost ? 'gold' : 'red', { align: 'right' });
+      g.text(ctx, `${p.cost} gold, ${p.secs} s`, x0 + w0 - 52, y + Math.floor((rowH - g.lh) / 2), gold >= p.cost ? 'gold' : 'red', { align: 'right' });
       button(x0 + w0 - 46, y, 46, 'Fly', can ? 'green' : 'gray', () => { if (can) { act.send({ t: 'fly', npc: d.ent, to: p.id }); act.closeDialog(); } }, can ? 'forest' : 'slate');
-    } else g.text(ctx, 'Not visited', x0 + w0 - 4, y + Math.floor((rowH - 11) / 2), 'dim', { align: 'right' });
+    } else g.text(ctx, 'Not visited', x0 + w0 - 4, y + Math.floor((rowH - g.lh) / 2), 'dim', { align: 'right' });
     y += rowH + 1;
   }
   back();

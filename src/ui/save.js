@@ -171,6 +171,8 @@ export const DEFAULT_OPTIONS = Object.freeze({
   cam: 'fixed',              // 3D camera: 'fixed' (today's north-up, the default) or 'horizon' (wave 5b, an option)
   synth: true,               // synth music for places with no track of their own and live synth sounds (wave 5b, 2026-11-24)
   r3d: false,                // the 3D preview renderer (Scott 2026-11-19: a switch in Settings instead of the ?r=3d link)
+  skin: 'lantern',           // window style (wave 6 uiskin): 'lantern' (Lantern and Vellum, the default) or 'classic' (one wave)
+  text: 'auto',              // text size: 'auto' (Large on a phone, Normal on PC), 'normal' or 'large' once picked in Settings
   binds: {},                 // action -> KeyboardEvent.code overrides (see keymap.js ACTIONS for defaults)
 });
 

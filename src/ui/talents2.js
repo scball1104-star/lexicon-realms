@@ -539,7 +539,13 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
     g.text(ctx, g.clip(hint, R.w - 16), R.x + R.w / 2, lay.hintY, build.freeRespec ? 'orange' : 'gray', { align: 'center' });
   }
 
-  // ---- the hover tooltip (desktop) or the pinned card (phone)
+  // ---- the hover tooltip (desktop) or the pinned card (phone): these take the Text size option (wave 6 uiskin); the
+  // tree above keeps its small text, its grid is a fixed, tested layout (talents2.test.mjs)
+  g.textScope(() => drawCards(ctx, env, m, st, regions, act, { touch, hovered, cd, build, p, free, R, lay, L, sel, nodeAt, picksAt, cls, B }));
+}
+
+function drawCards(ctx, env, m, st, regions, act, { touch, hovered, cd, build, p, free, R, lay, L, sel, nodeAt, picksAt, cls, B }) {
+  const { g } = env;
   if (!touch && hovered) {
     const tip = hovered.kind === 'node' ? nodeTip(cd, hovered.o, build, p.level, free) : pickTip(m, hovered.s, hovered.id);
     const nr = hovered.kind === 'node' ? hovered.n : { x: hovered.o.x, y: hovered.o.y, w: hovered.o.isz, h: hovered.o.isz };

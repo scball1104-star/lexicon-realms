@@ -10,9 +10,10 @@ import { flightOptions, drawFlightPage } from './travelui.js';   // big world: i
 
 export const DIALOG_RECT = { x: 60, y: 40, w: 330, h: 262 };
 export const DIALOG_RECT_TOUCH = { x: 4, y: 36, w: 300, h: 300 };
+export const DIALOG_RECT_BIG = { x: 20, y: 16, w: 372, h: 330 };   // Large text on desktop (wave 6 uiskin)
 /** The npc window on this HUD layer: the desktop rect, or on a phone the left of the screen under the menu buttons. */
-export function dialogRectFor(L) {
-  if (!L.touch) return { ...DIALOG_RECT };
+export function dialogRectFor(L, big = false) {
+  if (!L.touch) return big ? { ...DIALOG_RECT_BIG } : { ...DIALOG_RECT };
   const y = (L.minHit || 24) + 6;
   return { x: 4, y, w: Math.min(340, (L.W || 640) - 4 * (L.minHit || 24) - 14), h: (L.H || 360) - y - 16 };
 }
@@ -28,8 +29,8 @@ export function drawDialog(ctx, env, m, st, regions, act) {
   const d = st.dialog;
   if (!d || !m.player) return;
   const touch = env.L.touch;
-  const r = dialogRectFor(env.L);
-  const rowH0 = Math.max(14, env.L.minHit || 0);
+  const r = dialogRectFor(env.L, g.big);
+  const rowH0 = Math.max(g.ls(14), env.L.minHit || 0);
   if (d.page === 'main') {
     // the greeting window is only as tall as its choices
     const n = d.turnins.length + d.offers.length + d.progress.length + (d.trainer ? 1 : 0) + (d.vendor ? 1 : 0) + (d.inn ? 1 : 0) + (d.flight ? 1 : 0) + 2 + (act.profOptions ? act.profOptions(d).length : 0);
@@ -37,17 +38,17 @@ export function drawDialog(ctx, env, m, st, regions, act) {
   }
   const npc = npcInfo(d.npc) || { name: d.npc, talk: [] };
   frame(ctx, env, r, npc.name + (npc.title ? `, ${npc.title}` : ''), regions, act, 'dialog');
-  const rowH = Math.max(14, env.L.minHit || 0);
+  const rowH = Math.max(g.ls(14), env.L.minHit || 0);
   const x0 = r.x + 10, w0 = r.w - 20;
   let y = r.y + 26;
   const button = (x, yy, w, label, color, on, scheme = 'slate') => {
-    const bh = Math.max(16, env.L.minHit || 0);
+    const bh = Math.max(g.ls(16), env.L.minHit || 0);
     g.window(ctx, x, yy, w, bh, 'thin', scheme, 0.95);
-    g.text(ctx, label, x + w / 2, yy + Math.floor(bh / 2) - 6, color, { align: 'center' });
+    g.text(ctx, g.big ? g.clip(label, w - 4) : label, x + w / 2, yy + Math.floor(bh / 2) - g.mid(6), color, { align: 'center' });
     regions.push({ rect: { x, y: yy, w, h: bh }, kind: 'button', on, label });
     return bh;
   };
-  const bottom = r.y + r.h - Math.max(16, env.L.minHit || 0) - 8;
+  const bottom = r.y + r.h - Math.max(g.ls(16), env.L.minHit || 0) - 8;
   const back = (label = 'Back') => button(r.x + r.w - 10 - 70, bottom, 70, label, 'cream', () => { d.page = 'main'; d.quest = null; d.scroll = 0; });
 
   if (d.page === 'main') {
@@ -56,8 +57,8 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     const line = (npc.talk && npc.talk.length) ? npc.talk[d.line % npc.talk.length] : 'Well met.';
     const tx = hasPortrait ? x0 + 40 : x0;
     const ls = g.wrap(line, w0 - (tx - x0));
-    ls.slice(0, 4).forEach((ln, i) => g.text(ctx, ln, tx, y + i * 11, 'cream'));
-    y += Math.max(hasPortrait ? 36 : 0, Math.min(4, ls.length) * 11 + 6);
+    ls.slice(0, 4).forEach((ln, i) => g.text(ctx, ln, tx, y + i * g.lh, 'cream'));
+    y += Math.max(hasPortrait ? 36 : 0, Math.min(4, ls.length) * g.lh + 6);
     const opts = [];
     for (const id of d.turnins) opts.push({ icon: 'emote_question_0', label: (questInfo(id) || { name: id }).name, color: 'gold', on: () => { d.page = 'quest'; d.quest = id; d.textPage = 0; d.choice = 0; } });
     for (const id of d.offers) opts.push({ icon: 'emote_exclaim_0', label: (questInfo(id) || { name: id }).name, color: 'gold', on: () => { d.page = 'quest'; d.quest = id; d.textPage = 0; } });
@@ -73,7 +74,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       const ry = y;
       g.rect(ctx, x0, ry, w0, rowH - 1, 'rgba(20,16,30,0.35)');
       if (o.icon) g.iconIn(ctx, o.icon, x0 + 1, ry, 16, rowH - 1, o.dim ? 0.45 : 1);
-      g.text(ctx, g.clip(o.label, w0 - 24), x0 + 20, ry + Math.floor((rowH - 11) / 2), o.color);
+      g.text(ctx, g.clip(o.label, w0 - 24), x0 + 20, ry + Math.floor((rowH - g.lh) / 2), o.color);
       regions.push({ rect: { x: x0, y: ry, w: w0, h: rowH - 1 }, kind: 'button', on: o.on, label: o.label });
       y += rowH + 1;
       if (y > bottom - 4) break;
@@ -88,37 +89,37 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     if (!q) { d.page = 'main'; return; }
     const ready = d.turnins.includes(q.id), offer = d.offers.includes(q.id);
     for (const ln of g.wrap(q.name, w0, true)) { g.text(ctx, ln, x0, y, 'gold', { large: true }); y += 15; }
-    if (q.story) { g.text(ctx, g.clip(`${q.story.name}, part ${q.story.step} of ${q.story.of}`, w0), x0, y, 'gray'); y += 11; }   // a story chain (src/data/story_chains.js)
+    if (q.story) { g.text(ctx, g.clip(`${q.story.name}, part ${q.story.step} of ${q.story.of}`, w0), x0, y, 'gray'); y += g.lh; }   // a story chain (src/data/story_chains.js)
     const text = (ready ? q.text.complete : offer ? q.text.offer : q.text.progress) || '';
     // long text pages: the rest waits behind "more" (tap or click the text, or scroll) instead of being cut
-    const objH = offer ? 11 + q.objectives.length * 11 : 0;
-    const maxText = bottom - 46 - objH - 14;
+    const objH = offer ? g.lh + q.objectives.length * g.lh : 0;
+    const maxText = bottom - g.ls(46) - objH - g.ls(14);
     const all = g.wrap(text, w0);
-    const fit = Math.max(1, Math.floor((maxText - y) / 11) + 1);
+    const fit = Math.max(1, Math.floor((maxText - y) / g.lh) + 1);
     const pages = Math.max(1, Math.ceil(all.length / fit));
     d.textPage = Math.max(0, Math.min(pages - 1, d.textPage || 0));
     const shown = all.slice(d.textPage * fit, d.textPage * fit + fit);
     const ty0 = y;
-    for (const ln of shown) { g.text(ctx, ln, x0, y, 'cream'); y += 11; }
+    for (const ln of shown) { g.text(ctx, ln, x0, y, 'cream'); y += g.lh; }
     if (pages > 1) {
       const more = d.textPage < pages - 1 ? `more (${d.textPage + 1}/${pages})` : `back to start (${pages}/${pages})`;
-      g.text(ctx, more, x0 + w0, y, 'gold', { align: 'right' }); y += 11;
+      g.text(ctx, more, x0 + w0, y, 'gold', { align: 'right' }); y += g.lh;
       const rect = { x: x0, y: ty0, w: w0, h: y - ty0 };
       regions.push({ rect, kind: 'button', on: () => { d.textPage = (d.textPage + 1) % pages; }, label: 'more' });
       regions.push({ rect, kind: 'scroll', scroll: (k) => { d.textPage = Math.max(0, Math.min(pages - 1, d.textPage + k)); } });
     }
     y += 3;
     if (offer) {
-      g.text(ctx, 'Objectives', x0, y, 'gold'); y += 11;
-      for (const o of q.objectives) { g.text(ctx, g.clip(`${o.count > 1 ? `${o.count} ` : ''}${o.label}`, w0 - 10), x0 + 8, y, 'white'); y += 11; }
+      g.text(ctx, 'Objectives', x0, y, 'gold'); y += g.lh;
+      for (const o of q.objectives) { g.text(ctx, g.clip(`${o.count > 1 ? `${o.count} ` : ''}${o.label}`, w0 - 10), x0 + 8, y, 'white'); y += g.lh; }
     }
     const rw0 = q.rewards || {};
     const simRw0 = d.rewards && d.rewards[q.id];
     // the sim's view carries the XP this hero will really get (gap and PROGRESSION.xpRate applied)
     const rw = simRw0 && simRw0.xp != null ? { ...rw0, xp: simRw0.xp } : rw0;
-    y = Math.max(y + 2, bottom - 42);
+    y = Math.max(y + 2, bottom - g.ls(42));
     g.text(ctx, 'Rewards', x0, y, 'gold');
-    g.text(ctx, [rw.xp ? `${rw.xp} XP` : null, rw.gold ? `${rw.gold} gold` : null].filter(Boolean).join('   ') || 'None', x0 + 50, y, 'white');
+    g.text(ctx, [rw.xp ? `${rw.xp} XP` : null, rw.gold ? `${rw.gold} gold` : null].filter(Boolean).join('   ') || 'None', x0 + (g.big ? g.textW('Rewards') + 10 : 50), y, 'white');
     let ix = x0;
     const items = [...(rw.items || []).map((i) => ({ i, fixed: true })), ...(rw.choice || []).map((i, k) => ({ i, k }))];
     // the sim says which choices this hero can use (quest_dialog rewards, fix pass 1): the rest are greyed with why
@@ -131,7 +132,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     const tips = [];
     for (const it of items.slice(0, 8)) {
       const sz = Math.max(18, Math.min(24, env.L.minHit || 0));
-      const sr = { x: ix, y: y + 12, w: sz, h: sz };
+      const sr = { x: ix, y: y + g.ls(12), w: sz, h: sz };
       const sc = it.fixed ? null : choiceOf(it.k);
       const info = itemInfo(sc && sc.inst ? { ...itemInfo(it.i), ...sc.inst } : it.i);
       const unusable = !!(sc && sc.usable === false);
@@ -159,7 +160,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       if (d.peek == null || d.peekQuest !== q.id) { d.peekQuest = q.id; d.peek = -1; }
       const tp = d.peek >= 0 ? tips[d.peek] : null;
       if (tp) drawTooltip(g, ctx, tp, x0, y, { w: Math.min(214, w0), W: x0 + w0 + 2, H: y - 1 });
-      else g.text(ctx, 'Tap an item to see it', ix + 6, y + 12 + 4, 'gray');
+      else g.text(ctx, g.clip('Tap an item to see it', x0 + w0 - ix - 8), ix + 6, y + g.ls(12) + (g.big ? 1 : 4), 'gray');
     }
     if (offer) button(x0, bottom, 90, 'Accept', 'green', () => { act.send({ t: 'quest_accept', quest: q.id, npc: d.ent }); act.refreshDialog(); }, 'forest');
     // one reward choice is simply yours: no "pick one" (CRITIQUE_1 item 20)
@@ -168,7 +169,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       const bag = m.bag || { size: 12, items: [] };
       const gifts = (rw.items || []).length + ((rw.choice || []).length ? 1 : 0);
       const freeSlots = (bag.size || 0) - (bag.items || []).filter(Boolean).length;
-      if (gifts > 0 && freeSlots < gifts) g.text(ctx, `Bags full: free ${gifts - Math.max(0, freeSlots)} slot${gifts - Math.max(0, freeSlots) > 1 ? 's' : ''} first`, x0 + 118, bottom + Math.floor(Math.max(16, env.L.minHit || 0) / 2) - 6, 'red');
+      if (gifts > 0 && freeSlots < gifts) g.text(ctx, `Bags full: free ${gifts - Math.max(0, freeSlots)} slot${gifts - Math.max(0, freeSlots) > 1 ? 's' : ''} first`, x0 + 118, bottom + Math.floor(Math.max(g.ls(16), env.L.minHit || 0) / 2) - g.mid(6), 'red');
     }
     if (ready) button(x0, bottom, 110, (rw.choice || []).length > 1 ? 'Complete (pick one)' : 'Complete', 'gold', () => { act.send({ t: 'quest_turnin', quest: q.id, npc: d.ent, choice: (rw.choice || []).length > 1 ? d.choice : 0 }); act.refreshDialog(); }, 'ember');
     back();
@@ -177,7 +178,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
 
   if (d.page === 'train') {
     const offer = (d.trainer && d.trainer.offer) || [];
-    g.text(ctx, 'Abilities', x0, y, 'gold'); g.text(ctx, `${m.gold} gold`, x0 + w0, y, 'gold', { align: 'right' }); y += 13;
+    g.text(ctx, 'Abilities', x0, y, 'gold'); g.text(ctx, `${m.gold} gold`, x0 + w0, y, 'gold', { align: 'right' }); y += g.ls(13);
     const vis = Math.floor((bottom - 6 - y) / rowH);
     d.scroll = Math.max(0, Math.min(Math.max(0, offer.length - vis), d.scroll || 0));
     const known = new Set((m.bar || []).map((b) => b.ability).filter(Boolean));
@@ -187,13 +188,13 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       const can = !isKnown && m.player.level >= o.level && m.gold >= o.cost;
       g.rect(ctx, x0, y, w0, rowH - 1, 'rgba(20,16,30,0.35)');
       g.iconIn(ctx, a.icon, x0, y, 16, rowH - 1);
-      g.text(ctx, g.clip(a.name, 130), x0 + 20, y + Math.floor((rowH - 11) / 2), isKnown ? 'gray' : can ? 'white' : 'dim');
+      g.text(ctx, g.clip(a.name, w0 - (g.big ? 150 : 140)), x0 + 20, y + Math.floor((rowH - g.lh) / 2), isKnown ? 'gray' : can ? 'white' : 'dim');
       const right = isKnown ? 'Known' : m.player.level < o.level ? `Level ${o.level}` : o.cost ? `${o.cost} gold` : 'Free';
-      g.text(ctx, right, x0 + w0 - 60, y + Math.floor((rowH - 11) / 2), isKnown ? 'gray' : can ? 'gold' : 'red', { align: 'right' });
+      g.text(ctx, right, x0 + w0 - 60, y + Math.floor((rowH - g.lh) / 2), isKnown ? 'gray' : can ? 'gold' : 'red', { align: 'right' });
       if (can) {
-        const bw = 52;
+        const bw = g.big ? 58 : 52;
         g.window(ctx, x0 + w0 - bw, y + 1, bw, rowH - 3, 'thin', 'forest', 0.95);
-        g.text(ctx, 'Train', x0 + w0 - bw / 2, y + Math.floor((rowH - 11) / 2), 'cream', { align: 'center' });
+        g.text(ctx, 'Train', x0 + w0 - bw / 2, y + Math.floor((rowH - g.lh) / 2), 'cream', { align: 'center' });
       }
       regions.push({ rect: { x: x0, y, w: w0, h: rowH - 1 }, kind: 'button', tip: abilityTooltip(a, Math.max(m.player.level, o.level), (classInfo(m.player.cls) || {}).resource),
         on: () => { if (can) act.send({ t: 'train', ability: o.ability, npc: d.ent }); }, label: `train:${o.ability}` });
@@ -221,8 +222,8 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     const stock = (d.vendor && d.vendor.items) || [];
     g.text(ctx, 'For sale', x0, y, 'gold');
     g.icon(ctx, 'icon_gold', x0 + w0 - 60, y + 1); g.text(ctx, `${m.gold}`, x0 + w0, y, 'gold', { align: 'right' });
-    y += 13;
-    const listBottom = bottom - 26;
+    y += g.ls(13);
+    const listBottom = bottom - g.ls(26);
     const vis = Math.floor((listBottom - y) / rowH);
     d.scroll = Math.max(0, Math.min(Math.max(0, stock.length - vis), d.scroll || 0));
     let vcard = null;
@@ -231,11 +232,11 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       const col = RARITY_COLOR[s.rarity] || '#e8e8e8';
       g.rect(ctx, x0, y, w0, rowH - 1, 'rgba(20,16,30,0.35)');
       g.iconIn(ctx, s.icon || 'icon_bag', x0, y, 16, rowH - 1);
-      g.text(ctx, g.clip(s.name, w0 - 100), x0 + 20, y + Math.floor((rowH - 11) / 2), m.gold >= s.price ? 'white' : 'dim');
+      g.text(ctx, g.clip(s.name, w0 - 100), x0 + 20, y + Math.floor((rowH - g.lh) / 2), m.gold >= s.price ? 'white' : 'dim');
       const ownedMount = s.kind === 'mount' && (m.player.mounts || []).some((k) => s.item === `mount_${k}`);   // mounts: you have it
-      if (ownedMount) g.text(ctx, 'Owned', x0 + w0 - 56, y + Math.floor((rowH - 11) / 2), 'green', { align: 'right' });
-      else if ((s.reqLevel || 1) > m.player.level) g.text(ctx, `Lv ${s.reqLevel}`, x0 + w0 - 56, y + Math.floor((rowH - 11) / 2), 'red', { align: 'right' });
-      g.text(ctx, `${s.price} gold`, x0 + w0 - 2, y + Math.floor((rowH - 11) / 2), m.gold >= s.price ? 'gold' : 'red', { align: 'right' });
+      if (ownedMount) g.text(ctx, 'Owned', x0 + w0 - 56, y + Math.floor((rowH - g.lh) / 2), 'green', { align: 'right' });
+      else if ((s.reqLevel || 1) > m.player.level) g.text(ctx, `Lv ${s.reqLevel}`, x0 + w0 - 56, y + Math.floor((rowH - g.lh) / 2), 'red', { align: 'right' });
+      g.text(ctx, `${s.price} gold`, x0 + w0 - 2, y + Math.floor((rowH - g.lh) / 2), m.gold >= s.price ? 'gold' : 'red', { align: 'right' });
       void col;
       const info = itemInfo(s.item);
       const tip = info ? { ...itemTooltip(info, touch ? null : 'Click to buy (right-click: 5)', info.slot ? (m.equip[info.slot] || null) : undefined), foot: `${touch ? '' : 'Click to buy, right-click for 5.  '}${s.price} gold each.${(s.reqLevel || 1) > m.player.level ? `  Needs level ${s.reqLevel} to ${s.kind === 'mount' ? 'ride' : 'wear'}.` : ''}`, footColor: can ? 'gold' : 'red' } : null;
@@ -255,8 +256,8 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     // buyback strip
     const bb = m.buyback || [];
     const by = listBottom + 2;
-    g.text(ctx, 'Buy back', x0, by + 4, 'gray');
-    let bx = x0 + 50;
+    g.text(ctx, 'Buy back', x0, by + 4 - (g.big ? 2 : 0), 'gray');
+    let bx = x0 + (g.big ? g.textW('Buy back') + 8 : 50);
     bb.slice(-6).forEach((b, k) => {
       const sz = 20;
       const sr = { x: bx, y: by, w: sz, h: sz };
@@ -271,7 +272,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
     back();
     // the picked item's card (phone), drawn last so it sits over the list: stats, compare with what is worn, Buy and Close
     if (vcard && vcard.tip) {
-      const bh = Math.max(20, env.L.minHit || 0), gap = 4;
+      const bh = Math.max(g.ls(20), env.L.minHit || 0), gap = 4;
       const cw = Math.min(214, w0 - 8);
       const box = drawTooltip(g, ctx, vcard.tip, x0 + w0 - cw, vcard.rowY + rowH, { w: cw, W: x0 + w0 + 2, H: bottom - bh - gap });
       const by2 = box.y + box.h + gap, bw = Math.floor((box.w - gap) / 2);
@@ -279,7 +280,7 @@ export function drawDialog(ctx, env, m, st, regions, act) {
       [['Buy', 'forest', () => { const s = vcard.s; d.vpick = null; act.send({ t: 'buy', npc: d.ent, index: s.index, qty: 1 }); }], ['Close', 'slate', () => { d.vpick = null; }]].forEach(([text, tone, on], k) => {
         const bx2 = box.x + k * (bw + gap);
         g.window(ctx, bx2, by2, bw, bh, 'thin', tone, 0.97);
-        g.text(ctx, text, bx2 + bw / 2, by2 + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+        g.text(ctx, text, bx2 + bw / 2, by2 + Math.floor(bh / 2) - g.mid(6), 'cream', { align: 'center' });
         regions.push({ rect: { x: bx2, y: by2, w: bw, h: bh }, kind: 'button', label: `vcard:${text.toLowerCase()}`, on });
       });
     }

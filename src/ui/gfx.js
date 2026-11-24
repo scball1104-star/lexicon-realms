@@ -52,9 +52,29 @@ export function createGfx(art) {
     return c;
   }
 
+  // Text size (wave 6 uiskin, Settings "Text size: Normal / Large"). Large draws body text with the title font (line 16 px,
+  // capitals 11) instead of the small one (line 11, capitals 7). It acts only inside a text scope: ui.js opens one round
+  // the windows, the npc window, tracker, chat and tooltips, so the unit frames and the bar keep their fixed small text.
+  // Inside a scope g.text / textW / wrap / clip use the large font unless asked for { small: true } ('small' as the
+  // measure flag); g.lh, g.ls(n) and g.mid(n) give a window its line height, a row of n px and a text centring offset,
+  // and all three give back today's numbers when the text is Normal (so Normal stays pixel identical).
+  let bigPref = false, bigOn = false;
+  const useLarge = (flag) => flag !== 'small' && (!!flag || bigOn);
+
   const api = {
     art,
-    /** LQ window: gradient fill + nine-slice frame. frame: 'std' | 'thin' | 'field'; scheme: blue crimson ember slate violet forest. */
+    setTextSize(size) { bigPref = size === 'large'; },
+    get textSize() { return bigPref ? 'large' : 'normal'; },
+    /** Run fn with the chosen text size on (scopes nest). */
+    textScope(fn) { const prev = bigOn; bigOn = bigPref; try { return fn(); } finally { bigOn = prev; } },
+    /** Run fn with small text whatever the option (a fixed HUD box drawn from inside a scope). */
+    smallScope(fn) { const prev = bigOn; bigOn = false; try { return fn(); } finally { bigOn = prev; } },
+    get big() { return bigOn; },
+    get lh() { return bigOn ? 16 : 11; },
+    ls(n) { return bigOn ? n + 5 : n; },
+    mid(n) { return bigOn ? n + 2 : n; },
+    /** LQ window: gradient fill + nine-slice frame. frame: 'std' | 'thin' | 'field'; scheme: blue crimson ember slate violet forest.
+     *  The UI skin (skin.js) swaps this for its own frames; windowClassic is always today's. */
     window(ctx, x, y, w, h, frame = 'std', scheme = 'blue', alpha = 0.92) {
       x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
       const fr = win.frames[frame];
@@ -147,16 +167,16 @@ export function createGfx(art) {
 
     // ---------------------------------------------------------------- text
     font, large,
-    textW(s, isLarge = false) { return (isLarge ? large : font).measure(s); },
-    /** y = line top. Returns the width. opts: { large, align, shadow, alpha }. */
+    textW(s, isLarge = false) { return (useLarge(isLarge) ? large : font).measure(s); },
+    /** y = line top. Returns the width. opts: { large, small, align, shadow, alpha }. */
     text(ctx, s, x, y, color = 'white', opts = {}) {
-      const f = opts.large ? large : font;
+      const f = opts.large || (bigOn && !opts.small) ? large : font;
       return f.draw(ctx, s, x, y, { color, align: opts.align || 'left', shadow: opts.shadow, alpha: opts.alpha }).width;
     },
-    wrap(s, width, isLarge = false) { return (isLarge ? large : font).wrap(s, width); },
+    wrap(s, width, isLarge = false) { return (useLarge(isLarge) ? large : font).wrap(s, width); },
     /** Fit a string into `width` px, ending with '..' when cut. */
     clip(s, width, isLarge = false) {
-      const f = isLarge ? large : font;
+      const f = useLarge(isLarge) ? large : font;
       if (f.measure(s) <= width) return s;
       let t = s;
       while (t.length > 1 && f.measure(t + '..') > width) t = t.slice(0, -1);
@@ -224,5 +244,6 @@ export function createGfx(art) {
       return true;
     },
   };
+  api.windowClassic = api.window;
   return api;
 }

@@ -51,11 +51,11 @@ function cell(ctx, g, r, it, dim = false) {
 function tab(ctx, g, x, y, w, h, label, on) {
   g.window(ctx, x, y, w, h, 'thin', on ? 'ember' : 'slate', on ? 0.98 : 0.8);
   if (on) g.outline(ctx, x + 1, y + 1, x + w - 2, y + h - 2, '#ffd34d');
-  g.text(ctx, g.clip(label, w - 8), x + w / 2, y + Math.floor(h / 2) - 6, on ? 'gold' : 'gray', { align: 'center' });
+  g.text(ctx, g.clip(label, w - 8), x + w / 2, y + Math.floor(h / 2) - g.mid(6), on ? 'gold' : 'gray', { align: 'center' });
 }
 function button(ctx, g, regions, x, y, w, h, label, scheme, color, on, tip = null) {
   g.window(ctx, x, y, w, h, 'thin', scheme, 0.97);
-  g.text(ctx, g.clip(label, w - 6), x + w / 2, y + Math.floor(h / 2) - 6, color, { align: 'center' });
+  g.text(ctx, g.clip(label, w - 6), x + w / 2, y + Math.floor(h / 2) - g.mid(6), color, { align: 'center' });
   regions.push({ rect: { x, y, w, h }, kind: 'button', label: `chest:${label}`, on, tip });
 }
 const samePick = (pk, tab, key, id) => !!pk && pk.tab === tab && pk.key === key && pk.id === id;
@@ -92,7 +92,7 @@ export function drawChest(ctx, env, m, st, regions, act) {
     regions.push({ rect: { x: tx, y: ty, w: tw, h: tabsH }, kind: 'button', label: `chest_tab:${id}`, on: () => { c.tab = id; c.pick = null; c.scroll = 0; },
       tip: touch ? null : { title: id === 'shared' ? 'Shared' : heroName, sub: id === 'shared' ? 'Every hero on this device sees these items.' : 'Only this hero sees these items.' } });
   });
-  g.text(ctx, `${used}/${T.size}`, r.x + r.w - 10, ty + Math.floor(tabsH / 2) - 6, used >= T.size ? 'red' : 'gray', { align: 'right' });
+  g.text(ctx, `${used}/${T.size}`, r.x + r.w - 10, ty + Math.floor(tabsH / 2) - g.mid(6), used >= T.size ? 'red' : 'gray', { align: 'right' });
 
   // the grid (and the next row, locked, under a Buy button)
   const gx = r.x + Math.floor((r.w - cols * hit) / 2) + (touch ? 0 : 1), gy = ty + tabsH + 6;
@@ -149,7 +149,7 @@ export function drawChest(ctx, env, m, st, regions, act) {
   // glyphs kept in this tab: no slots, one stack per letter
   if (T.glyphs.length || !touch) {
     const s = touch ? hit - 4 : 20;
-    g.text(ctx, 'Glyphs', gx, y + Math.floor(s / 2) - 6, 'violet');
+    g.text(ctx, 'Glyphs', gx, y + Math.floor(s / 2) - g.mid(6), 'violet');
     let x = gx + (touch ? 50 : 44);
     const fit = Math.max(1, Math.floor((r.x + r.w - 10 - x) / (s + 2)));
     const gs = Math.max(0, Math.min(T.glyphs.length - fit, c.gscroll || 0));
@@ -175,8 +175,8 @@ export function drawChest(ctx, env, m, st, regions, act) {
         } });
       x += s + 2;
     }
-    if (!T.glyphs.length) g.text(ctx, 'none here', x, y + Math.floor(s / 2) - 6, 'dim');
-    else if (!touch) g.text(ctx, 'no slots used', x + 2, y + Math.floor(s / 2) - 6, 'dim');
+    if (!T.glyphs.length) g.text(ctx, 'none here', x, y + Math.floor(s / 2) - g.mid(6), 'dim');
+    else if (!touch) g.text(ctx, 'no slots used', x + 2, y + Math.floor(s / 2) - g.mid(6), 'dim');
     y += glyphH;
   }
 
@@ -185,7 +185,7 @@ export function drawChest(ctx, env, m, st, regions, act) {
     const bh = hit - 4;
     const bw = Math.floor((r.w - 16 - 6) * 0.62);
     if (T.nextPrice != null) buyButton(r.x + 8, y, bw, bh);
-    else g.text(ctx, `${T.size} slots: the most a tab holds`, r.x + 10, y + Math.floor(bh / 2) - 6, 'dim');
+    else g.text(ctx, `${T.size} slots: the most a tab holds`, r.x + 10, y + Math.floor(bh / 2) - g.mid(6), 'dim');
     button(ctx, g, regions, r.x + r.w - 8 - (r.w - 16 - 6 - bw), y, r.w - 16 - 6 - bw, bh, 'Sort', 'slate', 'cream', () => act.chestSort(tabId));
     y += hit;
     const below = Math.max(0, T.size - (c.scroll + visRows) * cols);
@@ -194,12 +194,12 @@ export function drawChest(ctx, env, m, st, regions, act) {
   } else {
     const help = [['Right-click an item: to your bags.', 'gray'], ['Right-click in your bags: Store here.', 'gray'],
       ['Or drag between the chest and bags.', 'gray'], [`Shift + right-click: straight to ${tabId === 'hero' ? 'Shared' : heroName}.`, 'dim']];
-    for (const [t, col] of help) { g.text(ctx, t, gx, y, col); y += 11; }
+    for (const [t, col] of help) { g.text(ctx, t, gx, y, col); y += g.lh; }
     button(ctx, g, regions, r.x + r.w - 10 - 44, r.y + r.h - 22, 44, 16, 'Sort', 'slate', 'cream', () => act.chestSort(tabId),
       { title: 'Sort', sub: 'Merge stacks, then order by kind and rarity.' });
-    g.icon(ctx, 'icon_gold', r.x + 10, r.y + r.h - 18);
-    g.text(ctx, `${Number(m.gold || 0).toLocaleString('en-US')} gold`, r.x + 25, r.y + r.h - 19, 'gold');
-    if (S.place) g.text(ctx, g.clip(S.place, 100), r.x + r.w - 60, r.y + r.h - 19, 'dim', { align: 'right' });
+    g.icon(ctx, 'icon_gold', r.x + 10, r.y + r.h - g.ls(18));
+    g.text(ctx, `${Number(m.gold || 0).toLocaleString('en-US')} gold`, r.x + 25, r.y + r.h - g.ls(19), 'gold');
+    if (S.place) g.text(ctx, g.clip(S.place, 100), r.x + r.w - 60, r.y + r.h - g.ls(19), 'dim', { align: 'right' });
   }
 
   // the pinned card (phone): beside the chest, Take / Close and Move to the other tab. Drawn later (c.cardFn), over the
@@ -263,7 +263,7 @@ export function drawPouch(ctx, env, m, st, regions, act, x, yBottom, w) {
       } });
   });
   if (sideDrag) regions.push({ rect: { x: r.x + 4, y: r.y + 16, w: r.w - 8, h: p + 2 }, kind: 'scroll', scroll: (k) => { st.pouchScroll += k; } });
-  if (!touch) g.text(ctx, 'A-Z order', r.x + r.w - 8, r.y + r.h - 12, 'dim', { align: 'right' });
+  if (!touch) g.text(ctx, 'A-Z order', r.x + r.w - 8, r.y + r.h - g.ls(12), 'dim', { align: 'right' });
   // the pinned glyph card (phone)
   if (touch && st.itemPick && st.itemPick.kind === 'glyph') {
     const gl = list.find((o) => o.item === st.itemPick.id);

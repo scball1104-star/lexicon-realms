@@ -367,6 +367,7 @@ export function setItems(items) { ITEMS = items || {}; }
 let QUESTS = {}, NPCS = {};
 export function setQuests(quests, npcs) { QUESTS = quests || {}; NPCS = npcs || NPCS; }
 export const questInfo = (id) => QUESTS[id] || null;
+export const allQuests = () => QUESTS;          // the quest log's story line counts a chain's steps (skin_windows.js)
 export const npcInfo = (id) => NPCS[id] || null;
 /** An item's display record: the content entry for an id, or the object itself (placeholder bags carry full records). */
 export function itemInfo(ref) {

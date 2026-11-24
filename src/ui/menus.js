@@ -9,6 +9,7 @@ import { drawAreas, drawTooltip, drawGoalArrow } from './hud.js';
 import { whereLabel } from './questnav.js';
 import { ACTIONS, effectiveBinds, keyLabel } from './keymap.js';
 import { BIND_TEXT } from './group_ui.js';
+import { scrollLines } from './textscroll.js';   // Large text: long quest text scrolls (wave 6 uiskin)
 
 const FLIGHT_POINTS = Object.values(FLIGHT.points);
 
@@ -25,7 +26,7 @@ export function frame(ctx, env, r, title, regions, act, id) {
   const cr = { x: r.x + r.w - 4 - s, y: r.y + 3, w: s, h: Math.min(s, 22) };
   if (env.L.touch) cr.h = s;
   g.window(ctx, r.x + r.w - 20, r.y + 5, 14, 14, 'thin', 'crimson', 0.95);
-  g.text(ctx, 'x', r.x + r.w - 13, r.y + 5, 'cream', { align: 'center' });
+  g.text(ctx, 'x', r.x + r.w - 13, r.y + 5, 'cream', { align: 'center', small: true });
   regions.push({ rect: cr, kind: 'button', on: () => act.close(id), tip: { title: 'Close', sub: 'Esc' } });
 }
 
@@ -83,6 +84,7 @@ export function itemTooltip(it, extra, worn) {
 
 function itemSlot(ctx, env, r, it, emptyIcon) {
   const { g } = env;
+  if (g.skin) return g.skin.itemSlot(ctx, env, r, it, emptyIcon, itemInfo);   // Lantern and Vellum: quality by colour and shape (skin.js)
   const i = it ? itemInfo(it) : null;
   g.window(ctx, r.x, r.y, r.w, r.h, 'thin', i ? 'blue' : 'slate', i ? 0.95 : 0.7);
   if (i) {
@@ -103,11 +105,13 @@ export function drawCharacter(ctx, env, m, st, regions, act) {
   // the spare skills (known, not on the bar) sit under the stats; the window grows to fit a row of them
   const spare = m.stats ? (m.spare || []) : null;
   const base = menuRect('character');
-  const r = spare ? { ...base, h: Math.max(base.h, Math.min(360 - 4 - base.y, 240 + pitch + 8)) } : base;
+  // Large text (gfx.js g.big): a taller, wider sheet from the top of the 640x360 design, the gold beside the name
+  const big = g.big;
+  const r = big ? { x: base.x, y: 8, w: 300, h: 344 } : spare ? { ...base, h: Math.max(base.h, Math.min(360 - 4 - base.y, 240 + pitch + 8)) } : base;
   frame(ctx, env, r, 'Character', regions, act, 'character');
   charArt.portrait(ctx, p.cls, p.look, r.x + 9, r.y + 24, 32, 32);
   g.text(ctx, p.name, r.x + 47, r.y + 25, 'white');
-  g.text(ctx, `Level ${p.level} ${p.clsName}`, r.x + 47, r.y + 37, 'gray');
+  g.text(ctx, `Level ${p.level} ${p.clsName}`, r.x + 47, r.y + 25 + g.ls(12), 'gray');
   const gy = r.y + 62;
   const gear = (list, x) => list.forEach((slot, i) => {
     const sr = { x, y: gy + i * pitch, w: sz, h: sz };
@@ -135,35 +139,39 @@ export function drawCharacter(ctx, env, m, st, regions, act) {
   const s = m.stats || statsAt(p.cls, p.level) || {};
   const sx = r.x + 74, sw = r.w - 84;
   let y = r.y + 60;
-  const row = (label, v, col = 'white') => { g.text(ctx, label, sx, y, 'gray'); g.text(ctx, String(v), sx + sw, y, col, { align: 'right' }); y += 11; };
-  g.text(ctx, 'Attributes', sx, y, 'gold'); y += 12;
+  const row = (label, v, col = 'white') => { g.text(ctx, label, sx, y, 'gray'); g.text(ctx, String(v), sx + sw, y, col, { align: 'right' }); y += g.lh; };
+  g.text(ctx, 'Attributes', sx, y, 'gold'); y += g.ls(12);
   row('Stamina', s.sta ?? '-'); row('Strength', s.str ?? '-'); row('Agility', s.agi ?? '-'); row('Intellect', s.int ?? '-'); row('Spirit', s.spi ?? '-');
   if (s.armor != null) row('Armor', s.armor);
-  y += 4; g.text(ctx, 'Vitals', sx, y, 'gold'); y += 12;
+  y += 4; g.text(ctx, 'Vitals', sx, y, 'gold'); y += g.ls(12);
   row('Health', `${p.hp}/${p.hpMax}`, 'hp');
   if (p.res) row(p.res.kind[0].toUpperCase() + p.res.kind.slice(1), `${Math.floor(p.res.cur)}/${p.res.max}`, 'mp');
   const d = (m.stats && m.stats.derived) || p.derived;
   if (d) { if (d.ap != null) row('Attack power', d.ap); if (d.sp != null) row('Spell power', d.sp); if (d.crit != null) row('Crit', `${(d.crit * 100).toFixed(1)}%`); }
   y += 4;
-  g.icon(ctx, 'icon_gold', sx, y + 1);
-  g.text(ctx, `${Number(m.gold).toLocaleString('en-US')} gold`, sx + 15, y, 'gold');
-  if (!m.stats) g.text(ctx, 'Base stats from the class table. Gear is not counted yet.', r.x + 9, r.y + r.h - 18, 'dim');
-  if (spare) spareSkills(ctx, env, m, st, regions, act, r, spare, pitch, sz);
+  const goldS = `${Number(m.gold).toLocaleString('en-US')} gold`;
+  const gx = big ? r.x + r.w - 10 - g.textW(goldS) - 15 : sx, gyy = big ? r.y + 25 + g.ls(12) : y;
+  g.icon(ctx, 'icon_gold', gx, gyy + 1 + (big ? 3 : 0));
+  g.text(ctx, goldS, gx + 15, gyy, 'gold');
+  if (!m.stats) g.text(ctx, g.clip('Base stats from the class table. Gear is not counted yet.', r.w - 18), r.x + 9, r.y + r.h - g.ls(18), 'dim');
+  if (spare) spareSkills(ctx, env, m, st, regions, act, r, spare, pitch, sz, big ? y + 2 : null);
 }
 
 // Spare skills (Scott 2026-11-20: "Add the ability to rearrange skills on the bar"): the skills the hero knows that are
 // not on the bar. PC: drag one onto a bar slot (ui.js starts the drag from the `spare` region). Phone: a tap pins its
 // card with Put on bar, then a tap on a gold bar slot (the same flow as an item from the bags).
-function spareSkills(ctx, env, m, st, regions, act, r, spare, pitch, sz) {
+function spareSkills(ctx, env, m, st, regions, act, r, spare, pitch, sz, top = null) {
   const { g, L } = env;
-  const ly = r.y + 228, ry = ly + 12;
+  const ly = top ?? r.y + 228, ry = ly + g.ls(12);
   const per = Math.max(1, Math.floor((r.w - 18) / pitch));
   g.text(ctx, 'Spare skills', r.x + 9, ly, 'gold');
   if (!spare.length) {
-    g.text(ctx, g.clip(L.touch ? 'None. Hold a skill on the bar, then Take off bar.' : 'None. Drag a skill off the bar to keep it here.', r.w - 90), r.x + 80, ly, 'dim');
+    const none = L.touch ? 'None. Hold a skill on the bar, then Take off bar.' : 'None. Drag a skill off the bar to keep it here.';
+    if (g.big) { g.wrap(none, r.w - 18).slice(0, 2).forEach((ln, k) => g.text(ctx, ln, r.x + 9, ry + k * g.lh, 'dim')); return; }
+    g.text(ctx, g.clip(none, r.w - 90), r.x + 80, ly, 'dim');
     return;
   }
-  g.text(ctx, L.touch ? 'Tap one to put it on the bar' : 'Drag one to a bar slot', r.x + r.w - 10, ly, 'dim', { align: 'right' });
+  g.text(ctx, g.big ? g.clip(L.touch ? 'Tap one to put it on the bar' : 'Drag one to a bar slot', r.w - 110) : L.touch ? 'Tap one to put it on the bar' : 'Drag one to a bar slot', r.x + r.w - 10, ly, 'dim', { align: 'right' });
   const res = (classInfo(m.player.cls) || {}).resource || 'mana';
   const shown = spare.slice(0, per);
   shown.forEach((sp, k) => {
@@ -201,14 +209,14 @@ function spareSkills(ctx, env, m, st, regions, act, r, spare, pitch, sz) {
 export function itemCard(ctx, env, st, regions, tip, x, y, label, onAct, opts = {}) {
   const { g, L } = env;
   const more = (opts.more || []).filter((b) => b && b[0]);
-  const bh = Math.max(20, L.minHit || 0), gap = 4;
+  const bh = Math.max(g.ls(20), L.minHit || 0), gap = 4;
   const rowsH = (1 + more.length) * (bh + gap);
   const box = drawTooltip(g, ctx, tip, x, y, { W: L.W, H: L.H - rowsH });
   let by = box.y + box.h + gap;
   regions.push({ rect: { x: box.x, y: box.y, w: box.w, h: box.h + rowsH }, kind: 'window', id: 'item_card' });
   const button = (text, tone, on, bx, w) => {
     g.window(ctx, bx, by, w, bh, 'thin', tone, 0.97);
-    g.text(ctx, text, bx + w / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+    g.text(ctx, g.big ? g.clip(text, w - 6) : text, bx + w / 2, by + Math.floor(bh / 2) - g.mid(6), 'cream', { align: 'center' });
     regions.push({ rect: { x: bx, y: by, w, h: bh }, kind: 'button', label: `card:${text.toLowerCase()}`, on: () => { on(); } });
   };
   const bw = Math.floor((box.w - gap) / 2);
@@ -228,7 +236,7 @@ export function drawBags(ctx, env, m, st, regions, act) {
   const cols = Math.min(8, Math.floor((216 - 16) / pitch));
   const rows = Math.ceil(n / cols);
   const base = menuRect('bags');
-  const h = Math.min(330, 28 + rows * pitch + 26);
+  const h = Math.min(330, 28 + rows * pitch + g.ls(26));
   const r = { x: base.x, y: Math.max(20, 340 - h), w: base.w, h };
   frame(ctx, env, r, 'Bags', regions, act, 'bags');
   const used = bag.items.filter(Boolean).length;
@@ -265,16 +273,16 @@ export function drawBags(ctx, env, m, st, regions, act) {
       if (tip) itemCard(ctx, env, st, regions, tip, Math.max(4, r.x - 220), r.y, label, () => { st.itemPick = null; act.useItem(i); }, { more });
     }
   }
-  g.icon(ctx, 'icon_gold', r.x + 10, r.y + r.h - 18);
-  g.text(ctx, `${Number(m.gold).toLocaleString('en-US')} gold`, r.x + 25, r.y + r.h - 19, 'gold');
-  if (used >= n) g.text(ctx, 'Bags full', r.x + r.w - 10, r.y + r.h - 19, 'red', { align: 'right' });
+  g.icon(ctx, 'icon_gold', r.x + 10, r.y + r.h - g.ls(18) + (g.big ? 3 : 0));
+  g.text(ctx, `${Number(m.gold).toLocaleString('en-US')} gold`, r.x + 25, r.y + r.h - g.ls(19), 'gold');
+  if (used >= n) g.text(ctx, 'Bags full', r.x + r.w - 10, r.y + r.h - g.ls(19), 'red', { align: 'right' });
   // which hand (a dagger for the Inkblade): two buttons under the grid
   if (st.handPick != null && bag.items[st.handPick]) {
-    const bh = Math.max(16, env.L.minHit || 0), bw = 90, by = r.y + r.h + 2;
+    const bh = Math.max(g.ls(16), env.L.minHit || 0), bw = 90, by = r.y + r.h + 2;
     for (const [k, label, hand] of [[0, 'Main hand', 'main'], [1, 'Off hand', 'off']]) {
       const bx = r.x + 8 + k * (bw + 6);
       g.window(ctx, bx, by, bw, bh, 'thin', 'forest', 0.97);
-      g.text(ctx, label, bx + bw / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+      g.text(ctx, label, bx + bw / 2, by + Math.floor(bh / 2) - g.mid(6), 'cream', { align: 'center' });
       regions.push({ rect: { x: bx, y: by, w: bw, h: bh }, kind: 'button', label: `hand:${hand}`, on: () => act.useItem(st.handPick, hand) });
     }
   }
@@ -285,25 +293,25 @@ export function drawBags(ctx, env, m, st, regions, act) {
     const rows = [];
     if (pend.length) rows.push('pend');
     if (qb.length) rows.push('quest');
-    const ph = 8 + rows.length * Math.max(20, env.L.minHit || 0) + 4;
+    const ph = 8 + rows.length * Math.max(g.ls(20), env.L.minHit || 0) + 4;
     const pr = { x: r.x, y: Math.max(2, r.y - ph - 2), w: r.w, h: ph };
     g.window(ctx, pr.x, pr.y, pr.w, pr.h, 'thin', 'slate', 0.95);
     regions.push({ rect: pr, kind: 'window', id: 'bags_extra' });
     qy = pr.y + 5;
-    const rowH = Math.max(20, env.L.minHit || 0);
+    const rowH = Math.max(g.ls(20), env.L.minHit || 0);
     if (pend.length) {
       const n = pend.reduce((s2, it) => s2 + (it.qty || 1), 0);
-      g.text(ctx, `Loot waiting: ${n}`, pr.x + 8, qy + Math.floor(rowH / 2) - 6, 'orange');
+      g.text(ctx, `Loot waiting: ${n}`, pr.x + 8, qy + Math.floor(rowH / 2) - g.mid(6), 'orange');
       const bw = 56, bx = pr.x + pr.w - bw - 8;
       g.window(ctx, bx, qy, bw, rowH - 2, 'thin', 'forest', 0.97);
-      g.text(ctx, 'Take', bx + bw / 2, qy + Math.floor(rowH / 2) - 7, 'cream', { align: 'center' });
+      g.text(ctx, 'Take', bx + bw / 2, qy + Math.floor(rowH / 2) - g.mid(7), 'cream', { align: 'center' });
       regions.push({ rect: { x: bx, y: qy, w: bw, h: rowH - 2 }, kind: 'button', label: 'loot_take', on: () => act.send({ t: 'loot_take' }),
         tip: { title: 'Loot waiting', sub: 'It did not fit your bags when it dropped.', body: pend.map((it) => `${it.name || it.item}${it.qty > 1 ? ` x${it.qty}` : ''}`).join(', ') } });
       qy += rowH;
     }
     if (qb.length) {
-      g.text(ctx, 'Quest', pr.x + 8, qy + Math.floor(rowH / 2) - 6, 'gold');
-      let ix = pr.x + 44;
+      g.text(ctx, 'Quest', pr.x + 8, qy + Math.floor(rowH / 2) - g.mid(6), 'gold');
+      let ix = pr.x + (g.big ? 56 : 44);
       for (const it of qb.slice(0, 8)) {
         const sr = { x: ix, y: qy, w: rowH - 2, h: rowH - 2 };
         itemSlot(ctx, env, sr, it, null);
@@ -326,20 +334,21 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
   g.window(ctx, lx, ly, lw, lh, 'thin', 'blue', 0.5);
   if (!qs.length) { g.text(ctx, 'No quests yet. Look for a gold ! over a head.', r.x + r.w / 2, r.y + r.h / 2, 'gray', { align: 'center' }); return; }
   if (!st.questSel || !qs.find((q) => q.id === st.questSel)) st.questSel = (m.selectedQuest && qs.find((q) => q.id === m.selectedQuest)) ? m.selectedQuest : qs[0].id;
-  const rowH = Math.max(13, env.L.minHit || 0);
+  const big = g.big, nx = big ? 28 : 22;           // Large text (gfx.js g.big): taller rows, the name clear of a two-digit level
+  const rowH = Math.max(g.ls(13), env.L.minHit || 0);
   const vis = Math.floor((lh - 6) / rowH);
   st.questScroll = Math.max(0, Math.min(Math.max(0, qs.length - vis), st.questScroll || 0));
   qs.slice(st.questScroll, st.questScroll + vis).forEach((q, i) => {
     const y = ly + 3 + i * rowH;
     const sel = q.id === st.questSel;
     if (sel) g.rect(ctx, lx + 2, y, lw - 4, rowH, 'rgba(104,145,217,0.45)');
-    g.text(ctx, `${q.level || '?'}`, lx + 6, y + Math.floor((rowH - 11) / 2), 'dim');
-    g.text(ctx, g.clip(q.name, lw - 32), lx + 22, y + Math.floor((rowH - 11) / 2), q.done ? 'green' : sel ? 'cream' : 'white');
+    g.text(ctx, `${q.level || '?'}`, lx + 6, y + Math.floor((rowH - g.lh) / 2), 'dim');
+    g.text(ctx, g.clip(q.name, lw - nx - 10), lx + nx, y + Math.floor((rowH - g.lh) / 2), q.done ? 'green' : sel ? 'cream' : 'white');
     if (q.tracked !== false) g.rect(ctx, lx + lw - 7, y + Math.floor(rowH / 2) - 1, 3, 3, '#f9d77a');
     regions.push({ rect: { x: lx, y, w: lw, h: rowH }, kind: 'quest_row', id: q.id, on: () => { st.confirm = null; act.selectQuest(q.id); } });
   });
   if (qs.length > vis) {
-    g.text(ctx, `${st.questScroll + 1}-${Math.min(qs.length, st.questScroll + vis)} of ${qs.length}`, lx + lw / 2, ly + lh - 12, 'dim', { align: 'center' });
+    g.text(ctx, `${st.questScroll + 1}-${Math.min(qs.length, st.questScroll + vis)} of ${qs.length}`, lx + lw / 2, ly + lh - g.ls(12), 'dim', { align: 'center' });
     regions.push({ rect: { x: lx, y: ly, w: lw, h: lh }, kind: 'scroll', scroll: (d) => { st.questScroll += d; } });
   }
   // detail
@@ -347,26 +356,30 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
   const dx = lx + lw + 10, dw = r.x + r.w - 10 - dx;
   let y = r.y + 26;
   for (const ln of g.wrap(q.name, dw, true)) { g.text(ctx, ln, dx, y, 'gold', { large: true }); y += 16; }
-  g.text(ctx, [`Level ${q.level || '?'}`, q.zoneName || '', q.done ? 'Complete' : ''].filter(Boolean).join('   '), dx, y, 'gray'); y += 14;
+  g.text(ctx, g.clip([`Level ${q.level || '?'}`, q.zoneName || '', q.done ? 'Complete' : ''].filter(Boolean).join('   '), dw), dx, y, 'gray'); y += g.ls(14);
   for (const o of q.objectives || []) {
     const t = `${o.need > 1 ? `${o.cur}/${o.need}  ` : ''}${o.text}`;
-    for (const ln of g.wrap(t, dw - 10)) { g.text(ctx, ln, dx + 8, y, o.cur >= o.need ? 'green' : 'white'); y += 11; }
+    for (const ln of g.wrap(t, dw - 10)) { g.text(ctx, ln, dx + 8, y, o.cur >= o.need ? 'green' : 'white'); y += g.lh; }
   }
   y += 4;
   const desc = (q.text && (q.done ? q.text.complete || q.text.progress : q.text.offer)) || q.desc || '';
   const maxY = Math.min(r.y + r.h - 64, r.y + r.h - Math.max(16, env.L.minHit || 0) - 46);
-  for (const ln of g.wrap(desc, dw)) { if (y > maxY) { g.text(ctx, '...', dx, y, 'gray'); y += 11; break; } g.text(ctx, ln, dx, y, 'cream'); y += 11; }
+  if (big) {
+    // Large text: the quest's words scroll (wheel, or a finger drag) instead of ending in "..."
+    const hh = Math.min(r.y + r.h - Math.max(g.ls(16), env.L.minHit || 0) - 6 - 42, maxY + 11) - y;
+    if (hh >= g.lh) scrollLines(ctx, g, regions, st, `quest:${q.id}`, g.wrap(desc, dw - 8), { x: dx, y, w: dw, h: hh }, g.lh, (ln, x, yy) => g.text(ctx, ln, x, yy, 'cream'), '#e8dcc0');
+  } else for (const ln of g.wrap(desc, dw)) { if (y > maxY) { g.text(ctx, '...', dx, y, 'gray'); y += 11; break; } g.text(ctx, ln, dx, y, 'cream'); y += 11; }
   // rewards
   const rw = q.rewards || {};
-  const ry = Math.min(r.y + r.h - 58, r.y + r.h - Math.max(16, env.L.minHit || 0) - 6 - 34);
+  const ry = big ? r.y + r.h - Math.max(g.ls(16), env.L.minHit || 0) - 6 - 40 : Math.min(r.y + r.h - 58, r.y + r.h - Math.max(16, env.L.minHit || 0) - 6 - 34);
   g.text(ctx, 'Rewards', dx, ry, 'gold');
   const rparts = [rw.xp ? `${rw.xp.toLocaleString('en-US')} XP` : null, rw.gold ? `${rw.gold} gold` : null].filter(Boolean).join('   ');
-  g.text(ctx, rparts || 'None', dx + 50, ry, 'white');
+  g.text(ctx, rparts || 'None', dx + (big ? g.textW('Rewards') + 10 : 50), ry, 'white');
   let ix = dx;
   let cardTip = null;
   [...(rw.items || []), ...(rw.choice || [])].slice(0, 6).forEach((it, k) => {
     const i = itemInfo(it);
-    const sr = { x: ix, y: ry + 12, w: 18, h: 18 };
+    const sr = { x: ix, y: ry + g.ls(12), w: 18, h: 18 };
     itemSlot(ctx, env, sr, { ...i }, null);
     const tip = itemTooltip(i, rw.choice && rw.choice.includes(it) ? 'Choose one' : null);
     // on a phone a tap pins the item's card beside the log (Scott 2026-11-19: "I can't see what the rewards options are")
@@ -376,12 +389,12 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
     ix += 21;
   });
   if (cardTip) itemCard(ctx, env, st, regions, cardTip, r.x + r.w + 6, r.y, null, null);
-  else if (env.L.touch && ix > dx) g.text(ctx, 'Tap an item to see it', ix + 4, ry + 16, 'gray');
+  else if (env.L.touch && ix > dx) g.text(ctx, 'Tap an item to see it', ix + 4, ry + g.ls(16) - (big ? 3 : 0), 'gray');
   // buttons
-  const bh = Math.max(16, env.L.minHit || 0), by = r.y + r.h - bh - 6;
+  const bh = Math.max(g.ls(16), env.L.minHit || 0), by = r.y + r.h - bh - 6;
   const button = (x, w, label, color, on) => {
     g.window(ctx, x, by, w, bh, 'thin', 'slate', 0.95);
-    g.text(ctx, label, x + w / 2, by + Math.floor(bh / 2) - 6, color, { align: 'center' });
+    g.text(ctx, g.clip(label, w - 4), x + w / 2, by + Math.floor(bh / 2) - g.mid(6), color, { align: 'center' });
     regions.push({ rect: { x, y: by, w, h: bh }, kind: 'button', on, label });
   };
   const confirm = st.confirm === `abandon:${q.id}`;
@@ -393,9 +406,9 @@ export function drawQuestLog(ctx, env, m, st, regions, act) {
   // group play: offer it to the party (src/sim/party.js quest_share)
   // group play: offer it to the party (src/sim/party.js quest_share), on the rewards line at the right
   if (m.group && m.group.inParty && act.send) {
-    const sw = 60, sh = Math.max(16, env.L.minHit || 0), sx = r.x + r.w - 10 - sw, sy = ry - 2;
+    const sw = 60, sh = Math.max(g.ls(16), env.L.minHit || 0), sx = r.x + r.w - 10 - sw, sy = ry - 2;
     g.window(ctx, sx, sy, sw, sh, 'thin', 'blue', 0.95);
-    g.text(ctx, 'Share', sx + sw / 2, sy + Math.floor(sh / 2) - 6, 'cream', { align: 'center' });
+    g.text(ctx, 'Share', sx + sw / 2, sy + Math.floor(sh / 2) - g.mid(6), 'cream', { align: 'center' });
     regions.push({ rect: { x: sx, y: sy, w: sw, h: sh }, kind: 'button', label: 'quest_share', on: () => act.send({ t: 'quest_share', quest: q.id }),
       tip: { title: 'Share', body: 'Offer this quest to everyone in your party within 40 tiles who can take it.' } });
   }
@@ -424,8 +437,8 @@ export function drawMap(ctx, env, m, st, regions, act) {
   // stood in if it is a dungeon or cave; it stops short of the close button.
   const tabZones = zones.filter((z) => z.id === cur || z.id === here || !env.zoneKind || env.zoneKind(z.id) === 'field');
   if (tabZones.length > 1) {
-    const th = Math.max(16, env.L.minHit || 0);
-    const bh = Math.min(th, 22);
+    const th = Math.max(g.ls(16), env.L.minHit || 0);
+    const bh = Math.min(th, g.ls(22));
     const right = r.x + r.w - 8 - th;
     const ci = Math.max(0, tabZones.findIndex((z) => z.id === cur));
     const step = (d) => () => { st.mapZone = tabZones[(ci + d + tabZones.length) % tabZones.length].id; };
@@ -433,49 +446,50 @@ export function drawMap(ctx, env, m, st, regions, act) {
     let px = r.x + 150;
     const nameW = Math.max(60, right - px - 2 * bw - 12);
     g.window(ctx, px, r.y + 4, bw, bh, 'thin', 'slate', 0.95);
-    g.text(ctx, '<', px + bw / 2, r.y + 4 + Math.floor((bh - 11) / 2), 'cream', { align: 'center' });
+    g.text(ctx, '<', px + bw / 2, r.y + 4 + Math.floor((bh - g.lh) / 2), 'cream', { align: 'center' });
     regions.push({ rect: { x: px, y: r.y + 4, w: bw, h: th }, kind: 'button', label: 'map_zone:prev', tip: { title: 'Previous map' }, on: step(-1) });
     px += bw + 4;
     const nm = (tabZones[ci] || {}).name || cur;
     g.window(ctx, px, r.y + 4, nameW, bh, 'thin', 'ember', 0.95);
-    g.text(ctx, g.clip(`${nm}  (${ci + 1} of ${tabZones.length})`, nameW - 10), px + nameW / 2, r.y + 4 + Math.floor((bh - 11) / 2), 'cream', { align: 'center' });
+    g.text(ctx, g.clip(`${nm}  (${ci + 1} of ${tabZones.length})`, nameW - 10), px + nameW / 2, r.y + 4 + Math.floor((bh - g.lh) / 2), 'cream', { align: 'center' });
     regions.push({ rect: { x: px, y: r.y + 4, w: nameW, h: th }, kind: 'button', label: 'map_zone:next_name', tip: { title: 'Next map' }, on: step(1) });
     px += nameW + 4;
     g.window(ctx, px, r.y + 4, bw, bh, 'thin', 'slate', 0.95);
-    g.text(ctx, '>', px + bw / 2, r.y + 4 + Math.floor((bh - 11) / 2), 'cream', { align: 'center' });
+    g.text(ctx, '>', px + bw / 2, r.y + 4 + Math.floor((bh - g.lh) / 2), 'cream', { align: 'center' });
     regions.push({ rect: { x: px, y: r.y + 4, w: bw, h: th }, kind: 'button', label: 'map_zone:next', tip: { title: 'Next map' }, on: step(1) });
   }
   // your quests (a tap selects one; the map moves to its zone)
   const sel = m.selectedQuest ? (m.quests || []).find((q) => q.id === m.selectedQuest) : null;
   const list = [...(m.tracked || [])];
   if (sel && !list.some((q) => q.id === sel.id)) list.push(sel);
-  const lg = { x: r.x + 8, y: r.y + 28, w: 108, h: r.h - 52 };
+  // Large text (gfx.js g.big): a wider list, taller rows, the key line a row higher
+  const lg = { x: r.x + 8, y: r.y + g.ls(28), w: g.big ? 140 : 108, h: r.h - (g.big ? 62 : 52) };
   g.window(ctx, lg.x, lg.y, lg.w, lg.h, 'thin', 'blue', 0.5);
   g.text(ctx, 'Your quests', lg.x + 6, lg.y + 4, 'gold');
-  const rowH = Math.max(15, env.L.minHit || 0);
-  let ly = lg.y + 17;
+  const rowH = Math.max(g.ls(15), env.L.minHit || 0);
+  let ly = lg.y + g.ls(17);
   if (!list.length) g.text(ctx, 'None tracked', lg.x + 6, ly + 2, 'dim');
   for (const q of list) {
     if (ly + rowH > lg.y + lg.h - 2) break;
     const on = sel && q.id === sel.id;
     g.window(ctx, lg.x + 3, ly, lg.w - 6, rowH - 2, 'thin', on ? 'ember' : 'slate', on ? 0.95 : 0.6);
-    const tyy = ly + Math.floor((rowH - 2 - 11) / 2);
-    if (on) drawGoalArrow(ctx, lg.x + 10, tyy + 6, 0, 0.6);
+    const tyy = ly + Math.floor((rowH - 2 - g.lh) / 2);
+    if (on) drawGoalArrow(ctx, lg.x + 10, tyy + Math.floor(g.lh / 2) + (g.big ? 1 : 0), 0, 0.6);
     g.text(ctx, g.clip(q.name, lg.w - 24), lg.x + 17, tyy, q.done ? 'green' : on ? 'cream' : 'gray');
     regions.push({ rect: { x: lg.x + 3, y: ly, w: lg.w - 6, h: rowH }, kind: 'button', label: `map_quest:${q.id}`, tip: { title: q.name, sub: 'Show where it sends you' },
       on: () => { act.selectQuest(q.id); st.mapZone = null; } });
     ly += rowH;
   }
   // what to do next, under the list when there is room
-  if (nav && nav.goal && ly + 26 < lg.y + lg.h) {
+  if (nav && nav.goal && ly + g.ls(26) < lg.y + lg.h) {
     let ny = ly + 4;
-    g.text(ctx, 'Next', lg.x + 6, ny, 'gold'); ny += 11;
+    g.text(ctx, 'Next', lg.x + 6, ny, 'gold'); ny += g.lh;
     const lines = [nav.goal.label, nav.line].filter(Boolean).flatMap((s) => g.wrap(s, lg.w - 12));
-    for (const ln of lines) { if (ny + 11 > lg.y + lg.h - 2) break; g.text(ctx, ln, lg.x + 6, ny, 'cream'); ny += 11; }
+    for (const ln of lines) { if (ny + g.lh > lg.y + lg.h - 2) break; g.text(ctx, ln, lg.x + 6, ny, 'cream'); ny += g.lh; }
   }
   const zone = mapBook.zone(cur);
   if (!zone) return;
-  const area = { x: lg.x + lg.w + 6, y: r.y + 28, w: r.x + r.w - 10 - (lg.x + lg.w + 6), h: r.h - 52 };
+  const area = { x: lg.x + lg.w + 6, y: lg.y, w: r.x + r.w - 10 - (lg.x + lg.w + 6), h: lg.h };
   // a zone bigger than the window (the big realms) is drawn scaled down, so ppt can be below 1
   // the map fills the window: ppt can be fractional (scaled up or down from the nearest whole-pixel image)
   const ppt = Math.min(area.w / zone.w, area.h / zone.h);
@@ -498,12 +512,12 @@ export function drawMap(ctx, env, m, st, regions, act) {
     const jx = mx + (j.x + j.w / 2) * ppt, jy = my + (j.y + j.h / 2) * ppt;
     const lw = g.textW(label);
     const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, jx - lw / 2));
-    const lyy = Math.max(my + 2, Math.min(my + img.height - 13, jy - 5));
+    const lyy = Math.max(my + 2, Math.min(my + img.height - g.ls(13), jy - g.mid(5)));
     const isExit = exitHere && j.to === exitHere.to;
-    const jb = { x: lx - 2, y: lyy - 1, w: lw + 4, h: 12 };
+    const jb = { x: lx - 2, y: lyy - 1, w: lw + 4, h: g.ls(12) };
     if (!isExit && hits(jb)) continue;
     placed.push(jb);
-    g.scrim(ctx, lx - 2, lyy - 1, lw + 4, 12, isExit ? 220 : 170);
+    g.scrim(ctx, lx - 2, lyy - 1, lw + 4, g.ls(12), isExit ? 220 : 170);
     g.text(ctx, label, lx, lyy - 1, isExit ? 'cream' : z2 ? 'gold' : 'dim');
   }
   // place names (the Fork, the North Landing...): quest text names them, so the map does too (CRITIQUE_1 item 9)
@@ -513,8 +527,8 @@ export function drawMap(ctx, env, m, st, regions, act) {
   for (const ar of [...(zone.areas || []).filter(big), ...(zone.areas || []).filter((a) => !big(a))]) {
     if (!ar.name || ar.w * ar.h < 30) continue;
     const lw = g.textW(ar.name);
-    const lx = Math.round(mx + (ar.x + ar.w / 2) * ppt - lw / 2), lyy = Math.round(my + (ar.y + ar.h / 2) * ppt - 5);
-    const box = { x: lx - 2, y: lyy - 1, w: lw + 4, h: 12 };
+    const lx = Math.round(mx + (ar.x + ar.w / 2) * ppt - lw / 2), lyy = Math.round(my + (ar.y + ar.h / 2) * ppt - g.mid(5));
+    const box = { x: lx - 2, y: lyy - 1, w: lw + 4, h: g.ls(12) };
     if (box.x < mx || box.y < my || box.x + box.w > mx + img.width || box.y + box.h > my + img.height) continue;
     if (hits(box)) continue;
     placed.push(box);
@@ -535,12 +549,12 @@ export function drawMap(ctx, env, m, st, regions, act) {
   const named = new Set();
   const labelAt = (w, label, color, alpha, force = false) => {
     const lw = g.textW(label);
-    const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, mx + w.x * ppt - lw / 2)), lyy = Math.max(my + 2, Math.min(my + img.height - 12, my + (w.y + (w.r || 2)) * ppt + 3));
-    const qb = { x: lx - 2, y: lyy - 1, w: lw + 4, h: 12 };
+    const lx = Math.max(mx + 2, Math.min(mx + img.width - lw - 2, mx + w.x * ppt - lw / 2)), lyy = Math.max(my + 2, Math.min(my + img.height - g.ls(12), my + (w.y + (w.r || 2)) * ppt + 3));
+    const qb = { x: lx - 2, y: lyy - 1, w: lw + 4, h: g.ls(12) };
     if (!force && hits(qb)) return;
     placed.push(qb);
     ctx.globalAlpha = alpha;
-    g.scrim(ctx, lx - 2, lyy - 1, lw + 4, 12, 190);
+    g.scrim(ctx, lx - 2, lyy - 1, lw + 4, g.ls(12), 190);
     g.text(ctx, label, lx, lyy - 1, color);
     ctx.globalAlpha = 1;
   };
@@ -581,8 +595,8 @@ export function drawMap(ctx, env, m, st, regions, act) {
     const t = g.clip(routeText, area.w - 12);
     const tw = g.textW(t);
     const bx = area.x + Math.floor((area.w - tw) / 2);
-    g.window(ctx, bx - 6, r.y + r.h - 21, tw + 12, 16, 'thin', 'ember', 0.95);
-    g.text(ctx, t, bx, r.y + r.h - 19, 'cream');
+    g.window(ctx, bx - 6, r.y + r.h - g.ls(21), tw + 12, g.ls(16), 'thin', 'ember', 0.95);
+    g.text(ctx, t, bx, r.y + r.h - g.ls(19) + (g.big ? 1 : 0), 'cream');
   }
   if (exitHere) {
     const ex = mx + exitHere.x * ppt, ey = my + exitHere.y * ppt;
@@ -595,7 +609,7 @@ export function drawMap(ctx, env, m, st, regions, act) {
   const markers = m.minimap && m.minimap.zone === cur ? m.minimap.markers.filter((k) => k.kind !== 'foe') : [];
   drawMarkers(g, ctx, markers, view, ppt, 0, 0);
   const meHere = markers.find((k) => k.kind === 'me');
-  if (!routeText) g.text(ctx, meHere ? 'White arrow: you.  Gold !: a quest.  Gold ?: hand it in.  Bright circle: the quest you picked.' : 'You are not in this zone.  Bright circle: the quest you picked.', area.x + area.w / 2, r.y + r.h - 18, 'gray', { align: 'center' });
+  if (!routeText) g.text(ctx, g.clip(meHere ? 'White arrow: you.  Gold !: a quest.  Gold ?: hand it in.  Bright circle: the quest you picked.' : 'You are not in this zone.  Bright circle: the quest you picked.', r.x + r.w - 8 - area.x), area.x + area.w / 2, r.y + r.h - g.ls(18), 'gray', { align: 'center' });
 }
 
 // ---------------------------------------------------------------- options / game menu
@@ -604,89 +618,104 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   const { g } = env;
   const r = { x: 60, y: 24, w: 520, h: 316 };
   frame(ctx, env, r, 'Options', regions, act, 'menu');
-  const touch = env.L.touch;
-  // 22 key rows (8 skill keys) fit the window at 11 px a row on desktop; a phone shows the touch notes instead
-  const rowH = touch ? Math.max(12, env.L.minHit || 0) : 11;
-  // ---- left: key bindings
+  const touch = env.L.touch, big = g.big;
+  const short = touch || big;                  // short labels where room is short (a phone, or Large text)
+  // key rows: 11 px a row on desktop (22 rows with 8 skill keys); Large text scrolls the list. A phone has no key list.
+  const rowH = touch ? Math.max(12, env.L.minHit || 0) : g.ls(11);
+  const bh = Math.max(g.ls(16), env.L.minHit || 0);
+  const by = r.y + r.h - bh - 8;
+  // ---- left: key bindings (desktop) or a pointer to the phone controls in Help
   const kx = r.x + 10, kw = 250;
   if (!touch) {
     g.text(ctx, 'Key bindings', kx, r.y + 26, 'gold');
-    g.text(ctx, 'click, then press a key', kx + kw, r.y + 26, 'dim', { align: 'right' });
+    g.text(ctx, big ? 'click, press a key' : 'click, then press a key', kx + kw, r.y + 26, 'dim', { align: 'right' });
     const binds = effectiveBinds(options.binds);
-    ACTIONS.forEach((a, i) => {
-      const y = r.y + 40 + i * rowH;
+    const top = r.y + 40 + (big ? 4 : 0), vis = big ? Math.min(ACTIONS.length, Math.floor((r.y + r.h - 26 - top) / rowH)) : ACTIONS.length;
+    const maxOff = ACTIONS.length - vis;
+    st.keyScroll = Math.max(0, Math.min(maxOff, st.keyScroll || 0));
+    if (maxOff > 0) regions.push({ rect: { x: kx - 2, y: top - 1, w: kw + 4, h: vis * rowH }, kind: 'window', id: 'key_scroll', scroll: (d) => { st.keyScroll = Math.max(0, Math.min(maxOff, (st.keyScroll || 0) + d)); } });
+    ACTIONS.slice(st.keyScroll, st.keyScroll + vis).forEach((a, i) => {
+      const y = top + i * rowH;
       const waiting = st.rebinding === a.id;
       if (waiting) g.rect(ctx, kx - 2, y - 1, kw + 4, rowH, 'rgba(104,145,217,0.45)');
       g.text(ctx, a.label, kx, y, 'white');
       g.text(ctx, waiting ? 'press a key' : keyLabel(binds[a.id]), kx + kw, y, waiting ? 'orange' : a.fixed ? 'dim' : 'gold', { align: 'right' });
       if (!a.fixed) regions.push({ rect: { x: kx - 2, y: y - 1, w: kw + 4, h: rowH }, kind: 'button', on: () => { st.rebinding = waiting ? null : a.id; } });
     });
-    const by = r.y + 40 + ACTIONS.length * rowH + 4;
-    g.text(ctx, 'Reset keys', kx, by, 'cream');
-    regions.push({ rect: { x: kx - 2, y: by - 1, w: 70, h: 12 }, kind: 'button', on: () => act.setOption('binds', {}) });
-  } else {
-    g.text(ctx, 'Touch controls', kx, r.y + 30, 'gold');
-    const lines = ['Left thumb: touch anywhere on the left half to walk.', 'Tap a foe to target it. Tap a person to talk.',
-      'Right thumb: abilities 1 to 8, Talk, Next target.', 'Hold an icon to read about it.', 'Key bindings live on the keyboard version.'];
-    lines.forEach((l, i) => g.text(ctx, l, kx, r.y + 46 + i * 12, 'white'));
-  }
+    const ky = top + vis * rowH + 4;
+    g.text(ctx, 'Reset keys', kx, ky, 'cream');
+    regions.push({ rect: { x: kx - 2, y: ky - 1, w: g.textW('Reset keys') + 8, h: g.ls(12) }, kind: 'button', on: () => act.setOption('binds', {}) });
+    if (maxOff > 0) g.text(ctx, `${st.keyScroll + 1}-${st.keyScroll + vis} of ${ACTIONS.length}`, kx + kw, ky, 'dim', { align: 'right' });
+  } else g.text(ctx, g.clip('Phone controls: see Help.', 250), kx, r.y + 28, 'dim');
   // ---- right: sound and view
   const ox = r.x + 280, ow = 228;
   let y = r.y + 26;
-  if (!touch) { g.text(ctx, 'Sound and view', ox, y, 'gold'); y += 16; }   // a phone needs the height for its rows
-  // a phone: each slider is one row (label and percent left, the bar right) so Graphics, Camera and Synth sound fit
-  // under them above the bottom buttons (Scott's phone, 2026-11-24: three choices in the right column)
-  const slider = (label, short, key) => {
+  if (!touch) { g.text(ctx, 'Sound and view', ox, y, 'gold'); y += g.ls(16); }   // a phone needs the height for its rows
+  // a phone (and Large text on desktop): each slider is one row, the label and percent left and the bar right
+  const slider = (label, shortLabel, key) => {
     const pct = `${Math.round(options[key] * 100)}%`;
-    const lw = touch ? 64 : 0;
+    const lw = touch ? 64 : big ? 116 : 0, sh = touch ? rowH : big ? 18 : rowH;
     let sy;
-    if (touch) { sy = y; g.text(ctx, short, ox, y + Math.floor(rowH / 2) - 12, 'white'); g.text(ctx, pct, ox, y + Math.floor(rowH / 2) + 1, 'gold'); }
+    if (touch) { sy = y; g.text(ctx, shortLabel, ox, y + Math.floor(rowH / 2) - g.ls(12), 'white'); g.text(ctx, pct, ox, y + Math.floor(rowH / 2) + 1, 'gold'); }
+    else if (big) { sy = y; g.text(ctx, `${shortLabel} ${pct}`, ox, y + 1, 'white'); }
     else { g.text(ctx, label, ox, y, 'white'); g.text(ctx, pct, ox + ow, y, 'gold', { align: 'right' }); sy = y + 13; }
     const sx = ox + lw, sw = ow - lw;
-    g.gauge(ctx, sx, sy + Math.floor(rowH / 2) - 3, sw, options[key], 'mp');
+    g.gauge(ctx, sx, sy + Math.floor(sh / 2) - 3, sw, options[key], 'mp');
     const knobX = sx + Math.round(options[key] * (sw - 4));
-    g.rect(ctx, knobX, sy + Math.floor(rowH / 2) - 5, 4, 9, '#fff7d6');
-    const rect = { x: sx, y: sy, w: sw, h: rowH };
+    g.rect(ctx, knobX, sy + Math.floor(sh / 2) - 5, 4, 9, '#fff7d6');
+    const rect = { x: sx, y: sy, w: sw, h: sh };
     regions.push({ rect, kind: 'slider', drag: (hx) => act.setOption(key, Math.round(Math.max(0, Math.min(1, (hx - sx) / sw)) * 20) / 20) });
-    y = sy + rowH + (touch ? 4 : 6);
+    y = sy + sh + (touch ? 4 : big ? 3 : 6);
   };
   slider('Music volume', 'Music', 'music');
   slider('Effects volume', 'Sounds', 'sfx');
-  // on a phone the choices go under the touch notes (left column) so nothing meets the bottom buttons
-  const ySound = y;              // under the sliders (a phone's right column has room there)
-  let cx = ox, cw = ow;
-  if (touch) { cx = kx; cw = 250; y = r.y + 46 + 5 * 12 + 8; }
-  // inline: the label beside its buttons on one row (a phone's right column, where height is short)
-  const choice = (label, key, vals, names, inline = false) => {
-    const lw = inline ? 64 : 0;
-    if (inline) g.text(ctx, label, cx, y + Math.floor(rowH / 2) - 6, 'white');
-    else { g.text(ctx, label, cx, y, 'white'); y += 13; }
-    const bw = Math.floor((cw - lw - (vals.length - 1) * 4) / vals.length);
-    vals.forEach((v, i) => {
-      const x = cx + lw + i * (bw + 4), on = options[key] === v;
-      g.window(ctx, x, y, bw, rowH, 'thin', on ? 'ember' : 'slate', 0.95);
-      g.text(ctx, names[i], x + bw / 2, y + Math.floor(rowH / 2) - 6, on ? 'cream' : 'gray', { align: 'center' });
-      regions.push({ rect: { x, y, w: bw, h: rowH }, kind: 'button', label: `opt:${key}:${v}`, on: () => act.setOption(key, v) });
+  // the choices: one row each, the label beside its buttons. They fill the free column first (a phone's left column,
+  // under the Help line) and flow on into the right column under the sliders, so a new row never meets the bottom
+  // buttons (Scott's phone, 2026-11-24). Desktop: the right column, under the sliders.
+  const cols = touch
+    ? [{ x: kx, w: 250, y: r.y + 30 + g.lh + 6, bottom: r.y + r.h - 4 }, { x: ox, w: ow, y: y - 4, bottom: by - 4 }]
+    : [{ x: ox, w: ow, y: y + (big ? 2 : 0), bottom: by - 3 }];
+  const ch = touch ? rowH : big ? 18 : 11, gap = touch ? 2 : big ? 3 : 5;
+  const rows = [];
+  const choice = (label, key, vals, names, inline = false, cur = options[key]) => { rows.push({ label, key, vals, names, cur }); };   // eslint-disable-line no-unused-vars
+  // lay the rows out once they are all known: each column's labels get the width of its longest one
+  const placeChoices = () => {
+    let col = 0, cy = cols[0].y;
+    for (const row of rows) {
+      if (cy + ch > cols[col].bottom && col + 1 < cols.length) { col++; cy = cols[col].y; }
+      row.col = col; row.y = cy; cy += ch + gap;
+    }
+    cols.forEach((c, ci) => {
+      const mine = rows.filter((o) => o.col === ci);
+      const lw = Math.min(Math.floor(c.w * 0.45), Math.max(40, ...mine.map((o) => g.textW(o.label) + 8)));
+      for (const { label, key, vals, names, cur, y: ry } of mine) {
+        g.text(ctx, g.clip(label, lw - 4), c.x, ry + Math.floor(ch / 2) - g.mid(6), 'white');
+        const bw = Math.floor((c.w - lw - (vals.length - 1) * 4) / vals.length);
+        vals.forEach((v, i) => {
+          const x = c.x + lw + i * (bw + 4), on = cur === v;
+          g.window(ctx, x, ry, bw, ch, 'thin', on ? 'ember' : 'slate', 0.95);
+          g.text(ctx, g.clip(names[i], bw - 2), x + bw / 2, ry + Math.floor(ch / 2) - g.mid(6), on ? 'cream' : 'gray', { align: 'center' });
+          regions.push({ rect: { x, y: ry, w: bw, h: ch }, kind: 'button', label: `opt:${key}:${v}`, on: () => act.setOption(key, v) });
+        });
+      }
     });
-    y += rowH + (inline ? 4 : 6);
   };
   choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x']);
   choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
   choice('Screen shake', 'shake', [true, false], ['On', 'Off']);
-  // a phone: the left column is full after Screen shake (Graphics used to spill below the panel), so Graphics and
-  // Camera go in the right column under the sliders
-  if (touch) { cx = ox; cw = ow; y = ySound - 4; }
-  choice(touch ? 'Graphics' : 'Graphics (reloads)', 'r3d', [false, true], ['2D', touch ? '3D' : '3D preview'], touch);
-  choice(touch ? 'Camera' : 'Camera (3D)', 'cam', ['fixed', 'horizon'], ['Fixed', 'Horizon'], touch);   // wave 5b horizon camera (an option)
-  choice(touch ? 'Synth' : 'Synth sound', 'synth', [true, false], ['On', 'Off'], touch);   // wave 5b synth sound (off = today's sounds)
-  const bh = Math.max(16, env.L.minHit || 0);
-  const by = r.y + r.h - bh - 8;
+  choice('Window style', 'skin', ['lantern', 'classic'], ['Lantern', 'Classic']);                  // wave 6 uiskin (Classic for one wave)
+  choice('Text size', 'text', ['normal', 'large'], ['Normal', 'Large'], false, g.textSize);       // wave 6 uiskin (Large by default on a phone)
+  choice(short ? 'Graphics' : 'Graphics (reloads)', 'r3d', [false, true], ['2D', short ? '3D' : '3D preview'], touch);
+  choice(short ? 'Camera' : 'Camera (3D)', 'cam', ['fixed', 'horizon'], ['Fixed', 'Horizon'], touch);   // wave 5b horizon camera (an option)
+  choice(short ? 'Synth' : 'Synth sound', 'synth', [true, false], ['On', 'Off'], touch);   // wave 5b synth sound (off = today's sounds)
+  placeChoices();               // new choice(...) rows go above this line
   // ---- bottom buttons
   const btn = (x, w, label, on) => {
     g.window(ctx, x, by, w, bh, 'thin', 'blue', 0.95);
-    g.text(ctx, label, x + w / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });
+    g.text(ctx, label, x + w / 2, by + Math.floor(bh / 2) - g.mid(6), 'cream', { align: 'center' });
     regions.push({ rect: { x, y: by, w, h: bh }, kind: 'button', on, label });
   };
+  if (big) { btn(ox, 90, 'Resume', () => act.close('menu')); btn(ox + 96, ow - 96, 'Character select', () => act.logout()); return; }
   btn(ox, 110, 'Resume', () => act.close('menu'));
   btn(ox + 118, 110, 'Character select', () => act.logout());
 }
