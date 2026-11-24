@@ -633,20 +633,25 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   // ---- right: sound and view
   const ox = r.x + 280, ow = 228;
   let y = r.y + 26;
-  g.text(ctx, 'Sound and view', ox, y, 'gold'); y += 16;
-  const slider = (label, key) => {
-    g.text(ctx, label, ox, y, 'white');
-    g.text(ctx, `${Math.round(options[key] * 100)}%`, ox + ow, y, 'gold', { align: 'right' });
-    const sy = y + 13, sw = ow;
-    g.gauge(ctx, ox, sy + Math.floor(rowH / 2) - 3, sw, options[key], 'mp');
-    const knobX = ox + Math.round(options[key] * (sw - 4));
+  if (!touch) { g.text(ctx, 'Sound and view', ox, y, 'gold'); y += 16; }   // a phone needs the height for its rows
+  // a phone: each slider is one row (label and percent left, the bar right) so Graphics, Camera and Synth sound fit
+  // under them above the bottom buttons (Scott's phone, 2026-11-24: three choices in the right column)
+  const slider = (label, short, key) => {
+    const pct = `${Math.round(options[key] * 100)}%`;
+    const lw = touch ? 64 : 0;
+    let sy;
+    if (touch) { sy = y; g.text(ctx, short, ox, y + Math.floor(rowH / 2) - 12, 'white'); g.text(ctx, pct, ox, y + Math.floor(rowH / 2) + 1, 'gold'); }
+    else { g.text(ctx, label, ox, y, 'white'); g.text(ctx, pct, ox + ow, y, 'gold', { align: 'right' }); sy = y + 13; }
+    const sx = ox + lw, sw = ow - lw;
+    g.gauge(ctx, sx, sy + Math.floor(rowH / 2) - 3, sw, options[key], 'mp');
+    const knobX = sx + Math.round(options[key] * (sw - 4));
     g.rect(ctx, knobX, sy + Math.floor(rowH / 2) - 5, 4, 9, '#fff7d6');
-    const rect = { x: ox, y: sy, w: sw, h: rowH };
-    regions.push({ rect, kind: 'slider', drag: (hx) => act.setOption(key, Math.round(Math.max(0, Math.min(1, (hx - ox) / sw)) * 20) / 20) });
-    y = sy + rowH + 6;
+    const rect = { x: sx, y: sy, w: sw, h: rowH };
+    regions.push({ rect, kind: 'slider', drag: (hx) => act.setOption(key, Math.round(Math.max(0, Math.min(1, (hx - sx) / sw)) * 20) / 20) });
+    y = sy + rowH + (touch ? 4 : 6);
   };
-  slider('Music volume', 'music');
-  slider('Effects volume', 'sfx');
+  slider('Music volume', 'Music', 'music');
+  slider('Effects volume', 'Sounds', 'sfx');
   // on a phone the choices go under the touch notes (left column) so nothing meets the bottom buttons
   const ySound = y;              // under the sliders (a phone's right column has room there)
   let cx = ox, cw = ow;
