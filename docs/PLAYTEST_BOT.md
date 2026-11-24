@@ -93,6 +93,30 @@ Game problems (content layout; no foe's stats changed, Gorse Boars untouched):
 The warden 1 after run used an earlier spot for the heath boar patrol (on the heath's west edge, since moved: it walked
 into the Peat and Tusk hunters, most of that run's 15 peat deaths had two level 16 boars on them).
 
+## Quests20 lane (2026-11-23): the Moor band, 13 to 20
+
+25 new side quests for 13 to 20 (`src/data/moor_band.js`). The bot takes them through `content.sideQuests` like any other.
+Bot changes, none to combat: `--classes a,b` runs only those classes; `QUESTBOT_OUT` sends the run logs to another folder;
+the run log counts XP by source per level (`counters.xpByLevel`) and lists the bag at the end (`final.bag`); a drop quest
+whose every dropper camp is grey (5+ levels under) is dropped with `drop_all_grey` (a Wayfinder hunted grey ford wolves for
+a valley bounty for 160 minutes); profession materials are sold with the junk (167 unsold thornback flanks filled a bag so
+no quest could be handed in). The baseline below ran with the same bot changes, on main's content.
+
+`node qa/bot/questbot.mjs --seeds 1,2 --classes warden,scribe,wayfinder --jobs 6 --stop 20 --cap 420 --timeout 6000`,
+levels 13 to 19 (quest + bounty share of the band's XP; minutes 13 to 20; minutes to 20):
+
+| run | before: quests done, share, 13 to 20, to 20 | after: quests done, share, 13 to 20, to 20 |
+|---|---|---|
+| scribe 1 | 10, 55%, 116, 246 | 33, 73%, 108, 238 |
+| scribe 2 | 10, 55%, 123, 271 | 35, 76%, 87, 237 |
+| wayfinder 1 | 9, 45%, 264, 389 | 34, 76%, 85, 211 |
+| wayfinder 2 | 10, 49%, 132, 302 | 33, 71%, 99, 231 |
+| warden 1 | 8, 57%, not by 420 (L18) | 31, 79%, 195, 367 |
+| warden 2 | 7, 54%, not by 420 (L18) | 34, 78%, 193, 334 |
+
+Quest XP alone (no bounties) went from 24 to 37% to 50 to 58%. Deaths at 13 to 19 fell from 49 to 76 a run to 25 to 71.
+The Warden's slow start (its Emberpeak quests stay stuck, about 40 stuck events a run) is older than this lane.
+
 ## How the questing bot plays (and what it is allowed to see)
 
 - Commands only through `world.enqueue` (move, stop, target, attack, cast, interact, quest_accept / turnin / abandon,

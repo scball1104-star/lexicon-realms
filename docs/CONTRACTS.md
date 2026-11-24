@@ -1431,6 +1431,12 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   night events (`content.worldEvents` entries with `zone`; their night spawns in that zone). `band20.js BAND_LOOT` is the
   band's loot tier table (reward and vendor item levels); `bandXpToNext` mirrors BUILDS_2 5.2 past 20 for quest XP.
   Inns and flight points: `src/data/band_travel.js`, spread into `src/data/travel.js`.
+- **The Moor band (quests20, 2026-11-23).** `src/data/moor_band.js`: `placeMoorBand(WORLD)` (once, in index.js) adds its
+  people to `WORLD.npcs`, quest nodes to `WORLD.nodes` and unbannered explore areas to `WORLD.areas` (moor tiles through
+  `toWorld`); `applyMoorBand(content, worldQuests)` (last in buildContent) adds 25 side quests (levels 13 to 20, after the
+  chain and the bounties), their people and quest items, and quest-drop rows on existing moor foes' loot tables (`quest`
+  set, so they drop only while needed). Story-chain tags (`story: { id, name, step, of, end }`) are carried on the quests
+  themselves, not in `STORY_CHAINS`; `end` fires the same `story` card.
 
 ## Professions step 2 and Inscriptions (2026-11-22, wave 3 lane prof2)
 

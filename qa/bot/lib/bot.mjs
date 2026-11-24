@@ -56,7 +56,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
   const R = {
     cls, seed, name, startTick: now(),
     levels: [{ level: 1, min: 0 }], deaths: [], gold: [], trainer: [], quests: {}, stuck: [], errors: [], violations: [],
-    counters: { castFail: {}, reject: {}, invFail: {}, trainFail: {}, talentFail: {}, b2Fail: {}, interactFail: {}, xpBy: {}, kills: {}, navStuck: 0, potions: 0, sold: 0, soldGold: 0, bought: {}, equips: 0, sits: 0, restSec: 0, zoneMin: {} },
+    counters: { castFail: {}, reject: {}, invFail: {}, trainFail: {}, talentFail: {}, b2Fail: {}, interactFail: {}, xpBy: {}, xpByLevel: {}, kills: {}, navStuck: 0, potions: 0, sold: 0, soldGold: 0, bought: {}, equips: 0, sits: 0, restSec: 0, zoneMin: {} },
     goldBy: { loot: 0, quest: 0, sell: 0, spentTrain: 0, spentBuy: 0 },
     talents: [], goalsLog: [], done: false, reason: null, endMin: null,
     // fix pass 1: every kill timed FROM THE PULL (the foe's first threat on the bot, or the bot's first hit, whichever
@@ -321,7 +321,9 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const out = [];
     (h.bag.items || []).forEach((it, k) => {
       if (!it) return;
-      if (it.kind === 'junk' && it.value > 0) out.push(k);
+      // junk, and profession materials (quests20: a Wayfinder's bag filled with 167 thornback flanks it never sold, and it
+      // could not hand in a quest for want of one free slot)
+      if ((it.kind === 'junk' || it.kind === 'material') && it.value > 0) out.push(k);
       else if ((it.kind === 'weapon' || it.kind === 'armor') && it.value > 0) {
         if (!wearable(it)) out.push(k);
         else { const cur = h.equip ? h.equip[slotOf(it)] : null; if ((it.reqLevel || 1) <= me().level && score(it) <= score(cur) + 0.4) out.push(k); }
@@ -593,7 +595,12 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
           if (nodes.length) cand.push({ key: `node:${q}:${i}`, kind: 'node', item: o.item, quest: q, pri: 6 });
           else {
             const ds = dropSources(o.item);
-            if (ds.length) cand.push({ key: `drop:${q}:${i}`, kind: 'hunt', mobs: ds.map((d) => d.mob), minLevel: Math.max(...ds.map((d) => d.minLevel)), zone: qd.zone, quest: q, pri: 6 });
+            // a grey foe rolls no loot table (PROGRESSION 2.1): when every camp of every dropper is 5+ levels under me the item
+            // can never drop, so the goal is dropped (quests20: a level 15 Wayfinder hunted grey ford wolves for a valley
+            // bounty's fangs for 160 minutes, ahead of every moor quest)
+            const allGrey = ds.length && ds.every((d) => mobSpots(d.mob, qd.zone).every((sp) => sp.level <= p.level - 5));
+            if (allGrey) viol('drop_all_grey', { key: q + ':' + o.item, quest: q, item: o.item });
+            else if (ds.length) cand.push({ key: `drop:${q}:${i}`, kind: 'hunt', mobs: ds.map((d) => d.mob), minLevel: Math.max(...ds.map((d) => d.minLevel)), zone: qd.zone, quest: q, pri: 6 });
             else viol('collect_no_source', { key: q + ':' + o.item, quest: q, item: o.item });
           }
         }
@@ -973,7 +980,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
         if (ev.kind !== 'abandon') lastProgress = now();
       }
       if (ev.type === 'gold') { if (ev.source === 'loot') R.goldBy.loot += ev.amount; if (ev.source === 'quest') R.goldBy.quest += ev.amount; if (ev.source === 'sell') { R.goldBy.sell += ev.amount; R.counters.sold++; } if (ev.source === 'buy') R.goldBy.spentBuy -= ev.amount; }
-      if (ev.type === 'xp') { if (ev.amount > 0) lastProgress = now(); const q = ev.source === 'quest' && ev.quest && C.quests[ev.quest] && C.quests[ev.quest].bounty ? 'bounty' : ev.source || 'other'; inc(R.counters.xpBy, q, ev.amount || 0); }
+      if (ev.type === 'xp') { if (ev.amount > 0) lastProgress = now(); const q = ev.source === 'quest' && ev.quest && C.quests[ev.quest] && C.quests[ev.quest].bounty ? 'bounty' : ev.source || 'other'; inc(R.counters.xpBy, q, ev.amount || 0); const lv = String(me().level); const xl = R.counters.xpByLevel[lv] || (R.counters.xpByLevel[lv] = {}); inc(xl, q, ev.amount || 0); }
       if (ev.type === 'b2_fail' && ev.id === id) inc(R.counters.b2Fail, (ev.reason || '?') + ':' + (ev.node || ev.ability || ''));
       if (ev.type === 'inventory' && ev.kind === 'use') R.counters.potions++;
       if (ev.type === 'inventory' && ev.kind === 'equip') R.counters.equips++;
@@ -1047,7 +1054,7 @@ export function createBot({ world: w, content, cls, seed = 1, name = 'Bot', spec
     const p = me();
     const out = { ...R };
     delete out._vkeys;
-    out.final = p ? { level: p.level, xp: p.xp, gold: p.gold, zone: p.zone, tile: tileOfSub(p), known: p.known, talents: p.talents, equip: p.equip, bags: p.bags, bagN: (p.bag || []).length, questsDone: (p.questsDone || []).length, active: activeQuests() } : null;
+    out.final = p ? { level: p.level, xp: p.xp, gold: p.gold, zone: p.zone, tile: tileOfSub(p), known: p.known, talents: p.talents, equip: p.equip, bags: p.bags, bagN: (p.bag || []).length, bag: (p.bag || []).map((b) => `${b.item}x${b.qty}`), questsDone: (p.questsDone || []).length, active: activeQuests() } : null;
     out.endMin = out.endMin ?? simMin();
     out.levelMin = {};
     for (const l of R.levels) out.levelMin[l.level] = l.min;
