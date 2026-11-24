@@ -141,6 +141,7 @@ async function boot() {
       // the gold quest arrow (ui.js drawGoalPointer): world px -> HUD px, and where the hero was drawn this frame
       toHud: (wx, wy) => renderer.worldToHud(wx, wy),
       heroAnchor: () => (playerId != null ? renderer.anchorOf(playerId) : null),
+      scenes: () => !!renderer.is3d, talkVoice: (m) => audio.talk(m),   // wave 6 quest scenes (src/ui/talk_ui.js)
     },
   });
   // online co-op (src/net/): host a game for up to 3 friends, or join one by room code or copy-paste codes
@@ -359,6 +360,7 @@ async function boot() {
     view.zone = me ? me.zone : content.start.zone; view.followId = playerId; view.targetId = me ? me.target : null; view.time = nowMs / 1000;
     view.dpr = window.devicePixelRatio || 1; view.hud = ui.hudMode;
     view.inset = ui.mode === 'game' ? insets : null;   // title screens: the art covers the notch strips too
+    view.talk = ui.talkView(snap);                     // wave 6 quest scenes: the talk camera (null: today's)
     // secret caches this hero has opened draw open, without their glint
     for (const e of snap.entities) if (e.node && e.node.secret) e.opened = (e.node.openedBy || []).includes(playerId);
     renderer.draw(prev, snap, alpha, view);

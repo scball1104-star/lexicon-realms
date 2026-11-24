@@ -37,6 +37,7 @@ import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
 import { START_REALMS } from '../data/rootbound.js';   // big world: the welcome line of a hero who starts in a realm
 import { createUiSounds } from '../audio/ui_sounds.js';   // menu sounds (pure observer; hooks.sound plays them)
+import { createTalkUI } from './talk_ui.js';   // wave 6 quest scenes: the talk panel and flourishes (view.talk)
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -87,6 +88,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const localOnly = () => !!demoExtra || !(lastSnap && playerId != null && (lastSnap.entities.find((e) => e.id === playerId) || {}).talents);
   const send = (cmd) => { if (hooks.command) hooks.command(cmd); };
   const uiSnd = createUiSounds((k) => { if (hooks.sound) hooks.sound(k); });
+  const talkUi = createTalkUI({ g, zones, zoneNames, hooks, options: () => options });
 
   // ---- the action surface menus and screens call
   const act = {
@@ -393,9 +395,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (demoExtra) m = applyDemo(m);
       lastModel = m;
       st.openMenu = [...st.open].pop() || null;
+      talkUi.frame(st, snap, playerId, act);   // quest scenes: a move, a hit or walking off ends the talk
+      talkUi.drawUnder(ctx, L, t);
       if (m.player && !m.player.dead) drawGoalPointer(ctx, m, L, t);
       if (m.player && hooks.namePlates) drawNamePlates(ctx, hooks.namePlates());
-      if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t, regions, L);
+      if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks().filter((k) => k.id !== talkUi.hiddenMark(st)), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
       regions.push(...hud.draw(ctx, m, L, st, { log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
       if (m.player) prof.drawHud(ctx, env, m, L, regions);     // professions: the gather / craft bar, the node card, tracking
@@ -410,7 +414,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player) {
         if (st.levelUp) drawLevelUp(ctx, L, t);
         // the npc window is a 640x360 design on desktop (centred on a wide layer), the phone's own on a phone
-        if (st.dialog) { if (L.touch) drawDialog(ctx, env, m, st, regions, act); else centred(ctx, L, regions, () => drawDialog(ctx, env, m, st, regions, act), env); }
+        if (st.dialog && talkUi.panel(st)) talkUi.drawPanel(ctx, env, m, st, regions, act);   // quest scenes: the talk panel
+        else if (st.dialog) { if (L.touch) drawDialog(ctx, env, m, st, regions, act); else centred(ctx, L, regions, () => drawDialog(ctx, env, m, st, regions, act), env); }
         centred(ctx, L, regions, () => {
           if (st.chest && m.storage) drawChest(ctx, env, m, st, regions, act);
           for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? drawCharacter : drawBags)(ctx, env, m, st, regions, act);
@@ -465,6 +470,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       g.text(ctx, g.clip(st.banner.title, bw - 12), L.W / 2, by + 3, 'gold', { align: 'center' });
       if (st.banner.sub) g.text(ctx, st.banner.sub, L.W / 2, by + 16, 'cream', { align: 'center' });
     }
+    if (st.mode === 'game') talkUi.drawOver(ctx, env, L, st, regions);   // quest scenes: accept and turn-in flourishes
     if (st.toast && st.toast.until > t) {
       // above everything, clear of the npc window (CRITIQUE_1 item 20)
       const w = g.textW(st.toast.text) + 16;
@@ -862,6 +868,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       return;
     }
     if (ev.repeat && down) { if (ev.code === 'Tab') ev.preventDefault(); }
+    if (down && !ev.repeat && talkUi.key(ev, st, options.binds, act)) { ev.stopPropagation(); ev.preventDefault(); return; }   // quest scenes
     const route = routeKey(ev.code, down, options.binds);
     if (route.kind === 'pass') return;
     ev.stopPropagation();
@@ -909,6 +916,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     not_ready: 'That quest is not finished yet.', not_active: 'You do not have that quest.' };
   function onOwnEvent(ev) {
     const me = playerId;
+    if (talkUi.onEvent(ev, me, st)) return;     // quest scenes: the turn-in flourish stands in for the banner
     const gl = groupEvent(ev, me, nameOf);
     if (gl) { if (gl.toast) toast(gl.toast, 3); if (gl.say) say(gl.say[0], gl.say[1]); return; }
     if (prof.onEvent(ev, me)) return;            // professions (prof_ui.js)
@@ -1128,6 +1136,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       else if (r && r.kind === 'slot' && r.ability && r.tapOnly) st.slotCard = { slot: r.slot, ability: r.ability };
     },
     setPressed(id) { st.pressed = id; },
+    /** Quest scenes: view.talk for the 3D renderer (talk_ui.js view), and the talk state for drivers. */
+    talkView: (snap) => (st.mode === 'game' ? talkUi.view(st, snap, playerId, st.metrics.touch) : null),
+    talk: talkUi,
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */
     owns(x, y) { return st.mode !== 'game' || !!topRegion(x, y); },
     handleEvents(events, ctx) {

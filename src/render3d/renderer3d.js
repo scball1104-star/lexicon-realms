@@ -61,6 +61,7 @@ import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 import { createSkyKit } from './sky_kit.js';     // wave 5 Track A: sky dome, light rig, 3D weather, far hills
 import { skyTier } from './sky_rig.js';
 import { horizonPose, H_PITCH, H_PITCH_LITE } from './horizon_cam.js';   // wave 5b: the optional horizon camera (view.cam)
+import { createTalkCam } from './talk_cam.js';   // wave 6 quest scenes: the talk camera (view.talk)
 import { tickGround } from './ground_kit.js';   // wave 5 ground kit: the grass wind clock
 import { groundY, setGroundY } from './ground_plan.js';   // the shown zone's visible ground height (gentle hills)
 
@@ -252,6 +253,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null, quality, info: null, camDist: null };   // camDist: drivers' close-up
   let lastNow = null;
   let camK = null, camT = 0;     // camera blend: 0 field, 1 town (eased in real time)
+  const talkCam = createTalkCam();
+  let talkHide = false;          // quest scenes: no door labels over a talk
   const focus = new THREE.Vector3();
   const frustum = new THREE.Frustum(), projView = new THREE.Matrix4(), sph = new THREE.Sphere();
   /** Is a body (feet at p, h m tall) in or near the view? A margin keeps edge bodies and their shadows in. */
@@ -746,9 +749,13 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       pitchC = hpose.pitch; dist = dev.camDist || hpose.dist; bx = -Math.sin(hpose.yaw); bz = Math.cos(hpose.yaw);
       target.y += hpose.lift + groundY(focus.x, focus.z); target.x += Math.cos(hpose.yaw) * hpose.side; target.z += Math.sin(hpose.yaw) * hpose.side;
     }
+    // wave 6 quest scenes (talk_cam.js): view.talk eases the camera to the talk pose and back; never in flight
+    const tcm = talkCam.frame(fv ? null : view.talk, rdt, { yaw: Math.atan2(-bx, bz), pitch: pitchC, dist, target, fov: hpose ? hpose.fov : FOV }, { place: isPlace(view.zone), lite: hLite || !!view.touch, groundY, horizonPose });
+    if (tcm) { pitchC = tcm.pitch; dist = tcm.dist; bx = -Math.sin(tcm.yaw); bz = Math.cos(tcm.yaw); target.set(tcm.target.x, tcm.target.y, tcm.target.z); if (tcm.hpose) hpose = tcm.hpose; }
+    talkHide = !!(view.talk && view.talk.hideLabels);
     if (dev.camPitch != null) pitchC = THREE.MathUtils.degToRad(dev.camPitch);
     if (dev.camLift != null) target.y += dev.camLift;
-    const fov = dev.fov || (fv ? fv.fov : hpose ? hpose.fov : FOV);
+    const fov = dev.fov || (fv ? fv.fov : tcm ? tcm.fov : hpose ? hpose.fov : FOV);
     if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
     const hz = dist * Math.cos(pitchC);
     camera.position.set(target.x + bx * hz, target.y + dist * Math.sin(pitchC), target.z + bz * hz);
@@ -929,7 +936,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   function drawHud(fn) {
     if (fallback) return fallback.drawHud(fn);
     hctx.clearRect(0, 0, layout.hudW, layout.hudH);
-    if (!trans) drawDoorLabels();
+    if (!trans && !talkHide) drawDoorLabels();
     fn(hctx, layout);
     // loading line (over the title too, so the title never looks frozen while the 3D world loads)
     if (!state.ready || !shown) {

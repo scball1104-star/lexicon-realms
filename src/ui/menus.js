@@ -670,15 +670,18 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
     });
     y += rowH + (inline ? 4 : 6);
   };
-  choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x']);
-  choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
-  choice('Screen shake', 'shake', [true, false], ['On', 'Off']);
+  // a phone: these three are inline (label beside the buttons) so Quest scenes fits under them (wave 6)
+  choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x'], touch);
+  choice('Effects', 'fx', ['low', 'high'], ['Low', 'High'], touch);
+  choice('Screen shake', 'shake', [true, false], ['On', 'Off'], touch);
+  if (touch) choice('Scenes', 'questScenes', [true, false], ['On', 'Off'], true);   // wave 6 quest scenes (off = today's npc window)
   // a phone: the left column is full after Screen shake (Graphics used to spill below the panel), so Graphics and
   // Camera go in the right column under the sliders
   if (touch) { cx = ox; cw = ow; y = ySound - 4; }
   choice(touch ? 'Graphics' : 'Graphics (reloads)', 'r3d', [false, true], ['2D', touch ? '3D' : '3D preview'], touch);
   choice(touch ? 'Camera' : 'Camera (3D)', 'cam', ['fixed', 'horizon'], ['Fixed', 'Horizon'], touch);   // wave 5b horizon camera (an option)
   choice(touch ? 'Synth' : 'Synth sound', 'synth', [true, false], ['On', 'Off'], touch);   // wave 5b synth sound (off = today's sounds)
+  if (!touch) { cx = kx + 84; cw = kw - 84; y = r.y + 40 + ACTIONS.length * rowH + 3; choice('Quest scenes', 'questScenes', [true, false], ['On', 'Off'], true); }   // wave 6 quest scenes: desktop, beside Reset keys (the right column is full)
   const bh = Math.max(16, env.L.minHit || 0);
   const by = r.y + r.h - bh - 8;
   // ---- bottom buttons
