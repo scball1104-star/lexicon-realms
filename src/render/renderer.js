@@ -75,7 +75,7 @@ function createLazy(base = 'assets/') {
 export function normalizeWeather(w, zone) {
   if (w == null) w = zone && zone.weather;
   if (!w || w === 'clear') return { rain: 0, leaves: false, pollen: false };
-  if (typeof w === 'string') return { rain: w === 'rain' ? 1 : 0, leaves: w === 'leaves', pollen: w === 'pollen' };
+  if (typeof w === 'string') return { rain: w === 'rain' || w === 'storm' ? 1 : 0, leaves: w === 'leaves', pollen: w === 'pollen' };
   return { rain: +w.rain || 0, leaves: !!w.leaves, pollen: !!w.pollen };
 }
 
