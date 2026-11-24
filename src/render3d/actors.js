@@ -11,6 +11,7 @@
 import * as THREE from '../vendor/three/three.module.min.js';
 import { assemble } from './hero.js';
 import { heroSpec, npcSpec, dress } from './gear.js';
+import { finishApp, mirrorProp } from './custom_kit.js';   // wave 6: the customization kit (a hero's own `app`) and the mirror
 import { createCreature } from './creatures.js';
 import { radial } from './textures.js';
 import { gatherLook, animateGather, gatherPick, workClip } from './gather3d.js';
@@ -110,6 +111,7 @@ function objectLook(e) {
   const g = new THREE.Group();
   const sp = String(e.sprite || '');
   if (e.chest) return lanternChest();
+  if (e.mirror) return mirrorProp();                     // the free mirror (wave 6 customization kit)
   if (/chicken/.test(sp)) { g.add(chicken()); g.userData.h = 0.7; g.userData.chicken = true; return g; }
   if (e.node && e.node.gather) return gatherLook(e);      // professions: an ore seam or a herb (gather3d.js)
   if (e.node) {
@@ -149,11 +151,12 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
 
   async function buildBody(a, e) {
     if (e.kind === 'player' || e.kind === 'npc') {
-      const spec = e.kind === 'player' ? heroSpec(e.cls, e.look, e.equip, items) : npcSpec(e.template, e.sprite);
+      const spec = e.kind === 'player' ? heroSpec(e.cls, e.look, e.equip, items, e.app) : npcSpec(e.template, e.sprite);
       const ch = await assemble(L, spec);
       if (e.kind === 'player') ch.anim = createAnimKit(THREE, ch, { cls: spec.cls });   // before anything moves the bones
       const local = new THREE.Group();   // per-body world-space extras (cape, trails)
       const dressed = await dress(L, ch, spec, local);
+      await finishApp(L, ch, spec);      // no app: nothing (today's look)
       ch.o.scale.multiplyScalar(spec.scale || 1);
       ch.o.traverse((m) => { if (m.isMesh) m.castShadow = !!quality.shadows; });
       return { type: 'hero', ch, spec, local, lights: dressed.lights, anim: makeAnimator(ch), height: 1.82 * (spec.scale || 1), sig: spec.sig };
@@ -191,7 +194,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     if (b.type === 'creature') { for (const m of b.c.mats) m.dispose(); if (b.c.release) b.c.release(); if (!/^(wolf|ram|shade|human)$/.test(b.c.family)) b.c.o.traverse((m) => { if (m.isMesh && !m.geometry.userData.shared) m.geometry.dispose(); }); }
   }
   function wantSig(e) {
-    if (e.kind === 'player') return heroSpec(e.cls, e.look, e.equip, items).sig;
+    if (e.kind === 'player') return heroSpec(e.cls, e.look, e.equip, items, e.app).sig;
     return e.kind === 'npc' ? 'npc:' + e.template : e.kind === 'mob' ? 'mob' : 'obj';
   }
   function create(e, now = true) {

@@ -10,6 +10,7 @@
 //   objectLook(sprite)                       which look a key gets (pure, tested)
 import { BAYER4 } from './lighting.js';
 import { gatherItems } from './gather2d.js';
+import { mirrorItems } from './mirror2d.js';   // wave 6: the free mirror (customization kit)
 
 export const GROUND_LOOKS = {
   zone_letters: { color: '#a77bff', fill: '#3a2878', density: 0.22, deco: 'letters' },      // Scribe Scatter Letters (ink)
@@ -180,6 +181,7 @@ export function createObjectArt({ tiles, propsDb, img, book, silhouette }) {
       out[0].pick = pf ? { x: ix - pf.a[0], y: iy - pf.a[1] - 6, w: pf.r[2], h: pf.r[3] + 6 } : { x: ix - 8, y: iy - 18, w: 16, h: 18 };
       return out;
     }
+    if (e.mirror) return mirrorItems(e, x, y, now);
     if (e.node && e.node.gather) return gatherItems(e, x, y, now);      // professions: an ore seam or a herb (gather2d.js)
     if (e.node) {
       // quest node: its own sprite (an animal, a prop) or a bundle, plus a gold glint so it reads as usable
