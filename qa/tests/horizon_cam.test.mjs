@@ -1,7 +1,7 @@
-// Horizon camera (wave 5b PROTOTYPE): camera-relative keys, the pose curve, and that it stays off by default.
+// Horizon camera (wave 5b): camera-relative keys, the pose curve, and that it stays off by default.
 import { assert, eq } from './_helpers.mjs';
 import { camRelMove } from '../../src/input/horizon_input.js';
-import { createHorizonCam, horizonPose, H_DIST, H_PITCH } from '../../src/render3d/horizon_cam.js';
+import { createHorizonCam, horizonPose, H_DIST, H_PITCH, H_PITCH_LITE, H_TIER } from '../../src/render3d/horizon_cam.js';
 import { createInput } from '../../src/input/input.js';
 import { DEFAULT_OPTIONS } from '../../src/ui/save.js';
 
@@ -56,6 +56,23 @@ export const tests = [
       eq(far.k, 0); eq(far.fov, 30, 'today\'s lens at the far view'); eq(far.fogFar, 0, 'no long view at a steep pitch');
       const sh = horizonPose({ yaw: 0, pitch: 6, dist: 3.2 });
       eq(sh.k, 1); assert(sh.fogFar >= 200 && sh.farR > 0, 'long view at a low pitch');
+    },
+  },
+  {
+    name: 'horizon camera: draw distance tiers (desktop 100/240/220 m, phone and Low 56/100/100 m, phone tilt stops at 10 degrees)',
+    fn() {
+      const hi = horizonPose({ yaw: 0, pitch: 0, dist: 8 });
+      eq(hi.cullR, H_TIER.high.cullR); eq(hi.farR, H_TIER.high.farR); eq(hi.fogFar, H_TIER.high.fogFar);
+      eq([hi.cullR, hi.farR, hi.fogFar, hi.actorR].join(), '100,240,220,50');
+      const lo = horizonPose({ yaw: 0, pitch: 0, dist: 8 }, { lite: true });
+      eq([lo.cullR, lo.farR, lo.fogFar, lo.actorR].join(), '56,100,100,30');
+      eq(Math.round(lo.pitch * 180 / Math.PI), H_PITCH_LITE, 'the pose never goes below the phone stop');
+      const ph = createHorizonCam({ touch: true });
+      ph.orbit(0, -9999); eq(ph.pitch, H_PITCH_LITE, 'a phone drag stops at 10 degrees');
+      const steep = horizonPose({ yaw: 0, pitch: 45, dist: 8 }, { lite: true });
+      eq(steep.cullR, 80); eq(steep.farR, 0, 'a steep view keeps the short reach');
+      assert(hi.grassR > 36 && hi.grassAhead > 0, 'desktop low view: a wider grass ring ahead');
+      eq(steep.grassR, 36);
     },
   },
   {

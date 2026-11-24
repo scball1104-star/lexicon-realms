@@ -23,7 +23,7 @@ import { BitmapFont } from './core/font.js';
 import { createRenderer } from './render/renderer.js';
 import { createInput } from './input/input.js';
 import { createTouch, isTouchDevice } from './input/touch.js';
-import { attachHorizonInput } from './input/horizon_input.js';   // wave 5b PROTOTYPE: the optional horizon camera
+import { attachHorizonInput } from './input/horizon_input.js';   // wave 5b: the optional horizon camera
 import { createHorizonCam } from './render3d/horizon_cam.js';
 import { createUI } from './ui/ui.js';
 import { padBar, loadOptions, loadShared, saveShared, SHARED_KEY } from './ui/save.js';
@@ -157,7 +157,7 @@ async function boot() {
   view.shake = ui.options.shake !== false;   // the 3D effects' camera kick (Options)
   audio.setVolumes({ master: 1, music: ui.options.music, sfx: ui.options.sfx });
   const touchCtl = touch ? createTouch({ canvas, input, ui }) : null;
-  // the horizon camera (wave 5b PROTOTYPE, 3D only): ?cam=horizon|fixed in the link wins, else Options: Camera.
+  // the horizon camera (wave 5b, 3D only, an option): ?cam=horizon|fixed in the link wins, else Options: Camera.
   // Off (the default) leaves view.cam null and every horizon listener idle, so today's camera and controls are unchanged
   const hcam = renderer.is3d ? createHorizonCam({ touch }) : null;
   const hin = hcam ? attachHorizonInput({ canvas, cam: hcam, input, ui, touchCtl }) : null;

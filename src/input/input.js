@@ -112,7 +112,7 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
     /** Phone: ground spells aim at the target (or in front of you) instead of the mouse. */
     setTouch(on) { touchMode = !!on; },
     setMouse(devX, devY) { mouse = [devX, devY]; },
-    /** Horizon camera (prototype): fn(dx, dy) -> [dx, dy] turns held keys to the camera; null restores today's keys. */
+    /** Horizon camera (wave 5b): fn(dx, dy) -> [dx, dy] turns held keys to the camera; null restores today's keys. */
     setMoveTransform(fn) { moveXf = fn || null; },
 
     poll({ snap, playerId, pick, toWorld = null }) {

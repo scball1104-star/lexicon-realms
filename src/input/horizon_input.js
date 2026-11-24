@@ -1,4 +1,4 @@
-// Horizon camera controls (wave 5b PROTOTYPE; the camera itself: src/render3d/horizon_cam.js). Only attached when the
+// Horizon camera controls (wave 5b, approved 2026-11-24; the camera itself: src/render3d/horizon_cam.js). Only attached when the
 // horizon camera is on (?cam=horizon or Options: Camera Horizon), so today's controls are untouched otherwise.
 //
 //   const h = attachHorizonInput({ canvas, cam, input, ui, touchCtl })   h.setOn(bool): off = every listener steps aside

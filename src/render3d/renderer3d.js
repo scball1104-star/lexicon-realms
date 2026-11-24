@@ -18,7 +18,7 @@
 // spot as a point h px north on the ground: anchorOf() returns that h, measured each frame by projection. Picking,
 // devToWorld and worldToHud all go through the live camera, so they follow any angle.
 //
-// Horizon camera (wave 5b PROTOTYPE, an option; view.cam, horizon_cam.js): free orbit and zoom to the shoulder, with
+// Horizon camera (wave 5b, approved 2026-11-24, an option; view.cam, horizon_cam.js): free orbit and zoom to the shoulder, with
 // the fog, far plane and draw distance pushed back at a low pitch. Off (view.cam null) everything above is unchanged.
 //
 // Cutaway: static scenery between the camera and the hero, and between the camera and the hero's target, fades to
@@ -60,7 +60,7 @@ import { createRealms2Fx3 } from './realms2_3d.js';   // wave 3 realms2: lantern
 import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 import { createSkyKit } from './sky_kit.js';     // wave 5 Track A: sky dome, light rig, 3D weather, far hills
 import { skyTier } from './sky_rig.js';
-import { horizonPose } from './horizon_cam.js';   // wave 5b PROTOTYPE: the optional horizon camera (view.cam)
+import { horizonPose, H_PITCH, H_PITCH_LITE } from './horizon_cam.js';   // wave 5b: the optional horizon camera (view.cam)
 import { tickGround } from './ground_kit.js';   // wave 5 ground kit: the grass wind clock
 import { groundY, setGroundY } from './ground_plan.js';   // the shown zone's visible ground height (gentle hills)
 
@@ -324,17 +324,23 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     ndc.set((dx / canvas.width) * 2 - 1, -((dy / canvas.height) * 2 - 1));
     ray.setFromCamera(ndc, camera);
     const hit = new THREE.Vector3();
-    return ray.ray.intersectPlane(ground, hit) ? hit : null;
+    if (!ray.ray.intersectPlane(ground, hit)) return null;
+    // horizon camera: the visible ground (the ground kit's gentle hills, groundY) instead of the flat y = 0 plane. The
+    // hills are smooth and low, so a few steps of "meet the plane at the height found last time" settle in a few cm
+    if (hpose) for (let i = 0; i < 4; i++) { ground.constant = -groundY(hit.x, hit.z); const ok = ray.ray.intersectPlane(ground, hit); ground.constant = 0; if (!ok) return null; }
+    return hit;
   }
   function devToWorld(dx, dy) {
     const h = devToGround(dx, dy);
     if (hpose) return h && Math.hypot(h.x - focus.x, h.z - focus.z) < H_REACH ? [h.x * PX, h.z * PX] : null;   // sky or far: no walk
     return h ? [h.x * PX, h.z * PX] : [0, 0];
   }
-  // horizon camera (prototype): "h px above a body" (worldToHud(x, y - h), the 2D convention every HUD caller uses) is
+  // horizon camera: "h px above a body" (worldToHud(x, y - h), the 2D convention every HUD caller uses) is
   // not "h px north" once the camera turns, so a point straight above a body's anchor goes up the body in 3D instead;
   // a point behind the camera goes off screen
   let hpose = null;
+  /** drivers: the ground point under a device px (x, y, z m) and the visible ground height there */
+  dev.groundPoint = (dx, dy) => { const h = devToGround(dx, dy); return h ? [h.x, h.y, h.z, groundY(h.x, h.z)] : null; };
   const H_REACH = 60;
   function horizonToHud(wx, wy) {
     let p = null;
@@ -729,12 +735,16 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     let pitchC = pitch, bx = 0, bz = 1;
     const fv = flightView;
     if (fv) { pitchC = fv.pitch; dist = dev.camDist || fv.dist; bx = fv.back[0]; bz = fv.back[1]; target.y += fv.lift; }
-    // wave 5b PROTOTYPE: the horizon camera (horizon_cam.js), an option (view.cam); never in flight or below ground
-    hpose = view.cam && view.cam.mode === 'horizon' && !fv && !isPlace(view.zone) ? horizonPose(view.cam) : null;
-    dev.horizon = hpose ? { yaw: view.cam.yaw, pitch: view.cam.pitch, dist: +hpose.dist.toFixed(2), k: hpose.k, low: hpose.low, fogFar: hpose.fogFar, farR: hpose.farR, cullR: hpose.cullR } : null;
+    // wave 5b: the horizon camera (horizon_cam.js), an option (view.cam); never in flight or below ground
+    // phones and Low quality (lite) get the shorter view and the tilt stop (horizon_cam.js H_TIER); the stop is written
+    // back to the camera state so a drag cannot pull below it
+    const hLite = quality.low || view.fx === 'low';
+    if (view.cam && view.cam.mode === 'horizon' && view.cam.lite !== hLite) { view.cam.lite = hLite; view.cam.minPitch = hLite ? H_PITCH_LITE : H_PITCH[0]; view.cam.pitch = Math.max(view.cam.pitch, view.cam.minPitch); }
+    hpose = view.cam && view.cam.mode === 'horizon' && !fv && !isPlace(view.zone) ? horizonPose(view.cam, { lite: hLite }) : null;
+    dev.horizon = hpose ? { yaw: view.cam.yaw, pitch: view.cam.pitch, dist: +hpose.dist.toFixed(2), k: hpose.k, low: hpose.low, lite: hpose.lite, fogFar: +hpose.fogFar.toFixed(1), farR: hpose.farR, cullR: +hpose.cullR.toFixed(1), grassR: +hpose.grassR.toFixed(1), grass: shown && shown.kit ? shown.kit.stats || null : null } : null;
     if (hpose) {
       pitchC = hpose.pitch; dist = dev.camDist || hpose.dist; bx = -Math.sin(hpose.yaw); bz = Math.cos(hpose.yaw);
-      target.y += hpose.lift; target.x += Math.cos(hpose.yaw) * hpose.side; target.z += Math.sin(hpose.yaw) * hpose.side;
+      target.y += hpose.lift + groundY(focus.x, focus.z); target.x += Math.cos(hpose.yaw) * hpose.side; target.z += Math.sin(hpose.yaw) * hpose.side;
     }
     if (dev.camPitch != null) pitchC = THREE.MathUtils.degToRad(dev.camPitch);
     if (dev.camLift != null) target.y += dev.camLift;
@@ -742,6 +752,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
     const hz = dist * Math.cos(pitchC);
     camera.position.set(target.x + bx * hz, target.y + dist * Math.sin(pitchC), target.z + bz * hz);
+    if (hpose) camera.position.y = Math.max(camera.position.y, groundY(camera.position.x, camera.position.z) + 0.35);   // never under a hill
     camera.lookAt(target);
     // the FX kit's gentle kick on the player's own big hits and crits (Options: Screen shake off turns it off)
     { const sh = view.shake === false ? 0 : fx3.screen.shake; if (sh > 0.01) { camera.position.x += Math.sin(now * 83) * sh * 0.25; camera.position.y += Math.cos(now * 71) * sh * 0.2; } }
@@ -755,9 +766,10 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const farR = dev.farR != null ? dev.farR : (flightView ? flightView.farR : hpose ? hpose.farR : 0);
     // (a warm-up behind the card draws everything it uploads: the whole small place, or a big zone's first part)
     const warmR = shown.more ? 170 : 1e6;
+    if (shown.kit) shown.kit.view = hpose ? { r: hpose.grassR, dx: Math.sin(hpose.yaw) * hpose.grassAhead, dz: -Math.cos(hpose.yaw) * hpose.grassAhead } : null;   // grass ahead of the hero
     if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? warmR : (dev.cullR || (flightView ? flightView.cullR : hpose ? hpose.cullR : 80)), farR);
     dev.far = shown.lastCull ? shown.lastCull.far : 0;
-    actors.sync(prevSnap, snap, alpha, view.zone, now, fx3.screen.hitstop > 0 ? dt * 0.25 : dt, fx3, focus, hpose ? 32 + 50 * hpose.low : (14 + 18 / (view.zoom || 1)) * distK, inView);
+    actors.sync(prevSnap, snap, alpha, view.zone, now, fx3.screen.hitstop > 0 ? dt * 0.25 : dt, fx3, focus, hpose ? dev.actorR || hpose.actorR : (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
     rideKites(snap, view, now, rdt);
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
@@ -780,6 +792,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     renderer.shadowMap.autoUpdate = !under && !(zone && zone.cavern);
     const tgA = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     SEE.uCam.value.copy(camera.position);
+    SEE.uNearR.value = hpose ? hpose.nearR : 0;   // horizon camera: lamp posts, trunks and roof corners at the lens fade out
     SEE.uFocus.value.copy(me ? me.root.position : focus).setY(1.0); SEE.uSeeR.value = me ? 3.2 : 0;
     if (tgA && tgA.e && !tgA.e.dead && tgA.kind !== 'object') { SEE.uFocus2.value.copy(tgA.root.position).setY(Math.min(1.2, tgA.height * 0.55)); SEE.uSeeR2.value = 1.9; } else SEE.uSeeR2.value = 0;
     cutBuildings(snap, view, me, tgA, rdt);

@@ -651,23 +651,28 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   const ySound = y;              // under the sliders (a phone's right column has room there)
   let cx = ox, cw = ow;
   if (touch) { cx = kx; cw = 250; y = r.y + 46 + 5 * 12 + 8; }
-  const choice = (label, key, vals, names) => {
-    g.text(ctx, label, cx, y, 'white'); y += 13;
-    const bw = Math.floor((cw - (vals.length - 1) * 4) / vals.length);
+  // inline: the label beside its buttons on one row (a phone's right column, where height is short)
+  const choice = (label, key, vals, names, inline = false) => {
+    const lw = inline ? 64 : 0;
+    if (inline) g.text(ctx, label, cx, y + Math.floor(rowH / 2) - 6, 'white');
+    else { g.text(ctx, label, cx, y, 'white'); y += 13; }
+    const bw = Math.floor((cw - lw - (vals.length - 1) * 4) / vals.length);
     vals.forEach((v, i) => {
-      const x = cx + i * (bw + 4), on = options[key] === v;
+      const x = cx + lw + i * (bw + 4), on = options[key] === v;
       g.window(ctx, x, y, bw, rowH, 'thin', on ? 'ember' : 'slate', 0.95);
       g.text(ctx, names[i], x + bw / 2, y + Math.floor(rowH / 2) - 6, on ? 'cream' : 'gray', { align: 'center' });
       regions.push({ rect: { x, y, w: bw, h: rowH }, kind: 'button', label: `opt:${key}:${v}`, on: () => act.setOption(key, v) });
     });
-    y += rowH + 6;
+    y += rowH + (inline ? 4 : 6);
   };
   choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x']);
   choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
   choice('Screen shake', 'shake', [true, false], ['On', 'Off']);
-  choice('Graphics (reloads)', 'r3d', [false, true], ['2D', '3D preview']);
-  if (touch) { cx = ox; cw = ow; y = ySound; }   // the left column is full on a phone
-  choice('Camera (3D)', 'cam', ['fixed', 'horizon'], ['Fixed', 'Horizon']);   // wave 5b prototype
+  // a phone: the left column is full after Screen shake (Graphics used to spill below the panel), so Graphics and
+  // Camera go in the right column under the sliders
+  if (touch) { cx = ox; cw = ow; y = ySound - 4; }
+  choice(touch ? 'Graphics' : 'Graphics (reloads)', 'r3d', [false, true], ['2D', touch ? '3D' : '3D preview'], touch);
+  choice(touch ? 'Camera' : 'Camera (3D)', 'cam', ['fixed', 'horizon'], ['Fixed', 'Horizon'], touch);   // wave 5b horizon camera (an option)
   // ---- bottom buttons
   const bh = Math.max(16, env.L.minHit || 0);
   const by = r.y + r.h - bh - 8;

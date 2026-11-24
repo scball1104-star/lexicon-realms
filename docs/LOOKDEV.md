@@ -20,6 +20,9 @@ python qa/lookdev/check_budget.py --views qa/out/lookdev/before/views.json   the
 node qa/lookdev/audio_inventory.mjs                       sound files, which sim events make a sound, beds per zone
 ```
 
+Horizon camera (wave 5b): `--query cam=horizon --campose '{"yaw":0,"pitch":12,"dist":10}'` turns it on and poses it
+for every view (the title is left alone); measure today's camera and the horizon camera into two tags and compare.
+
 Options: `--port` (default 8821; use your own on a shared PC), `--timeout` (whole run, default 900 s), `--perf-s`
 (seconds of real loop per view, default 3), `--no-perf` (stills only), `--cpu` (phone slowdown), `--budget`.
 

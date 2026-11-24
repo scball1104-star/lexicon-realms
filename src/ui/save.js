@@ -168,7 +168,7 @@ export function saveShared(storage, tab) {
 export const DEFAULT_OPTIONS = Object.freeze({
   v: 1, music: 0.7, sfx: 0.8, zoom: 1, fx: 'high',
   shake: true,               // the 3D effects' small camera kick on your own big hits (fx kit, 2026-11-23)
-  cam: 'fixed',              // 3D camera: 'fixed' (today's north-up, the default) or 'horizon' (wave 5b prototype)
+  cam: 'fixed',              // 3D camera: 'fixed' (today's north-up, the default) or 'horizon' (wave 5b, an option)
   r3d: false,                // the 3D preview renderer (Scott 2026-11-19: a switch in Settings instead of the ?r=3d link)
   binds: {},                 // action -> KeyboardEvent.code overrides (see keymap.js ACTIONS for defaults)
 });
