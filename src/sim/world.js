@@ -46,6 +46,7 @@ import { createLegendDrops } from './legend_drops.js';
 import { createMounts } from './mounts.js';
 import { createRealmMech } from './realm_mech.js';   // wave 3: the start realms' lava, Gate waves and tide
 import { createRealms2 } from './realms2.js';   // wave 3 realms2: the sandstorm and the lantern watch
+import { createEmotes } from './emotes.js';   // wave 7 anim: jump and emotes, one cosmetic field (no rng, position or stats)
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -202,6 +203,7 @@ function wrap(state, content0, rng, systems) {
   const MT = combatOn && content.mounts ? createMounts(C) : null;
   C.mounts = MT;
   const RM = combatOn ? createRealmMech(C) : null;   // the start realms' signatures (src/sim/realm_mech.js)
+  const EM = createEmotes({ state, emit, mounted: (e) => !!(MT && MT.mountOf(e)) });   // wave 7 anim (src/sim/emotes.js)
   function questKill(mob, killer) {
     const p = index.get(mob.tagger) || (killer && killer.kind === 'player' ? killer : null);
     if (!p || p.kind !== 'player') return;
@@ -516,6 +518,7 @@ function wrap(state, content0, rng, systems) {
       for (const e of [...state.ents]) {
         if (e.kind === 'object') continue;
         if (!index.has(e.id)) continue;
+        if (e.emote) EM.tickPlayer(e);              // wave 7 anim: an emote ends on a move, combat, death or its time
         if (e.dead) {
           if (combatOn && e.kind === 'mob') {
             if (e.spawn.temporary) { if (e.respawnAt != null && state.tick >= e.respawnAt) { remove(e); emit({ type: 'despawn', id: e.id, template: e.template, zone: e.zone, kind: 'mob' }); } continue; }
@@ -618,6 +621,7 @@ function wrap(state, content0, rng, systems) {
     if (!e || e.kind !== 'player') return reject(id, cmd, 'no_actor');
     if (!cmd || typeof cmd.t !== 'string') return reject(id, cmd, 'bad_command');
     if (GP && GP.handles(cmd.t)) { GP.command(e, cmd); return; }      // group play (src/sim/party.js): some work while dead
+    if (EM.handles(cmd.t) && !e.dead && !(TV && TV.flying(e))) { EM.command(e, cmd); return; }   // wave 7 anim: jump and emotes
     if (TR && TR.handles(cmd.t)) { TR.command(e, cmd); return; }
     if (e.dead && cmd.t !== 'target') return reject(id, cmd, 'dead');
     // on a Lantern Kite the hero cannot act (src/sim/travel.js); held keys are ignored quietly
@@ -1092,6 +1096,7 @@ function wrap(state, content0, rng, systems) {
     if (e.kind === 'player') {
       o.cls = e.cls; o.look = e.look; o.xp = e.xp; o.party = e.party ?? null;
       if (e.app) o.app = { ...e.app };          // wave 6: the hero's own look; every co-op friend draws it from this
+      Object.assign(o, EM.publicOf(e));          // wave 7 anim: emote ({ id, tick } | null), friends see the hop and the wave
       if (combatOn) {
         Object.assign(o, { bar: [...e.bar], known: [...e.known], talents: { ...e.talents }, gold: e.gold, combo: e.combo ? { ...e.combo } : null,
           lantern: e.lantern ? { ...e.lantern } : null, inCombat: !!e.inCombat, autoOn: !!e.autoOn, sitting: !!e.sitting,
@@ -1105,8 +1110,9 @@ function wrap(state, content0, rng, systems) {
         if (MT) Object.assign(o, MT.publicOf(e));                            // mounts: mount (kind ridden | null), mounts (owned)
       }
     }
+    if (e.kind === 'npc') { const job = e.job !== undefined ? e.job : ((content.npcs || {})[e.template] || {}).job; if (job) o.job = job; }   // wave 7 anim: the work loop (a routine may set e.job)
     if (e.kind === 'mob' && combatOn) {
-      o.elite = !!(e.mob && e.mob.elite); o.mobKind = e.mob ? e.mob.kind : 'normal'; o.pack = (e.spawn && e.spawn.pack) || null;
+      o.elite =!!(e.mob && e.mob.elite); o.mobKind = e.mob ? e.mob.kind : 'normal'; o.pack = (e.spawn && e.spawn.pack) || null;
       const mt = (content.mobs || {})[e.template] || {};
       o.rank = mt.boss ? 'boss' : o.elite ? 'elite' : (e.mob && e.mob.kind === 'weak') ? 'weak' : 'normal';
       if (mt.rare) o.rare = true;                // a rare named foe (src/data/rares.js): the silver mark

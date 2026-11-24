@@ -13,6 +13,7 @@
 import { ICE_DEFAULT, signalFor, hostRoom, joinRoom, makeOffer, makeAnswer, encodeCode, decodeCode, newRoomCode, cleanRoomCode, validRoomCode } from './transport.js';
 import { createHostSession, createGuestSession, MAX_PLAYERS } from './session.js';
 import { createNetUI } from './netui.js';
+import { emoteFromChat } from '../sim/emotes.js';   // wave 7 anim: /wave /cheer /sit /dance /jump in party chat
 
 const SUB_TILE = 256;     // sim units per tile (src/sim/constants.js TILE), for placing a guest beside the host
 
@@ -269,6 +270,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
   function openChat() {
     if (!role) return;
     nui.openChat((text) => {
+      const em = emoteFromChat(text); if (em) { ui.act.send(em); return; }   // an emote, not a chat line
       if (role === 'host' && hostSess) { const t = hostSess.chat(text); if (t) say(`[Party] ${hostName}: ${t}`); }
       else if (role === 'guest' && guestSess) guestSess.chat(text);   // the host echoes it back to everyone
     });

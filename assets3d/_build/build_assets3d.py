@@ -66,7 +66,8 @@ MONSTERS = {'Ghost_Skull': 'Ultimate-Monsters-Bundle/Ghost_Skull_TX8r9WBXpe.glb'
 MONSTER_PAGES = {'Ghost_Skull': 'https://poly.pizza/m/TX8r9WBXpe'}
 CLIPS = ['Idle_Loop', 'Walk_Loop', 'Jog_Fwd_Loop', 'Sword_Attack', 'Sword_Idle', 'Spell_Simple_Shoot',
          'Spell_Simple_Idle_Loop', 'Hit_Chest', 'Death01', 'Sitting_Idle_Loop', 'Punch_Jab', 'Punch_Cross',
-         'Crouch_Idle_Loop', 'Crouch_Fwd_Loop', 'Idle_Torch_Loop', 'Pistol_Aim_Neutral', 'Pistol_Shoot', 'Idle_Talking_Loop']
+         'Crouch_Idle_Loop', 'Crouch_Fwd_Loop', 'Idle_Torch_Loop', 'Pistol_Aim_Neutral', 'Pistol_Shoot', 'Idle_Talking_Loop',
+         'Jump_Start', 'Jump_Loop', 'Jump_Land', 'Dance_Loop', 'Sitting_Enter']   # wave 7 anim: jump, dance, the sit-down
 
 CHAR_TEX = ('T_Peasant', 'T_Ranger', 'T_Superhero', 'T_Regular')
 
@@ -250,6 +251,7 @@ def write_licenses(total):
               'The four animals are Quaternius models published on poly.pizza as CC0 1.0: Wolf ' + ANIMAL_PAGES['Wolf'] +
               ', Deer ' + ANIMAL_PAGES['Deer'] + ', Horse ' + ANIMAL_PAGES['Horse'] + ' (the Bay Horse and Grey Charger mounts), Stag ' +
               ANIMAL_PAGES['Stag'] + ' (the Moor Stag mount).', '',
+              '`ual/UAL_clips.glb` holds these clips of the Universal Animation Library: ' + ', '.join(CLIPS) + '.', '',
               'The Ghost Skull (the barrow shade) is a Quaternius model published on poly.pizza as CC0 1.0: ' +
               MONSTER_PAGES['Ghost_Skull'] + '. The other foes are built in code (src/render3d/creatures.js).', '',
               'Total size: %.1f MB in %d files.' % (total / 1048576, len(files)), '',

@@ -630,7 +630,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
     g.text(ctx, 'Key bindings', kx, r.y + 26, 'gold');
     g.text(ctx, big ? 'click, press a key' : 'click, then press a key', kx + kw, r.y + 26, 'dim', { align: 'right' });
     const binds = effectiveBinds(options.binds);
-    const top = r.y + 40 + (big ? 4 : 0), vis = big ? Math.min(ACTIONS.length, Math.floor((r.y + r.h - 26 - top) / rowH)) : ACTIONS.length;
+    const top = r.y + 40 + (big ? 4 : 0), vis = Math.min(ACTIONS.length, Math.floor((r.y + r.h - 26 - top) / rowH));   // wave 7: 25 keys scroll at Normal too
     const maxOff = ACTIONS.length - vis;
     st.keyScroll = Math.max(0, Math.min(maxOff, st.keyScroll || 0));
     if (maxOff > 0) regions.push({ rect: { x: kx - 2, y: top - 1, w: kw + 4, h: vis * rowH }, kind: 'window', id: 'key_scroll', scroll: (d) => { st.keyScroll = Math.max(0, Math.min(maxOff, (st.keyScroll || 0) + d)); } });

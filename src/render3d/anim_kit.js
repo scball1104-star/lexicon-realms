@@ -366,6 +366,29 @@ export function createAnimKit(THREE, ch, { cls = 'warden', stride = 1.5 } = {}) 
     },
     /** pose the body straight from an authored pose (calibration; no layers) */
     hold(src) { apply(pose(src)); ch.o.updateMatrixWorld(true); if (ch.applyPost) ch.applyPost(); },
+    /** wave 7 anim (emote_kit.js): a compiled pose (pose()) blended over what the bones hold now, w 0..1; no matrix update */
+    blend(P, w = 1) {
+      if (w >= 0.999) { apply(P); return; }
+      if (w <= 0.001) return;
+      for (let i = 0; i < NB; i++) { boneQuat(i, P, kq); bones[i].quaternion.slerp(kq, w); }
+      v3.set(P[ROOT], P[ROOT + 1], P[ROOT + 2]).applyQuaternion(pelvisParentInv);
+      kp.copy(rest[BI.pelvis].p).add(v3); bones[BI.pelvis].position.lerp(kp, w);
+      for (const f of fingers) {
+        const a = (f.side === 'l' ? P[GRIP] : P[GRIP + 1]) * f.k * (f.thumb ? 0.45 : 1.25);
+        if (f.thumb) eul.set(-a, 0, 0, 'YXZ'); else eul.set(0, 0, f.side === 'l' ? -a : a, 'YXZ');
+        dq.setFromEuler(eul); tq.copy(f.pwi).multiply(dq).multiply(f.pw); kq.copy(tq).multiply(f.q);
+        f.b.quaternion.slerp(kq, w);
+      }
+    },
+    /** wave 7 anim: a compiled pose ADDED on top of the bones (small layered motions over a clip: a look round), times w */
+    add(P, w = 1) {
+      for (let i = 0; i < NB; i++) {
+        const x = P[i * 3] * w, y = P[i * 3 + 1] * w, z = P[i * 3 + 2] * w;
+        if (!x && !y && !z) continue;
+        const r = rest[i]; eul.set(x, y, z, 'YXZ'); dq.setFromEuler(eul);
+        tq.copy(r.pwi).multiply(dq).multiply(r.pw); bones[i].quaternion.premultiply(tq);
+      }
+    },
     /** the raw pose array for tests */
     get current() { return cur; },
   };

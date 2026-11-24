@@ -41,6 +41,7 @@ import { createUiSounds } from '../audio/ui_sounds.js';   // menu sounds (pure o
 import { applySkin, skinFromOptions, textSizeFrom } from './skin.js';   // wave 6 uiskin: Lantern and Vellum, text size
 import { createTalkUI } from './talk_ui.js';   // wave 6 quest scenes: the talk panel and flourishes (view.talk)
 import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing hints for a new hero (Help turns them off)
+import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -97,6 +98,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const uiSnd = createUiSounds((k) => { if (hooks.sound) hooks.sound(k); });
   const talkUi = createTalkUI({ g, zones, zoneNames, hooks, options: () => options });
   const onb = createOnboard({ g, store, options: () => options, hooks });   // wave 7 onboarding (src/ui/onboard.js)
+  const emoteUi = createEmoteUI({ g, st, send, say: (ch, t) => say(ch, t) });
 
   // ---- the action surface menus and screens call
   const act = {
@@ -467,8 +469,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (isBuilds2(m)) builds2Prompts(ctx, L, m);
         if (st.hint) drawHint(ctx, L, regions);
         // wave 7 onboarding: one by-doing hint, never over a window, the npc window, the boss card or a banner
-        onb.frame(st, m, snap, playerId, t, L, !!(st.open.size || st.dialog || st.bossUp || st.levelUp || st.chest || st.mirror || st.barPick || st.slotCard || st.hint || st.story || m.player.dead || (m.group && (m.group.trade || m.group.ready))));
+        onb.frame(st, m, snap, playerId, t, L, !!(st.open.size || st.dialog || st.bossUp || st.levelUp || st.chest || st.mirror || st.barPick || st.emoteRing || st.slotCard || st.hint || st.story || m.player.dead || (m.group && (m.group.trade || m.group.ready))));
         sizeScope(() => onb.draw(ctx, L, regions, t));
+        if (st.emoteRing) sizeScope(() => emoteUi.draw(ctx, L, regions, m));   // wave 7 anim: the emote ring
         if (st.mirror) looks.drawMirror(ctx, env, regions, t, centred, L);   // the free mirror covers the HUD
       }
     }
@@ -893,6 +896,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     }
     if (ev.repeat && down) { if (ev.code === 'Tab') ev.preventDefault(); }
     if (down && !ev.repeat && talkUi.key(ev, st, options.binds, act)) { ev.stopPropagation(); ev.preventDefault(); return; }   // quest scenes
+    if (down && emoteUi.key(ev, options.binds, lastModel)) { ev.stopPropagation(); ev.preventDefault(); return; }   // wave 7 anim: Space, G, the ring
     const route = routeKey(ev.code, down, options.binds);
     if (route.kind === 'pass') return;
     ev.stopPropagation();
@@ -942,6 +946,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   function onOwnEvent(ev) {
     const me = playerId;
     if (talkUi.onEvent(ev, me, st)) return;     // quest scenes: the turn-in flourish stands in for the banner
+    if (emoteUi.onEvent(ev, me)) return;         // wave 7 anim: an emote the sim refused (combat, riding, working)
     const gl = groupEvent(ev, me, nameOf);
     if (gl) { if (gl.toast) toast(gl.toast, 3); if (gl.say) say(gl.say[0], gl.say[1]); return; }
     if (prof.onEvent(ev, me)) return;            // professions (prof_ui.js)
@@ -1162,6 +1167,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (r && r.kind === 'slot' && r.item) st.slotCard = { slot: r.slot, item: r.item };
       // a skill out of a fight (its slot fires on release then, so this hold cast nothing): Move, Take off bar
       else if (r && r.kind === 'slot' && r.ability && r.tapOnly) st.slotCard = { slot: r.slot, ability: r.ability };
+      else if (emoteUi.longPress(r)) st.longTip = null;   // wave 7 anim: a long press on your own portrait opens the emote ring
     },
     setPressed(id) { st.pressed = id; },
     /** Quest scenes: view.talk for the 3D renderer (talk_ui.js view), and the talk state for drivers. */
