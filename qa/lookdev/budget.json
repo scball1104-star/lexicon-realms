@@ -1,0 +1,465 @@
+{
+ "note": "Made 2026-11-24 by make_budget.py from baseline runs on the shared PC (one sample each): minFps = 0.6 x baseline fps, minUncappedFps = 0.5 x baseline, maxCalls / maxTriangles = 1.35 x baseline. Report only (check_budget.py); raise a number on purpose, in the change that needs it.",
+ "profiles": {
+  "desktop": {
+   "default": {
+    "minFps": 8,
+    "maxCalls": 1200
+   },
+   "views": {
+    "town_rootbound": {
+     "minFps": 20.7,
+     "maxCalls": 142,
+     "minUncappedFps": 10.4,
+     "maxTriangles": 314131,
+     "baseline": {
+      "fps": 34.5,
+      "uncappedFps": 20.8,
+      "calls": 105,
+      "triangles": 232690,
+      "quality": "high"
+     }
+    },
+    "town_emberpeak": {
+     "minFps": 20.0,
+     "maxCalls": 261,
+     "minUncappedFps": 9.7,
+     "maxTriangles": 646500,
+     "baseline": {
+      "fps": 33.3,
+      "uncappedFps": 19.4,
+      "calls": 193,
+      "triangles": 478889,
+      "quality": "high"
+     }
+    },
+    "town_valewyn": {
+     "minFps": 15.1,
+     "maxCalls": 208,
+     "minUncappedFps": 8.5,
+     "maxTriangles": 375124,
+     "baseline": {
+      "fps": 25.1,
+      "uncappedFps": 17,
+      "calls": 154,
+      "triangles": 277870,
+      "quality": "high"
+     }
+    },
+    "town_saffron": {
+     "minFps": 15.7,
+     "maxCalls": 273,
+     "minUncappedFps": 5.7,
+     "maxTriangles": 334189,
+     "baseline": {
+      "fps": 26.2,
+      "uncappedFps": 11.3,
+      "calls": 202,
+      "triangles": 247548,
+      "quality": "high"
+     }
+    },
+    "town_hollow": {
+     "minFps": 22.1,
+     "maxCalls": 326,
+     "minUncappedFps": 10.6,
+     "maxTriangles": 584024,
+     "baseline": {
+      "fps": 36.8,
+      "uncappedFps": 21.1,
+      "calls": 241,
+      "triangles": 432611,
+      "quality": "high"
+     }
+    },
+    "willowmere_day": {
+     "minFps": 9.2,
+     "maxCalls": 896,
+     "minUncappedFps": 4.8,
+     "maxTriangles": 2323134,
+     "baseline": {
+      "fps": 15.3,
+      "uncappedFps": 9.7,
+      "calls": 663,
+      "triangles": 1720840,
+      "quality": "high"
+     }
+    },
+    "willowmere_night": {
+     "minFps": 9.1,
+     "maxCalls": 924,
+     "minUncappedFps": 8.0,
+     "maxTriangles": 2379018,
+     "baseline": {
+      "fps": 15.2,
+      "uncappedFps": 16,
+      "calls": 684,
+      "triangles": 1762236,
+      "quality": "high"
+     }
+    },
+    "moor_day": {
+     "minFps": 19.1,
+     "maxCalls": 396,
+     "minUncappedFps": 10.6,
+     "maxTriangles": 1272523,
+     "baseline": {
+      "fps": 31.8,
+      "uncappedFps": 21.2,
+      "calls": 293,
+      "triangles": 942610,
+      "quality": "high"
+     }
+    },
+    "moor_rain": {
+     "minFps": 16.6,
+     "maxCalls": 426,
+     "minUncappedFps": 10.2,
+     "maxTriangles": 1257942,
+     "baseline": {
+      "fps": 27.7,
+      "uncappedFps": 20.3,
+      "calls": 315,
+      "triangles": 931809,
+      "quality": "high"
+     }
+    },
+    "valley_field": {
+     "minFps": 17.8,
+     "maxCalls": 666,
+     "minUncappedFps": 10.3,
+     "maxTriangles": 1608893,
+     "baseline": {
+      "fps": 29.7,
+      "uncappedFps": 20.7,
+      "calls": 493,
+      "triangles": 1191773,
+      "quality": "high"
+     }
+    },
+    "water": {
+     "minFps": 16.9,
+     "maxCalls": 430,
+     "minUncappedFps": 8.6,
+     "maxTriangles": 833747,
+     "baseline": {
+      "fps": 28.2,
+      "uncappedFps": 17.1,
+      "calls": 318,
+      "triangles": 617591,
+      "quality": "high"
+     }
+    },
+    "dungeon": {
+     "minFps": 21.0,
+     "maxCalls": 140,
+     "minUncappedFps": 8.5,
+     "maxTriangles": 134140,
+     "baseline": {
+      "fps": 35,
+      "uncappedFps": 17,
+      "calls": 103,
+      "triangles": 99363,
+      "quality": "high"
+     }
+    },
+    "combat": {
+     "minFps": 21.9,
+     "maxCalls": 287,
+     "minUncappedFps": 8.8,
+     "maxTriangles": 962379,
+     "baseline": {
+      "fps": 36.5,
+      "uncappedFps": 17.6,
+      "calls": 212,
+      "triangles": 712874,
+      "quality": "high"
+     }
+    },
+    "ui_character": {
+     "minFps": 7.1,
+     "maxCalls": 896,
+     "minUncappedFps": 6.9,
+     "maxTriangles": 2323134,
+     "baseline": {
+      "fps": 11.9,
+      "uncappedFps": 13.8,
+      "calls": 663,
+      "triangles": 1720840,
+      "quality": "high"
+     }
+    },
+    "ui_bags_quests": {
+     "minFps": 5.5,
+     "maxCalls": 896,
+     "minUncappedFps": 3.9,
+     "maxTriangles": 2323134,
+     "baseline": {
+      "fps": 9.2,
+      "uncappedFps": 7.8,
+      "calls": 663,
+      "triangles": 1720840,
+      "quality": "high"
+     }
+    },
+    "ui_map": {
+     "minFps": 5.6,
+     "maxCalls": 896,
+     "minUncappedFps": 4.2,
+     "maxTriangles": 2323134,
+     "baseline": {
+      "fps": 9.3,
+      "uncappedFps": 8.3,
+      "calls": 663,
+      "triangles": 1720840,
+      "quality": "high"
+     }
+    },
+    "phone": {
+     "minFps": 11.8,
+     "maxCalls": 411,
+     "minUncappedFps": 7.0,
+     "maxTriangles": 999970,
+     "baseline": {
+      "fps": 19.6,
+      "uncappedFps": 14,
+      "calls": 304,
+      "triangles": 740719,
+      "quality": "low"
+     }
+    },
+    "title": null
+   }
+  },
+  "phone": {
+   "default": {
+    "minFps": 8,
+    "maxCalls": 1200
+   },
+   "views": {
+    "town_rootbound": {
+     "minFps": 17.1,
+     "maxCalls": 144,
+     "minUncappedFps": 19.8,
+     "maxTriangles": 345435,
+     "baseline": {
+      "fps": 28.5,
+      "uncappedFps": 39.6,
+      "calls": 106,
+      "triangles": 255878,
+      "quality": "low"
+     }
+    },
+    "town_emberpeak": {
+     "minFps": 5.2,
+     "maxCalls": 144,
+     "minUncappedFps": 11.2,
+     "maxTriangles": 363879,
+     "baseline": {
+      "fps": 8.7,
+      "uncappedFps": 22.3,
+      "calls": 106,
+      "triangles": 269540,
+      "quality": "low"
+     }
+    },
+    "town_valewyn": {
+     "minFps": 5.2,
+     "maxCalls": 111,
+     "minUncappedFps": 11.1,
+     "maxTriangles": 234797,
+     "baseline": {
+      "fps": 8.7,
+      "uncappedFps": 22.2,
+      "calls": 82,
+      "triangles": 173924,
+      "quality": "low"
+     }
+    },
+    "town_saffron": {
+     "minFps": 2.1,
+     "maxCalls": 145,
+     "minUncappedFps": 9.8,
+     "maxTriangles": 212400,
+     "baseline": {
+      "fps": 3.5,
+      "uncappedFps": 19.7,
+      "calls": 107,
+      "triangles": 157334,
+      "quality": "low"
+     }
+    },
+    "town_hollow": {
+     "minFps": 2.8,
+     "maxCalls": 180,
+     "minUncappedFps": 5.0,
+     "maxTriangles": 349155,
+     "baseline": {
+      "fps": 4.7,
+      "uncappedFps": 10,
+      "calls": 133,
+      "triangles": 258634,
+      "quality": "low"
+     }
+    },
+    "willowmere_day": {
+     "minFps": 1.7,
+     "maxCalls": 538,
+     "minUncappedFps": 5.8,
+     "maxTriangles": 1212808,
+     "baseline": {
+      "fps": 2.9,
+      "uncappedFps": 11.6,
+      "calls": 398,
+      "triangles": 898377,
+      "quality": "low"
+     }
+    },
+    "willowmere_night": {
+     "minFps": 2.3,
+     "maxCalls": 546,
+     "minUncappedFps": 5.9,
+     "maxTriangles": 1212127,
+     "baseline": {
+      "fps": 3.9,
+      "uncappedFps": 11.8,
+      "calls": 404,
+      "triangles": 897872,
+      "quality": "low"
+     }
+    },
+    "moor_day": {
+     "minFps": 2.5,
+     "maxCalls": 341,
+     "minUncappedFps": 9.6,
+     "maxTriangles": 438691,
+     "baseline": {
+      "fps": 4.2,
+      "uncappedFps": 19.2,
+      "calls": 252,
+      "triangles": 324957,
+      "quality": "low"
+     }
+    },
+    "moor_rain": {
+     "minFps": 3.4,
+     "maxCalls": 341,
+     "minUncappedFps": 10.1,
+     "maxTriangles": 438691,
+     "baseline": {
+      "fps": 5.6,
+      "uncappedFps": 20.2,
+      "calls": 252,
+      "triangles": 324957,
+      "quality": "low"
+     }
+    },
+    "valley_field": {
+     "minFps": 2.3,
+     "maxCalls": 310,
+     "minUncappedFps": 12.2,
+     "maxTriangles": 464738,
+     "baseline": {
+      "fps": 3.8,
+      "uncappedFps": 24.3,
+      "calls": 229,
+      "triangles": 344251,
+      "quality": "low"
+     }
+    },
+    "water": {
+     "minFps": 4.7,
+     "maxCalls": 245,
+     "minUncappedFps": 11.3,
+     "maxTriangles": 329088,
+     "baseline": {
+      "fps": 7.9,
+      "uncappedFps": 22.7,
+      "calls": 181,
+      "triangles": 243769,
+      "quality": "low"
+     }
+    },
+    "dungeon": {
+     "minFps": 4.7,
+     "maxCalls": 119,
+     "minUncappedFps": 14.4,
+     "maxTriangles": 134119,
+     "baseline": {
+      "fps": 7.9,
+      "uncappedFps": 28.9,
+      "calls": 88,
+      "triangles": 99348,
+      "quality": "low"
+     }
+    },
+    "combat": {
+     "minFps": 2.2,
+     "maxCalls": 117,
+     "minUncappedFps": 15.4,
+     "maxTriangles": 247506,
+     "baseline": {
+      "fps": 3.6,
+      "uncappedFps": 30.9,
+      "calls": 86,
+      "triangles": 183338,
+      "quality": "low"
+     }
+    },
+    "ui_character": {
+     "minFps": 2.2,
+     "maxCalls": 538,
+     "minUncappedFps": 6.8,
+     "maxTriangles": 1212808,
+     "baseline": {
+      "fps": 3.7,
+      "uncappedFps": 13.6,
+      "calls": 398,
+      "triangles": 898377,
+      "quality": "low"
+     }
+    },
+    "ui_bags_quests": {
+     "minFps": 2.5,
+     "maxCalls": 538,
+     "minUncappedFps": 7.2,
+     "maxTriangles": 1212808,
+     "baseline": {
+      "fps": 4.2,
+      "uncappedFps": 14.4,
+      "calls": 398,
+      "triangles": 898377,
+      "quality": "low"
+     }
+    },
+    "ui_map": {
+     "minFps": 2.2,
+     "maxCalls": 538,
+     "minUncappedFps": 8.1,
+     "maxTriangles": 1212808,
+     "baseline": {
+      "fps": 3.6,
+      "uncappedFps": 16.1,
+      "calls": 398,
+      "triangles": 898377,
+      "quality": "low"
+     }
+    },
+    "phone": {
+     "minFps": 2.6,
+     "maxCalls": 411,
+     "minUncappedFps": 6.5,
+     "maxTriangles": 999970,
+     "baseline": {
+      "fps": 4.3,
+      "uncappedFps": 13,
+      "calls": 304,
+      "triangles": 740719,
+      "quality": "low"
+     }
+    },
+    "title": null
+   }
+  }
+ }
+}

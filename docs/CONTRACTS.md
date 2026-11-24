@@ -896,6 +896,10 @@ shared and read-only. Music follows the player's zone (`zone` event + zone `musi
 `src/audio/sfx_table.js` maps `event type + ability/school/result` to an sfx id; Lexicon Quest's Suno themes and SFX
 are the source (`D:\LexiconQuest\next\assets\audio`). Audio never feeds anything back into the sim.
 
+**Synth prototype** (wave 5, PROTOTYPE, NOT WIRED): `src/audio/synth/` (`createSynth(ctx)` in `index.js`): WebAudio
+music and sound with no samples; `motif.js` is pure and seeded. Nothing in the game imports it until Scott approves
+the audio brief plus 3 clips (`qa/tests/synth.test.mjs` checks that). `demo.html` renders the clips.
+
 ---
 
 ## 12. Dev loop (LIVE)
@@ -1557,3 +1561,61 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `upperarm_*`, `pelvis`, `spine_03`, all one skinned mesh per material) and the library clips (idle, walk, jog, attack,
   hit, death). Ghosts: see-through body, legs hidden under the kit hem, a depth-only pass first. Body `family: 'human'`
   (actors.js detach keeps its shared glTF geometry). If its files fail, createCreature falls back to the kit body.
+
+## Audio quick wins (2026-11-24, wave 5 lane audio1; D:/LQOnline/wave5/lookdev/PLAN.md item 1)
+
+Only the 41 files already in `assets/audio` (no new sounds). The engine (`src/audio/engine.js`) is unchanged.
+- **`audio.frame(nowMs, { me, snap, place, zone, fresh })`**, once per drawn frame from `main.js render()` (it replaces
+  the old `audio.zone(musicArea, ...)` call there; `fresh: true` after a hero enters). It picks the field track when the
+  zone or the world region changes (`beds.js placeKey`; the roads keep the music you came with; a dungeon now plays its
+  own zone track instead of keeping the outdoor one), the ambience bed every frame (`bedFor`), the battle track
+  (`combat_music.js`) and the heroes' positions for friends' sounds. Without a hero, `audio.frame(nowMs, { snap })`.
+- **Music** (`src/audio/beds.js`): `REALM_MUSIC` gives each start realm its own track (Rootbound willowmere, Valewyn
+  valley, Saffron Haven the_downs, Emberpeak high_moor, the Hollow title: a DRAFT for Scott, one line each); every other
+  zone keeps its data `music`. **Battle** (`combat_music.js createCombatMusic`): the battle track pushes over the field
+  track (`engine.pushMusic`, 1.5 s crossfade) when the hero is in combat for 2.5 s with 3 or more hits dealt or taken in
+  6 s, or at once on a `boss` pull in the hero's zone; it holds 5 s after combat ends, plays at least 12 s, then pops
+  back (2.5 s) to where the field track was. `audio.music('title')` (quit) resets it.
+- **Ambience** (`beds.js bedFor`): every world region, the roads (`wind_valley` 0.55), every realm and band zone, and
+  dungeons (`moor_wind` 0.3) and caves (`wind_valley` 0.28) quieter and darker; at night a `river_birds` bed becomes a soft
+  wind. Beds play on the ambience bus (the SFX slider).
+- **Events** (`sfx_table.js soundsFor(ev, ctx)`): ctx may add `zone`, `isPlayer(id)` and `clsOf(id)`. Rez, level, trade,
+  ready check, quest share, join and leave, flight, rides, mounts (the `mount_*` aura), hearth, lanterns, bosses
+  (pull, phase, death), dungeon clear, chests, legendaries, secrets, glyphs, professions, windups at you, interrupts,
+  chimes, world events and every `*_fail` now sound (69 of the 98 event types make a sound, plus `combat` and `zone`
+  heard as music; `qa/lookdev/audio_inventory.mjs` counts them). A friend's (another hero's) hits, heals, spells, shots,
+  level up, rez, death and mount come back marked `from: id`; audio.js plays them at `FRIEND.volume` (0.5) times
+  `friendGain(dx, dy, sameZone)` (1 within 96 px, a squared falloff to 0 at 640 px, 0 in another zone) and pans them
+  (`friendPan`). A sound may carry `gap` (ms) for its throttle `key`.
+- **Menu sounds** (`src/audio/ui_sounds.js createUiSounds(play)`): `ui.js` calls `uiSnd.frame(st)` at the top of
+  `draw()` and `uiSnd.press(label)` when a region's `on` runs; the observer plays one sound a frame: open / close (a
+  window, dialog, chest or confirm box), open on a title-screen change, error (a create error or a "You can't..." toast),
+  tab (a pressed label with `tab`), click (any other button). `createUI` hooks gain `sound(kind)` (main.js: `audio.ui`).
+  `UI_SOUNDS` gains `tab` and `click`, `UI_VOLUME` their levels.
+- Never throws: autoplay blocked (the engine queues music and beds until the first gesture, drops sfx), zero volumes,
+  no WebAudio in node (every call a no-op).
+
+## Look-dev harness and frame budget (2026-11-24, wave 5 lane audio1; PLAN item 14)
+
+`qa/lookdev/` (copied from D:/lr_lookdev/harness): `lookdev.py` (the 18 fixed views, now with a `perf` sample per view
+and `--profile phone`), `serve.py` (read-only, `/game/` = this checkout), `check_budget.py` + `budget.json` (made by `make_budget.py` from a baseline run; per view
+minFps, minUncappedFps, maxCalls, maxTriangles), `audio_inventory.mjs`. REPORT ONLY, not part of `qa/run.mjs` (the PC is
+shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `renderer.dev.info` (read only).
+
+## The ground kit: ground, grass and town dressing (wave 5 Track B, 2026-11-24; Scott approved the stills: "Yes")
+
+- **Switch.** On at desktop quality only: `quality.ground` (renderer3d.js) is `!low && ?ground != off`. Low quality,
+  phones (touch) and `?ground=off` keep today's ground exactly; dungeons and caves never use it. `kitOn(quality)`.
+- **Plan (pure).** `src/render3d/ground_plan.js`: `groundMasks(zone, terr)` per tile (class, plaza, grass, flat weight)
+  from the tile map the sim uses; `heightField` gentle visual-only mounds (at most 0.55 m), 0 on and near roads,
+  squares, water, cliffs, every decor footprint, NPCs, lanterns, nodes, doors, joins, realm props and towns;
+  `grassChunk` deterministic clumps and flower patches; `planSquare(zone, terr, tilesDb)` the dressing of the five
+  start-realm squares (`START_TOWNS`). The sim, its collision and its flat 20 Hz world never change.
+- **Height contract.** `setGroundY(fn)` / `groundY(x, z)`: renderer3d.js sets the shown zone's height (`z.groundY`);
+  `actors.js` stands every body on it (flying stays FLY_H), the target ring and telegraphs sit on it. Flat (0) when off.
+- **Kit (three).** `src/render3d/ground_kit.js` `createGroundKit(zone, { terr, quality, place, tilesDb })` -> null when
+  off, else `{ geometry(), material(mat), cobbles, h, tree(), dress(B, lamp), attach(group), cull(x, z), dispose() }`;
+  `tickGround(t)` the wind clock. zone3d.js calls it through guarded hook lines (`kit ? ... : today`).
+- **Dressing rule.** A square prop stands only on open floor of the square, never within its radius of a point of
+  interest, never within 1 of the shortest walk from the town lantern to any point or way out, never on or by a decor
+  piece; with every prop treated as solid no walk gets longer (`qa/tests/ground_kit.test.mjs`). Props are visual only.

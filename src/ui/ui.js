@@ -36,6 +36,7 @@ import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, 
 import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
 import { START_REALMS } from '../data/rootbound.js';   // big world: the welcome line of a hero who starts in a realm
+import { createUiSounds } from '../audio/ui_sounds.js';   // menu sounds (pure observer; hooks.sound plays them)
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -85,6 +86,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const say = (ch, text) => { log.push({ ch, text }); if (log.length > 200) log.splice(0, log.length - 200); st.chatScroll = 0; };
   const localOnly = () => !!demoExtra || !(lastSnap && playerId != null && (lastSnap.entities.find((e) => e.id === playerId) || {}).talents);
   const send = (cmd) => { if (hooks.command) hooks.command(cmd); };
+  const uiSnd = createUiSounds((k) => { if (hooks.sound) hooks.sound(k); });
 
   // ---- the action surface menus and screens call
   const act = {
@@ -373,6 +375,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
 
   function draw(ctx, vm, snap, t) {
     st.now = t;
+    uiSnd.frame(st);
     lastSnap = snap;
     const L = layoutNow();
     st.layer = { W: L.W, H: L.H };
@@ -697,7 +700,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   function press(x, y, button = 0) {
     if (st.mode !== 'game') {
       const r = topRegion(x, y);
-      if (r && r.on) r.on(button);
+      if (r && r.on) { r.on(button); uiSnd.press(r.label); }
       else if (st.mode === 'title' && !r && !st.fsHelp) { if (store.list().length) act.go('select'); else act.go('create'); }
       if (st.mode === 'create' && (!r || r.kind !== 'name_field')) { nameInput.blur(); st.nameFocus = false; }
       return true;
@@ -716,7 +719,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       return false;
     }
     if (r.drag) { st.drag = r; r.drag(x); return true; }
-    if (r.on) { r.on(button); return true; }
+    if (r.on) { r.on(button); uiSnd.press(r.label); return true; }
     switch (r.kind) {
       case 'slot':
         if (button === 2 && r.item) { act.barSet(r.slot, null); return true; }      // right-click takes an item off the bar
