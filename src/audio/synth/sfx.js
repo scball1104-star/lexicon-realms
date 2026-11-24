@@ -178,11 +178,10 @@ export function chest(S, t, { dest = S.sfx.input } = {}) {
   return 2.0;
 }
 
-export function fire(S, t, { dur = 4, dest = S.sfx.input } = {}) {
+export function fire(S, t, { dur = 4, loop = false, dest = S.sfx.input } = {}) {
   const r = S.rng;
-  const out = S.gain(0, dest);
-  out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(1.6, t + 0.8);
-  out.gain.setValueAtTime(1.6, t + dur - 0.9); out.gain.linearRampToValueAtTime(0, t + dur);
+  const out = S.gain(loop ? 1.6 : 0, dest);
+  if (!loop) { out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(1.6, t + 0.8); out.gain.setValueAtTime(1.6, t + dur - 0.9); out.gain.linearRampToValueAtTime(0, t + dur); }
   // roar: low noise that breathes
   const rg = S.gain(0.32, out); const lp = S.filter('lowpass', 380, 0.5, rg); S.noise(t, dur, lp, { rate: 0.5 });
   const breathe = S.osc('sine', 0.35, t, dur, S.gain(0.12, rg.gain)); void breathe;
@@ -190,7 +189,7 @@ export function fire(S, t, { dur = 4, dest = S.sfx.input } = {}) {
   const hg = S.gain(0.035, out); const hp = S.filter('highpass', 4500, 0.5, hg); S.noise(t, dur, hp);
   // crackles and pops
   let tt = t + 0.1;
-  while (tt < t + dur - 0.1) {
+  while (tt < t + dur - (loop ? 0 : 0.1)) {
     const pop = r.chance(0.12);
     const g = S.gain(0, out); const bp = S.filter('bandpass', r.range(1200, 5200), r.range(0.8, 3), g);
     S.noise(tt, 0.05, bp);
@@ -202,17 +201,16 @@ export function fire(S, t, { dur = 4, dest = S.sfx.input } = {}) {
   return dur;
 }
 
-export function water(S, t, { dur = 3, size = 1, dest = S.sfx.input } = {}) {
+export function water(S, t, { dur = 3, size = 1, loop = false, dest = S.sfx.input } = {}) {
   const r = S.rng;
-  const out = S.gain(0, dest);
-  out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(0.5 * size, t + 0.6);
-  out.gain.setValueAtTime(0.5 * size, t + dur - 0.6); out.gain.linearRampToValueAtTime(0, t + dur);
+  const out = S.gain(loop ? 0.5 * size : 0, dest);
+  if (!loop) { out.gain.setValueAtTime(0, t); out.gain.linearRampToValueAtTime(0.5 * size, t + 0.6); out.gain.setValueAtTime(0.5 * size, t + dur - 0.6); out.gain.linearRampToValueAtTime(0, t + dur); }
   // flow: noise through a bandpass whose centre wanders
   const bp = S.filter('bandpass', 900, 0.8, out); S.noise(t, dur, bp);
   bp.frequency.setValueCurveAtTime(walk(S, 16, 500, 1600), t, dur);
   // bubbles: short sine chirps that rise
   let tt = t + 0.1;
-  while (tt < t + dur - 0.2) {
+  while (tt < t + dur - (loop ? 0 : 0.2)) {
     const f = r.range(500, 1400) / size;
     const g = S.gain(0, out); const o = S.osc('sine', f, tt, 0.08, g);
     o.frequency.exponentialRampToValueAtTime(f * r.range(1.6, 2.4), tt + 0.05);

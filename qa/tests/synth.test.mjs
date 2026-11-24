@@ -1,5 +1,5 @@
-// Synth prototype (wave 5, NOT wired): the seeded motif generator is deterministic and tuneful by its own rules,
-// and nothing in the game imports the synth until Scott approves the audio brief and clips.
+// Synth (wave 5, approved 2026-11-24): the seeded motif generator is deterministic and tuneful by its own rules, and
+// the game reaches the synth only through src/audio/audio.js.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,12 +44,13 @@ export const tests = [
     },
   },
   {
-    name: 'synth: prototype is not wired into the game yet',
+    name: 'synth: wired through src/audio only (audio.js owns it; main.js only flips the Settings switch)',
     fn() {
-      for (const f of ['src/main.js', 'src/audio/audio.js']) {
-        const s = fs.readFileSync(path.join(ROOT, f), 'utf8');
-        assert(!s.includes('synth/'), `${f} must not import the synth before Scott approves the clips`);
-      }
+      const main = fs.readFileSync(path.join(ROOT, 'src/main.js'), 'utf8');
+      assert(!main.includes('synth/'), 'main.js must not import synth modules directly');
+      assert(main.includes('audio.setSynth('), 'main.js passes the Settings switch to audio');
+      const au = fs.readFileSync(path.join(ROOT, 'src/audio/audio.js'), 'utf8');
+      assert(au.includes("from './synth_game.js'"), 'audio.js owns the synth');
     },
   },
 ];

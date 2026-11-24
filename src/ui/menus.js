@@ -673,9 +673,10 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   if (touch) { cx = ox; cw = ow; y = ySound - 4; }
   choice(touch ? 'Graphics' : 'Graphics (reloads)', 'r3d', [false, true], ['2D', touch ? '3D' : '3D preview'], touch);
   choice(touch ? 'Camera' : 'Camera (3D)', 'cam', ['fixed', 'horizon'], ['Fixed', 'Horizon'], touch);   // wave 5b horizon camera (an option)
-  // ---- bottom buttons
+  choice(touch ? 'Synth' : 'Synth sound', 'synth', [true, false], ['On', 'Off'], touch);   // wave 5b synth sound (off = today's sounds)
   const bh = Math.max(16, env.L.minHit || 0);
   const by = r.y + r.h - bh - 8;
+  // ---- bottom buttons
   const btn = (x, w, label, on) => {
     g.window(ctx, x, by, w, bh, 'thin', 'blue', 0.95);
     g.text(ctx, label, x + w / 2, by + Math.floor(bh / 2) - 6, 'cream', { align: 'center' });

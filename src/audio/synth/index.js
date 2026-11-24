@@ -1,6 +1,7 @@
-// Lexicon Realms synth (PROTOTYPE, NOT WIRED INTO THE GAME). Procedural music and sound with WebAudio, no samples.
-// Scott approved the direction on 2026-11-24 with an "audio brief plus 3 clips" gate: nothing here is called by
-// src/main.js or src/audio/audio.js until he approves the clips. Brief: D:\LQOnline\wave5\synth\AUDIO_BRIEF.md.
+// Lexicon Realms synth: procedural music and sound with WebAudio, no samples. Approved by Scott 2026-11-24 ("Audio is
+// a go") after the audio brief plus 3 clips (D:\LQOnline\wave5\synth\AUDIO_BRIEF.md). The game uses it through
+// src/audio/synth_game.js (render.js: themes and a sound bank rendered once, played as buffers); this file is the
+// live, unrendered entry for the demo page and experiments.
 //
 //   import { createSynth } from './audio/synth/index.js';
 //   const syn = createSynth(audioContext, { seed: 1 });
