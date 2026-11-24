@@ -49,6 +49,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const hud = createHud({ g, charArt, mapBook });
   const store = createCharStore(storage);
   let options = loadOptions(storage);
+  let bossCardDraw = null;     // wave 6: the boss intro card (main.js sets ui.bossCard)
   const scratchC = document.createElement('canvas');
   const scratch = (w, h) => { if (scratchC.width < w || scratchC.height < h) { scratchC.width = w; scratchC.height = h; } return scratchC; };
   const zoneList = Object.keys(zones).map((id) => ({ id, name: zoneNames[id] || id }));
@@ -398,6 +399,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks(), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
       regions.push(...hud.draw(ctx, m, L, st, { log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
+      st.bossUp = !!(m.player && bossCardDraw && bossCardDraw(ctx, g, L, t));   // wave 6: the boss intro card (boss_card.js, set by main.js); toasts wait under it
       if (m.player) prof.drawHud(ctx, env, m, L, regions);     // professions: the gather / craft bar, the node card, tracking
       if (m.player) glyphs.drawHud(ctx, env, m, L, regions);   // Inscriptions: the Margins button
       if (m.player && st.dialog) {
@@ -465,7 +467,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       g.text(ctx, g.clip(st.banner.title, bw - 12), L.W / 2, by + 3, 'gold', { align: 'center' });
       if (st.banner.sub) g.text(ctx, st.banner.sub, L.W / 2, by + 16, 'cream', { align: 'center' });
     }
-    if (st.toast && st.toast.until > t) {
+    if (st.toast && st.toast.until > t && !(st.bossUp && st.mode === 'game')) {
       // above everything, clear of the npc window (CRITIQUE_1 item 20)
       const w = g.textW(st.toast.text) + 16;
       let cx = Math.floor(L.W / 2), ty = L.touch ? L.minHit + 8 : dOrg(L).y + 44;
@@ -1108,6 +1110,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     get mode() { return st.mode; },
     get state() { return st; },
     get options() { return options; },
+    /** wave 6: main.js hands in the boss intro card's draw (src/ui/boss_card.js); drawn after the HUD, under the windows */
+    set bossCard(fn) { bossCardDraw = fn; },
     notify(text, secs = 4) { toast(text, secs); },
     get model() { return lastModel; },
     get regions() { return st.regions; },
