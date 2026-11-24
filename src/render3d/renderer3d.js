@@ -63,6 +63,7 @@ import { createSkyKit } from './sky_kit.js';     // wave 5 Track A: sky dome, li
 import { skyTier, weatherState } from './sky_rig.js';
 import { createTownLife } from './townlife3d.js';   // wave 7 world life: townsfolk, critters, showers (townlife_plan.js)
 import { showerAt } from './townlife_plan.js';
+import { waterTier, waterSky, setSprayScale } from './water_kit.js';   // wave 7 water kit
 import { horizonPose, H_PITCH, H_PITCH_LITE } from './horizon_cam.js';   // wave 5b: the optional horizon camera (view.cam)
 import { createTurntable } from './turntable.js';   // wave 6: the creation screen's 3D hero (view.stage)   // wave 5b: the optional horizon camera (view.cam)
 import { createTalkCam } from './talk_cam.js';   // wave 6 quest scenes: the talk camera (view.talk)
@@ -122,6 +123,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   const touchDev = isTouchDevice(window, q);
   const low = q.get('q3d') === 'low' || (q.get('q3d') !== 'high' && touchDev);
   const quality = { low, shadows: !low, bloom: !low, maxLights: low ? 2 : 6, grass: !low, maxScale: low ? 1.5 : 2, ground: !low && q.get('ground') !== 'off' };   // ground: the wave 5 ground kit (ground_kit.js)
+  quality.water = waterTier({ q3d: q.get('q3d'), water: q.get('water'), touchLow: touchDev && q.get('q3d') !== 'high' });   // wave 7 water kit
 
   // ---- canvases: WebGL under, the game canvas (2D: numbers, nameplates, HUD) over it
   const gl = document.createElement('canvas');
@@ -478,6 +480,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       camera.aspect = w / h; camera.updateProjectionMatrix();
       if (quality.bloom) { if (!composer) setupPost(w, h); else { composer.setSize(w, h); bloom.setSize(w / 2, h / 2); } }
       fx3.setScale(h / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2))));
+      setSprayScale(h / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2))));
     }
   }
 
@@ -834,6 +837,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     renderer.info.reset();
     const sky = applySky(snap, view, zone, target, area, rdt);
     if (skyKit) dev.skyKit = skyKit.frame({ f: dayFraction(snap, view), sky, view: wview, zone, area, now, camera, focus, hemi, sun, under: !!(zone && (isPlaceZone(zone) || zone.cavern || zone.atmos)), dev });
+    if (quality.water !== 'off') { const dm = skyKit && skyKit.objects[0] && skyKit.objects[0].visible ? skyKit.objects[0].material.uniforms : null; waterSky(dm, scene.fog, sun, hemi); dev.water = quality.water; }
     dev.realms2 = r2fx.update(snap, view.zone, actors, camera, now, focus);
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     if (tg && tg.e && !tg.e.dead && tg.kind !== 'object') {

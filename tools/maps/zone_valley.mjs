@@ -20,9 +20,13 @@ for (let x = glade.x0; x <= glade.x1; x++) for (let y = glade.y0; y <= glade.y1;
   if (!border || (x === 88 && y === 54)) continue;
   GLADE_RING.push([y === glade.y0 || x === glade.x1 ? 'tree_pine' : 'bush', x, y]);
 }
+// the falls pool (wave 7 water kit, Scott 2026-11-24): real wading water in an oval at the foot of the falls, rows 6 to 8,
+// so the sim and the 3D pool agree; shallow is walkable, so the way through the falls to the shelf stays open
+const FALLS_POOL = [];
+for (const [y, x0, x1] of [[6, 60, 65], [7, 60, 65], [8, 61, 64]]) for (let x = x0; x <= x1; x++) FALLS_POOL.push([x, y, '-']);
 export const SECRETS = [
   { id: 'valley_falls', name: 'Behind the Falls', kind: 'waterfall', passage: [[62, 4], [63, 4], [62, 5], [63, 5]], nook: [59, 1, 66, 3], top: '^',
-    floor: '.', look: '~', extra: [[61, 6, '-'], [62, 6, '-'], [63, 6, '-'], [64, 6, '-']], chest: [62, 1], hint: [62, 6], gold: [30, 45],
+    floor: '.', look: '~', extra: FALLS_POOL, chest: [62, 1], hint: [62, 6], gold: [30, 45],
     chestName: 'Keeper Cache', text: 'A dry shelf behind the falls. Someone kept a box here, and a name scratched on the lid has worn away.' },
   { id: 'valley_glade', name: 'The Quiet Glade', kind: 'bushwall', passage: [[88, 54]], nook: [89, 52, 92, 55], floor: '.', look: '.',
     ring: GLADE_RING, chest: [91, 53], hint: [88, 54], gold: [25, 40],

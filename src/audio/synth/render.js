@@ -13,6 +13,7 @@ import { SFX } from './sfx.js';
 import { VOICES, BARK_SHAPES } from './voices.js';
 import { makeRng } from './rng.js';
 import { MURMUR_RECIPES } from './murmur.js';
+import { falls } from './falls_sfx.js';   // wave 7 water kit: the waterfall loop
 
 const hasOffline = () => typeof OfflineAudioContext !== 'undefined';
 const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -119,6 +120,7 @@ Object.assign(RECIPES, MURMUR_RECIPES);   // wave 6 quest scenes: the talk murmu
 const LOOPS = {
   'loop:fire': { len: 6, play: (S, t, len) => SFX.fire(S, t, { dur: len + 1.2, loop: true }) },
   'loop:water': { len: 8, play: (S, t, len) => SFX.water(S, t, { dur: len + 1.2, size: 1.3, loop: true }) },
+  'loop:falls': { len: 8, play: (S, t, len) => falls(S, t, { dur: len + 1.2, loop: true }) },
   'work:mine': { len: 2.4, play: (S, t, len) => VOICES.workLoop(S, t, { kind: 'mine', dur: len }) },
   'work:herb': { len: 2.4, play: (S, t, len) => VOICES.workLoop(S, t, { kind: 'herb', dur: len }) },
   'work:craft': { len: 2.4, play: (S, t, len) => VOICES.workLoop(S, t, { kind: 'craft', dur: len }) },
