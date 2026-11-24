@@ -44,6 +44,7 @@ import { RoomEnvironment } from '../vendor/three/addons/environments/RoomEnviron
 import { layoutFor } from '../render/camera.js';
 import { dayFraction, skyAt } from '../render/daycycle.js';
 import { createFx } from '../render/fx.js';
+import { numCeil } from '../render/feel_numbers.js';   // wave 6 combat feel: numbers stop under the toast line
 import { isTouchDevice } from '../input/touch.js';
 import { BitmapFont } from '../core/font.js';
 import { createLoader, WINDOW_LIT } from './loader.js';
@@ -193,7 +194,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   }
   const actors = createActors(scene, L, { items, quality, compile: (o) => precompile(o) });
   // effects: the FX kit (fx3d.js); who/mats let it pick a hero's blow and tint a struck body (body.mats)
-  const fx3 = createFx3d(scene, { abilities, low, who: (id) => { const a = actors.get(id); return a && a.e ? { kind: a.kind, cls: a.e.cls } : null; }, mats: (id) => { const a = actors.get(id); return a ? a.mats : null; } });
+  const feelOn = q.get('feel') !== '0';   // combat feel pass (wave 6): ?feel=0 keeps the look from before it
+  const fx3 = createFx3d(scene, { abilities, low, feel: feelOn, who: (id) => { const a = actors.get(id); return a && a.e ? { kind: a.kind, cls: a.e.cls, height: a.height } : null; }, mats: (id) => { const a = actors.get(id); return a ? a.mats : null; } });
   const font = assets.has && assets.has('font') ? new BitmapFont(assets.json('font'), assets.img('font'), { id: 'r3d' }) : null;
   const fontFrom = (j, im) => (j && im ? new BitmapFont(j, im, { id: 'num' }) : null);
   let numFont = null;
@@ -202,6 +204,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     sheet: () => null,
     numFont: () => numFont || (numFont = assets.has('font_num') ? fontFrom(assets.json('font_num'), assets.img('font_num')) : null),
     bigFont: () => null,
+    // combat feel: a number waits for its 3D bolt, own and hits-on-you numbers larger, phones smaller (feel_numbers.js)
+    feel: feelOn, hold: (s) => fx3.pending(s.dst, s.src), phone: () => !!(layout && layout.touch), ceil: () => (layout ? numCeil(layout) : 0),
   });
 
   const state = { preload: null, ready: false, failed: null, zones: new Map(), building: new Map(), buildK: new Map(), zoneId: null, playerId: null };
@@ -773,7 +777,9 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (shown.kit) shown.kit.view = hpose ? { r: hpose.grassR, dx: Math.sin(hpose.yaw) * hpose.grassAhead, dz: -Math.cos(hpose.yaw) * hpose.grassAhead } : null;   // grass ahead of the hero
     if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? warmR : (dev.cullR || (flightView ? flightView.cullR : hpose ? hpose.cullR : 80)), farR);
     dev.far = shown.lastCull ? shown.lastCull.far : 0;
-    actors.sync(prevSnap, snap, alpha, view.zone, now, fx3.screen.hitstop > 0 ? dt * 0.25 : dt, fx3, focus, hpose ? dev.actorR || hpose.actorR : (14 + 18 / (view.zoom || 1)) * distK, inView);
+    fx3.lite = hLite;   // combat feel: Low quality and phones play the small spark size only
+    // hit stop slows the drawn bodies only, never the sim (Options: "Screen shake and hit stop" Off turns it off)
+    actors.sync(prevSnap, snap, alpha, view.zone, now, fx3.screen.hitstop > 0 && view.shake !== false ? dt * fx3.stopRate : dt, fx3, focus, hpose ? dev.actorR || hpose.actorR : (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
     rideKites(snap, view, now, rdt);
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through

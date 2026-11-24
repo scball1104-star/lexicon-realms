@@ -702,7 +702,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   };
   choice('Zoom', 'zoom', [1, 1.5, 2], ['1x', '1.5x', '2x']);
   choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
-  choice('Screen shake', 'shake', [true, false], ['On', 'Off']);
+  choice(short ? 'Shake, hit stop' : 'Screen shake and hit stop', 'shake', [true, false], ['On', 'Off']);   // wave 6 combat feel: Off turns both off
   choice('Window style', 'skin', ['lantern', 'classic'], ['Lantern', 'Classic']);                  // wave 6 uiskin (Classic for one wave)
   choice('Text size', 'text', ['normal', 'large'], ['Normal', 'Large'], false, g.textSize);       // wave 6 uiskin (Large by default on a phone)
   choice(short ? 'Graphics' : 'Graphics (reloads)', 'r3d', [false, true], ['2D', short ? '3D' : '3D preview'], touch);

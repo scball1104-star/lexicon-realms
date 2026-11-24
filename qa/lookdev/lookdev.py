@@ -19,7 +19,9 @@ Honesty rules (why the views can be compared run to run):
   - every view boots with ?paused=1: the game loop never runs on its own. The harness steps the sim a FIXED number of
     ticks (window.__realms.step) with the same seed (20261119), bounty day (1), time of day (tod) and zoom, so the hero,
     the foes and the projectiles stand in the same places each run.
-  - the 3D animation clock is pinned (renderer.dev.clock) to a fixed second before each still.
+  - the 3D animation clock is pinned (renderer.dev.clock) to a fixed second before each still. The combat view (13)
+    moves it on a fixed schedule instead (wave 6 combat feel: 1/60 s per drawn frame, 3 frames per sim tick, then
+    3 frames after the hit lands), so the hero turns and the bolt flies and lands as in play; still the same every run.
   - same viewport (1600x900, phone 844x390 at dpr 2), same hero name and look per view.
   What still varies: the camera ease and background zone building run on real time between redraws; the harness redraws
   until the 3D world says ready and then a fixed 40 more frames, which settles both.
@@ -189,17 +191,27 @@ def main():
                         for _ in range(40):
                             ev(f'window.__realms.redraw({a.clock})')
                             time.sleep(0.03)
+                    clock = a.clock
                     if action == 'combat':
                         rec['cleared'] = ev(CLEAR)
                         ev('window.__realms.step(2)')
                         rec['setup'] = ev(COMBAT_SETUP)
+                        # the moving clock: 2 drawn frames then a sim tick, 1/60 s per frame (fixed, so every run matches)
+                        ev(f'window.__ldClock = {clock}')
+                        frame = "(() => { const R = window.__realms; window.__ldClock += 1 / 60; R.renderer.dev.clock = window.__ldClock; R.redraw(window.__ldClock); })()"
+                        tick = "(() => { const R = window.__realms; for (let i = 0; i < 2; i++) { window.__ldClock += 1 / 60; R.renderer.dev.clock = window.__ldClock; R.redraw(window.__ldClock); } window.__ldClock += 1 / 60; R.renderer.dev.clock = window.__ldClock; R.step(1); })()"
+                        ev(tick)
                         page.keyboard.press('Digit1')        # Inkbolt (2.0 s cast) for real through input
                         landed = None
                         for t in range(80):
-                            ev('window.__realms.step(1)')
+                            ev(tick)
                             if any(x.startswith('damage') for x in ev('window.__evlog')):
                                 landed = t
                                 break
+                        for _ in range(3):                   # 50 ms after the hit: the impact, the flash and the number
+                            ev(frame)
+                        clock = ev('window.__ldClock')
+                        rec['clock'] = round(clock, 4)
                         rec['landedTick'] = landed
                         rec['events'] = ev('window.__evlog')
                     elif action and action != 'dungeon':
@@ -207,8 +219,9 @@ def main():
                             page.keyboard.press(k)
                             time.sleep(0.15)
                             ev(f'window.__realms.redraw({a.clock})')
-                    for _ in range(3):
-                        ev(f'window.__realms.redraw({a.clock})')
+                    if action != 'combat':
+                        for _ in range(3):
+                            ev(f'window.__realms.redraw({clock})')
                     rec['tick'] = ev('window.__realms.snapshot().tick')
                     rec['player'] = ev('(() => { const p = window.__realms.player(); return p ? { zone: p.zone, x: p.x, y: p.y } : null; })()')
                 time.sleep(0.2)

@@ -746,6 +746,14 @@ LIVE since the integration wave (2026-11-19):
   Hit-stop slows body animation only, never the sim. Heroes: the clip library plays idle, walk and run; `anim_kit.js`
   `overlay()` blends the swing, cast charge and release, bow draw, hit reaction and death over them (actors.js).
   Foe hit tint goes through `body.mats` (emissive, restored after); creature code is not touched.
+- Combat feel pass (wave 6, approved 2026-11-24): `src/render3d/feel_recipes.js` (pure rules and the weight layer) and
+  `src/render/feel_numbers.js`. Every hit the player lands plays a weight layer (small, medium or large by the hit
+  against the player's own last 12 hits; Low quality and phones only the small one), a body flash dimmed or tinted on
+  pale bodies, and a hit stop of 30 to 75 ms (90 ms crit; autos 45 ms, 60 ms crit): render only, body animation at 4%,
+  the 20 Hz sim never waits. The kick stays for crits and heavy blows, scaled by the foe's height (up to 1.7x).
+  `options.shake = false` ("Screen shake and hit stop") turns off both the kick and the hit stop. 3D numbers: own and
+  hits-on-you 2x, crits 3x then 2x, friends 1x grey (phones: own 1x); a number waits for its 3D bolt (`fx3.pending`,
+  at most 0.8 s), never overlaps another, stops rising at the toast line. `?feel=0` keeps the look from before.
 - Mob atlases `assets/sprites/mobs/<id>.json` (17, `sprites.js MOB_ATLASES`), keyed by `entity.sprite`, then
   `entity.template`; LQ `enemies_field` is the fallback while one loads. idle / walk (not `stationary`), attack
   (windupFrame then hitFrame, 0.3 s, from the `damage` event), cast while `e.cast`, hurt 0.14 s, death. `emissive`
