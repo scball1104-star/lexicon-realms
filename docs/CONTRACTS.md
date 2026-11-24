@@ -895,6 +895,10 @@ shared and read-only. Music follows the player's zone (`zone` event + zone `musi
 `src/audio/sfx_table.js` maps `event type + ability/school/result` to an sfx id; Lexicon Quest's Suno themes and SFX
 are the source (`D:\LexiconQuest\next\assets\audio`). Audio never feeds anything back into the sim.
 
+**Synth prototype** (wave 5, PROTOTYPE, NOT WIRED): `src/audio/synth/` (`createSynth(ctx)` in `index.js`): WebAudio
+music and sound with no samples; `motif.js` is pure and seeded. Nothing in the game imports it until Scott approves
+the audio brief plus 3 clips (`qa/tests/synth.test.mjs` checks that). `demo.html` renders the clips.
+
 ---
 
 ## 12. Dev loop (LIVE)
