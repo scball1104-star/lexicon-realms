@@ -1669,3 +1669,20 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   `ui.stage` -> `view.stage = { mode, rect (HUD layer px), cls, look, app, equip, yaw, bg (layer-sized backdrop canvas), phone }`.
   renderer3d.js then draws ONLY render3d/turntable.js into that rect (the UI clears the rect on its layer). The 2D renderer
   ignores `view.stage`; the screen shows today's sprite there. Hooks: `hooks.has3d()`, `hooks.startGear(cls)`.
+
+## The water kit: rivers, the falls, the pool (wave 7, 2026-11-24; Scott: "Yes for your recommendations")
+
+- **Switch.** `quality.water` (renderer3d.js) from `waterTier({ q3d, water, touchLow })` in src/render3d/water_kit.js:
+  'full' on desktop, 'lite' on phones (no mist, no rocks, 80 spray drops), 'off' at `?q3d=low` or `?water=off` (today's
+  water exactly). `?water=full|lite` forces a tier. Ink, lava (zone.style 'forge'), caverns and dungeons keep today's water.
+- **Plan (built once per zone).** `poolCells`, `waterPlan(terr, W, H, zone, pool)` -> `{ tex, falls, stats }`: one RGBA
+  texel per tile (RG flow direction, B speed, A depth), from the tile map the sim uses; the falls come from the zone's
+  `secrets` of kind 'waterfall'. zone3d.js hooks: `waterMaterial(..., kit)` patches the surface, `buildFalls` replaces
+  the old curtain when the kit is on. renderer3d.js feeds the sky colours each frame (`waterSky`) and the spray scale on
+  resize (`setSprayScale`). Render only: the sim and collision never see it.
+- **The falls pool is map water.** The valley falls pool is shallow tiles in tools/maps/zone_valley.mjs (`FALLS_POOL`,
+  rows 6 to 8 under the falls): walkable, so the way through the falls to the Keeper Cache stays open
+  (qa/tests/water.test.mjs walks it in the sim and opens the cache).
+- **Sound.** Bank loop `'loop:falls'` (src/audio/synth/falls_sfx.js); `src/audio/water_sound.js` `fallsFeet(zone)`,
+  `fallsMix(me, feet)` (14 tiles, panned) drive it from synth_game.js `nearby()` beside the brook loop. Synth sound Off
+  stops it with the rest of the synth.

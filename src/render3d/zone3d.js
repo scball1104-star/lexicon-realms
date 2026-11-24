@@ -26,6 +26,7 @@ import { regionInfo, underAt } from '../data/maps/compose.js';
 import { buildPlaceWalls, buildDoorMouths, cutMat, doorAt, dressPlace } from './dungeon3d.js';
 import { dungeonPlan, isPlaceZone } from '../render/dungeon_plan.js';
 import { buildRealm3d } from './realm3d.js';   // wave 3: the start realms' props, lava crossings and tide water
+import { poolCells, waterPlan, surfaceUniforms, patchSurface, buildFalls, tickWaterKit } from './water_kit.js';   // wave 7 water kit
 import { createGroundKit } from './ground_kit.js';   // wave 5 ground kit: hills, cobbles, grass, square dressing (desktop only)
 
 const CH = 48;   // chunk size (m): the town is one chunk, the big fields a few
@@ -70,6 +71,7 @@ RIPPLE.repeat.set(0.25, 0.25);
 export function tickWater(t) {
   RIPPLE.offset.set(t * 0.011, t * 0.017);
   FALL.offset.y = (t * 0.9) % 1;
+  tickWaterKit(t);
   SPARK.opacity = 0.25 + 0.65 * Math.max(0, Math.sin(t * 2.3)) * Math.max(0, Math.sin(t * 0.7 + 1));
 }
 // Secrets (landscape pass, zone `secrets`): a waterfall curtain (streaks scrolling down, see-through, drawn both sides)
@@ -391,7 +393,7 @@ function groundMaterial({ color, weights }, W, H) {
 }
 
 /** The zone's water surface: colour per kind from the mask, alpha fading at the shore, a foam line, scrolling ripples. */
-function waterMaterial(mask, W, H, inkGlow = 0, lava = false) {
+function waterMaterial(mask, W, H, inkGlow = 0, lava = false, kit = null) {
   const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.1, metalness: 0.1, transparent: true, depthWrite: false, normalMap: RIPPLE, normalScale: new THREE.Vector2(0.5, 0.5) });
   // lava (zone.style 'forge', Emberpeak): the ink channel is molten rock, orange and glowing
   const U = { tWM: { value: mask }, tJit: { value: groundDetail().macro }, uSize: { value: new THREE.Vector2(W, H) }, uInkGlow: { value: inkGlow },
@@ -416,8 +418,9 @@ function waterMaterial(mask, W, H, inkGlow = 0, lava = false) {
         lrInk = m.b * edge * (0.75 + 0.25 * j.g);
       }`).replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
       totalEmissiveRadiance += lrInk * uInkGlow * uInkEm;   // a cavern's ink glows (zone.cavern); lava glows (zone.style 'forge')`);
+    if (kit) { Object.assign(sh.uniforms, kit.U); patchSurface(sh, kit.tier); }
   };
-  mat.customProgramCacheKey = () => 'lr_water4';
+  mat.customProgramCacheKey = () => (kit ? 'lr_water4k_' + kit.tier : 'lr_water4');
   return mat;
 }
 
@@ -722,6 +725,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const W = zone.w, H = zone.h;
   const roots = zone.canopy === 'roots', library = zone.style === 'library';
   let waterTex = null;
+  let wplan = null, wkit = null;   // the water kit's plan for this zone (water_kit.js), when quality.water is on
   const secretCells = new Set();   // passage cells of the zone's secrets (they draw solid; the sim walks them)
   const fallSide = new Map();      // face cells beside a waterfall: their rock is smaller and leans away (x shift), so the fall shows
   for (const s of zone.secrets || []) for (const [x, y] of s.passage) secretCells.add(`${x},${y}`);
@@ -794,6 +798,8 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
 
   // water: one plane over the zone; a per-tile mask (R deep water, G shallows, B ink) with noise-broken edges gives a
   // soft shoreline and a pale foam line, and the shared ripple normal map scrolls (tickWater)
+  const wtier0 = quality.water || 'off', wkitOn = wtier0 !== 'off' && !place && zone.style !== 'forge' && !zone.cavern;
+  const wpool = wkitOn ? poolCells(terr, W, H, zone) : null;   // water kit: the falls pool tiles (map water, drawn deep)
   const wm = document.createElement('canvas'); wm.width = W; wm.height = H;
   const wmg = wm.getContext('2d'), wmi = wmg.createImageData(W, H);
   let wet = 0;
@@ -807,7 +813,9 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     wmg.putImageData(wmi, 0, 0);
     const mt = new THREE.CanvasTexture(wm); mt.wrapS = mt.wrapT = THREE.ClampToEdgeWrapping;
     const forge = zone.style === 'forge';
-    const wmat = waterMaterial(mt, W, H, zone.cavern || forge ? (forge ? 0.75 : 1) : 0, forge);
+    const wtier = quality.water || 'off';
+    if (wkitOn) { wplan = waterPlan(terr, W, H, zone, wpool); wkit = { tier: wtier, U: surfaceUniforms(wplan) }; }
+    const wmat = waterMaterial(mt, W, H, zone.cavern || forge ? (forge ? 0.75 : 1) : 0, forge, wkit);
     const wgeo = new THREE.PlaneGeometry(W, H); wgeo.rotateX(-Math.PI / 2); wgeo.translate(W / 2, 0.035, H / 2);
     const uv2 = wgeo.attributes.uv, ps2 = wgeo.attributes.position;
     // uv: the mask lookup; lrWorld (world metres) breaks the shore edge
@@ -1013,6 +1021,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       // secrets: a waterfall curtain across its passage (from the cliff top down to the water), and a twinkle at every hint
       const sparks = [];
       for (const s of zone.secrets || []) {
+        if (s.kind === 'waterfall' && wplan) continue;   // the water kit builds this falls (below)
         if (s.kind === 'waterfall') {
           const xs = s.passage.map((p) => p[0]), ys = s.passage.map((p) => p[1]);
           const x0 = Math.min(...xs), x1 = Math.max(...xs) + 1, y0 = Math.min(...ys), y1 = Math.max(...ys) + 1;
@@ -1026,6 +1035,11 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
           sparks.push(new THREE.Vector3((x0 + x1) / 2, 0.25, y1 + 0.3));   // the spray at its foot
         }
         if (s.hint) sparks.push(new THREE.Vector3(s.hint[0] + 0.5, 0.9, s.hint[1] + 0.35));
+      }
+      if (wplan) {
+        for (const s of zone.secrets || []) if (s.kind === 'waterfall' && s.hint) sparks.push(new THREE.Vector3(s.hint[0] + 0.5, 0.9, s.hint[1] + 0.35));
+        let rs = 0x2a17; const rnd = () => { rs = (rs * 1103515245 + 12345) & 0x7fffffff; return rs / 0x7fffffff; };
+        buildFalls(group, wplan.falls, wkit.tier, rnd);
       }
       if (sparks.length) { const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints(sparks), SPARK); pts.renderOrder = 3; group.add(pts); }
     }
@@ -1118,7 +1132,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       cancelled = true;
       for (const bb of buildings) setBuildingFade(bb.id, 0);
       group.traverse((m) => { if (((m.isMesh && !m.isInstancedMesh) || m.isPoints) && m.geometry) m.geometry.dispose(); });
-      gtex.color.dispose(); gtex.weights.dispose(); apronMap.dispose(); if (waterTex) waterTex.dispose(); if (kit) kit.dispose();
+      gtex.color.dispose(); gtex.weights.dispose(); apronMap.dispose(); if (waterTex) waterTex.dispose(); if (wplan) wplan.tex.dispose(); if (kit) kit.dispose();
     },
   };
   if (radii.length > 1) {

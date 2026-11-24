@@ -16,6 +16,7 @@ import { createBank, renderTheme, wavUrl, BANK_NAMES } from './synth/render.js';
 import { synthTrackId, surfaceOf } from './synth_places.js';
 import { synthSoundsFor } from './synth_table.js';
 import { friendGain, friendPan } from './sfx_table.js';
+import { fallsFeet, fallsMix } from './water_sound.js';   // wave 7 water kit: the falls roar
 
 const TILE = 16;
 const MAX_VOICES = 10;
@@ -46,6 +47,7 @@ export function createSynthGame({ engine = null, onTrackReady = null } = {}) {
   const steps = new Map();          // hero id -> { x, y, t, next }
   const loops = new Map();          // key -> { src, gain, pan, level }
   let scanAt = 0, hearths = null, hearthZone = null;
+  let feet = [], fallsZone = null;   // water kit: the falls feet of the shown zone (water_sound.js)
 
   const ctxNow = () => { try { return engine && engine.context; } catch { return null; } };
   function bus() {
@@ -208,6 +210,8 @@ export function createSynthGame({ engine = null, onTrackReady = null } = {}) {
     }
     const wk = wd < NEAR.water ? 1 - wd / NEAR.water : 0;
     setLoop('water', 'loop:water', 0.4 * wk, Math.max(-0.6, Math.min(0.6, wx / R)));
+    if (fallsZone !== zone) { fallsZone = zone; feet = fallsFeet(zone); }   // the falls: its own roar, louder and further
+    const fm = fallsMix(meNow, feet); setLoop('falls', 'loop:falls', fm.level, fm.pan);
   }
   function workLoops() {
     const seen = new Set();
