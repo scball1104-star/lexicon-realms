@@ -27,6 +27,8 @@
 //
 // Quality: touch devices (or ?q3d=low, or view.fx 'low' for the post effects) drop shadows, bloom and the grade pass,
 // cap point lights at 2 (desktop 6), skip grass and flowers, and render at most 1.5 device px per css px.
+// Sky (wave 5, sky_kit.js / sky_rig.js): desktop gets the sky dome, light rig, 3D rain, storms and far hills; phones the
+// dome and light rig only; ?q3d=low, ?sky=off or view.fx 'low' keep today's flat sky exactly. Underground has no sky.
 // Assets load in the background with a progress line on the HUD layer; a load failure or a lost GL context falls back
 // to the 2D renderer with a console warning.
 import * as THREE from '../vendor/three/three.module.min.js';
@@ -53,6 +55,8 @@ import { CUT } from './dungeon3d.js';
 import { makeBird, tickBird } from './bird.js';   // big world: the Lantern Kite
 import { createRealms2Fx3 } from './realms2_3d.js';   // wave 3 realms2: lantern cones, fog banks, the sandstorm
 import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
+import { createSkyKit } from './sky_kit.js';     // wave 5 Track A: sky dome, light rig, 3D weather, far hills
+import { skyTier } from './sky_rig.js';
 
 const PX = 16;
 const PITCH = THREE.MathUtils.degToRad(40);
@@ -144,6 +148,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   { const c = sun.shadow.camera; c.left = c.bottom = -18; c.right = c.top = 18; c.near = 1; c.far = 80; }
   sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03; sun.shadow.radius = 3;
   scene.add(sun); scene.add(sun.target);
+  const skyKit = createSkyKit(THREE, scene, { tier: skyTier({ q3d: q.get('q3d'), sky: q.get('sky'), touchLow: touchDev && q.get('q3d') !== 'high' }) });
   // the target ring: a pulsing ring at the target's feet, coloured by faction (as in 2D)
   const ringMat = new THREE.MeshBasicMaterial({ color: '#ff5a3c', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const targetRing = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.52, 40).rotateX(-Math.PI / 2), ringMat);
@@ -749,6 +754,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     animateLineup(now, dt);
     renderer.info.reset();
     const sky = applySky(snap, view, zone, target, area, rdt);
+    if (skyKit) dev.skyKit = skyKit.frame({ f: dayFraction(snap, view), sky, view, zone, area, now, camera, focus, hemi, sun, under: !!(zone && (isPlaceZone(zone) || zone.cavern || zone.atmos)), dev });
     dev.realms2 = r2fx.update(snap, view.zone, actors, camera, now, focus);
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     if (tg && tg.e && !tg.e.dead && tg.kind !== 'object') {

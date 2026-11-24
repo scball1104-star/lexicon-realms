@@ -727,6 +727,11 @@ r.loading                             // sheets still loading (drivers wait for 
 LIVE since the integration wave (2026-11-19):
 
 - Weather: `view.weather` wins, else the zone's `weather` field, else clear. `view.tod` overrides the sim clock.
+  Wave 5 (sky lane, 2026-11-24): `'storm'` (2D: rain; 3D: rain, lightning) and `'mist'`/`'fog'` (3D: fog pulled in) are
+  also accepted. 3D sky, light rig and weather: `src/render3d/sky_kit.js` (+ `sky_rig.js` pure numbers, `weather3d.js`
+  rain), one `skyKit.frame()` call after `applySky`; tiers by `skyTier()`: `?q3d=low`, `?sky=off` or `view.fx 'low'` =
+  today's flat sky exactly, phones = dome and light rig without rain or hills, desktop = all. Underground has no sky.
+  Drivers: `renderer.dev.skyKit` (last frame's phase, weather, flash, tier), `renderer.dev.skyFlash` forces a flash.
 - Spell effects come only from `r.feed(events)` through `src/render/fx_table.js` (looks, no speeds) and `fxplan.js`.
   A bolt or arrow flies from the sim's `projectile` event at the event's `speed` (the ability data), so it lands on the
   tick the sim's `damage` lands; `snap.projectiles` with no event visual (late join) are drawn as a small bolt at the
