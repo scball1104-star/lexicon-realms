@@ -9,39 +9,15 @@ import * as THREE from '../vendor/three/three.module.min.js';
 import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtils.js';
 import { addCape, dyeMaterial } from './hero.js';
 import { radial, woodTex, leatherTex, woolTex, seeded } from './textures.js';
+import { LOOKS, HAIRS, HEIGHTS, appFor, lookWithApp } from '../data/appearance.js';   // wave 6: the customization kit
 
 const RAR_GLOW = { magic: '#6f8cff', rare: '#ffb050', epic: '#a335ee', legendary: '#ff8a2a', set: '#3cdc6a' };
 const RANK = { common: 0, magic: 1, rare: 2, epic: 2, legendary: 3, set: 3 };      // epic (purple, 2026-11-22): a rare's look, its own glow
 
 // ---------- the five classes, three looks each (the art lane's look notes: assets/sprites/chars/<cls>.json) ----------
 const SKIN = { light: '#fff0e4', medium: '#d8a283', dark: '#8f5d45' };
-export const LOOKS = {
-  warden: [
-    { base: 'male', skin: 'light', hair: 'Hair_SimpleParted', beard: 'Hair_Beard', hairColor: '#4a3020', dye: { hue: 0.62, sat: 0.9, val: 0.8 }, cape: '#2c3f6a' },
-    { base: 'female', skin: 'medium', hair: 'Hair_Long', hairColor: '#8a3a1e', dye: { hue: 0.97, sat: 1.2, val: 0.75 }, cape: '#6a1c1c' },
-    { base: 'male', skin: 'dark', hair: 'Hair_Buzzed', hairColor: '#1a1410', helmed: true, dye: { hue: 0.3, sat: 0.9, val: 0.6 }, cape: '#244a2c' },
-  ],
-  mender: [
-    { base: 'female', skin: 'light', hair: 'Hair_Long', hairColor: '#e2c27c', map: 'peasant2', dye: { hue: 0.02, sat: 0.45, val: 1.6 }, cape: '#3f6a3a' },
-    { base: 'male', skin: 'dark', hair: 'Hair_Buzzed', beard: 'Hair_Beard', hairColor: '#201812', map: 'peasant2', dye: { hue: 0.0, sat: 0.2, val: 1.8 }, cape: '#b8902c' },
-    { base: 'female', skin: 'medium', hair: 'Hair_Buns', hairColor: '#a4a4a4', map: 'peasant2', dye: { hue: 0.22, sat: 0.5, val: 1.3 }, cape: '#6a7a58' },
-  ],
-  scribe: [
-    { base: 'male', skin: 'light', hair: 'Hair_SimpleParted', hairColor: '#5a3a22', dye: { hue: 0.58, sat: 1.0, val: 0.5 }, cape: '#1c2c5a' },
-    { base: 'female', skin: 'dark', hair: 'Hair_Buns', hairColor: '#141010', dye: { hue: 0.8, sat: 0.9, val: 0.55 }, cape: '#4a1c4a' },
-    { base: 'female', skin: 'medium', hair: 'Hair_Long', hairColor: '#8a3a1e', dye: { hue: 0.95, sat: 1.1, val: 0.55 }, cape: '#5a1424' },
-  ],
-  wayfinder: [
-    { base: 'female', skin: 'light', hair: 'Hair_Long', hairColor: '#e2c27c', dye: null, cape: '#2c4a2c' },
-    { base: 'male', skin: 'medium', hair: 'Hair_SimpleParted', beard: 'Hair_Beard', hairColor: '#4a3020', dye: { hue: 0.9, sat: 0.6, val: 0.9 }, cape: '#5a3a22' },
-    { base: 'female', skin: 'dark', hair: 'Hair_Long', hairColor: '#141010', dye: { hue: 0.88, sat: 1.1, val: 0.85 }, cape: '#6a2c1c' },
-  ],
-  inkblade: [
-    { base: 'male', skin: 'light', hair: null, hood: true, hairColor: '#202020', dye: { hue: 0.6, sat: 0.5, val: 0.45 }, cape: '#1c1c28' },
-    { base: 'female', skin: 'medium', hair: 'Hair_Long', hairColor: '#7a4ab0', dye: { hue: 0.55, sat: 0.25, val: 0.55 }, cape: '#28323a' },
-    { base: 'male', skin: 'dark', hair: 'Hair_Buzzed', hairColor: '#e8e8e8', dye: { hue: 0.72, sat: 0.45, val: 0.55 }, cape: '#3a1c3a' },
-  ],
-};
+// today's three looks per class now live in src/data/appearance.js (wave 6: the UI and the sim read them too), unchanged
+export { LOOKS };
 const ALT_MAP = { peasant2: 'tex/T_Peasant_2_BaseColor.jpg', ranger3: 'tex/T_Ranger_3_BaseColor.jpg' };
 const CLASS_ARMOR = { warden: 'plate', mender: 'cloth', scribe: 'cloth', wayfinder: 'mail', inkblade: 'leather' };
 const CLASS_WEAPONS = { warden: ['sword', 'shield'], mender: ['rod', 'bell'], scribe: ['quill', 'book'], wayfinder: ['bow', null], inkblade: ['dagger', 'dagger'] };
@@ -72,9 +48,11 @@ function slotDye(base, it) {
 }
 
 /** The look of a hero from class, look index and equipped items. */
-export function heroSpec(cls, look, equip = {}, items = null) {
+export function heroSpec(cls, look, equip = {}, items = null, app = null) {
   const C = LOOKS[cls] ? cls : 'warden';
-  const lk = LOOKS[C][Math.max(0, Math.min(2, look | 0))];
+  // wave 6: a hero's own appearance (src/data/appearance.js) laid over its look; no app = today's look, unchanged
+  const a = appFor(C, look, app);
+  const lk = a ? lookWithApp(LOOKS[C][Math.max(0, Math.min(2, look | 0))], a) : LOOKS[C][Math.max(0, Math.min(2, look | 0))];
   const sx = lk.base === 'female' ? 'Female' : 'Male';
   const it = {};
   for (const s of ['main', 'off', 'two', 'head', 'chest', 'legs', 'feet', 'hands', 'trinket']) it[s] = itemOf(equip && equip[s], items, C, s);
@@ -122,6 +100,10 @@ export function heroSpec(cls, look, equip = {}, items = null) {
     topRank, scale: 1,
   };
   spec.sig = JSON.stringify([C, look | 0, parts, map, dye, helm, cape, spec.main, spec.off, spec.trinket]);
+  if (a) {     // the kit's finish (custom_kit.js) tones the skin, so no tint; height is the body's scale
+    Object.assign(spec, { skinTint: null, app: a, codeHair: spec.hair ? HAIRS[a.hair].code || null : null, scale: HEIGHTS[a.height] });
+    spec.sig = JSON.stringify([spec.sig, a]);
+  }
   return spec;
 }
 

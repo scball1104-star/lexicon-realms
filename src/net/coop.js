@@ -57,7 +57,8 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     const name = String(hero.name || '').replace(/[^\p{L}\p{N} '-]/gu, '').trim().slice(0, 16);
     if (!name || !content.classes[hero.cls]) return null;
     const c = { name, cls: hero.cls, look: Math.max(0, Math.min(7, Number(hero.look) | 0)),
-      state: hero.state && typeof hero.state === 'object' ? hero.state : null, build: hero.build || undefined };
+      state: hero.state && typeof hero.state === 'object' ? hero.state : null, build: hero.build || undefined,
+      app: hero.app && typeof hero.app === 'object' && !Array.isArray(hero.app) ? hero.app : null };   // wave 6: the friend's own look (the sim clamps it)
     const spec = specFor(c);
     // a friend arrives beside the host (they came to play together); their quests, bags and lantern are their own
     const h = world.get(hostId);
@@ -176,7 +177,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
   }
 
   // ---------------------------------------------------------------- guest
-  const heroBlob = (c) => ({ name: c.name, cls: c.cls, look: c.look, state: c.state || null, build: c.build || null });
+  const heroBlob = (c) => ({ name: c.name, cls: c.cls, look: c.look, state: c.state || null, build: c.build || null, app: c.app || null });
   let joinApi = null;
   function joinGame(c) {
     if (role) return;

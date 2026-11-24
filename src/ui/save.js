@@ -18,6 +18,7 @@
 // The v1 blob is copied to `<key>.v1` the first time it is migrated, so a rollback can always get it back.
 // A corrupt, unknown or newer-version blob is never overwritten: it is copied to `<key>.bad` and the list starts empty.
 import { buildFromV1 } from '../data/builds2.js';
+import { clampApp } from '../data/appearance.js';   // wave 6: a new hero's own look (optional `app`; none = today's look)
 
 export const CHAR_KEY = 'lexicon_realms.chars';
 export const OPTIONS_KEY = 'lexicon_realms.options';
@@ -116,14 +117,15 @@ export function createCharStore(storage) {
     list() { return [...data.chars].sort((a, b) => b.lastPlayedSeq - a.lastPlayedSeq || a.id - b.id); },
     get(id) { return data.chars.find((c) => c.id === id) || null; },
     full() { return data.chars.length >= MAX_CHARS; },
-    add({ name, cls, look, start = null }) {
+    add({ name, cls, look, start = null, app = null }) {
       if (data.chars.length >= MAX_CHARS) return { ok: false, reason: `You can keep ${MAX_CHARS} heroes on this PC.` };
       const v = validateName(name, data.chars);
       if (!v.ok) return v;
       if (!CLASS_IDS.includes(cls)) return { ok: false, reason: 'Pick a class.' };
       const c = { id: data.nextId++, name: v.name, cls, look: Math.max(0, Math.min(LOOKS - 1, look | 0)), level: 1, xp: 0,
         zone: null, x: null, y: null, createdSeq: ++data.seq, lastPlayedSeq: data.seq,
-        ...(start === 'realm' || start === 'willowmere' ? { start } : {}) };   // big world: the class's start realm or Willowmere (optional)
+        ...(start === 'realm' || start === 'willowmere' ? { start } : {}),     // big world: the class's start realm or Willowmere (optional)
+        ...(clampApp(app) ? { app: clampApp(app) } : {}) };                    // wave 6: the hero's own look (optional; the save version is unchanged)
       data.chars.push(c);
       write();
       return { ok: true, char: c };

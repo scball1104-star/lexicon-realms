@@ -141,6 +141,9 @@ async function boot() {
       // the gold quest arrow (ui.js drawGoalPointer): world px -> HUD px, and where the hero was drawn this frame
       toHud: (wx, wy) => renderer.worldToHud(wx, wy),
       heroAnchor: () => (playerId != null ? renderer.anchorOf(playerId) : null),
+      // wave 6 (customization kit): can the creation screen show the 3D hero, and a class's starting gear for it
+      has3d: () => !!(renderer.is3d && renderer.stageOk),
+      startGear: (cls) => ((content.classes[cls] || {}).startGear || {}),
     },
   });
   // online co-op (src/net/): host a game for up to 3 friends, or join one by room code or copy-paste codes
@@ -180,7 +183,7 @@ async function boot() {
   function specFor(c) {
     const s = c.state;
     // big world: every hero carries a Lantern Stone (a new one also gets it on the bar); travel fields from the save
-    if (!s) return { name: c.name, cls: c.cls, look: c.look, ...(c.build ? { build: c.build } : {}), lanternStone: true, newHero: true, ...startSpot(c) };   // save v2: a migrated hero not yet played
+    if (!s) return { name: c.name, cls: c.cls, look: c.look, ...(c.build ? { build: c.build } : {}), ...(c.app ? { app: c.app } : {}), lanternStone: true, newHero: true, ...startSpot(c) };   // save v2: a migrated hero not yet played; app: wave 6
     // an old save names its area ('valley') and that area's tiles: addPlayer moves it onto the world map
     const at = s.zone && (content.zones[s.zone] || (content.regionAt || {})[s.zone]) && s.tx != null ? { zone: s.zone, x: s.tx, y: s.ty } : {};
     return { name: c.name, cls: c.cls, look: c.look, ...at, level: s.level, xp: s.xp, gold: s.gold, bag: s.bag, bags: s.bags, equip: s.equip,
@@ -197,7 +200,8 @@ async function boot() {
       rest: s.rest, offlineSecs: Number.isFinite(s.savedAt) ? Math.max(0, (Date.now() - s.savedAt) / 1000) : 0,
       prof: s.prof,                                                       // professions (optional; src/sim/professions.js)
       home: s.home, flights: s.flights, lanternStone: true,                  // big world travel (src/sim/travel.js); optional fields
-      mounts: s.mounts, mountPick: s.mountPick };                            // mounts owned, the last ridden (src/sim/mounts.js); optional
+      mounts: s.mounts, mountPick: s.mountPick,                              // mounts owned, the last ridden (src/sim/mounts.js); optional
+      app: s.app || c.app || null };                                         // wave 6: the hero's own look (the mirror's last word is in state)
   }
   /** Where a brand-new hero starts: its class's start realm (chosen on creation, the default) or Willowmere ({}). */
   function startSpot(c) {
@@ -358,6 +362,7 @@ async function boot() {
     // before a hero exists the world still draws (behind the title art) at the start zone
     view.zone = me ? me.zone : content.start.zone; view.followId = playerId; view.targetId = me ? me.target : null; view.time = nowMs / 1000;
     view.dpr = window.devicePixelRatio || 1; view.hud = ui.hudMode;
+    view.stage = ui.stage;             // wave 6: the creation screen's or the mirror's turntable (renderer3d draws only it)
     view.inset = ui.mode === 'game' ? insets : null;   // title screens: the art covers the notch strips too
     // secret caches this hero has opened draw open, without their glint
     for (const e of snap.entities) if (e.node && e.node.secret) e.opened = (e.node.openedBy || []).includes(playerId);

@@ -74,6 +74,7 @@ world.enqueue(entityId, cmd)          // local
 | `sell` | `npc`, `uid` **or** `bag` (bag index) + `item` **or** `item`, `qty` (default the whole stack) | the vendor pays value x qty; quest items are never in the bag (section 7.4); the sale joins the buyback list (last 6). A bag index with neither `item` nor `uid` is refused (`no_item`): the list may have shifted since the client read it (fix pass 1). The same slot rule holds for `equip` and `use_item` | `inventory` kind `sell` + `gold`, or `inventory_fail` reason `no_value`/`no_item` (LIVE) |
 | `buyback` | `npc`, `index` (into `hud.buyback`) | buy a sold item back for what it paid | `inventory` kind `buyback` (LIVE) |
 | `chest_store` / `chest_take` / `chest_move` / `chest_row` / `chest_sort` | `chest` (entity id), `tab` (`'hero'` / `'shared'`), a bag slot (`uid` / `bag` + `item`) or a chest slot (`index` + `item`) or `glyph`, `qty` | the Lantern Chest (section "Storage" at the end) | `chest`, or `inventory_fail` (LIVE, 2026-11-20) |
+| `set_app` | `app` (an appearance: every field a small index, src/data/appearance.js) | the free mirror (section "Appearance" at the end); only at a mirror the hero opened, out of combat; clamped, missing fields from the hero's look | `app_set`, or `interact_fail` (wave 6, 2026-11-24) |
 
 Without combat content (no `classes` / `abilities` / `progression` in `content`), `cast` is the foundation stub: it
 checks the global cooldown and emits `cast_start` then `cast_stop` reason `stub`; mobs only wander.
@@ -1623,3 +1624,24 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 - **Dressing rule.** A square prop stands only on open floor of the square, never within its radius of a point of
   interest, never within 1 of the shortest walk from the town lantern to any point or way out, never on or by a decor
   piece; with every prop treated as solid no walk gets longer (`qa/tests/ground_kit.test.mjs`). Props are visual only.
+
+## Appearance: the customization kit and the free mirror (wave 6, 2026-11-24)
+
+- **`app`** (src/data/appearance.js): `{ v: 1, body, skin, eyes, hair, hairColor, beard, build, height, mark, markColor, dye, trim }`,
+  each a small integer index into a table there. `clampApp(raw, fill)` makes anything safe; a missing field takes the hero's
+  own look (`fromLook(cls, look)`), never 0. A hero with NO app is drawn from its `look` exactly as before (the 45-combination
+  golden test, qa/tests/custom_kit.test.mjs). `look` stays: 2D sprites, portraits and the dye-0 "Original" colours use it.
+- **Where it lives:** the char entry (`store.add({ ..., app })`, optional, SAVE_VERSION unchanged), `state.app` (world
+  `saveFields`), addPlayer `spec.app` (clamped by src/sim/appearance.js with `content.appearance`, since the sim imports only
+  its own files), the snapshot (`o.app` on a player that has one) and the co-op hero blob (`hello.hero.app`). Friends draw
+  each other from the snapshot, like `look`.
+- **The mirror:** `content.mirrors` (src/data/appearance.js MIRRORS, region tiles); an object entity `{ mirror: { id, place },
+  sprite: 'mirror' }`, spawned last in spawnContent. `interact` on it (in reach, alive, out of combat) emits
+  `mirror_open { src, id, mirror }` and sets the hero's `mirrorAt`; then `set_app` sets `e.app` and emits `app_set { id, mirror }`.
+- **Render:** gear.js `heroSpec(cls, look, equip, items, app)`; with an app the spec has `app`, `codeHair`, `skinTint: null`,
+  `scale` (height) and its own `sig`. render3d/custom_kit.js `finishApp(L, ch, spec)` runs after `dress()` (skin tone and
+  markings, iris, cloth and leather dye bands, code-built hair merged to ONE mesh on the Head bone, bone-thickness build).
+- **The creation screen** (src/ui/create_screen.js, replaces title.js drawCreate, which is no longer called) asks for a stage:
+  `ui.stage` -> `view.stage = { mode, rect (HUD layer px), cls, look, app, equip, yaw, bg (layer-sized backdrop canvas), phone }`.
+  renderer3d.js then draws ONLY render3d/turntable.js into that rect (the UI clears the rect on its layer). The 2D renderer
+  ignores `view.stage`; the screen shows today's sprite there. Hooks: `hooks.has3d()`, `hooks.startGear(cls)`.

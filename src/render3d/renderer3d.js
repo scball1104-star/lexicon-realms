@@ -60,7 +60,8 @@ import { createRealms2Fx3 } from './realms2_3d.js';   // wave 3 realms2: lantern
 import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 import { createSkyKit } from './sky_kit.js';     // wave 5 Track A: sky dome, light rig, 3D weather, far hills
 import { skyTier } from './sky_rig.js';
-import { horizonPose, H_PITCH, H_PITCH_LITE } from './horizon_cam.js';   // wave 5b: the optional horizon camera (view.cam)
+import { horizonPose, H_PITCH, H_PITCH_LITE } from './horizon_cam.js';
+import { createTurntable } from './turntable.js';   // wave 6: the creation screen's 3D hero (view.stage)   // wave 5b: the optional horizon camera (view.cam)
 import { tickGround } from './ground_kit.js';   // wave 5 ground kit: the grass wind clock
 import { groundY, setGroundY } from './ground_plan.js';   // the shown zone's visible ground height (gentle hills)
 
@@ -242,6 +243,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     return null;
   }
   let shown = null;
+  let turntable = null;          // wave 6: made the first time a stage is asked for (turntable.js)
   let flightView = null;          // big world: the flight camera's reach while the hero rides the Lantern Kite (M3)
 
   // ---- 2D layers
@@ -706,6 +708,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (trans && shown && !trans.warm) warmStart(shown);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // wave 6: the creation screen or the mirror asks for its turntable (view.stage); the screen covers the world, so only it draws
+    if (view.stage && view.stage.rect) { (turntable || (turntable = createTurntable(L, { items, quality, environment: scene.environment }))).render(renderer, view.stage, layout, gl, canvas, now); dev.turntable = turntable.dev; return; }
     if (!shown) {
       renderer.setClearColor('#0b0a12'); renderer.clear();
       return;
@@ -978,6 +982,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     entDev(id) { const a = anchors.get(id); return a ? [a.dev.fx, (a.dev.fy + a.dev.hy) / 2] : null; },
     dev,
     is3d: true,
+    get stageOk() { return !fallback; },     // wave 6: the creation screen can show the 3D hero (not after a fall back to 2D)
     get ready() { return !fallback && state.ready && !trans && !!shown && shown === state.zones.get(keyOf(state.zoneId)); },
     get loading() { return fallback ? fallback.loading : (state.ready && shown ? 0 : 1); },
     /** The zone swap behind the loading card (src/ui/loading.js): { to, k: 0..1, ready }. */

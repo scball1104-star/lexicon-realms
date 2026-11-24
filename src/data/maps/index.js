@@ -43,6 +43,7 @@ import { worldPatrolSpawns, placePatrolSpawns, routeFor, healerSpawns } from '..
 import { BUILDS2, RULES as BUILDS2_RULES, SKILL_PICKS, B2_ABILITIES } from '../builds2.js';
 import { BOARDS, BOUNTIES, NAMED_SPAWNS } from '../bounties.js';
 import { STORAGE, LANTERN_CHESTS } from '../storage.js';
+import { MIRRORS, appearanceContent } from '../appearance.js';   // wave 6: the free mirror (the customization kit)
 import { applyWorldLife } from '../worldlife.js';
 import { HIT_CONTENT } from '../hittable.js';
 import { RESIST_CONTENT } from '../resist.js';
@@ -166,6 +167,8 @@ export function buildContent() {
     // the Lantern Chests (src/data/storage.js): where they stand, tab sizes and row prices
     glyphs: GLYPHS,                                                     // Inscriptions: margins, letters, words (src/data/glyphs.js)
     storage: STORAGE, lanternChests: LANTERN_CHESTS.map(tileRef).filter((c) => ZONES[c.zone]),
+    mirrors: MIRRORS.map(tileRef).filter((c) => ZONES[c.zone]),       // the free mirror in Willowmere (src/data/appearance.js)
+    appearance: appearanceContent(),                                  // the kit's table sizes and look fills (the sim clamps with them)
     start: { zone: WORLD_ID, x: WORLD.arrival[0], y: WORLD.arrival[1], lantern: { zone: WORLD_ID, id: sq.id, x: sq.x, y: sq.y } },
   })));      // group play (src/data/party.js): lantern-ash on two vendors, the party rules
   // the Rootbound's rare (src/data/rootbound.js): one more on the world life's list, in its own zone

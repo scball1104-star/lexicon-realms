@@ -22,7 +22,8 @@ import { drawCharacter, drawBags, drawQuestLog, drawMap, drawOptions, itemCard, 
 import { drawHelp } from './help.js';
 import { drawTalents } from './talents.js';
 import { drawTalents2, isBuilds2, b2Class, b2FailText } from './talents2.js';
-import { drawTitle, drawSelect, drawCreate } from './title.js';
+import { drawTitle, drawSelect } from './title.js';
+import { createLookUI } from './create_screen.js';   // wave 6: the new creation screen and the mirror (customization kit)
 import { createCharStore, loadOptions, saveOptions, validateName } from './save.js';
 import { routeKey, rebind, effectiveBinds, keyLabel } from './keymap.js';
 import { eventLines } from './eventlog.js';
@@ -93,7 +94,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     store, toast,
     go(mode) {
       st.mode = mode; st.confirm = null; st.err = null;
-      if (mode === 'create') { st.name = ''; nameInput.value = ''; st.cls = null; st.look = 0; st.start = null; if (!st.metrics.touch) act.focusName(); }
+      if (mode === 'create') { st.name = ''; nameInput.value = ''; st.cls = null; st.look = 0; st.start = null; st.app = null; st.lookTab = null; st.yaw = 0.5; if (!st.metrics.touch) act.focusName(); }
       else { nameInput.blur(); st.nameFocus = false; }
     },
     /** Phone full screen: the Fullscreen API where the browser has it (Android, iPad); an iPhone browser has none, so
@@ -116,7 +117,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     },
     focusName() { nameInput.value = st.name || ''; nameInput.focus({ preventScroll: true }); st.nameFocus = true; },
     create() {
-      const r = store.add({ name: st.name, cls: st.cls, look: st.look, start: st.start === 'willowmere' ? 'willowmere' : 'realm' });
+      const r = store.add({ name: st.name, cls: st.cls, look: st.look, start: st.start === 'willowmere' ? 'willowmere' : 'realm', app: st.app || null });
       if (!r.ok) { st.err = r.reason; return; }
       nameInput.blur();
       act.enter(r.char.id);
@@ -308,7 +309,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     logout() {
       saveProgress();
       if (hooks.logout) hooks.logout(playerId);
-      playerId = null; st.charId = null; st.dialog = null; st.hint = null; st.open.clear(); lastModel = null;
+      playerId = null; st.charId = null; st.dialog = null; st.hint = null; st.mirror = null; st.open.clear(); lastModel = null;
       act.go(store.list().length ? 'select' : 'title');
     },
   };
@@ -319,6 +320,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const glyphs = createGlyphUI({ st, act, send, toast, say, hero: () => (lastSnap && playerId != null ? { snap: lastSnap, id: playerId } : null) });
   act.profOptions = (d) => [...prof.dialogOptions(d), ...glyphs.dialogOptions(d)];
   act.profOpen = (o) => prof.open(o);
+  // the creation screen and the free mirror (src/ui/create_screen.js); the turntable request goes to main.js view.stage
+  const looks = createLookUI({ st, act, send, toast, say, has3d: () => !!(hooks.has3d && hooks.has3d()), startGear: (cls) => (hooks.startGear ? hooks.startGear(cls) : {}),
+    hero: () => (lastSnap && playerId != null ? lastSnap.entities.find((e) => e.id === playerId) || null : null), snap: () => lastSnap });
 
   /** Save the hero: the select-screen summary plus the full character (hooks.saveState: CONTRACTS 2.4 addPlayer restore). */
   function saveProgress() {
@@ -350,6 +354,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (!st.metrics.touch) return 'big';
     if (st.mode !== 'game') return 'win';
     if (st.chest) return 'win';
+    if (st.mirror) return 'win';                 // the mirror screen is a creation-screen layout
     if (lastModel && lastModel.group && lastModel.group.trade) return 'win';     // the trade window is a 640x360 design
     for (const id of st.open) if (CENTER.includes(id) || SIDE.includes(id)) return 'win';
     return 'big';
@@ -376,6 +381,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   function draw(ctx, vm, snap, t) {
     st.now = t;
     uiSnd.frame(st);
+    looks.frame();
     lastSnap = snap;
     const L = layoutNow();
     st.layer = { W: L.W, H: L.H };
@@ -387,7 +393,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (st.mode !== 'game' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
     if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t), env);
-    else if (st.mode === 'create') centred(ctx, L, regions, () => drawCreate(ctx, env, st, regions, act, t), env);
+    else if (st.mode === 'create') looks.drawCreate(ctx, env, regions, t, centred, L);
     else {
       let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones });
       if (demoExtra) m = applyDemo(m);
@@ -441,6 +447,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (st.slotCard) drawSlotCard(ctx, env, m, L, regions);
         if (isBuilds2(m)) builds2Prompts(ctx, L, m);
         if (st.hint) drawHint(ctx, L, regions);
+        if (st.mirror) looks.drawMirror(ctx, env, regions, t, centred, L);   // the free mirror covers the HUD
       }
     }
     st.regions = regions;
@@ -877,7 +884,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     ev.preventDefault();
     if (route.action === 'menu') {
       const open = [...st.open];
-      if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
+      if (st.mirror) looks.close();
+      else if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
       else if (st.hint) act.dismissHint();
       else if (st.dialog) act.closeDialog();
       else if (st.chest) act.closeChest();
@@ -913,6 +921,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (gl) { if (gl.toast) toast(gl.toast, 3); if (gl.say) say(gl.say[0], gl.say[1]); return; }
     if (prof.onEvent(ev, me)) return;            // professions (prof_ui.js)
     if (glyphs.onEvent(ev, me)) return;          // Inscriptions (glyph_ui.js)
+    if (looks.onEvent(ev, me)) return;           // the free mirror (create_screen.js)
     switch (ev.type) {
       case 'interact':
         if (ev.src !== me) return;
@@ -1140,6 +1149,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     get trainerMark() { return st.trainerMark && st.trainerMark.until > st.now ? st.trainerMark.npc : null; },
     /** Phone layer mode for the renderer: 'big' (play) or 'win' (a 640x360 menu window is open). */
     get hudMode() { return hudMode(); },
+    /** The creation screen's or the mirror's turntable request (main.js view.stage; renderer3d draws the 3D hero), or null. */
+    get stage() { return looks.stage(); },
     setAbilityContent,
     say,
     logText: () => log.map((l) => l.text),

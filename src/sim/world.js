@@ -32,6 +32,7 @@ import { createBuilds2 } from './builds2.js';
 import { createHud } from './hud.js';
 import { createQuests } from './quests.js';
 import { createStorage } from './storage.js';
+import { createAppearance } from './appearance.js';   // wave 6: a hero's own look (`app`) and the free mirror
 import { rollKill, rollGear, bagAdd, bagRemove, bagFree, resolveItem, ensureUids, migrateQuestItems, bagFindUid } from './loot.js';
 import { createDungeons, withCopies } from './dungeons.js';
 import { dayFraction, isNight } from './clock.js';
@@ -168,6 +169,8 @@ function wrap(state, content0, rng, systems) {
     bagIndex: (e, cmd) => bagIndex(e, cmd), onBag: (e) => { if (QS) QS.onBag(e); },
   }) : null;
   if (combatOn) C.storage = ST;
+  // ---- appearance (src/sim/appearance.js): the free mirror and `set_app`; e.app rides the snapshot to every co-op friend
+  const AP = createAppearance({ content, emit, get: (id) => index.get(id) || null, distPx, reach: INTERACT_RANGE_PX + 24, openReach: INTERACT_RANGE_PX, tileToSub });
   // ---- dungeons and caves (src/sim/dungeons.js): copies per party, bosses, their loot and the daily chest
   const DG = Object.values(content.zones).some((z) => z && (z.kind === 'dungeon' || z.kind === 'cave')) ? createDungeons({
     state, content, emit, rng, get: (id) => index.get(id) || null, add, remove, spawnMob: (spec) => spawnMob(spec), nextId: () => state.nextId++, tileToSub,
@@ -349,6 +352,7 @@ function wrap(state, content0, rng, systems) {
       if (QS) QS.spawnObjects();
       if (ST) ST.spawnChests(add, () => state.nextId++);     // the Lantern Chests (content.lanternChests)
       if (PF) PF.spawnNodes();                              // professions: a third of each area's gathering nodes
+      AP.spawnMirrors(add, () => state.nextId++);           // the free mirror (content.mirrors), last so no earlier id moves
     },
     /** Spawn one mob from a template (tests, scripted events). spec: { mob, zone, x, y (tiles), wander?, respawn? } */
     spawnMob(spec) { return spawnMob(spec).id; },
@@ -370,6 +374,7 @@ function wrap(state, content0, rng, systems) {
         faction: 'player', sprite: 'hero', hp: 100, hpMax: 100, res: { kind: 'mana', cur: 100, max: 100 }, dir: 'up',
       });
       if (spec.party != null) e.party = spec.party;          // online co-op: the room's party (docs/NET.md); solo has none
+      AP.restore(e, spec);                                   // wave 6: the hero's own look (spec.app, clamped); none = today's
       if (combatOn) {
         const cls = C.data.classes[e.cls];
         if (!cls) throw new Error(`addPlayer: no class ${e.cls}`);
@@ -427,6 +432,7 @@ function wrap(state, content0, rng, systems) {
       const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
       const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []), ...(e.bounties ? { bounties: clone(e.bounties) } : {}),
         ...(e.dungeons ? { dungeons: clone(e.dungeons) } : {}) };     // dungeons: the daily first clears and the legendary bad-luck count
+      if (e.app) out.app = { ...e.app };          // wave 6: the hero's own look (missing = today's look)
       if (!combatOn) return out;
       out.hp = e.dead ? e.hpMax : e.hp;
       out.res = e.res ? { kind: e.res.kind, cur: Math.round(e.res.cur * 100) / 100 } : null;
@@ -699,6 +705,7 @@ function wrap(state, content0, rng, systems) {
       case 'prof_train': case 'prof_recipe': case 'prof_unlearn': case 'prof_craft': case 'prof_cancel': case 'prof_fish': if (PF) PF.command(e, cmd); return;
       case 'set_home': case 'fly': case 'ride': if (TV) TV.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
       case 'mount': if (MT) MT.command(e, cmd); return;                  // mounts: Z / the horseshoe (summon, or get off)
+      case 'set_app': AP.set(e, cmd); return;                           // wave 6: a new look, at the mirror the hero opened
       case 'interact': {
         const t = index.get(cmd.id);
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');
@@ -710,6 +717,7 @@ function wrap(state, content0, rng, systems) {
           return;
         }
         if (t.kind === 'object' && t.chest) { if (ST) ST.open(e, t); return; }
+        if (t.kind === 'object' && t.mirror) { AP.open(e, t); return; }       // the free mirror (src/sim/appearance.js)
         if (t.kind === 'mob' && t.dead && PF) {         // Skinning a dead beast (src/sim/professions.js)
           if (distPx(e, t) > INTERACT_RANGE_PX) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
           PF.skin(e, t); return;
@@ -1083,6 +1091,7 @@ function wrap(state, content0, rng, systems) {
     };
     if (e.kind === 'player') {
       o.cls = e.cls; o.look = e.look; o.xp = e.xp; o.party = e.party ?? null;
+      if (e.app) o.app = { ...e.app };          // wave 6: the hero's own look; every co-op friend draws it from this
       if (combatOn) {
         Object.assign(o, { bar: [...e.bar], known: [...e.known], talents: { ...e.talents }, gold: e.gold, combo: e.combo ? { ...e.combo } : null,
           lantern: e.lantern ? { ...e.lantern } : null, inCombat: !!e.inCombat, autoOn: !!e.autoOn, sitting: !!e.sitting,
@@ -1115,6 +1124,7 @@ function wrap(state, content0, rng, systems) {
       if (e.dchest) o.node.chest = { kind: e.dchest.kind, place: e.dchest.place, for: e.dchest.for ?? null };
     }
     else if (e.kind === 'object' && e.chest) { o.chest = { id: e.chest.id, place: e.chest.place || null }; }
+    else if (e.kind === 'object' && e.mirror) { o.mirror = { id: e.mirror.id, place: e.mirror.place || null }; }
     else if (e.kind === 'object') {
       o.owner = e.owner; o.objType = e.obj.def.id; o.radius = e.obj.def.radius || (e.obj.def.trigger && e.obj.def.trigger.radius) || 0;
       o.armed = state.tick >= e.obj.armAt; o.until = e.obj.until;

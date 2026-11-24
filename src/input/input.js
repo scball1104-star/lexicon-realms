@@ -185,9 +185,9 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
           if (id === me.id) continue;
           const e = snap.entities.find((o) => o.id === id);
           if (it.k === 'rclick' && e && e.kind === 'mob' && e.faction === 'hostile' && !e.dead) { target = id; out.push({ t: 'attack', id }); continue; }
-          if (id !== target && !(e && e.kind === 'object' && (e.node || e.chest))) { target = id; out.push({ t: 'target', id }); }
+          if (id !== target && !(e && e.kind === 'object' && (e.node || e.chest || e.mirror))) { target = id; out.push({ t: 'target', id }); }
           // professions: a dead beast that can be skinned (snapshot `skin`) is used like a node
-          if ((it.k === 'rclick' || it.k === 'tap') && e && (e.kind === 'npc' || (e.kind === 'object' && (e.node || e.chest)) || (e.kind === 'mob' && e.dead && e.skin))) {
+          if ((it.k === 'rclick' || it.k === 'tap') && e && (e.kind === 'npc' || (e.kind === 'object' && (e.node || e.chest || e.mirror)) || (e.kind === 'mob' && e.dead && e.skin))) {
             const d = Math.hypot(e.x - me.x, e.y - me.y);
             if (it.k === 'tap' && d > INTERACT_REACH_PX - 8) walkTo(e.x, e.y, TALK_REACH_PX, { t: 'interact', id });
             else out.push({ t: 'interact', id });
@@ -244,7 +244,7 @@ export function createInput(keyTarget, canvas, { abilities = {}, classes = {} } 
             let best = INTERACT_REACH_PX + 1;
             for (const o of snap.entities) {
               const skinMe = o.kind === 'mob' && o.dead && o.skin;     // professions: a corpse to skin
-              if (!(o.kind === 'npc' || (o.kind === 'object' && (o.node || o.chest)) || skinMe) || o.zone !== me.zone || (o.dead && !skinMe)) continue;
+              if (!(o.kind === 'npc' || (o.kind === 'object' && (o.node || o.chest || o.mirror)) || skinMe) || o.zone !== me.zone || (o.dead && !skinMe)) continue;
               const d = Math.hypot(o.x - me.x, o.y - me.y);
               if (d < best || (d === best && npcId != null && o.id < npcId)) { best = d; npcId = o.id; }
             }
