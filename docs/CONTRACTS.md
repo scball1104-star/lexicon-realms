@@ -959,6 +959,8 @@ Fix pass 1 (sim lane, for the UI lane to wire): merge `world.saveFields(id)` int
 cdLeft, auras, escorts`) and keep passing the whole saved spec to `addPlayer`; the sim restores health, resource,
 cooldowns and lasting buffs from it, and respawns any escort at its start.
 Saved every 5 s, on tab hide, on unload and on quit to select. `hinted: true` once the controls card was shown.
+
+Onboarding hints (wave 7, PLAN item 13, src/ui/onboard.js): a stored hero carries `tips: [id]`, the hints it has done (`move talk follow target ability interrupt loot rez`); a hero with `hinted` and no `tips` is from before hints and has done them all. `options.hints === false` (the switch in Help, never a Settings row) shows none. While a new hero has hints to see, the old controls card is not shown. UI only: the hints read the HUD model, the snapshot and sim events (`interact`, `quest accept`, `cast_start`, `school_lock`, `loot`, `rez start`), never write the sim, take no input but their own x (a thumb-sized corner on a phone; a foe under the box stays tappable) and hide while a window, the npc window, the boss card, a banner or a death is up. Drivers: `window.__realms.ui.onboard.state`.
 Quit to select = `world.removePlayer(id)` in place (no page reload).
 
 **URL options**: `?tod=0..1` (freeze the time of day), `?weather=clear|rain|leaves|pollen`, `?fx=low|high` (overrides

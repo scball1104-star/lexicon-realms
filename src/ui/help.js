@@ -60,11 +60,28 @@ export function helpSections(binds) {
   ];
 }
 
-export function drawHelp(ctx, env, st, regions, act, binds) {
+/** The hints switch (wave 7 onboarding, src/ui/onboard.js): a small button at the foot of Help, not a Settings row (the
+ *  phone's Settings screen is full). Returns its height so the list above can stop short of it. */
+export function hintsSwitch(ctx, env, r, regions, act, options) {
+  const { g } = env;
+  if (!options || !act || !act.setOption) return 0;
+  const on = options.hints !== false;
+  const label = `Hints: ${on ? 'On' : 'Off'}`;
+  const bh = Math.max(16, Math.min(env.L.minHit || 0, 24)), bw = Math.max(76, g.textW(label) + 16);
+  const b = { x: r.x + r.w - bw - 10, y: r.y + r.h - bh - 6, w: bw, h: bh };
+  g.window(ctx, b.x, b.y, b.w, b.h, 'thin', on ? 'forest' : 'slate', 0.95);
+  g.text(ctx, label, b.x + Math.floor(b.w / 2), b.y + Math.floor((b.h - g.lh) / 2) + 1, 'cream', { align: 'center' });
+  regions.push({ rect: b, kind: 'button', label: 'help:hints', on: () => act.setOption('hints', !on),
+    tip: { title: label, sub: on ? 'Short tips the first time you need a thing. Click to turn them off.' : 'Click to turn the first-time tips back on.' } });
+  return bh + 6;
+}
+
+export function drawHelp(ctx, env, st, regions, act, binds, options = null) {
   const { g } = env;
   const touch = !!env.L.touch;
   const r = { x: 24, y: 12, w: 592, h: 336 };
   frame(ctx, env, r, 'Help: controls', regions, act, 'help');
+  const foot = hintsSwitch(ctx, env, r, regions, act, options);   // wave 7: the hints switch
   g.text(ctx, touch ? 'Phone controls' : 'Keyboard and mouse (your own key bindings)', r.x + r.w - 30, r.y + 8, 'dim', { align: 'right' });
   const secs = helpSections(binds);
   if (g.big) {
@@ -78,7 +95,7 @@ export function drawHelp(ctx, env, st, regions, act, binds) {
         g.wrap(how, hw).forEach((ln, k) => lines.push({ t: ln, c: 'cream', x: lw, what: k === 0 ? what : null }));
       }
     }
-    scrollLines(ctx, g, regions, st, 'help', lines, { x, y: r.y + 30, w: r.w - 24, h: r.h - 38 }, g.lh, (o, lx, ly) => {
+    scrollLines(ctx, g, regions, st, 'help', lines, { x, y: r.y + 30, w: r.w - 24, h: r.h - 38 - foot }, g.lh, (o, lx, ly) => {
       if (o.what) g.text(ctx, g.clip(o.what, lw - 14), lx + 8, ly, 'white');
       g.text(ctx, o.t, lx + o.x, ly, o.c);
     }, '#f9d77a');

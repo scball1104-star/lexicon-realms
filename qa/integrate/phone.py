@@ -117,8 +117,10 @@ def run():
         ph.shot('phone_02_create', 'creating a Scribe with the phone keyboard')
         ph.tap_region(label='Create', wait=1.5)
         assert ph.ev('__drv.mode()') == 'game', 'in the world'
-        ph.shot('phone_03_welcome', 'phone HUD: controls card, cluster, menu bar')
-        ph.tap_region(kind='window', id='hint', wait=0.3)
+        time.sleep(1.8)   # wave 7: the first hint (walk) comes in after a moment; the old controls card is gone while hints are on
+        ph.shot('phone_03_welcome', 'phone HUD: the first hint (walk), cluster, menu bar')
+        if ph.ev("window.__realms.ui.regions.some((r) => r.kind === 'window' && r.id === 'hint')"):
+            ph.tap_region(kind='window', id='hint', wait=0.3)
 
         # ---- joystick: a plain drag first, then follow a route to Hob
         p0 = ph.ev('__drv.me()')
