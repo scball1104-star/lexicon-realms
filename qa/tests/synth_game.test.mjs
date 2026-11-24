@@ -94,7 +94,7 @@ export const tests = [
       eq(typeof a.setSynth, 'function', 'setSynth');
       a.setSynth(false); a.setSynth(true);
       const menus = fs.readFileSync(path.join(ROOT, 'src/ui/menus.js'), 'utf8');
-      assert(menus.includes("choice('Synth sound', 'synth'"), 'the Settings choice');
+      assert(/choice\([^)]*'Synth sound', 'synth'/.test(menus), 'the Settings choice');
     },
   },
 ];
