@@ -1669,3 +1669,25 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   `ui.stage` -> `view.stage = { mode, rect (HUD layer px), cls, look, app, equip, yaw, bg (layer-sized backdrop canvas), phone }`.
   renderer3d.js then draws ONLY render3d/turntable.js into that rect (the UI clears the rect on its layer). The 2D renderer
   ignores `view.stage`; the screen shows today's sprite there. Hooks: `hooks.has3d()`, `hooks.startGear(cls)`.
+
+## Town life: townsfolk, critters and passing showers (wave 7 life2, 2026-11-24; PLAN item 12, no Vis)
+
+- **Cosmetic, render side, 3D only.** `src/render3d/townlife_plan.js` (pure, node-tested) plans each town area
+  (`regions[].kind 'town'` of an outdoor zone) from the tile map the sim uses; `src/render3d/townlife3d.js`
+  `createTownLife(THREE, scene, { quality, tilesDb, q })` draws it as TWO instanced meshes (people, critters; plus one
+  shadow-pass call for the people on desktop). renderer3d.js calls `townLife.frame({ zone, kit, snap, f, rain, now, focus })`
+  once a frame after `actors.sync` (`dev.life`: towns, folk, out, inside, doors, critters, ms). Townsfolk and critters are
+  NOT sim entities: no collision, picking, network, save or sound. The sim, co-op and every quest NPC are unchanged.
+- **Walk rule.** People walk and stand only on open floor ('.'), never within 1 tile of a quest NPC (standing groups 2+),
+  a lantern, a node, sign or hook, a realm prop, a decor footprint, or the ground kit's square dressing (`kit.plan`).
+  They step aside from heroes and NPCs at 0.9 m. A person's loop (`loopPose(F, t)`) is a pure function of the render
+  clock: a pinned clock gives the same still every run.
+- **Routines.** `wantOut(F, f, rain)`: up from about 05:40 to 07:40, in from 18:30 (a quarter are night owls to 23:15);
+  two watchmen with lanterns walk the lamps at night; two people talk at the inn door of an evening. In rain (>0.3) about
+  four in five walk home and go in at their own door; the rest put hoods up. Critters (`critterOut`): pigeons and hens by
+  day, cats day and night, all shelter from rain; a hero walking into the pigeons sends them to the next spot.
+- **Showers.** `showerAt(tick, zone)` 0..1 from the sim tick (every client agrees): up to two showers of 3 to 5 min a 40
+  minute day, none on a world's first day, none in Saffron Haven, the Rootbound (cavern) or the Hollow (fog). Used only
+  when `view.weather` is unset; `?showers=0` turns them off; the 2D renderer is unchanged.
+- **Switch.** `lifeCaps(quality, q)`: desktop 34 people and 16 critters a town (13 placed), Low quality and phones 12 and 6
+  with no shadow pass, `?life=low` the same, `?life=off` none. Tests: `qa/tests/townlife.test.mjs`.
