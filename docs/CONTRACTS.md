@@ -727,6 +727,7 @@ r.loading                             // sheets still loading (drivers wait for 
 LIVE since the integration wave (2026-11-19):
 
 - Weather: `view.weather` wins, else the zone's `weather` field, else clear. `view.tod` overrides the sim clock.
+- Horizon camera (wave 5b PROTOTYPE, 3D only): `view.cam` is null (today's fixed north-up camera, the default) or the `createHorizonCam` state `{ mode: 'horizon', yaw, pitch, dist }` (src/render3d/horizon_cam.js), set by `?cam=horizon|fixed` or Options `cam`. While it is on, `input.setMoveTransform(fn)` turns held keys to the camera (src/input/horizon_input.js), `devToWorld` returns null for the sky or past 60 m, and `worldToHud(a.x, a.y - h)` above an anchor goes up the body, not north. The sim never sees it.
   Wave 5 (sky lane, 2026-11-24): `'storm'` (2D: rain; 3D: rain, lightning) and `'mist'`/`'fog'` (3D: fog pulled in) are
   also accepted. 3D sky, light rig and weather: `src/render3d/sky_kit.js` (+ `sky_rig.js` pure numbers, `weather3d.js`
   rain), one `skyKit.frame()` call after `applySky`; tiers by `skyTier()`: `?q3d=low`, `?sky=off` or `view.fx 'low'` =

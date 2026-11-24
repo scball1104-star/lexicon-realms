@@ -18,6 +18,9 @@
 // spot as a point h px north on the ground: anchorOf() returns that h, measured each frame by projection. Picking,
 // devToWorld and worldToHud all go through the live camera, so they follow any angle.
 //
+// Horizon camera (wave 5b PROTOTYPE, an option; view.cam, horizon_cam.js): free orbit and zoom to the shoulder, with
+// the fog, far plane and draw distance pushed back at a low pitch. Off (view.cam null) everything above is unchanged.
+//
 // Cutaway: static scenery between the camera and the hero, and between the camera and the hero's target, fades to
 // about 25% (zone3d.js SEE). On top of that a building whose roof or upper walls cover the hero, the target or an NPC
 // with a quest mark on screen fades its whole roof and upper walls out (smoothly, the same dither), while its lower
@@ -57,6 +60,7 @@ import { createRealms2Fx3 } from './realms2_3d.js';   // wave 3 realms2: lantern
 import { isPlaceZone, doorMouths } from '../render/dungeon_plan.js';
 import { createSkyKit } from './sky_kit.js';     // wave 5 Track A: sky dome, light rig, 3D weather, far hills
 import { skyTier } from './sky_rig.js';
+import { horizonPose } from './horizon_cam.js';   // wave 5b PROTOTYPE: the optional horizon camera (view.cam)
 
 const PX = 16;
 const PITCH = THREE.MathUtils.degToRad(40);
@@ -320,8 +324,28 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     const hit = new THREE.Vector3();
     return ray.ray.intersectPlane(ground, hit) ? hit : null;
   }
-  function devToWorld(dx, dy) { const h = devToGround(dx, dy); return h ? [h.x * PX, h.z * PX] : [0, 0]; }
+  function devToWorld(dx, dy) {
+    const h = devToGround(dx, dy);
+    if (hpose) return h && Math.hypot(h.x - focus.x, h.z - focus.z) < H_REACH ? [h.x * PX, h.z * PX] : null;   // sky or far: no walk
+    return h ? [h.x * PX, h.z * PX] : [0, 0];
+  }
+  // horizon camera (prototype): "h px above a body" (worldToHud(x, y - h), the 2D convention every HUD caller uses) is
+  // not "h px north" once the camera turns, so a point straight above a body's anchor goes up the body in 3D instead;
+  // a point behind the camera goes off screen
+  let hpose = null;
+  const H_REACH = 60;
+  function horizonToHud(wx, wy) {
+    let p = null;
+    for (const an of anchors.values()) {
+      if (an.x !== wx || wy > an.y || an.y - wy > 4 * an.h + 40) continue;
+      p = new THREE.Vector3(an.x / PX, (an.a.root.position.y || 0) + ((an.y - wy) / Math.max(4, an.h)) * an.a.height, an.y / PX); break;
+    }
+    const [dx, dy, dz] = toDev(p || new THREE.Vector3(wx / PX, 0, wy / PX));
+    if (dz > 1) return [-9999, -9999];
+    return [Math.round((dx - layout.ox) / layout.base), Math.round((dy - layout.oy) / layout.base)];
+  }
   function worldToHud(wx, wy) {
+    if (hpose) { const h = horizonToHud(wx, wy); if (h) return h; }
     const [dx, dy] = toDev(new THREE.Vector3(wx / PX, 0, wy / PX));
     return [Math.round((dx - layout.ox) / layout.base), Math.round((dy - layout.oy) / layout.base)];
   }
@@ -399,7 +423,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       if (grade) { grade.uniforms.desat.value = U.desat; grade.uniforms.tint.value.set(...U.grade); grade.uniforms.vig.value = U.vig; }
     }
     // a long view (flight, drivers' dev.fogFar): the fog and the far plane pushed back
-    const ff = dev.fogFar || (flightView && flightView.fogFar);
+    const ff = dev.fogFar || (flightView && flightView.fogFar) || (hpose && !U && hpose.fogFar);
     if (ff) {
       scene.fog.near = Math.max(scene.fog.near, ff * 0.4); scene.fog.far = ff;
       if (Math.abs(camera.far - (ff + 4)) > 0.5) { camera.far = ff + 4; camera.updateProjectionMatrix(); }
@@ -702,9 +726,16 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     let pitchC = pitch, bx = 0, bz = 1;
     const fv = flightView;
     if (fv) { pitchC = fv.pitch; dist = dev.camDist || fv.dist; bx = fv.back[0]; bz = fv.back[1]; target.y += fv.lift; }
+    // wave 5b PROTOTYPE: the horizon camera (horizon_cam.js), an option (view.cam); never in flight or below ground
+    hpose = view.cam && view.cam.mode === 'horizon' && !fv && !isPlace(view.zone) ? horizonPose(view.cam) : null;
+    dev.horizon = hpose ? { yaw: view.cam.yaw, pitch: view.cam.pitch, dist: +hpose.dist.toFixed(2), k: hpose.k, low: hpose.low, fogFar: hpose.fogFar, farR: hpose.farR, cullR: hpose.cullR } : null;
+    if (hpose) {
+      pitchC = hpose.pitch; dist = dev.camDist || hpose.dist; bx = -Math.sin(hpose.yaw); bz = Math.cos(hpose.yaw);
+      target.y += hpose.lift; target.x += Math.cos(hpose.yaw) * hpose.side; target.z += Math.sin(hpose.yaw) * hpose.side;
+    }
     if (dev.camPitch != null) pitchC = THREE.MathUtils.degToRad(dev.camPitch);
     if (dev.camLift != null) target.y += dev.camLift;
-    const fov = dev.fov || (fv ? fv.fov : FOV);
+    const fov = dev.fov || (fv ? fv.fov : hpose ? hpose.fov : FOV);
     if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
     const hz = dist * Math.cos(pitchC);
     camera.position.set(target.x + bx * hz, target.y + dist * Math.sin(pitchC), target.z + bz * hz);
@@ -718,12 +749,12 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     // focus; 80 m keeps every cell that can show or throw a shadow into the view
     // big world: past that reach a cell may show its cheap far version instead (zone3d.js), out to farR when the view
     // reaches that far (dev.farR: drivers' long views; flight sets its own, below)
-    const farR = dev.farR != null ? dev.farR : (flightView ? flightView.farR : 0);
+    const farR = dev.farR != null ? dev.farR : (flightView ? flightView.farR : hpose ? hpose.farR : 0);
     // (a warm-up behind the card draws everything it uploads: the whole small place, or a big zone's first part)
     const warmR = shown.more ? 170 : 1e6;
-    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? warmR : (dev.cullR || (flightView ? flightView.cullR : 80)), farR);
+    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? warmR : (dev.cullR || (flightView ? flightView.cullR : hpose ? hpose.cullR : 80)), farR);
     dev.far = shown.lastCull ? shown.lastCull.far : 0;
-    actors.sync(prevSnap, snap, alpha, view.zone, now, fx3.screen.hitstop > 0 ? dt * 0.25 : dt, fx3, focus, (14 + 18 / (view.zoom || 1)) * distK, inView);
+    actors.sync(prevSnap, snap, alpha, view.zone, now, fx3.screen.hitstop > 0 ? dt * 0.25 : dt, fx3, focus, hpose ? 32 + 50 * hpose.low : (14 + 18 / (view.zoom || 1)) * distK, inView);
     const me = view.followId != null ? actors.get(view.followId) : null;
     rideKites(snap, view, now, rdt);
     // the zones next door are built in the background (one at a time) once the shown one is up, so a step through
@@ -785,7 +816,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const head = new THREE.Vector3(p.x, p.y + a.height, p.z);
       const [hx, hy] = toDev(head);
       const g = devToGround(hx, hy);
-      const h2 = g ? Math.max(4, (p.z - g.z) * PX) : 24;
+      // (horizon camera: the ground under the head says nothing once the camera turns or looks level; a fixed 1 m = 16 px)
+      const h2 = hpose ? a.height * PX : g ? Math.max(4, (p.z - g.z) * PX) : 24;
       const [rx] = toDev(v3.set(p.x + 0.45, p.y, p.z));
       anchors.set(a.id, { x: Math.round(p.x * PX), y: Math.round(p.z * PX), h: Math.round(h2), dev: { fx, fy, hx, hy, hw: Math.max(10, Math.abs(rx - fx)), z: fz }, a });
     }

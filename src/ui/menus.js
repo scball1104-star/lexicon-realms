@@ -648,6 +648,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   slider('Music volume', 'music');
   slider('Effects volume', 'sfx');
   // on a phone the choices go under the touch notes (left column) so nothing meets the bottom buttons
+  const ySound = y;              // under the sliders (a phone's right column has room there)
   let cx = ox, cw = ow;
   if (touch) { cx = kx; cw = 250; y = r.y + 46 + 5 * 12 + 8; }
   const choice = (label, key, vals, names) => {
@@ -665,6 +666,8 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   choice('Effects', 'fx', ['low', 'high'], ['Low', 'High']);
   choice('Screen shake', 'shake', [true, false], ['On', 'Off']);
   choice('Graphics (reloads)', 'r3d', [false, true], ['2D', '3D preview']);
+  if (touch) { cx = ox; cw = ow; y = ySound; }   // the left column is full on a phone
+  choice('Camera (3D)', 'cam', ['fixed', 'horizon'], ['Fixed', 'Horizon']);   // wave 5b prototype
   // ---- bottom buttons
   const bh = Math.max(16, env.L.minHit || 0);
   const by = r.y + r.h - bh - 8;
