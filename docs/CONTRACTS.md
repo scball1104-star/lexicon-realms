@@ -1551,3 +1551,21 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `upperarm_*`, `pelvis`, `spine_03`, all one skinned mesh per material) and the library clips (idle, walk, jog, attack,
   hit, death). Ghosts: see-through body, legs hidden under the kit hem, a depth-only pass first. Body `family: 'human'`
   (actors.js detach keeps its shared glTF geometry). If its files fail, createCreature falls back to the kit body.
+
+## The ground kit: ground, grass and town dressing (wave 5 Track B, 2026-11-24; Scott approved the stills: "Yes")
+
+- **Switch.** On at desktop quality only: `quality.ground` (renderer3d.js) is `!low && ?ground != off`. Low quality,
+  phones (touch) and `?ground=off` keep today's ground exactly; dungeons and caves never use it. `kitOn(quality)`.
+- **Plan (pure).** `src/render3d/ground_plan.js`: `groundMasks(zone, terr)` per tile (class, plaza, grass, flat weight)
+  from the tile map the sim uses; `heightField` gentle visual-only mounds (at most 0.55 m), 0 on and near roads,
+  squares, water, cliffs, every decor footprint, NPCs, lanterns, nodes, doors, joins, realm props and towns;
+  `grassChunk` deterministic clumps and flower patches; `planSquare(zone, terr, tilesDb)` the dressing of the five
+  start-realm squares (`START_TOWNS`). The sim, its collision and its flat 20 Hz world never change.
+- **Height contract.** `setGroundY(fn)` / `groundY(x, z)`: renderer3d.js sets the shown zone's height (`z.groundY`);
+  `actors.js` stands every body on it (flying stays FLY_H), the target ring and telegraphs sit on it. Flat (0) when off.
+- **Kit (three).** `src/render3d/ground_kit.js` `createGroundKit(zone, { terr, quality, place, tilesDb })` -> null when
+  off, else `{ geometry(), material(mat), cobbles, h, tree(), dress(B, lamp), attach(group), cull(x, z), dispose() }`;
+  `tickGround(t)` the wind clock. zone3d.js calls it through guarded hook lines (`kit ? ... : today`).
+- **Dressing rule.** A square prop stands only on open floor of the square, never within its radius of a point of
+  interest, never within 1 of the shortest walk from the town lantern to any point or way out, never on or by a decor
+  piece; with every prop treated as solid no walk gets longer (`qa/tests/ground_kit.test.mjs`). Props are visual only.

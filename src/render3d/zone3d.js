@@ -26,6 +26,7 @@ import { regionInfo, underAt } from '../data/maps/compose.js';
 import { buildPlaceWalls, buildDoorMouths, cutMat, doorAt, dressPlace } from './dungeon3d.js';
 import { dungeonPlan, isPlaceZone } from '../render/dungeon_plan.js';
 import { buildRealm3d } from './realm3d.js';   // wave 3: the start realms' props, lava crossings and tide water
+import { createGroundKit } from './ground_kit.js';   // wave 5 ground kit: hills, cobbles, grass, square dressing (desktop only)
 
 const CH = 48;   // chunk size (m): the town is one chunk, the big fields a few
 // Instanced models (trees, rocks, grass and the like) in a big zone (the one world, 296 x 196 m) go in 16 m chunks
@@ -600,7 +601,7 @@ function barrowMound(x, z, w) {
 
 /** Ground dressing from the tile data: grass clumps on open grass, pebbles, ferns and small stones along road edges.
  *  All of it is small and low (never reads as a blocker) and keeps off decor footprints, water, cliffs and fences. */
-async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain, inPart = null, busy0 = null }) {
+async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain, inPart = null, busy0 = null, gy = null }) {
   // busy0: the same mask from an earlier part of this zone's build (big zones build near the hero first, buildZone)
   const busy = busy0 || new Uint8Array(W * H);
   const mark = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) busy[y * W + x] = 1; };
@@ -613,7 +614,7 @@ async function dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, is
   const isRoad = (x, y) => x >= 0 && y >= 0 && x < W && y < H && CLASS[terr[y][x]] === 1;
   const [grass, wisp, peb1, peb3, fern, rock] = await Promise.all(['nature/Grass_Common_Short.gltf', 'nature/Grass_Wispy_Tall.gltf', 'nature/Pebble_Round_1.gltf', 'nature/Pebble_Round_3.gltf', 'nature/Fern_1.gltf', 'nature/Rock_Medium_2.gltf'].map((u) => P(u)));
   const hOf = (pr) => Math.max(0.05, pr.box.max.y - pr.box.min.y);
-  const put = (pr, x, z, h, ry, tint = null) => { const k = h / hOf(pr); B.instance(pr, M4(x, -pr.box.min.y * k, z, ry, k), { tint, cast: false, small: true }); };
+  const put = (pr, x, z, h, ry, tint = null) => { const k = h / hOf(pr); B.instance(pr, M4(x, -pr.box.min.y * k + (gy ? gy(x, z) : 0), z, ry, k), { tint, cast: false, small: true }); };
   const dense = quality.grass ? 1 : 0.35;     // phones: a third of the dressing
   // the moor's paler dressing goes by area (one world: zone.regions), so it stops at the moor's edge
   const moorZone = /moor/.test(zone.id) || zone.under === 'x1_moor_turf';
@@ -775,7 +776,9 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   }
   const gtex = paintGround(zone, terrainAt, wear, shade);
   const gmat = groundMaterial(gtex, W, H);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(W, H), gmat);
+  const kit = createGroundKit(zone, { terr, quality, place, tilesDb });   // null at Low quality: today's ground exactly
+  if (kit) { kit.material(gmat); kit.attach(group); }
+  const ground = new THREE.Mesh(kit ? kit.geometry() : new THREE.PlaneGeometry(W, H), gmat);
   ground.rotation.x = -Math.PI / 2; ground.position.set(W / 2, 0, H / 2); ground.receiveShadow = true;
   group.add(ground);
   const apronMap = groundDetail().grass.clone(); apronMap.repeat.set((W + 160) / 2, (H + 160) / 2); apronMap.needsUpdate = true;
@@ -852,7 +855,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     const plankK = 1 / Math.max(0.01, plank.box.max.x - plank.box.min.x);
     for (let y = 0; y < H; y++) {
       if (!inPart.row(y)) continue;
-      for (let x = 0; x < W; x++) if ((terr[y][x] === 'plaza' || terr[y][x] === 'lr_dfloor') && inPart(x, y)) B.instance(cob, M4(x + 0.5, 0.0, y + 0.5, Math.floor(hashXY(x, y) * 4) * Math.PI / 2, cobK, 1, cobK), { cast: false, tint: terr[y][x] === 'lr_dfloor' ? '#8a8078' : roots ? '#b0a890' : null });
+      for (let x = 0; x < W; x++) if ((terr[y][x] === 'plaza' ? !(kit && kit.cobbles) : terr[y][x] === 'lr_dfloor') && inPart(x, y)) B.instance(cob, M4(x + 0.5, 0.0, y + 0.5, Math.floor(hashXY(x, y) * 4) * Math.PI / 2, cobK, 1, cobK), { cast: false, tint: terr[y][x] === 'lr_dfloor' ? '#8a8078' : roots ? '#b0a890' : null });
     }
     for (const o of zone.overlays || []) {
       if (!inPart(o.x, o.y)) continue;
@@ -911,7 +914,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       const pr = await P(url);
       const bh = Math.max(0.05, pr.box.max.y - pr.box.min.y);
       const k = h ? h / bh : s;
-      const m = M4(x, y - pr.box.min.y * k, z, ry, k * xz, sy != null ? sy * k : k, k * xz);
+      const m = M4(x, y - pr.box.min.y * k + (kit ? kit.h(x, z) : 0), z, ry, k * xz, sy != null ? sy * k : k, k * xz);
       if (merge) B.mergeModel(pr, m, { tint }); else B.instance(pr, m, { tint, tintMatch, cast, small });
     };
     const jobs = [];
@@ -960,7 +963,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
         B.instance(pr, M4(d.x + 0.5, 0, d.y + 0.5, r(3) * 6.28, wk, roots ? k * 1.6 : k, wk));
         farAdd(FAR_CONE, roots ? '#3a2a1a' : '#2a4a20', d.x + 0.5, d.y + 0.5, wk * 0.9, roots ? k * 1.6 : k, wk * 0.9);
       }
-      else if (t === 'tree_pine') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel(tree.pine[Math.floor(r(1) * 5)], d.x + 0.5, d.y + 0.6, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28 })); farAdd(FAR_CONE, '#2e5222', d.x + 0.5, d.y + 0.6, dm.h * 0.8, dm.h, dm.h * 0.8); }
+      else if (t === 'tree_pine') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel((kit && kit.tree(t, d.x, d.y, edgeCell(zone, d.x, d.y), underAt(zone, d.x, d.y))) || tree.pine[Math.floor(r(1) * 5)], d.x + 0.5, d.y + 0.6, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28 })); farAdd(FAR_CONE, '#2e5222', d.x + 0.5, d.y + 0.6, dm.h * 0.8, dm.h, dm.h * 0.8); }
       else if (t === 'tree_willow') { const dm = treeDims(t, d.x, d.y, edgeCell(zone, d.x, d.y)); jobs.push(placeModel('nature/TwistedTree_1.gltf', cx, d.y + 0.5, { h: dm.h, xz: dm.xz, ry: r(3) * 6.28, tint: '#d8f0b0', tintMatch: /Leaves/ })); farAdd(FAR_CONE, '#4a6a2a', cx, d.y + 0.5, dm.h * 1.1, dm.h, dm.h * 1.1); }
       else if (t === 'root_column' && d.line && roots) {
         // the root walls' tree line: the cheap code-built root mass (a twisted kit tree is about 1,400 triangles a piece)
@@ -1029,6 +1032,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       if (!ln.post || !inPart(ln.post[0], ln.post[1])) continue;
       const lp = lampPost(ln.post[0] + 0.5, ln.post[1] + 0.5); B.mergeGroup(lp.g); lamp({ pos: lp.light, color: roots ? '#bcd8ff' : '#ffc46b', k: 1.2 });
     }
+    if (kit && pi === 0) kit.dress(B, lamp);   // a start-realm square's stalls, carts, barrels, lamps (ground_kit.js)
     // small ground dressing: flowers, tufts, tall grass (desktop quality only)
     if (quality.grass) {
       for (const o of zone.overlays || []) {
@@ -1049,7 +1053,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       await Promise.all(jobs.splice(0));
     }
     await step();
-    if (!place) busy = await dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain, inPart: big ? inPart : null, busy0: busy });
+    if (!place) busy = await dressGround({ zone, terr, legendAt, W, H, P, B, quality, step, isTerrain, inPart: big ? inPart : null, busy0: busy, gy: kit ? kit.h : null });
     if (pi === 0) report(0.8);
     await step();
     const fin = await B.finish(step);
@@ -1085,11 +1089,12 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const halo = { set opacity(v) { for (const m of haloMats) m.opacity = v; } };
   let lastCull = null;
   const z = {
-    group, lamps, halo, calls, buildings, town, place, kind: zone.kind || null, stats, done: radii.length === 1, more: null,
+    group, lamps, halo, calls, buildings, town, place, kind: zone.kind || null, stats, done: radii.length === 1, more: null, kit, groundY: kit ? kit.h : null,
     /** Show only the cells within r m of (x, z) (ground, water and halos always draw); past r and within farR, the
      *  cell's far version. Small props are off past SMALL_R. Returns the full cells shown. */
     cull(x, zz, r, farR = 0) {
       let n = 0, nf = 0;
+      if (kit) kit.cull(x, zz);       // the ground kit's grass round the focus
       for (const c of cells) {
         const d = Math.hypot(x - c.x, zz - c.z);
         c.g.visible = d - c.r < r;
@@ -1111,7 +1116,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       cancelled = true;
       for (const bb of buildings) setBuildingFade(bb.id, 0);
       group.traverse((m) => { if (((m.isMesh && !m.isInstancedMesh) || m.isPoints) && m.geometry) m.geometry.dispose(); });
-      gtex.color.dispose(); gtex.weights.dispose(); apronMap.dispose(); if (waterTex) waterTex.dispose();
+      gtex.color.dispose(); gtex.weights.dispose(); apronMap.dispose(); if (waterTex) waterTex.dispose(); if (kit) kit.dispose();
     },
   };
   if (radii.length > 1) {
