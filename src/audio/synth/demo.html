@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Realms Synth Demo</title>
+<style>
+  :root { --bg: #f4f1ea; --fg: #222; --btn: #2d4a6b; --btnfg: #fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1b1d22; --fg: #e8e6e1; --btn: #4d7aa8; --btnfg: #fff; } }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; }
+  button { background: var(--btn); color: var(--btnfg); border: 0; border-radius: 6px; padding: 8px 12px; margin: 4px; font: inherit; cursor: pointer; }
+  #log { white-space: pre-wrap; font: 13px/1.4 ui-monospace, monospace; }
+</style>
+</head>
+<body>
+<h1>Realms synth prototype</h1>
+<p>Not wired into the game. Play the three approval clips live, or render them (the QA script does this headless).</p>
+<div>
+  <button data-clip="willowmere_day">Willowmere day (rises to combat)</button>
+  <button data-clip="willowmere_night">Willowmere night</button>
+  <button data-clip="sfx_montage">Sound effects</button>
+</div>
+<div id="log"></div>
+<script type="module">
+import { CLIPS } from './clips.js';
+
+const log = (s) => { document.getElementById('log').textContent += s + '\n'; };
+const SR = 44100;
+
+function analyse(chs) {
+  let peak = 0, sum = 0, n = 0;
+  for (const d of chs) for (let i = 0; i < d.length; i++) { const v = Math.abs(d[i]); if (v > peak) peak = v; sum += d[i] * d[i]; n++; }
+  // RMS over 400 ms windows above -50 dBFS (so the gaps in the montage do not drag it down)
+  const win = Math.floor(SR * 0.4); let as = 0, an = 0;
+  for (let s = 0; s + win <= chs[0].length; s += win) {
+    let w = 0; for (const d of chs) for (let i = s; i < s + win; i++) w += d[i] * d[i];
+    w /= win * chs.length;
+    if (w > 1e-5) { as += w; an++; }
+  }
+  return { peak, rms: Math.sqrt(sum / n), activeRms: an ? Math.sqrt(as / an) : 0 };
+}
+
+const db = (v) => (v > 0 ? 20 * Math.log10(v) : -999);
+
+/** Render a clip offline, normalise it, return 16-bit interleaved PCM as base64 plus stats. */
+window.renderClip = async (name, { targetRmsDb = -18, ceilingDb = -1 } = {}) => {
+  const c = CLIPS[name];
+  const sec = c.seconds();
+  const ctx = new OfflineAudioContext(2, Math.ceil(sec * SR), SR);
+  const t0 = performance.now();
+  const S = c.build(ctx);
+  const tBuild = performance.now() - t0;
+  const buf = await ctx.startRendering();
+  const tRender = performance.now() - t0 - tBuild;
+  const chs = [buf.getChannelData(0), buf.getChannelData(1)];
+  const raw = analyse(chs);
+  const gRms = Math.pow(10, targetRmsDb / 20) / (raw.activeRms || 1);
+  const gPeak = Math.pow(10, ceilingDb / 20) / (raw.peak || 1);
+  const g = Math.min(gRms, gPeak);
+  // fade the last 0.5 s so no tail is cut
+  const fadeN = Math.floor(SR * 0.5), L = chs[0].length;
+  for (const d of chs) for (let i = 0; i < L; i++) { let v = d[i] * g; if (i > L - fadeN) v *= (L - i) / fadeN; d[i] = v; }
+  const out = analyse(chs);
+  const pcm = new Int16Array(L * 2);
+  for (let i = 0; i < L; i++) for (let k = 0; k < 2; k++) { const v = Math.max(-1, Math.min(1, chs[k][i])); pcm[i * 2 + k] = Math.round(v * 32767); }
+  const bytes = new Uint8Array(pcm.buffer);
+  let bin = ''; const CH = 0x8000;
+  for (let i = 0; i < bytes.length; i += CH) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
+  return {
+    name, sr: SR, seconds: L / SR, buildMs: Math.round(tBuild), renderMs: Math.round(tRender),
+    raw: { peakDb: db(raw.peak), rmsDb: db(raw.rms), activeRmsDb: db(raw.activeRms) },
+    gainDb: db(g), limitedBy: gPeak < gRms ? 'peak' : 'rms',
+    out: { peakDb: db(out.peak), rmsDb: db(out.rms), activeRmsDb: db(out.activeRms) },
+    stats: { notes: S.stats.notes, nodes: S.stats.nodes, peakVoices: S.stats.peakVoices },
+    marks: S.marks || null,
+    pcm: btoa(bin),
+  };
+};
+
+/** Decode check: does the browser decode these bytes (WAV or MP3), and what comes out. */
+window.decodeCheck = async (b64) => {
+  const bin = atob(b64); const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  const ctx = new OfflineAudioContext(2, SR, SR);
+  const b = await ctx.decodeAudioData(u.buffer);
+  const a = analyse([b.getChannelData(0), b.numberOfChannels > 1 ? b.getChannelData(1) : b.getChannelData(0)]);
+  return { seconds: b.duration, channels: b.numberOfChannels, sr: b.sampleRate, peakDb: db(a.peak), rmsDb: db(a.rms) };
+};
+
+// live playback for a person at the page
+let live = null;
+for (const btn of document.querySelectorAll('button[data-clip]')) {
+  btn.onclick = async () => {
+    if (live) { live.close(); live = null; }
+    const name = btn.dataset.clip;
+    log('rendering ' + name + ' ...');
+    const r = await window.renderClip(name);
+    const bin = atob(r.pcm); const pcm = new Int16Array(bin.length / 2);
+    for (let i = 0; i < pcm.length; i++) pcm[i] = (bin.charCodeAt(i * 2) | (bin.charCodeAt(i * 2 + 1) << 8)) << 16 >> 16;
+    live = new AudioContext({ sampleRate: SR });
+    const buf = live.createBuffer(2, pcm.length / 2, SR);
+    for (let k = 0; k < 2; k++) { const d = buf.getChannelData(k); for (let i = 0; i < d.length; i++) d[i] = pcm[i * 2 + k] / 32767; }
+    const s = live.createBufferSource(); s.buffer = buf; s.connect(live.destination); s.start();
+    log(`${name}: ${r.seconds.toFixed(1)} s, peak ${r.out.peakDb.toFixed(1)} dBFS, rendered in ${r.renderMs} ms`);
+  };
+}
+window.__synthReady = true;
+</script>
+</body>
+</html>
