@@ -64,6 +64,7 @@ import { skyTier } from './sky_rig.js';
 import { horizonPose, H_PITCH, H_PITCH_LITE } from './horizon_cam.js';   // wave 5b: the optional horizon camera (view.cam)
 import { createTurntable } from './turntable.js';   // wave 6: the creation screen's 3D hero (view.stage)   // wave 5b: the optional horizon camera (view.cam)
 import { createTalkCam } from './talk_cam.js';   // wave 6 quest scenes: the talk camera (view.talk)
+import { bossFrame } from './boss_cam.js';   // wave 6: the boss intro push-in (view.bossCam, src/ui/boss_card.js)
 import { tickGround } from './ground_kit.js';   // wave 5 ground kit: the grass wind clock
 import { groundY, setGroundY } from './ground_plan.js';   // the shown zone's visible ground height (gentle hills)
 
@@ -261,6 +262,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   let camK = null, camT = 0;     // camera blend: 0 field, 1 town (eased in real time)
   const talkCam = createTalkCam();
   let talkHide = false;          // quest scenes: no door labels over a talk
+  let bossLabelsOff = false;     // wave 6: the door labels hide while the boss intro card is up
   const focus = new THREE.Vector3();
   const frustum = new THREE.Frustum(), projView = new THREE.Matrix4(), sph = new THREE.Sphere();
   /** Is a body (feet at p, h m tall) in or near the view? A margin keeps edge bodies and their shadows in. */
@@ -765,6 +767,9 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (dev.camLift != null) target.y += dev.camLift;
     const fov = dev.fov || (fv ? fv.fov : tcm ? tcm.fov : hpose ? hpose.fov : FOV);
     if (camera.fov !== fov) { camera.fov = fov; camera.updateProjectionMatrix(); }
+    // wave 6: the boss intro card's push-in (boss_cam.js); view.bossCam null: today's camera, and the door labels show
+    bossLabelsOff = !!(view.bossCam && view.bossCam.k > 0);
+    if (view.bossCam && !fv) { const bf = bossFrame(view.bossCam, { tx: target.x, ty: target.y, tz: target.z, pitch: pitchC, dist, bx, bz, fov, aspect: camera.aspect, gy: groundY }); target.set(bf.tx, bf.ty, bf.tz); pitchC = bf.pitch; dist = bf.dist; }
     const hz = dist * Math.cos(pitchC);
     camera.position.set(target.x + bx * hz, target.y + dist * Math.sin(pitchC), target.z + bz * hz);
     if (hpose) camera.position.y = Math.max(camera.position.y, groundY(camera.position.x, camera.position.z) + 0.35);   // never under a hill
@@ -946,7 +951,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   function drawHud(fn) {
     if (fallback) return fallback.drawHud(fn);
     hctx.clearRect(0, 0, layout.hudW, layout.hudH);
-    if (!trans && !talkHide) drawDoorLabels();
+    if (!trans && !talkHide && !bossLabelsOff) drawDoorLabels();   // hidden over a talk and under the boss intro card (wave 6)
     fn(hctx, layout);
     // loading line (over the title too, so the title never looks frozen while the 3D world loads)
     if (!state.ready || !shown) {

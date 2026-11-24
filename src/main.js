@@ -273,6 +273,20 @@ async function boot() {
     renderer.drawHud = (fn) => { drawHud1((c, l) => { fn(c, l); }); if (!renderer.loadingCard || !renderer.loadingCard.active) tv.draw(canvas.getContext('2d'), renderer, snap, playerId); };
   }
 
+  // ---- BEGIN boss intro card (wave 6, bosscard lane; src/ui/boss_card.js, src/render3d/boss_cam.js) ----
+  // The first pull of each boss per run: a card for about 2.5 s and a short push-in (render and UI only, no input, never
+  // pauses). Settings "Quest scenes" Off: no card (read as !== false, so it is on before the option exists).
+  {
+    const { createBossCard } = await import('./ui/boss_card.js');
+    const bc = createBossCard({ content, zoneNames: content.zoneNames });
+    bus.on('*', (ev) => bc.onEvent(ev, { snap, playerId, enabled: ui.options.questScenes !== false }));
+    const draw0 = renderer.draw;
+    renderer.draw = (p, s, a, v) => { v.bossCam = bc.frame(v.time || 0, s, playerId); return draw0(p, s, a, v); };
+    ui.bossCard = (ctx, g, L, t) => bc.draw(ctx, g, L, t);
+    renderer.bossCard = bc;
+  }
+  // ---- END boss intro card ----
+
   /** Quest marks over npc heads, in HUD px (the sim's npcMarkers + where the renderer drew each npc). */
   function worldMarks() {
     const h = snap.hud && playerId != null ? snap.hud[playerId] : null;
