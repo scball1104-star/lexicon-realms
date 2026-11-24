@@ -102,7 +102,7 @@ def run():
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
         cdp = ctx.new_cdp_session(page)
         ph = Phone(page, cdp)
-        page.goto(BASE + '?dev=1', timeout=30000)
+        page.goto(BASE + '?dev=1' + os.environ.get('REALMS_QS', ''), timeout=30000)   # REALMS_QS='&text=normal': the other text size
         page.wait_for_function('window.__realms && (window.__realms.ready || window.__realms.error)', timeout=30000)
         page.evaluate(DRV)
         assert page.evaluate('window.__realms.ui.state.metrics.touch'), 'phone HUD on'

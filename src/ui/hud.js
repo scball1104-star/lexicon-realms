@@ -63,7 +63,8 @@ export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360 } = {
   const footLines = tip.foot ? g.wrap(tip.foot, w - 14) : [];
   const deltaLines = [];
   for (const d of tip.delta || []) for (const ln of g.wrap(d.text, w - 14)) deltaLines.push({ text: ln, color: d.color });
-  const h = 8 + 16 + subLines.length * 11 + (numLines.length ? 2 + numLines.length * 11 : 0) + (bodyLines.length ? 2 + bodyLines.length * 11 : 0) + (footLines.length ? 4 + footLines.length * 11 : 0) + (deltaLines.length ? 3 + deltaLines.length * 11 : 0) + 6;
+  const lh = g.lh;   // 11, or 16 with Large text (gfx.js g.big, wave 6 uiskin)
+  const h = 8 + 16 + subLines.length * lh + (numLines.length ? 2 + numLines.length * lh : 0) + (bodyLines.length ? 2 + bodyLines.length * lh : 0) + (footLines.length ? 4 + footLines.length * lh : 0) + (deltaLines.length ? 3 + deltaLines.length * lh : 0) + 6;
   let tx = Math.round(x), ty = Math.round(y);
   if (tx + w > W - 2) tx = x - 16 - w;
   if (tx + w > W - 2) tx = W - 2 - w;
@@ -74,16 +75,25 @@ export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360 } = {
   g.text(ctx, g.clip(tip.title || '', w - 14 - rw, true), tx + 7, ty + 5, tip.titleColor || 'gold', { large: true });
   if (tip.right) g.text(ctx, tip.right, tx + w - 7, ty + 8, 'cream', { align: 'right' });
   let yy = ty + 22;
-  for (const ln of subLines) { g.text(ctx, ln, tx + 7, yy, 'gray'); yy += 11; }
+  for (const ln of subLines) { g.text(ctx, ln, tx + 7, yy, 'gray'); yy += lh; }
   if (numLines.length) yy += 2;
-  for (const ln of numLines) { g.text(ctx, ln, tx + 7, yy, 'cream'); yy += 11; }
+  for (const ln of numLines) { g.text(ctx, ln, tx + 7, yy, 'cream'); yy += lh; }
   if (bodyLines.length) yy += 2;
-  for (const ln of bodyLines) { g.text(ctx, ln, tx + 7, yy, 'white'); yy += 11; }
+  for (const ln of bodyLines) { g.text(ctx, ln, tx + 7, yy, 'white'); yy += lh; }
   if (footLines.length) yy += 4;
-  for (const ln of footLines) { g.text(ctx, ln, tx + 7, yy, tip.footColor || 'green'); yy += 11; }
+  for (const ln of footLines) { g.text(ctx, ln, tx + 7, yy, tip.footColor || 'green'); yy += lh; }
   if (deltaLines.length) yy += 3;
-  for (const d of deltaLines) { g.text(ctx, d.text, tx + 7, yy, d.color || 'green'); yy += 11; }
+  for (const d of deltaLines) { g.text(ctx, d.text, tx + 7, yy, d.color || 'green'); yy += lh; }
   return { x: tx, y: ty, w, h };
+}
+
+/** The tracker rows that fit (pure, ui tests): row heights grow with the line height (`ls`: gfx.js g.ls, Large text), and
+ *  the line cap shrinks to the same height a Normal tracker takes, so a Large tracker never reaches lower on the screen. */
+export function trackerFit(rows, maxLines, ls = (n) => n) {
+  const grow = ls(11) - 11;
+  const cap = grow ? Math.max(1, Math.floor((maxLines * 11) / ls(11))) : maxLines;
+  const out = rows.length > cap + 1 ? rows.slice(0, cap).concat([{ kind: 'more', text: '...', h: 11 }]) : rows;
+  return out.map((r) => ({ ...r, h: ls(r.h) }));
 }
 
 export function createHud(env) {
@@ -232,9 +242,9 @@ export function createHud(env) {
     let rows = trackerRows(m.tracked, T.w, (s, w) => g.wrap(s, w), (s) => g.textW(s), L.touch ? { areas: true, compact: true, maxQuests: 3, selected: m.selectedQuest } : { areas: true });
     const collapsed = L.touch && st.trackerCollapsed;
     if (collapsed) rows = rows.slice(0, 1);
-    const maxLines = T.maxLines;
-    if (rows.length > maxLines + 1) rows = rows.slice(0, maxLines).concat([{ kind: 'more', text: '...', h: 11 }]);
+    rows = trackerFit(rows, T.maxLines, (n) => g.ls(n));
     const h = 4 + rows.reduce((s, r) => s + r.h, 0) + 4;
+    const up = g.big ? 3 : 0;          // Large text: the marks sit lower on the taller rows
     const faded = (fade || []).some((u) => hit(u, { x: T.x, y: T.y, w: T.w, h }));
     if (faded) ctx.globalAlpha = 0.3;
     g.scrim(ctx, T.x, T.y, T.w, h, 140);
@@ -249,7 +259,7 @@ export function createHud(env) {
         // "a quest to take" everywhere else, CRITIQUE_1 item 11+)
         // the selected quest (the one the map and the gold arrow follow) has a gold bullet
         const isSel = row.id && row.id === m.selectedQuest;
-        if (row.kind === 'quest') { if (row.done) drawQuestMark(ctx, '?', T.x + 9, y + 10); else { g.rect(ctx, T.x + 6, y + 3, 5, 5, '#14101e'); g.rect(ctx, T.x + 7, y + 4, 3, 3, isSel ? '#ffd23a' : '#d8c8a0'); } }
+        if (row.kind === 'quest') { if (row.done) drawQuestMark(ctx, '?', T.x + 9, y + 10 + up); else { g.rect(ctx, T.x + 6, y + 3 + up, 5, 5, '#14101e'); g.rect(ctx, T.x + 7, y + 4 + up, 3, 3, isSel ? '#ffd23a' : '#d8c8a0'); } }
         const col = row.kind === 'area' ? 'dim' : row.kind === 'obj' ? (row.done ? 'green' : 'gray') : row.done ? 'green' : 'white';
         g.text(ctx, row.text, T.x + (row.kind === 'obj' || row.kind === 'area' ? 27 : 19), y, col);
         if (row.right) g.text(ctx, row.right, T.x + T.w - 5, y, 'green', { align: 'right' });
@@ -346,7 +356,7 @@ export function createHud(env) {
       ls.forEach((t, i) => wrapped.push({ text: t, ch: l.ch, cont: i > 0 }));
     }
     const shown = wrapped.slice(-n);
-    const h = 4 + 11 * shown.length + 2;
+    const h = 4 + g.lh * shown.length + 2;
     const y0 = C.bottom - h;
     // the player or the target under the log: the log fades to near-clear so the fight shows (CRITIQUE_1 item 3)
     const box = { x: C.x, y: y0, w: C.w, h };
@@ -354,7 +364,7 @@ export function createHud(env) {
     st.chatFade = (st.chatFade || 0) + ((faded ? 1 : 0) - (st.chatFade || 0)) * 0.2;
     if (st.chatFade > 0.02) ctx.globalAlpha = Math.round((1 - 0.75 * st.chatFade) * 20) / 20;
     g.scrim(ctx, C.x, y0, C.w, h, C.passive ? 90 : 130);
-    shown.forEach((l, i) => g.text(ctx, l.text, C.x + 4 + (l.cont ? 6 : 0), y0 + 2 + i * 11, CH_COLOR[l.ch] || 'white'));
+    shown.forEach((l, i) => g.text(ctx, l.text, C.x + 4 + (l.cont ? 6 : 0), y0 + 2 + i * g.lh, CH_COLOR[l.ch] || 'white'));
     if (st.chatScroll > 0) g.text(ctx, `+${st.chatScroll}`, C.x + C.w - 4, y0 + 2, 'dim', { align: 'right' });
     ctx.globalAlpha = 1;
     // a faded log lets clicks through to the fight under it
@@ -448,6 +458,9 @@ export function createHud(env) {
     draw(ctx, m, L, st, opts = {}) {
       const regions = [];
       if (!m.player) return regions;
+      // Text size (wave 6 uiskin): the tracker and chat take it on desktop; a phone's play layer is already drawn at the
+      // big legible scale (>= 1.5 css px per HUD px, ui.test), so Large there would cover the play area
+      const sized = (fn) => (L.touch ? fn() : g.textScope(fn));
       if (L.touch) chat(ctx, L, opts.log || [], st, regions, opts.fade);
       const party = m.party || [];
       const act = opts.act || null;
@@ -461,11 +474,11 @@ export function createHud(env) {
       if (L.buffs) buffRow(g, ctx, L.buffs.x, L.buffs.y, m.myAuras, regions);
       if (m.target) { targetFrame(ctx, L, m.target); regions.push({ rect: L.target, kind: 'target' }); groupTarget(ctx, L, m, regions, act); }
       minimap(ctx, L, m.minimap, m.zone && m.zone.name, regions);
-      tracker(ctx, L, m, st, regions, opts.fade);
+      sized(() => tracker(ctx, L, m, st, regions, opts.fade));
       if (!L.touch) {
         L.bar.forEach((r, i) => slot(ctx, r, m.bar[i], opts.keyLabels ? opts.keyLabels[i] : String(i + 1), regions, { drop: !!(st.barPick || st.itemDrag) }));
         if (st.barPick || st.itemDrag) for (const r of L.bar) g.outline(ctx, r.x - 1, r.y - 1, r.x + r.w, r.y + r.h, '#ffd34d');
-        chat(ctx, L, opts.log || [], st, regions, opts.fade);
+        sized(() => chat(ctx, L, opts.log || [], st, regions, opts.fade));
       }
       if (m.castBar) castBar(ctx, L, m.castBar);
       xpBar(ctx, L, m.player);

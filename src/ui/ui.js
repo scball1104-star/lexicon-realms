@@ -37,6 +37,7 @@ import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
 import { START_REALMS } from '../data/rootbound.js';   // big world: the welcome line of a hero who starts in a realm
 import { createUiSounds } from '../audio/ui_sounds.js';   // menu sounds (pure observer; hooks.sound plays them)
+import { applySkin, skinFromOptions, textSizeFrom } from './skin.js';   // wave 6 uiskin: Lantern and Vellum, text size
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -44,11 +45,14 @@ const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
 export async function createUI({ canvas, font, zones, zoneNames = {}, storage = null, touch = false, hooks = {}, demo = null }) {
   const art = await loadUiArt({ font });
   const g = createGfx(art);
+  // window style and text size (wave 6 uiskin, src/ui/skin.js): Settings rows; ?skin= and ?text= in the link override them
+  const skinQ = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
   const charArt = createCharArt(art);
   const mapBook = createMinimapBook(zones);
   const hud = createHud({ g, charArt, mapBook });
   const store = createCharStore(storage);
   let options = loadOptions(storage);
+  applySkin(g, art, skinFromOptions(options, skinQ));
   const scratchC = document.createElement('canvas');
   const scratch = (w, h) => { if (scratchC.width < w || scratchC.height < h) { scratchC.width = w; scratchC.height = h; } return scratchC; };
   const zoneList = Object.keys(zones).map((id) => ({ id, name: zoneNames[id] || id }));
@@ -304,6 +308,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (key === 'zoom') { options.zoomSet = true; saveOptions(storage, options); if (hooks.setZoom) hooks.setZoom(v); }
       if (hooks.optionsChanged) hooks.optionsChanged(options);
       if (key === 'r3d' && hooks.setGraphics) hooks.setGraphics(v);
+      if (key === 'skin') applySkin(g, art, skinFromOptions(options, skinQ));
     },
     logout() {
       saveProgress();
@@ -373,12 +378,15 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   /** Where the 640x360 design sits on this layer (0, 0 on a 640x360 one): desktop prompts keep their design spots. */
   const dOrg = (L) => (L.touch ? { x: 0, y: 0 } : designOrigin(L.W, L.H));
 
+  /** Text size scope for cards and prompts: everywhere but a phone's play layer, which is already the big legible scale. */
+  const sizeScope = (fn) => (st.metrics.touch && hudMode() === 'big' ? fn() : g.textScope(fn));
   function draw(ctx, vm, snap, t) {
     st.now = t;
     uiSnd.frame(st);
     lastSnap = snap;
     const L = layoutNow();
     st.layer = { W: L.W, H: L.H };
+    g.setTextSize(textSizeFrom(options, st.metrics.touch, skinQ));   // Large by default on a phone, Normal on PC
     // big world: the hero's known flight points (the world map lights them, menus.js drawMap)
     const meS = snap && playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
     const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, zoneKind: (id) => (zones[id] || {}).kind, flights: (meS && meS.flights) || [] };
@@ -410,10 +418,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player) {
         if (st.levelUp) drawLevelUp(ctx, L, t);
         // the npc window is a 640x360 design on desktop (centred on a wide layer), the phone's own on a phone
-        if (st.dialog) { if (L.touch) drawDialog(ctx, env, m, st, regions, act); else centred(ctx, L, regions, () => drawDialog(ctx, env, m, st, regions, act), env); }
-        centred(ctx, L, regions, () => {
+        // Text size: the desktop npc window; a phone's npc window is on the big legible play layer already
+        if (st.dialog) { if (L.touch) drawDialog(ctx, env, m, st, regions, act); else centred(ctx, L, regions, () => g.textScope(() => drawDialog(ctx, env, m, st, regions, act)), env); }
+        centred(ctx, L, regions, () => g.textScope(() => {
           if (st.chest && m.storage) drawChest(ctx, env, m, st, regions, act);
-          for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? drawCharacter : drawBags)(ctx, env, m, st, regions, act);
+          for (const id of SIDE) if (st.open.has(id)) (id === 'character' ? (g.skin && g.skin.drawCharacter) || drawCharacter : drawBags)(ctx, env, m, st, regions, act);
           // the glyph pouch strip over the bags (and over the quest strip when there is one)
           // on a phone a pinned chest card covers the strip: hide the strip while the card is up (it overlapped, 2026-11-21)
           if (st.open.has('bags') && !(L.touch && st.chest && st.chest.cardFn && m.storage)) {
@@ -422,23 +431,23 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
             if (b) drawPouch(ctx, env, m, st, regions, act, b.rect.x, Math.min(...tops.map((o) => o.rect.y)) - 2, b.rect.w);
           }
           if (st.chest && st.chest.cardFn && m.storage) st.chest.cardFn(regions);
-          if (st.open.has('quests')) drawQuestLog(ctx, env, m, st, regions, act);
+          if (st.open.has('quests')) ((g.skin && g.skin.drawQuestLog) || drawQuestLog)(ctx, env, m, st, regions, act);
           if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
-          if (st.open.has('talents') && !isBuilds2(m)) drawTalents(ctx, env, m, st, regions, act);
+          if (st.open.has('talents') && !isBuilds2(m)) g.smallScope(() => drawTalents(ctx, env, m, st, regions, act));   // its tree is a fixed small-text grid
           if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
           if (st.open.has('help')) drawHelp(ctx, env, st, regions, act, options.binds);
           if (st.open.has('prof')) prof.drawWindow(ctx, env, m, regions);   // professions (prof_ui.js)
           if (st.open.has('glyphs')) glyphs.drawWindow(ctx, env, m, regions);   // Inscriptions (glyph_ui.js)
-        }, env);
+        }), env);
         // Builds 2 (talents2.js): the whole layer on a phone (six columns), the 640x360 window on desktop (centred)
         if (st.open.has('talents') && isBuilds2(m)) {
           if (L.touch) drawTalents2(ctx, env, m, st, regions, act);
           else centred(ctx, L, regions, () => drawTalents2(ctx, env, m, st, regions, act), env);
         }
-        if (m.group) drawGroup(ctx, env, m, L, regions);       // group play: trade, ready check, a shared quest, death (group_ui.js)
+        if (m.group) sizeScope(() => drawGroup(ctx, env, m, L, regions));       // group play: trade, ready check, a shared quest, death (group_ui.js)
         hud.menuBar(ctx, L, st, regions);
-        if (st.barPick) drawBarPick(ctx, L, regions);
-        if (st.slotCard) drawSlotCard(ctx, env, m, L, regions);
+        if (st.barPick) sizeScope(() => drawBarPick(ctx, L, regions));
+        if (st.slotCard) sizeScope(() => drawSlotCard(ctx, env, m, L, regions));
         if (isBuilds2(m)) builds2Prompts(ctx, L, m);
         if (st.hint) drawHint(ctx, L, regions);
       }
@@ -452,12 +461,12 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (!tip && r && r.kind === 'slot' && r.item && lastModel && st.mode === 'game') tip = barItemTip(r.slot, r.item);
       if (!tip && r && r.tipAbility) tip = abilityTooltip(abilityInfo(r.tipAbility), 1, (classInfo(st.cls) || {}).resource);
       if (!tip && r && lastModel && st.mode === 'game') tip = hud.tooltipFor(r, lastModel);
-      if (tip && !(r.kind === 'talent')) drawTooltip(g, ctx, tip, tipAt.x + 12, tipAt.y - 8, { W: L.W, H: L.H });
+      if (tip && !(r.kind === 'talent')) sizeScope(() => drawTooltip(g, ctx, tip, tipAt.x + 12, tipAt.y - 8, { W: L.W, H: L.H }));
     }
     if (st.itemDrag && st.itemDrag.active) g.iconIn(ctx, st.itemDrag.icon || 'icon_book', Math.round(st.itemDrag.x) - 11, Math.round(st.itemDrag.y) - 11, 22, 22);
     if (st.hint && t - st.hint.t0 > 30) st.hint = null;
     if (st.levelUp && t - st.levelUp.t0 > 6) st.levelUp = null;
-    if (st.story && st.mode === 'game') drawStoryCard(ctx, g, L, st, regions);   // the end of a story chain (worldlife_ui.js)
+    if (st.story && st.mode === 'game') sizeScope(() => drawStoryCard(ctx, g, L, st, regions));   // the end of a story chain (worldlife_ui.js)
     if (st.banner && st.banner.until > t && st.mode === 'game') {
       const bw = Math.min(L.W - 8, Math.max(g.textW(st.banner.title), g.textW(st.banner.sub || '')) + 28), bh = st.banner.sub ? 32 : 20;
       const bx = Math.floor((L.W - bw) / 2), by = L.touch ? Math.floor(L.H * 0.3) : dOrg(L).y + 70;
@@ -533,7 +542,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
 
   /** The npc window's rect on this layer (dialog.js draws it; the toast and the quest marks keep clear of it). */
   function dialogRect(L) {
-    const r = dialogRectFor(L), o = dOrg(L);
+    const r = dialogRectFor(L, g.textSize === 'large'), o = dOrg(L);
     return { ...r, x: r.x + o.x, y: r.y + o.y };
   }
 

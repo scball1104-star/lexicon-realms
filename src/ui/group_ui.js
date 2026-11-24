@@ -19,7 +19,7 @@ const mmss = (s) => { const t = Math.max(0, Math.ceil(s)); return `${Math.floor(
 
 function button(g, ctx, regions, x, y, w, h, label, scheme, on, opts = {}) {
   g.window(ctx, x, y, w, h, 'thin', scheme, opts.dim ? 0.55 : 0.97);
-  g.text(ctx, g.clip(label, w - 6), x + Math.floor(w / 2), y + Math.floor(h / 2) - 6, opts.color || (opts.dim ? 'dim' : 'cream'), { align: 'center' });
+  g.text(ctx, g.clip(label, w - 6), x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), opts.color || (opts.dim ? 'dim' : 'cream'), { align: 'center' });
   if (on) regions.push({ rect: { x, y, w, h }, kind: 'button', label: opts.label || `grp:${label.toLowerCase()}`, on, ...(opts.tip ? { tip: opts.tip } : {}) });
 }
 
@@ -130,7 +130,7 @@ export function deathPanel(g, ctx, L, grp, regions, act) {
   g.text(ctx, 'You have fallen', x + w / 2, y + 5, 'gold', { large: true, align: 'center' });
   const line = d.choice === 'wait' ? `Waiting for a rez. ${mmss(d.waitLeft)} left, then you wake at the lantern.`
     : `Wake at your lantern now, or wait here up to ${mmss(d.waitLeft)} for a friend.`;
-  g.wrap(line, w - 20).slice(0, 2).forEach((ln, i) => g.text(ctx, ln, x + w / 2, y + 24 + i * 11, 'cream', { align: 'center' }));
+  g.wrap(line, w - 20).slice(0, 2).forEach((ln, i) => g.text(ctx, ln, x + w / 2, y + 24 + i * g.lh, 'cream', { align: 'center' }));
   let yy = y + 50;
   if (d.rez) {
     g.text(ctx, g.clip(`${d.rez.name} is casting ${d.rez.spell} on you`, w - 20), x + 10, yy, 'green');
@@ -159,7 +159,7 @@ export function readyCheck(g, ctx, L, grp, regions, act) {
   for (const a of rc.answers) {
     g.text(ctx, g.clip(a.name, w - 70), x + 12, yy, 'white');
     g.text(ctx, a.answer === true ? 'Ready' : a.answer === false ? 'Not ready' : '...', x + w - 12, yy, a.answer === true ? 'green' : a.answer === false ? 'red' : 'dim', { align: 'right' });
-    yy += 11;
+    yy += g.lh;
   }
   if (rc.mine == null && !rc.done) {
     const bw = Math.floor((w - 26) / 2);
@@ -233,7 +233,7 @@ export function tradeWindow(g, ctx, env, m, grp, st, regions, act) {
     let yy = y + 26;
     g.text(ctx, g.clip(title, sideW - 50), sx, yy, mine ? 'cream' : 'blue');
     g.text(ctx, who.ready ? 'Ready' : 'Not ready', sx + sideW, yy, who.ready ? 'green' : 'dim', { align: 'right' });
-    yy += 14;
+    yy += g.ls(14);
     const box = { x: sx - 3, y: yy - 2, w: sideW + 6, h: offerH + 4 };
     g.window(ctx, box.x, box.y, box.w, box.h, 'thin', who.ready ? 'forest' : 'slate', who.ready ? 0.75 : 0.4);
     for (let k = 0; k < 6; k++) {
@@ -267,7 +267,7 @@ export function tradeWindow(g, ctx, env, m, grp, st, regions, act) {
   // your bags: what you can offer (a bound item greys out and says why)
   let yy = yAfter + 2;
   g.text(ctx, touch ? 'Your bags (tap to offer)' : 'Your bags (click to offer)', x + 10, yy, 'gray');
-  yy += 14;
+  yy += g.ls(14);
   const page = Math.max(0, st && st.tradePage ? st.tradePage : 0);
   const per = bagCols * bagRows;
   const list = (t.bag || []).slice(page * per, page * per + per);
@@ -287,7 +287,7 @@ export function tradeWindow(g, ctx, env, m, grp, st, regions, act) {
   yy += bagRows * bagPitch + 2;
   const note = typeof t.note === 'string' ? t.note : env.nameOf ? tradeNoteText(t.note, env.nameOf, m.player && m.player.id) : null;
   if (note) g.text(ctx, g.clip(note, w - 20), x + 10, yy, 'red');
-  yy += 12;
+  yy += g.ls(12);
   const bw = 96;
   button(g, ctx, regions, x + w / 2 - bw - 4, yy, bw, bh, t.mine.ready ? 'Not ready' : 'Ready', t.mine.ready ? 'slate' : 'forest', () => act.send({ t: 'trade_ready', ready: !t.mine.ready }), { label: 'trade:ready' });
   button(g, ctx, regions, x + w / 2 + 4, yy, bw, bh, 'Cancel', 'crimson', () => act.send({ t: 'trade_cancel' }), { label: 'trade:cancel' });

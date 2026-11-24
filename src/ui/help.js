@@ -2,6 +2,7 @@
 // place, grouped so a player can learn them or find the one they need. The PC column follows the player's own key
 // bindings; on a phone the touch controls show instead. Pure drawing, no state of its own.
 
+import { scrollLines } from './textscroll.js';   // Large text: the help list scrolls (wave 6 uiskin)
 import { frame } from './menus.js';
 import { effectiveBinds, keyLabel } from './keymap.js';
 
@@ -66,6 +67,23 @@ export function drawHelp(ctx, env, st, regions, act, binds) {
   frame(ctx, env, r, 'Help: controls', regions, act, 'help');
   g.text(ctx, touch ? 'Phone controls' : 'Keyboard and mouse (your own key bindings)', r.x + r.w - 30, r.y + 8, 'dim', { align: 'right' });
   const secs = helpSections(binds);
+  if (g.big) {
+    // Large text (gfx.js g.big): one column, every row's text wrapped, the whole list scrolls (wheel or finger drag)
+    const lw = 150, x = r.x + 12, hw = r.w - 24 - lw - 10, lines = [];
+    for (const s of [secs[0], secs[1], secs[4], secs[2], secs[3], secs[5]]) {
+      lines.push({ t: s.title, c: 'gold', x: 0 });
+      for (const [what, pc, ph] of s.rows) {
+        if (!touch && pc == null) continue;
+        const how = touch ? (ph === 'Same' ? pc : ph || pc) : pc;
+        g.wrap(how, hw).forEach((ln, k) => lines.push({ t: ln, c: 'cream', x: lw, what: k === 0 ? what : null }));
+      }
+    }
+    scrollLines(ctx, g, regions, st, 'help', lines, { x, y: r.y + 30, w: r.w - 24, h: r.h - 38 }, g.lh, (o, lx, ly) => {
+      if (o.what) g.text(ctx, g.clip(o.what, lw - 14), lx + 8, ly, 'white');
+      g.text(ctx, o.t, lx + o.x, ly, o.c);
+    }, '#f9d77a');
+    return;
+  }
   const colW = 280, gap = 12, lw = 82;
   const cols = [[secs[0], secs[1], secs[4]], [secs[2], secs[3], secs[5]]];
   cols.forEach((col, ci) => {
