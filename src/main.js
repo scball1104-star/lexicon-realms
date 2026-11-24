@@ -131,6 +131,7 @@ async function boot() {
         uiCommands.length = 0;
         audio.music('title'); audio.ambience(null);
       },
+      sound: (kind) => audio.ui(kind),   // menu sounds (src/audio/ui_sounds.js observes the UI state)
       worldMarks: () => worldMarks(),
       unitRects: () => unitRects(),
       // the gold quest arrow (ui.js drawGoalPointer): world px -> HUD px, and where the hero was drawn this frame
@@ -349,13 +350,11 @@ async function boot() {
     if (me) {
       const z = content.zones[me.zone];
       place = placeAt(z, Math.floor(me.x / TILE), Math.floor((me.y - 1) / TILE));   // snapshot positions are pixels
-      // an area starts its own music; the roads between areas keep the music you came with
-      if (musicArea == null || (place.region && place.region !== musicArea)) {
-        musicArea = place.region || place.id;
-        const track = place.music;
-        audio.zone(musicArea, () => track);
-      }
-    }
+      // an area starts its own music (a new zone or world region; the roads keep the music you came with), its ambience
+      // bed, the battle track in a real fight, friends' sounds by distance (src/audio/audio.js frame)
+      audio.frame(nowMs, { me, snap, place, zone: z, fresh: musicArea == null });
+      musicArea = place.region || place.id;
+    } else audio.frame(nowMs, { snap });
     const vm = buildViewModel(snap, playerId, { zoneNames: content.zoneNames, log: ui.logText(), tickHz: TICK_HZ, place: me ? place : null });
     renderer.drawHud((ctx) => ui.draw(ctx, vm, snap, nowMs / 1000));
   }
