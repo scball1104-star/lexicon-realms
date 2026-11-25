@@ -14,6 +14,20 @@ export const PARTY_RULES = {
   // death in a party: Release (wake at your lantern now) or Wait (stay where you fell up to waitSec for a rez)
   death: { waitSec: 300 },
   readyCheck: { sec: 30, closeSec: 4 },
+  // wave 10 dflow (Scott 2026-11-25): a friend who drops out of a dungeon copy keeps their seat this long (the copy's foes
+  // count them); after it, foes are set for the heroes who are there. Never fewer than the heroes present.
+  seatSec: 300,
+  // wave 10 dflow: getting a party into a dungeon (src/sim/delve.js). DRAFT numbers for Scott.
+  delve: {
+    syncUpMax: 3,            // a hero up to 3 levels under a place's band is raised to its floor; further under plays as today
+    callSec: 60,             // Call the party: a friend has this long to say Come
+    comeSec: 5,              // Come: a still cast, out of combat, then you stand at the door
+    doorTiles: 3,            // the door card shows within this many tiles of a door's outside tile
+    gatherTiles: 6,          // Go in together takes the party heroes within this many tiles of the door
+    bookmarkDays: 7,         // a stopped run's beaten bosses are kept this many days (the client's bookmark)
+    // the run's length shown on the door card, minutes for a party (DRAFTS until a real night is timed)
+    minutes: { dungeon: [20, 30], cave: [10, 15] },
+  },
   share: { rangePx: 640, offerSec: 60 },
   trade: { slots: 6, rangePx: 96, maxGold: 1e9 },
   // binding (src/sim/trade.js bindOf): 'pickup' never trades; 'equip' trades until worn once (then Soulbound)

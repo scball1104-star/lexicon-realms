@@ -58,8 +58,16 @@ export function createParty(D) {
       if (c > n) n = c;
     }
     const copy = m.spawn && m.spawn.copy ? (state.copies || {})[m.spawn.copy] : null;
-    if (copy && copy.heroes && copy.heroes.length > n) n = copy.heroes.length;
+    // wave 10 dflow (Scott 2026-11-25): the heroes in the copy plus a dropped friend's seat for seatSec, never fewer than
+    // the heroes present (a copy saved before seats counts everyone who entered, as before)
+    const seated = copy ? (copy.seats ? seatsOf(copy).length : (copy.heroes || []).length) : 0;
+    if (seated > n) n = seated;
     return Math.min(R.scale.maxHeroes, n);
+  }
+  /** wave 10 dflow: the seats of a copy that still count: heroes inside now, and friends who left less than seatSec ago. */
+  function seatsOf(copy) {
+    const keep = T(R.seatSec != null ? R.seatSec : 300);
+    return Object.keys(copy.seats || {}).filter((id) => now() - copy.seats[id] <= keep);
   }
   const hpMulOf = (n) => 1 + R.scale.hpPerHero * (n - 1);
   const dmgMulOf = (n) => 1 + R.scale.dmgPerHero * (n - 1);
@@ -95,6 +103,7 @@ export function createParty(D) {
         if (p.kind !== 'player') continue;
         const c = state.copies[p.zone];
         if (c && !(c.heroes || []).includes(p.id)) c.heroes = [...(c.heroes || []), p.id];
+        if (c) { (c.seats = c.seats || {})[p.id] = now(); (c.seatNames = c.seatNames || {})[p.id] = p.name; }   // wave 10 dflow
       }
     }
     for (const m of state.ents) {
@@ -182,7 +191,8 @@ export function createParty(D) {
     if (cur && !cur.done) return fail(e, cmd, 'busy');
     const answers = {};
     for (const p of members(e)) answers[p.id] = p === e ? true : null;
-    checks()[e.party] = { by: e.id, startTick: now(), until: now() + T(R.readyCheck.sec), answers, done: false, closeAt: null };
+    const boss = C.delve ? C.delve.nextBoss(e) : null;            // wave 10 dflow: inside a copy the check names the next boss
+    checks()[e.party] = { by: e.id, startTick: now(), until: now() + T(R.readyCheck.sec), answers, done: false, closeAt: null, ...(boss ? { boss } : {}) };
     for (const p of members(e)) emit({ type: 'ready_check', id: p.id, kind: 'start', by: e.id });
     return true;
   }
@@ -289,11 +299,16 @@ export function createParty(D) {
   function hudOf(e) {
     const fr = friends(e);
     const rc = e.party != null && state.ready ? state.ready[e.party] : null;
-    if (!fr.length && !rc && !e.deathWait && !e.rezCast && !e.shareOffers) return null;
+    // wave 10 dflow: friends who dropped out of this copy and still hold a seat: { name, left } (seconds)
+    const cp = state.copies ? state.copies[e.zone] : null;
+    const seats = cp && cp.seats ? seatsOf(cp).filter((id) => !state.ents.some((p) => p.kind === 'player' && String(p.id) === id && p.zone === e.zone))
+      .map((id) => ({ id: Number(id), name: (cp.seatNames || {})[id] || '?', left: sec(cp.seats[id] + T(R.seatSec != null ? R.seatSec : 300) - now()) })) : [];
+    if (!fr.length && !rc && !e.deathWait && !e.rezCast && !e.shareOffers && !seats.length) return null;
     const rezOn = (id) => state.ents.find((p) => p.kind === 'player' && p.rezCast && p.rezCast.target === id) || null;
     const party = fr.map((p) => {
       const by = p.dead ? rezOn(p.id) : null;
       return { id: p.id, far: p.zone !== e.zone || distPx(p, e) > R.scale.reachPx, dead: !!p.dead, waiting: !!p.deathWait,
+        name: p.name, cls: p.cls, level: p.level, ...(p.sync ? { sync: { from: p.sync.from, to: p.sync.to, kind: p.sync.kind } } : {}),   // wave 10 dflow: the door card
         ...(by ? { rezBy: by.id, rezLeft: sec(by.rezCast.endTick - now()) } : {}) };
     });
     let death = null;
@@ -303,16 +318,16 @@ export function createParty(D) {
         rez: by ? { by: by.id, name: by.name, spell: by.rezCast.item ? 'Lantern-ash' : R.rez.spell, left: sec(by.rezCast.endTick - now()), total: R.rez.castSec } : null };
     }
     const ready = rc ? {
-      by: rc.by, byName: (get(rc.by) || {}).name || '', left: sec(rc.until - now()), done: rc.done,
+      by: rc.by, byName: (get(rc.by) || {}).name || '', left: sec(rc.until - now()), done: rc.done, boss: rc.boss || null,   // wave 10 dflow: boss
       allYes: rc.done && Object.values(rc.answers).every((v) => v === true), mine: rc.answers[e.id] ?? null,
-      answers: Object.entries(rc.answers).map(([k, v]) => ({ id: Number(k), name: (get(Number(k)) || {}).name || '?', answer: v })),
+      answers: Object.entries(rc.answers).map(([k, v]) => { const q = get(Number(k)) || {}; return { id: Number(k), name: q.name || '?', answer: v, level: q.level || null, ...(q.sync ? { sync: q.sync.kind, from: q.sync.from } : {}) }; }),   // wave 10 dflow: level here
     } : null;
     const shares = (e.shareOffers || []).map((o) => ({ quest: o.quest, name: ((D.content.quests || {})[o.quest] || {}).name || o.quest, from: o.from,
       fromName: (get(o.from) || {}).name || '', left: sec(o.until - now()) })).reverse();
     const rz = e.rezCast;
     const rezCast = rz ? { target: rz.target, name: (get(rz.target) || {}).name || '', spell: rz.item ? 'Lantern-ash' : R.rez.spell, left: sec(rz.endTick - now()),
       total: R.rez.castSec, frac: Math.min(1, (now() - rz.startTick) / Math.max(1, rz.endTick - rz.startTick)) } : null;
-    return { party, death, ready, shares, rezCast, canRez: canSpell(e) && !e.dead, ash: bagCount(e, R.rez.item), inParty: fr.length > 0 };
+    return { party, death, ready, shares, rezCast, canRez: canSpell(e) && !e.dead, ash: bagCount(e, R.rez.item), inParty: fr.length > 0, ...(seats.length ? { seats } : {}) };
   }
 
   return { handles: (t) => CMDS.has(t), command, tick, onPlayerDeath, hudOf, scaleOf, onLeave };

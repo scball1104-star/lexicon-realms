@@ -45,6 +45,7 @@ import { createTalkUI } from './talk_ui.js';   // wave 6 quest scenes: the talk 
 import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing hints for a new hero (Help turns them off)
 import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
 import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
+import { createDelveUI } from './delve_ui.js';   // wave 10 dflow: the door card, Call the party, the run summary
 import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
 import { createNotesUI } from './notes_ui.js';   // wave 9 notes: lantern notes (the seals, the writer, the reader)
 
@@ -109,6 +110,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const emoteUi = createEmoteUI({ g, st, send, say: (ch, t) => say(ch, t), photo: (p) => photoUi.open(p) });
   const photoHooks = { releaseMove: (codes) => { if (hooks.input) for (const c of codes) hooks.input.release(c); } };
   const photoUi = createPhotoUI({ g, st, send, say: (ch, t) => { say(ch, t); toast(t); }, hooks: photoHooks });   // wave 8 photo
+  const delveUi = createDelveUI({ g, st, send, toast, act: new Proxy({}, { get: (_, k) => (typeof act !== 'undefined' ? act[k] : undefined) }) });   // wave 10 dflow
+  const delveItems = { items: new Proxy({}, { get: (_, id) => (typeof id === 'string' ? itemInfo(id) : undefined) }), mobs: {} };
   const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
   const notesUi = createNotesUI({ g, st });   // wave 9 notes (main.js wires it: src/ui/notes_wire.js)
 
@@ -494,11 +497,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         }
         if (st.wdoor) wdoor.draw(ctx, env, m, L, regions);   // word doors: the word panel (worddoor_ui.js)
         if (m.group) sizeScope(() => drawGroup(ctx, env, m, L, regions));       // group play: trade, ready check, a shared quest, death (group_ui.js)
-        hud.menuBar(ctx, L, st, regions);
+        if (!(L.touch && delveUi.covers())) hud.menuBar(ctx, L, st, regions);   // wave 10 dflow: a phone card hides the top bar
         riddleUI.draw(ctx, env, m, L, regions);   // wave 9 riddles: the book, the maker, a stone, a link card (riddle_ui.js), over the phone's menu buttons
         if (st.barPick) sizeScope(() => drawBarPick(ctx, L, regions));
         if (st.slotCard) sizeScope(() => drawSlotCard(ctx, env, m, L, regions));
-        if (isBuilds2(m)) builds2Prompts(ctx, L, m);
+        if (isBuilds2(m) && !(L.touch && delveUi.covers())) builds2Prompts(ctx, L, m);   // wave 10 dflow: its badge sits on the top bar
         if (st.hint) drawHint(ctx, L, regions);
         // wave 7 onboarding: one by-doing hint, never over a window, the npc window, the boss card or a banner
         onb.frame(st, m, snap, playerId, t, L, !!(st.open.size || st.dialog || st.bossUp || st.levelUp || st.chest || st.mirror || st.barPick || st.emoteRing || st.slotCard || st.hint || st.story || m.player.dead || (m.group && (m.group.trade || m.group.ready))));
@@ -506,6 +509,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (st.emoteRing) sizeScope(() => emoteUi.draw(ctx, L, regions, m));   // wave 7 anim: the emote ring
         if (!st.mirror && !st.emoteRing) notesUi.draw(ctx, L, regions);   // wave 9 notes: over the phone top bar
         if (st.mirror) looks.drawMirror(ctx, env, regions, t, centred, L);   // the free mirror covers the HUD
+        // wave 10 dflow (delve_ui.js): drawn last so nothing on the bar or a badge sits over its cards
+        if (m.player && !st.mirror) sizeScope(() => { st.delveUp = delveUi.draw(ctx, L, regions, snap.hud && snap.hud[playerId], snap.entities.find((e) => e.id === playerId), delveItems,
+          !!(st.open.size || st.dialog || st.chest || st.wdoor || st.barPick || st.slotCard || st.emoteRing)); });
       }
     }
     st.regions = regions;
@@ -531,7 +537,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (st.banner.sub) g.text(ctx, st.banner.sub, L.W / 2, by + 16, 'cream', { align: 'center' });
     }
     if (st.mode === 'game') talkUi.drawOver(ctx, env, L, st, regions);   // quest scenes: accept and turn-in flourishes
-    if (st.toast && st.toast.until > t && !(st.bossUp && st.mode === 'game')) {
+    if (st.toast && st.toast.until > t && !((st.bossUp || st.delveUp) && st.mode === 'game')) {   // wave 10 dflow: toasts wait under the run summary
       // above everything, clear of the npc window (CRITIQUE_1 item 20)
       const w = g.textW(st.toast.text) + 16;
       let cx = Math.floor(L.W / 2), ty = L.touch ? L.minHit + 8 : dOrg(L).y + 44;
@@ -1215,6 +1221,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     /** Quest scenes: view.talk for the 3D renderer (talk_ui.js view), and the talk state for drivers. */
     talkView: (snap) => (st.mode === 'game' ? talkUi.view(st, snap, playerId, st.metrics.touch) : null),
     talk: talkUi,
+    delve: delveUi,   // wave 10 dflow (src/ui/delve_ui.js)
     chat: chatUi,   // wave 8 talk (src/ui/chat_ui.js): coop.js feeds it
     notes: notesUi,   // wave 9 notes (src/ui/notes_ui.js): main.js wires it
 

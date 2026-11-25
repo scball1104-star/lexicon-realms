@@ -38,6 +38,7 @@ import { createDungeons, withCopies } from './dungeons.js';
 import { dayFraction, isNight } from './clock.js';
 import { createWorldLife } from './worldlife.js';
 import { createParty } from './party.js';
+import { createDelve } from './delve.js';   // wave 10 dflow: door card, level sync, Call the party, Go in together, the run record
 import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
 import { createGlyphs } from './glyphs.js';
@@ -118,7 +119,8 @@ function wrap(state, content0, rng, systems) {
     if (spec.lantern && RA[spec.lantern.zone] && !content.zones[spec.lantern.zone]) out = { ...out, lantern: worldRef(spec.lantern) };
     return out;
   };
-  const emit = (ev) => { events.push({ tick: state.tick, ...ev }); };
+  let onEmit = null;                     // wave 10 dflow: the run record reads every event (src/sim/delve.js observe)
+  const emit = (ev) => { const o = { tick: state.tick, ...ev }; events.push(o); if (onEmit) onEmit(o); };
   const combatOn = !!(content.classes && content.abilities && content.progression);
 
   /**
@@ -182,6 +184,7 @@ function wrap(state, content0, rng, systems) {
     grantXp: (e, amount, reason, extra) => (combatOn ? C.prog.grantXp(e, amount, reason, extra) : 0),
     killXp: (L) => (content.progression ? content.progression.killXp.base + content.progression.killXp.perLevel * L : 20 + 4 * L),
     combat: () => C.combat, ai: () => C.ai, stats: combatOn ? () => C.stats : null,
+    onEnter: (p, zid) => { if (DV) DV.onEnter(p, zid); }, onLeave: (p) => { if (DV) DV.onLeave(p); },   // wave 10 dflow
   }) : null;
   C.dungeons = DG;
   // ---- group play (src/sim/party.js, src/sim/trade.js): foe scaling, rez, release or wait, quest sharing, ready check,
@@ -189,6 +192,10 @@ function wrap(state, content0, rng, systems) {
   const GP = combatOn && content.party ? createParty({ state, content, emit, get: (id) => index.get(id) || null, C, quests: () => QS }) : null;
   const TR = combatOn && content.party && content.items ? createTrade({ state, content, emit, get: (id) => index.get(id) || null, onBag: (e) => { if (QS) QS.onBag(e); } }) : null;
   C.party = GP; C.trade = TR;
+  // ---- wave 10 dflow (src/sim/delve.js): level sync, Call the party, Go in together, the run record and summary
+  const DV = DG && combatOn && content.party ? createDelve({ state, content, emit, get: (id) => index.get(id) || null, C, DG, tileToSub, remove: (e) => remove(e) }) : null;
+  C.delve = DV;
+  if (DV) onEmit = (ev) => DV.observe(ev);
   // ---- professions (src/sim/professions.js): gathering nodes, the gather and craft casts, trainers, recipes, consumables
   const PF = combatOn && content.professions ? createProfessions({
     state, content, emit, get: (id) => index.get(id) || null, add, remove, nextId: () => state.nextId++, spotFree, reach: INTERACT_RANGE_PX + 24,
@@ -426,6 +433,7 @@ function wrap(state, content0, rng, systems) {
       }
       add(e);
       emit({ type: 'join', id: e.id, name: e.name });
+      if (DG && combatOn && DG.isPlace(e.zone)) DG.enter(e, e.zone);   // wave 10 dflow: a friend back in the party's copy (lantern, sync, seat)
       if (QS && combatOn) QS.ensureEscorts(e);            // an escort in the save restarts fresh (PLAYTEST_BOT bug 1)
       return e.id;
     },
@@ -562,6 +570,7 @@ function wrap(state, content0, rng, systems) {
       if (WD) WD.tick();                         // word doors: a new copy gets its slab, letters and coffer
       if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
       if (GP) GP.tick();                         // group play: foe scaling, rez casts, death waits, ready checks
+      if (DV) DV.tick();                         // wave 10 dflow: call offers run out, the Come cast
       if (TR) TR.tick();                         // trades end when the two walk apart
       if (combatOn) C.life.tick(events);
       if (combatOn) C.realms2.tick();           // the sandstorm, the lantern watch, the fog banks
@@ -594,6 +603,7 @@ function wrap(state, content0, rng, systems) {
           h.zone = (DG && DG.info(e.zone)) || { id: e.zone, base: e.zone, kind: zz.kind || 'field', name: zz.name || '', levels: zz.levels ? [...zz.levels] : null };
           h.rest = C.life.hudOf(e);
           if (GP) { const gr = GP.hudOf(e), tr = TR ? TR.hudOf(e, C.hud.itemView) : null; if (gr || tr) h.group = { ...(gr || {}), trade: tr }; }
+          if (DV) { const dv = DV.hudOf(e); if (dv) h.delve = dv; }   // wave 10 dflow: sync, the door card, a call, the run summary
           if (PF) h.prof = PF.hudOf(e);            // professions: skills, recipes, the gather / craft bar
           if (QS) {
             h.quests = QS.tracker(e);
@@ -635,6 +645,7 @@ function wrap(state, content0, rng, systems) {
     if (!e || e.kind !== 'player') return reject(id, cmd, 'no_actor');
     if (!cmd || typeof cmd.t !== 'string') return reject(id, cmd, 'bad_command');
     if (GP && GP.handles(cmd.t)) { GP.command(e, cmd); return; }      // group play (src/sim/party.js): some work while dead
+    if (DV && DV.handles(cmd.t)) { DV.command(e, cmd); return; }      // wave 10 dflow: delve_call / come / enter / close
     if (EM.handles(cmd.t) && !e.dead && !(TV && TV.flying(e))) { EM.command(e, cmd); return; }   // wave 7 anim: jump and emotes
     if (TR && TR.handles(cmd.t)) { TR.command(e, cmd); return; }
     if (WD && WD.handles(cmd.t)) { if (!e.dead) WD.command(e, cmd); return; }   // word doors: set or take a letter

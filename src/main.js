@@ -38,6 +38,8 @@ import { createLanternNotes } from './ui/notes_wire.js';   // wave 9 notes: lant
 import { readRiddle, clearRiddle } from './ui/riddle_book.js';   // wave 9 riddles: a #riddle= link
 import { createRiddleRules } from './sim/riddle.js';   // wave 9 riddles: the link code's rules for the UI
 
+import { easternDay } from './core/eastern_week.js';   // wave 10 dflow: the one shared Eastern calendar
+
 const ZOOMS = [1, 1.5, 2];
 const TILE = 16;
 
@@ -75,7 +77,7 @@ async function boot() {
   }
   const seed = Number(q.get('seed')) || 20261119;
   // the bounty boards' day (BUILDS_2 5.6): this PC's local calendar day, so the boards repost at local midnight; ?day=n pins it
-  const bountyDay = () => (q.has('day') ? Number(q.get('day')) | 0 : Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000));
+  const bountyDay = () => (q.has('day') ? Number(q.get('day')) | 0 : easternDay(Date.now()));   // wave 10 dflow: the Eastern day, the same on every device
   const world = createWorld({ seed, content, day: bountyDay() });
   let playerId = null;                 // created by the title screen (or at once in dev mode, below)
   const joins = [];                    // [tick, spec]: addPlayer calls, replayable with commandLog (CONTRACTS 2.3)
@@ -268,7 +270,7 @@ async function boot() {
     const fl = e.flight && content.travel ? content.travel.flight.points[e.flight.to] || (content.travel.rides || {})[e.flight.to] || null : null;   // a ride (wave 3) saves at its landing too
     const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : fl ? { zone: fl.zone, tx: fl.land[0], ty: fl.land[1] }
       : { zone: e.zone, tx: Math.floor(e.x / (TILE * 16)), ty: Math.floor((e.y - 1) / (TILE * 16)) };   // SUB -> tiles
-    return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
+    return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.sync ? e.sync.from : e.level, xp: e.xp, gold: e.gold || 0, ...spot,   // wave 10 dflow: a synced hero saves its own level
       bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: padBar(e.bar), talents: clone(e.talents),
       quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
       ...(world.saveFields ? clone(world.saveFields(id)) || {} : {}), savedAt: Date.now() };   // savedAt: rest XP's time away (specFor)
@@ -502,6 +504,7 @@ async function boot() {
   chron = await import('./chronicle/chronicle.js').then((m) => m.createChronicle({ bus, content, renderer, ui, input, canvas, font, touch,
     heroId: () => playerId, snapshot: () => snap, coop, replay: () => replay, q })).catch((e) => { console.warn('chronicle', e); return null; });
   if (chron) ui.act.chronicle = () => chron.openList();   // wave 9 chronicle: Options: Chronicle
+  ui.act.watchFight = async (bossId) => { if (!replay) return false; try { await replay.refresh(); } catch { return false; } const i = replay.list.rows.findIndex((r) => r.bossId === bossId); if (i < 0) return false; replay.watch(i); return true; };   // wave 10 dflow: the run summary's Watch
   const loop = createLoop({ hz: TICK_HZ, tick, render });
   coop.setPump({ loop, tick });
   if (q.get('paused') !== '1') loop.start();
