@@ -206,7 +206,7 @@ export function createSecondHost({ desk, hero, state = () => ({}), build = null,
     line(l) { if (tx) send({ t: 'line', ch: l.ch, text: l.text, ...(l.talk ? { talk: l.talk } : {}) }); },
     coop(onNow) { if (tx) send({ t: 'coop', on: !!onNow }); },
     /** Unpair from the PC (the chip) or the game ending: the phone is told, the token dies. */
-    unpair(reason = 'unpaired') { desk.unpair(); if (link) { send({ t: 'bye', reason }); const l = link; link = null; tx = null; setTimeout(() => l.close(reason), 300); if (on.gone) on.gone(reason); } },
+    unpair(reason = 'unpaired') { desk.unpair(); if (link) { const l = link; send({ t: 'bye', reason }); link = null; tx = null; const t = setTimeout(() => { if (l && l.close) l.close(reason); }, 300); if (t && t.unref) t.unref(); if (on.gone) on.gone(reason); } },   // l taken before send: a send can close the link
   };
 }
 
