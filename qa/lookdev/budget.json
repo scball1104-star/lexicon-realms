@@ -1,5 +1,5 @@
 {
- "note": "Made 2026-11-24 by make_budget.py from baseline runs on the shared PC (one sample each): minFps = 0.6 x baseline fps, minUncappedFps = 0.5 x baseline, maxCalls / maxTriangles = 1.35 x baseline. Report only (check_budget.py); raise a number on purpose, in the change that needs it.",
+ "note": "Made 2026-11-24 by make_budget.py from baseline runs on the shared PC (one sample each): minFps = 0.6 x baseline fps, minUncappedFps = 0.5 x baseline, maxCalls / maxTriangles = 1.35 x baseline. Report only (check_budget.py); raise a number on purpose, in the change that needs it. Wave 8 (lod lane, 2026-11-24): the four horizon_* views added from the runs after the level-of-detail pass, same rule.",
  "profiles": {
   "desktop": {
    "default": {
@@ -228,7 +228,59 @@
       "quality": "low"
      }
     },
-    "title": null
+    "title": null,
+    "horizon_willowmere": {
+     "minFps": 12.1,
+     "maxCalls": 1697,
+     "minUncappedFps": 8.4,
+     "maxTriangles": 4162679,
+     "baseline": {
+      "fps": 20.1,
+      "uncappedFps": 16.8,
+      "calls": 1257,
+      "triangles": 3083466,
+      "quality": "high"
+     }
+    },
+    "horizon_willowmere_west": {
+     "minFps": 13.0,
+     "maxCalls": 1467,
+     "minUncappedFps": 8.2,
+     "maxTriangles": 3680453,
+     "baseline": {
+      "fps": 21.6,
+      "uncappedFps": 16.5,
+      "calls": 1086,
+      "triangles": 2726262,
+      "quality": "high"
+     }
+    },
+    "horizon_moor": {
+     "minFps": 17.0,
+     "maxCalls": 890,
+     "minUncappedFps": 12.8,
+     "maxTriangles": 2221740,
+     "baseline": {
+      "fps": 28.3,
+      "uncappedFps": 25.5,
+      "calls": 659,
+      "triangles": 1645734,
+      "quality": "high"
+     }
+    },
+    "horizon_moor_shoulder": {
+     "minFps": 18.1,
+     "maxCalls": 894,
+     "minUncappedFps": 14.2,
+     "maxTriangles": 2169127,
+     "baseline": {
+      "fps": 30.2,
+      "uncappedFps": 28.5,
+      "calls": 662,
+      "triangles": 1606761,
+      "quality": "high"
+     }
+    }
    }
   },
   "phone": {
@@ -458,7 +510,59 @@
       "quality": "low"
      }
     },
-    "title": null
+    "title": null,
+    "horizon_willowmere": {
+     "minFps": 2.8,
+     "maxCalls": 966,
+     "minUncappedFps": 6.8,
+     "maxTriangles": 2097490,
+     "baseline": {
+      "fps": 4.6,
+      "uncappedFps": 13.7,
+      "calls": 715,
+      "triangles": 1553697,
+      "quality": "low"
+     }
+    },
+    "horizon_willowmere_west": {
+     "minFps": 2.8,
+     "maxCalls": 644,
+     "minUncappedFps": 8.9,
+     "maxTriangles": 1393812,
+     "baseline": {
+      "fps": 4.6,
+      "uncappedFps": 17.9,
+      "calls": 477,
+      "triangles": 1032454,
+      "quality": "low"
+     }
+    },
+    "horizon_moor": {
+     "minFps": 3.2,
+     "maxCalls": 492,
+     "minUncappedFps": 10.5,
+     "maxTriangles": 667514,
+     "baseline": {
+      "fps": 5.4,
+      "uncappedFps": 21,
+      "calls": 364,
+      "triangles": 494455,
+      "quality": "low"
+     }
+    },
+    "horizon_moor_shoulder": {
+     "minFps": 3.5,
+     "maxCalls": 445,
+     "minUncappedFps": 8.8,
+     "maxTriangles": 643985,
+     "baseline": {
+      "fps": 5.9,
+      "uncappedFps": 17.7,
+      "calls": 329,
+      "triangles": 477026,
+      "quality": "low"
+     }
+    }
    }
   }
  }

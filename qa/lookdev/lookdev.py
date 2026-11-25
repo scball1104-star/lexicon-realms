@@ -66,7 +66,20 @@ VIEWS = [
     ('ui_map', 'UI: world map (M)', 'skiptitle=1&cls=warden&tod=0.45&zoom=1', DESK, 10, 'KeyM'),
     ('phone', 'Phone 844x390: Willowmere', 'skiptitle=1&cls=warden&tod=0.45', PHONE, 20, None),
     ('title', 'First screen: title', '', DESK, 0, 'title'),
+    # wave 8 (lod lane): the horizon camera (?cam=horizon), posed per view (HPOSE), next to today's camera at the same
+    # spots (willowmere_day, moor_day), so the frame budget covers its long views too
+    ('horizon_willowmere', 'Horizon: Willowmere, low, north', 'skiptitle=1&cls=warden&tod=0.45&zoom=1&cam=horizon', DESK, 20, 'hpose'),
+    ('horizon_willowmere_west', 'Horizon: Willowmere street, west', 'skiptitle=1&cls=warden&tod=0.45&zoom=1&cam=horizon', DESK, 20, 'hpose'),
+    ('horizon_moor', 'Horizon: the Moor, low, north', 'zone=moor&x=104&y=50&cls=warden&tod=0.45&zoom=1&cam=horizon', DESK, 20, 'hpose'),
+    ('horizon_moor_shoulder', 'Horizon: the Moor, over the shoulder', 'zone=moor&x=104&y=50&cls=warden&tod=0.45&zoom=1&cam=horizon', DESK, 20, 'hpose'),
 ]
+# the horizon views' camera poses (written to view.cam once the world is ready; --campose still overrides every view)
+HPOSE = {
+    'horizon_willowmere': {'yaw': 0, 'pitch': 12, 'dist': 10},
+    'horizon_willowmere_west': {'yaw': 270, 'pitch': 13, 'dist': 10},
+    'horizon_moor': {'yaw': 0, 'pitch': 12, 'dist': 10},
+    'horizon_moor_shoulder': {'yaw': 0, 'pitch': 7, 'dist': 3.6},
+}
 
 CLEAR = """(() => { const R = window.__realms, W = R.world, e = W.get(R.playerId), C = W.internals; let n = 0;
   for (const m of W.state.ents) if (m.kind === 'mob' && !m.dead && m.zone === e.zone && Math.hypot(m.x - e.x, m.y - e.y) < 24 * 256) { C.combat.kill(m, e); n++; }
@@ -165,8 +178,9 @@ def main():
                     time.sleep(3.0)
                 else:
                     ev(f'window.__realms.renderer.dev && (window.__realms.renderer.dev.clock = {a.clock})')
-                    if a.campose:                    # the horizon camera's pose (only when it is on: ?cam=horizon)
-                        rec['campose'] = ev(f'(() => {{ const c = window.__realms.view.cam; if (!c) return null; Object.assign(c, {a.campose}); return {{ yaw: c.yaw, pitch: c.pitch, dist: c.dist }}; }})()')
+                    pose = a.campose or (json.dumps(HPOSE[name]) if action == 'hpose' else '')
+                    if pose:                         # the horizon camera's pose (only when it is on: ?cam=horizon)
+                        rec['campose'] = ev(f'(() => {{ const c = window.__realms.view.cam; if (!c) return null; Object.assign(c, {pose}); return {{ yaw: c.yaw, pitch: c.pitch, dist: c.dist }}; }})()')
                     for _ in range(40):              # settle the camera ease and background building
                         ev(f'window.__realms.redraw({a.clock})')
                         time.sleep(0.03)
@@ -214,7 +228,7 @@ def main():
                         rec['clock'] = round(clock, 4)
                         rec['landedTick'] = landed
                         rec['events'] = ev('window.__evlog')
-                    elif action and action != 'dungeon':
+                    elif action and action not in ('dungeon', 'hpose'):
                         for k in action.split(','):
                             page.keyboard.press(k)
                             time.sleep(0.15)

@@ -28,6 +28,7 @@ import { dungeonPlan, isPlaceZone } from '../render/dungeon_plan.js';
 import { buildRealm3d } from './realm3d.js';   // wave 3: the start realms' props, lava crossings and tide water
 import { poolCells, waterPlan, surfaceUniforms, patchSurface, buildFalls, tickWaterKit } from './water_kit.js';   // wave 7 water kit
 import { createGroundKit } from './ground_kit.js';   // wave 5 ground kit: hills, cobbles, grass, square dressing (desktop only)
+import { barkPart, lodCell, unLodCell } from './lod_kit.js';   // wave 8: the horizon camera's level of detail (off for today's camera)
 
 const CH = 48;   // chunk size (m): the town is one chunk, the big fields a few
 // Instanced models (trees, rocks, grass and the like) in a big zone (the one world, 296 x 196 m) go in 16 m chunks
@@ -123,6 +124,7 @@ const patched = new WeakSet();
 function seeThrough(mat) {
   if (patched.has(mat)) return;
   patched.add(mat);
+  mat.userData.lrSee = true;   // wave 8: the horizon camera's depth prepass may draw it (lod_kit.js preEligible)
   const prev = mat.onBeforeCompile;
   const prevKey = mat.customProgramCacheKey ? mat.customProgramCacheKey.bind(mat) : null;
   mat.onBeforeCompile = (sh, r) => {
@@ -217,7 +219,7 @@ function makeBatcher(group, { shadows, chInst = CH }) {
       proto.parts.forEach((p, i) => {
         const tm = !tint || !tintMatch || tintMatch.test(p.material.name) ? tint : null;
         const k = `${proto.url}#${i}|${tm}|${c}|${cast}|${small}`;
-        if (!inst.has(k)) inst.set(k, { geometry: p.geometry, material: tintMat(p.material, tm), list: [], cast, small });
+        if (!inst.has(k)) inst.set(k, { geometry: p.geometry, material: tintMat(p.material, tm), list: [], cast, small, lo: !small && i === barkPart(proto) ? { proto, part: i } : null });
         inst.get(k).list.push(tmp.multiplyMatrices(m4, p.matrix).clone());
       });
     },
@@ -255,6 +257,7 @@ function makeBatcher(group, { shadows, chInst = CH }) {
         c.r = Math.max(c.r, Math.hypot(sp.center.x - c.x, sp.center.z - c.z) + sp.radius);
         c.g.add(m);
         if (m.userData.small) c.small.push(m);
+        if (m.userData.loSrc) (c.lo || (c.lo = [])).push(m);   // a kit tree's bark: trimmed far off (horizon camera only, lod_kit.js)
       };
       for (const v of inst.values()) seeThrough(v.material);
       for (const v of merge.values()) seeThrough(v.material);
@@ -265,6 +268,7 @@ function makeBatcher(group, { shadows, chInst = CH }) {
         im.computeBoundingSphere(); im.computeBoundingBox();
         im.castShadow = shadows && v.cast; im.receiveShadow = true;
         if (v.small) im.userData.small = true;          // grass, pebbles, ferns, flowers: off past SMALL_R (far detail)
+        if (v.lo) { im.userData.loSrc = v.lo; im.userData.hiGeo = v.geometry; }
         add(im); calls++;
         if (step) await step();
       }
@@ -1107,15 +1111,18 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   const z = {
     group, lamps, halo, calls, buildings, town, place, kind: zone.kind || null, stats, done: radii.length === 1, more: null, kit, groundY: kit ? kit.h : null,
     /** Show only the cells within r m of (x, z) (ground, water and halos always draw); past r and within farR, the
-     *  cell's far version. Small props are off past SMALL_R. Returns the full cells shown. */
-    cull(x, zz, r, farR = 0) {
+     *  cell's far version. Small props are off past SMALL_R. Returns the full cells shown.
+     *  lod (horizon camera only, lod_kit.js horizonLod): small props and far tree bark by distance from the camera. */
+    cull(x, zz, r, farR = 0, lod = null) {
       let n = 0, nf = 0;
       if (kit) kit.cull(x, zz);       // the ground kit's grass round the focus
       for (const c of cells) {
         const d = Math.hypot(x - c.x, zz - c.z);
         c.g.visible = d - c.r < r;
+        if (c.lodOn && !lod) unLodCell(c);
         if (!c.g.visible) continue;
         n++;
+        if (lod) { lodCell(c, lod); continue; }
         const sm = d - 24 < SMALL_R;
         if (sm !== c.smallOn) { c.smallOn = sm; for (const m of c.small) m.visible = sm; }
       }
