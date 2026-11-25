@@ -18,16 +18,17 @@ Screenshots: qa/out/integrate/dropin_*.png and D:/LQOnline/wave8/dropin/after_sh
 Prints DROPIN_RESULTS {...} and DROPIN_DONE ok (or DROPIN_DONE fail: <what>).
 """
 import json, os, re, sys, time
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 OUT = os.path.join(ROOT, 'qa', 'out', 'integrate')
 os.makedirs(OUT, exist_ok=True)
-SHEET_DIR = 'D:/LQOnline/wave8/dropin'
+SHEET_DIR = os.environ.get('DROPIN_SHEET_DIR', 'D:/LQOnline/wave8/dropin')   # a lane's run points this at its own scratch folder
+os.makedirs(SHEET_DIR, exist_ok=True)
 PORT = os.environ.get('PORT', '8835')
 ORIGIN = f'http://127.0.0.1:{PORT}'
 BASE = f'{ORIGIN}/index.html?net=relay&stun=0&dev=1'
-errors, results = [], {}
+errors, results, loads = [], {}, []   # loads: seconds from a page load to __realms.ready
 REPEATS = int(os.environ.get('REPEATS', '3'))
 
 
@@ -59,9 +60,20 @@ class P:
 
     def open(self, url):
         self.taps += 1                    # tapping a bookmark or a link
-        self.page.goto('about:blank')     # a fresh page load, as from a message app (not a same-page # change)
-        self.page.goto(url, timeout=30000)
-        self.page.wait_for_function('window.__realms && (window.__realms.ready || window.__realms.error)', timeout=30000)
+        # wave 9 fixes: the game is ready in about 2 s on this PC (D:/LQOnline/wave9/fixes/loadtime.log); a 30 s wait that
+        # ran out was the shared PC being busy (several live game pages at once), so wait longer and load once more
+        for attempt in (1, 2):
+            self.page.goto('about:blank')     # a fresh page load, as from a message app (not a same-page # change)
+            t0 = time.time()
+            self.page.goto(url, timeout=60000)
+            try:
+                self.page.wait_for_function('window.__realms && (window.__realms.ready || window.__realms.error)', timeout=45000)
+                break
+            except PWTimeout:
+                if attempt == 2:
+                    raise
+                log(f'  slow load: {self.name} not ready after {time.time() - t0:.0f} s (busy PC?), loading once more')
+        loads.append(round(time.time() - t0, 2))
         err = self.ev('window.__realms.error || null')
         if err:
             raise Fail(f'{self.name} failed to boot: {err}')
@@ -483,10 +495,12 @@ def main():
             bad = [e for e in errors if 'favicon' not in e]
             check(not bad, f'no console errors ({bad[:5]})')
             log('DROPIN_RESULTS', json.dumps(results))
+            log('DROPIN_LOADS', json.dumps({'n': len(loads), 'max': max(loads or [0]), 'median': sorted(loads)[len(loads) // 2] if loads else 0}))
             log('DROPIN_DONE ok')
         except Fail as e:
             log('DROPIN_RESULTS', json.dumps(results))
             log('errors', errors[:10])
+            log('DROPIN_LOADS', json.dumps(loads))
             log(f'DROPIN_DONE fail: {e}')
             sys.exit(1)
         finally:

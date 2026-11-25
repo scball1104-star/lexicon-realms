@@ -16,6 +16,7 @@
 // Phone: the emote ring's Photo button opens it; two fingers turn and zoom, one finger moves the camera; Save makes the
 // postcard and shows it with Share (the phone's share sheet needs a tap of its own), Back returns to the scene.
 import { effectiveBinds, actionFor } from './keymap.js';
+import { markPage } from './page_marks.js';   // wave 9 fixes
 import { photoGate, stillGate, closeLine, timeLabel, clockText, subLine, leash, heldPan, dragPan, postcardLayout, postcardFile, stampDate,
   WEATHERS, POSES, CAPTION, SAY, WORDS, TIME_MARKS, LEASH_M, LEASH_PLACE_M, PAN_KEYS } from './photo_rig.js';
 
@@ -27,6 +28,9 @@ export function createPhotoUI({ g, st, send, say = () => {}, hooks = {} }) {
   const note = (text, secs = 2.5) => { P.note = { text, until: (st.now || 0) + secs }; };
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = Math.max(1, w); c.height = Math.max(1, h); return c; };
   const H = (k, d) => (hooks[k] ? hooks[k]() : d);
+  // wave 9 fixes: the page's own HTML over the canvas (the co-op bar with its Chat button, the chat line: src/net/netui.js)
+  // steps aside too, through a class on <html> that netui.js's CSS reads
+  const htmlMark = (on) => markPage('lr-photo', on);
 
   function open(player) {
     const gate = photoGate(player, { is3d: H('is3d', true), flying: H('flying', false), ready: H('ready', true) });
@@ -34,6 +38,7 @@ export function createPhotoUI({ g, st, send, say = () => {}, hooks = {} }) {
     Object.assign(P, { on: true, dx: 0, dz: 0, panel: true, zone0: H('zone', null), note: null, tod: null, weather: null, preview: null, lastT: null });
     P.held.clear();
     st.photo = P; st.emoteRing = null; st.longTip = null;
+    htmlMark(true);
     if (hooks.releaseMove) hooks.releaseMove(PAN_KEYS);     // a key held as it opens must not keep the hero walking
     send({ t: 'stop' });
     return true;
@@ -43,6 +48,7 @@ export function createPhotoUI({ g, st, send, say = () => {}, hooks = {} }) {
     Object.assign(P, { on: false, tod: null, weather: null, dx: 0, dz: 0, preview: null });
     P.held.clear();
     st.photo = null; st.longTip = null;
+    htmlMark(false);
     const line = was ? closeLine(why) : null;
     if (line) say('error', line);
   }

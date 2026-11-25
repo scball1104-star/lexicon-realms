@@ -40,6 +40,8 @@ const CSS = `
 #net-ui .net-chat .net-chip { align-self: center; white-space: nowrap; font-size: 13px; padding: 4px 7px; border-radius: 4px; border: 1px solid #8fb3e8; color: #cfe3ff; background: #1d2a48; }
 #net-ui .net-chat .net-chip.w { border-color: #c09ae8; color: #e6ccff; background: #33204a; }
 #net-ui .net-chat .net-count { align-self: center; font-size: 12px; color: #a79fb8; min-width: 46px; text-align: right; }
+html.lr-photo #net-ui .net-bar, html.lr-photo #net-ui .net-chat { display: none; }
+html.lr-window #net-ui .net-bar { display: none; }
 `;
 
 export function createNetUI({ doc = document } = {}) {

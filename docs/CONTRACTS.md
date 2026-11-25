@@ -1794,3 +1794,9 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 - **UI** (src/ui/chat_ui.js, `ui.chat`): on only while a co-op game is on (`setActive(on, { host, live })`); solo play
   draws today's log exactly. Hooks: main.js `talkHeads()` (every hero's head, HUD px). In 3D, `namePlates()` returns []
   (renderer3d already names every other hero: one name, not two). `ui.mode === 'watch'` now draws the chat window.
+  Esc (wave 9 fixes): `ui.chat.escape()` closes a friend's card, else the Say sheet, else the whole log, and returns true
+  when it closed one; ui.js asks it before Esc opens the menu.
+- **Page marks** (wave 9 fixes, src/ui/page_marks.js `markPage(name, on)`): classes on `<html>` that netui.js's CSS reads.
+  `lr-photo` while photo mode is open hides the co-op bar and the chat line; `lr-window` while a phone has a window, the Say
+  sheet, a friend's card or the whole log open in game mode hides the co-op bar (it sat over talents nodes and phrases). On a narrow phone (tabs) the Builds 2
+  window opens on the gold star's tab (talents2.js `nodeTab`, `openTab`), and the other tab wears a star.

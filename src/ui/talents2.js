@@ -223,6 +223,19 @@ export function talents2Layout(R, cls, { touch = false, hit = 15, tab = 'strengt
     pointsRight, hintY: colTop + colH + 8, footY: R.y + R.h - 15 };
 }
 
+/** The phone tab a node sits on ('strength' or 'weakness'; null for an unknown id). Wave 9 fixes: on a narrow phone the
+ *  window opens on the gold star's tab, and the other tab wears a star while the star is there. */
+export function nodeTab(cls, id) {
+  const cd = b2Class(cls), o = cd && id ? cd.nodes[id] : null;
+  const t = o ? cd.tracks.find((k) => k.id === o.track) : null;
+  return t ? (t.kind === 'weakness' ? 'weakness' : 'strength') : null;
+}
+/** The tab to show: a fresh open (no frame drawn in the last `gap` s) goes to the star's tab; otherwise the one chosen. */
+export function openTab(tab, star, cls, { fresh = false } = {}) {
+  if (fresh) return nodeTab(cls, star) || 'strength';
+  return tab || nodeTab(cls, star) || 'strength';
+}
+
 /** Every interactive rect of a layout (overlap and touch-size tests). */
 export function layoutTargets(lay) {
   const out = [];
@@ -319,10 +332,14 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
   const pts = B.points || { total: p.level, spent: 0, free: p.level, byTrack: {} };
   const R = talents2Rect(L);
   const hit = touch ? L.minHit : 15;
-  st.b2Tab = st.b2Tab || 'strength';
+  const star = B.suggested;
+  // wave 9 fixes: each time the window opens it shows the gold star's tab (narrow phones), so the star is never hidden
+  const now = st.now || 0;
+  const fresh = st.b2Seen == null || now - st.b2Seen > 1 || now < st.b2Seen;   // no frame of it in the last second
+  st.b2Seen = now;
+  st.b2Tab = openTab(st.b2Tab, star, cls, { fresh });
   const lay = talents2Layout(R, cls, { touch, hit, tab: st.b2Tab, level: p.level });
   const free = pts.free;
-  const star = B.suggested;
   const sel = st.talentSel;
   const hov = !touch && env.hover ? env.hover : null;
   const confirmRespec = st.confirm === 'b2respec';
@@ -398,6 +415,7 @@ export function drawTalents2(ctx, env, m, st, regions, act) {
       const on = st.b2Tab === t.id;
       g.window(ctx, t.rect.x, t.rect.y, t.rect.w, t.rect.h, 'thin', on ? 'ember' : t.id === 'weakness' ? 'violet' : 'blue', 0.95);
       g.text(ctx, t.label, t.rect.x + t.rect.w / 2, t.rect.y + Math.floor((t.rect.h - 9) / 2), on ? 'gold' : 'cream', { align: 'center' });
+      if (!on && star && nodeTab(cls, star) === t.id) g.icon(ctx, 'icon_star', t.rect.x + t.rect.w - 16, t.rect.y + Math.floor((t.rect.h - 12) / 2));   // wave 9 fixes: the star is on this tab
       regions.push({ rect: t.rect, kind: 'button', label: `b2:tab:${t.id}`, on: () => { st.b2Tab = t.id; st.talentSel = null; } });
     }
     btn(lay.buttons.respec, respecLabel, build.freeRespec || confirmRespec ? 'ember' : 'blue', null, doRespec, respecTip);
