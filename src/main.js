@@ -340,6 +340,7 @@ async function boot() {
   }
 
   let prev = world.snapshot(), snap = prev;
+  let replay = null;                   // wave 8 replays (set below, before the loop starts)
   const commandLog = [];   // [tick, entityId, cmd]: replayable (CONTRACTS section 2.3)
   function tick() {
     if (coop.isGuest) {
@@ -372,6 +373,7 @@ async function boot() {
   // frame timing for drivers (60 fps check): a rolling window of rAF deltas
   const frames = { last: 0, dts: [] };
   function render(alpha, nowMs) {
+    if (replay && replay.render(alpha, nowMs)) return;   // wave 8: the replay viewer draws its own frame (src/replay/)
     if (frames.last) { frames.dts.push(nowMs - frames.last); if (frames.dts.length > 240) frames.dts.shift(); }
     frames.last = nowMs;
     const me = playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
@@ -425,6 +427,10 @@ async function boot() {
     });
   }
 
+  // ---- wave 8 replays (src/replay/replay_ui.js): boss and rare fights record by themselves, R any fight, the Replays list
+  replay = await import('./replay/replay_ui.js').then((m) => m.createReplayUi({ world, content, renderer, view, ui, input, canvas, font, touch,
+    heroId: () => playerId, liveHero: () => heroEnt(), isGuest: () => coop.isGuest, build: () => bootVersion, createHorizonCam })).catch((e) => { console.warn('replays', e); return null; });
+  if (replay) ui.act.replays = () => replay.openList();
   const loop = createLoop({ hz: TICK_HZ, tick, render });
   coop.setPump({ loop, tick });
   if (q.get('paused') !== '1') loop.start();
@@ -457,6 +463,8 @@ async function boot() {
       glyphs(letters = 'ASHVOW', qty = 1) { const e = world.get(playerId); let n = 0; if (e) for (const L of String(letters).toUpperCase()) if (content.items[`glyph_${L.toLowerCase()}`]) n += bagAdd(e, `glyph_${L.toLowerCase()}`, qty, null, content); return n; },
       hp(n) { const e = world.get(playerId); if (e && !e.dead) e.hp = Math.max(1, Math.min(e.hpMax, n)); },
     };
+    if (replay) replay.recorder.devTouch(window.__realms.dev);   // a dev write mid-recording drops that recording
+    if (replay) window.__realms.replay = replay;                 // drivers
   }
   document.title = 'Lexicon Realms';
 }
