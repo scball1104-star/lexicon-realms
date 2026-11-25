@@ -151,17 +151,17 @@ export function createLanternNotes({ notesUi, content, storage, bus = null, hero
   const api = {
     model, book, notebook: nb,
     /** co-op: this hero's own notes for friends (never notes it was given) */
-    offer: () => (me() ? syncOffer(nb, me()) : []),
+    offer: (name = null) => { const n = name || me(); return n ? syncOffer(nb, n) : []; },   // name: a guest's hero at welcome (its snapshot is not there yet)
     /** co-op: a friend's notes; only notes written by that friend's hero are taken */
     take(list, from) {
       if (!from || from === me()) return 0;
-      nb.friend(me(), from);
+      if (me()) nb.friend(me(), from);
       const k = syncTake(nb, list, book, { from, me: myHeroes() });
       if (k) notify(NOTES_WIRE_WORDS.got(from));
       return k;
     },
     /** co-op: a friend in this game (Friends words, For...) */
-    met(name) { if (me()) nb.friend(me(), name); },
+    met(name, as = null) { const m = as || me(); if (m) nb.friend(m, name); },
     onLeave: null,
     key: NOTES_KEY,
   };
