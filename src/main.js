@@ -36,6 +36,7 @@ import { createCoop } from './net/coop.js';
 import { createLanternNotes } from './ui/notes_wire.js';   // wave 9 notes: lantern notes
 
 import { readRiddle, clearRiddle } from './ui/riddle_book.js';   // wave 9 riddles: a #riddle= link
+import { readRiftLink } from './data/rift.js';   // wave 10 drift: a #rift= link
 import { createRiddleRules } from './sim/riddle.js';   // wave 9 riddles: the link code's rules for the UI
 
 import { easternDay } from './core/eastern_week.js';   // wave 10 dflow: the one shared Eastern calendar
@@ -173,6 +174,8 @@ async function boot() {
   ui.riddles.setNet({ isGuest: () => coop.isGuest, offer: (code) => coop.riddleOffer(code), rules: createRiddleRules(content.riddleRules, content.riddleBlocked) });   // wave 9 riddles
   const riddleHash = () => { const c = readRiddle(window.location); if (c) { ui.riddles.receive(c); clearRiddle(); } };   // wave 9 riddles
   riddleHash(); window.addEventListener('hashchange', riddleHash);   // wave 9 riddles: the card shows once a hero is in the world
+  const riftHash = () => { const r = readRiftLink(window.location.hash); if (r && r.word) { ui.rift.receive(r); try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch { /* keep the hash */ } } };   // wave 10 drift
+  riftHash(); window.addEventListener('hashchange', riftHash);   // wave 10 drift: a friend's #rift= link
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
   ui.setItems(content.items);
   ui.setQuests(content.quests, content.npcs);

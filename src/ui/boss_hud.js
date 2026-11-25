@@ -35,9 +35,9 @@ export function drawBossFrame(g, ctx, L, t) {
   g.text(ctx, `${t.hpPct != null ? t.hpPct : Math.round(hp * 100)}%`, r.x + r.w - 7, by - 2, 'white', { align: 'right' });
   // the phase name, and the clocks
   const ly = by + barH + 2;
-  g.text(ctx, g.clip(S.phaseName, Math.round(r.w * 0.42)), r.x + 8, ly, 'cream');
   const clk = [S.frenzyIn != null ? (S.frenzyIn > 0 ? `Frenzy ${clock(S.frenzyIn)}` : 'Frenzy!') : null, S.hardIn != null && S.hardIn < 600 ? (S.hardIn > 0 ? `Last Count ${clock(S.hardIn)}` : 'Last Count!') : null].filter(Boolean).join('  ');
   g.text(ctx, clk, r.x + r.w - 7, ly, S.hardIn != null && S.hardIn < 30 ? 'red' : 'gray', { align: 'right' });
+  g.text(ctx, g.clip(S.phaseName, Math.max(20, r.w - 22 - (clk ? g.textW(clk) : 0))), r.x + 8, ly, 'cream');   // wave 10 integrate: never runs into the clocks
 }
 
 export function createBossHud({ g }) {
