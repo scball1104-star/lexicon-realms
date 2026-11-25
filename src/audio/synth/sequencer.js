@@ -11,6 +11,7 @@
 // A layer whose gain is 0 and is not fading in is not scheduled at all, so combat costs nothing while exploring.
 import { makeTheme, degToMidi, chordTones } from './motif.js';
 import * as I from './instruments.js';
+import { letterGate } from './letters.js';   // wave 9 music: the party's letters gate the tune
 
 export function createSequencer(S, theme, { night = false, crickets = true, seedSalt = 'seq' } = {}) {
   const ctx = S.ctx;
@@ -21,6 +22,11 @@ export function createSequencer(S, theme, { night = false, crickets = true, seed
   const T = theme.tonic;
   const dayMode = theme.dayMode, nightMode = theme.nightMode;
   void seedSalt;
+  // wave 9 music: theme.letters (a 26-bit mask) = music made from your letters; missing = today's theme, note for note
+  const LG = theme.letters != null ? letterGate(theme, theme.letters) : null;
+  const lay = (name) => !LG || LG.layer(name);
+  const snd = (h, i) => !LG || LG.sounds(h, i);
+  let barNo = 0;
 
   const layers = {};
   const mixNow = { explore: 1, combat: 0, night: 0 };
@@ -87,15 +93,16 @@ export function createSequencer(S, theme, { night = false, crickets = true, seed
       I.bass(S, at(0), midi(root, T - 24), eighth * (plan.final ? 6 : 2.6), vel(0.9), P.bass);
       if (!plan.final) I.bass(S, at(3), midi(rng.chance(0.5) ? root + 4 : root, T - 24), eighth * 2.6, vel(0.7), P.bass);
       // harp arpeggio, or a rolled chord at the end
-      if (plan.final) {
+      if (!lay('harp')) { /* letters: the harp is not in yet */ } else if (plan.final) {
         [root, root + 2, root + 4, root + 7, root + 9].forEach((d, i) => I.harp(S, t + i * 0.07, midi(d, T - 12), barLen, 0.9, P.harp));
       } else {
         const pat = plan.h % 2 ? [root, root + 4, root + 7, root + 9, root + 11, root + 7] : [root, root + 4, root + 9, root + 7, root + 4, root + 2];
         pat.forEach((d, s) => I.harp(S, at(s) + hum(), midi(d, T - 12), eighth, vel(s === 0 ? 0.95 : 0.7), P.harp));
       }
-      if (mel) for (const n of mel) I.flute(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth * 0.94, vel(0.95), P.flute);
-      if (hint) for (const n of hint) if (n.step % 3 === 0) I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(0.45), P.flute, { decay: 1.6, index: 1.2 });
-      if (plan.perc) {
+      if (mel) mel.forEach((n, i) => snd(plan.h, i) && I.flute(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth * 0.94, vel(0.95), P.flute));
+      if (hint) hint.forEach((n, i) => n.step % 3 === 0 && snd(plan.h, i) && I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(0.45), P.flute, { decay: 1.6, index: 1.2 }));
+      if (LG && !mel && !hint) for (const n of LG.line(barNo, root)) I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(0.4), P.flute, { decay: 1.8, index: 1.0 });
+      if (plan.perc && lay('perc')) {
         I.frameDrum(S, at(0), vel(0.8), P.drum);
         if (!plan.final) {
           I.frameDrum(S, at(3), vel(0.5), P.drum, { pitch: 1.1 });
@@ -120,13 +127,15 @@ export function createSequencer(S, theme, { night = false, crickets = true, seed
     if (liveAt('night', mixA, mixB)) {
       for (const d of ct) I.pad(S, t, fold(midi(d, T - 12), 52, 64), barLen * holdBars, 0.9, P.npad, { bright: 0.12 });
       I.bass(S, at(0), midi(root, T - 24), barLen * (plan.final ? 2 : 0.95), vel(0.6), P.nbass);
-      if (mel) for (const n of mel) I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(n.step % 3 === 0 ? 0.85 : 0.55), P.bell, { decay: 2.2 });
-      if (hint) for (const n of hint) if (n.step % 3 === 0) I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(0.4), P.bell, { decay: 2 });
-      if (!plan.final) for (const s of [0, 3]) I.harp(S, at(s) + 0.03, midi(s ? root + 4 : root + 7, T - 12), eighth, vel(0.45), P.nharp);
+      if (mel) mel.forEach((n, i) => snd(plan.h, i) && I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(n.step % 3 === 0 ? 0.85 : 0.55), P.bell, { decay: 2.2 }));
+      if (hint) hint.forEach((n, i) => n.step % 3 === 0 && snd(plan.h, i) && I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(0.4), P.bell, { decay: 2 }));
+      if (LG && !mel && !hint) for (const n of LG.line(barNo, root)) I.bell(S, at(n.step) + hum(), midi(n.deg, T + 12), n.len * eighth, vel(0.35), P.bell, { decay: 2 });
+      if (!lay('harp')) { /* letters: not yet */ } else if (!plan.final) for (const s of [0, 3]) I.harp(S, at(s) + 0.03, midi(s ? root + 4 : root + 7, T - 12), eighth, vel(0.45), P.nharp);
       else [root, root + 4, root + 7, root + 9].forEach((d, i) => I.harp(S, t + i * 0.12, midi(d, T - 12), barLen, 0.6, P.nharp));
       const n = crickets ? rng.int(0, 2) : 0;
       for (let i = 0; i < n; i++) I.cricket(S, t + rng.range(0, barLen - 0.3), vel(0.8), P.cricket, { pitch: rng.range(4000, 4700), chirps: rng.int(2, 4) });
     }
+    barNo++;
     return barLen;
   }
 

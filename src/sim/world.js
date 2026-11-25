@@ -47,7 +47,8 @@ import { createLegendDrops } from './legend_drops.js';
 import { createMounts } from './mounts.js';
 import { createRealmMech } from './realm_mech.js';   // wave 3: the start realms' lava, Gate waves and tide
 import { createRealms2 } from './realms2.js';   // wave 3 realms2: the sandstorm and the lantern watch
-import { createEmotes } from './emotes.js';   // wave 7 anim: jump and emotes, one cosmetic field (no rng, position or stats)
+import { createEmotes } from './emotes.js';
+import { seenMask } from './letters_seen.js';   // wave 9 music   // wave 7 anim: jump and emotes, one cosmetic field (no rng, position or stats)
 
 export { distPx };
 export const STATE_VERSION = 2;
@@ -440,6 +441,7 @@ function wrap(state, content0, rng, systems) {
       const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []), ...(e.bounties ? { bounties: clone(e.bounties) } : {}),
         ...(e.dungeons ? { dungeons: clone(e.dungeons) } : {}) };     // dungeons: the daily first clears and the legendary bad-luck count
       if (e.app) out.app = { ...e.app };          // wave 6: the hero's own look (missing = today's look)
+      { const gs = seenMask(content, e); if (gs) out.glyphSeen = gs; }   // wave 9 music: letters ever found (missing = what the hero holds)
       if (!combatOn) return out;
       out.hp = e.dead ? e.hpMax : e.hp;
       out.res = e.res ? { kind: e.res.kind, cur: Math.round(e.res.cur * 100) / 100 } : null;

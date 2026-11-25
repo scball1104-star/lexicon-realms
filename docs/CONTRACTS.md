@@ -1804,3 +1804,18 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 ## Party chronicle (wave 9 chronicle lane, 2026-11-25; D:/LQOnline/wave9/chronicle/BRIEF.md, Scott: go with the recommendations)
 - `src/chronicle/journal.js` (pure): `createJournal({ get, players, heroId, placeOf, content })` reads bus events on the snapshot (host, guest and solo alike; a guest gets them in the host's frames, `frames.js publicFilter`), keeps the night's moments and asks for a still `DELAY[kind]` ticks later (at most 6). `writeStory`, `packLink` / `readLink` (`#chron=`, words only, slots checked against hero-name rules and `knownNames(content)`). WORDS and LINES are DRAFTS for Scott.
 - `src/chronicle/chronicle.js`: the controller (main.js creates it after the replays): stills from `renderer.capture()` (3D only, never the HUD), drawn over the HUD by its own `renderer.drawHud` wrap with a full-resolution pass for the stills, an HTML `data-overlay="chronicle"` layer for input while the page or list is up. The page opens at Quit to title (main.js logout hook, `endNight('quit')`) and when a host's co-op game ends, for a night of 5 minutes or more (`?dev=1&chronmin=0` drops the floor for drivers). Store: IndexedDB `lexicon_realms_chronicle`, the newest 12 nights. `ui.act.chronicle` is the Options button.
+
+## Music made from your letters (wave 9 music, 2026-11-25; Scott approved D:/LQOnline/wave9/music/BRIEF.md with its recommendations)
+- **Found letters** (src/sim/letters_seen.js): `player.glyphSeen`, a 26-bit mask (bit 0 = A), set by `bagAdd` the first time
+  a glyph enters the pouch. `seenMask(content, e)` = the mask plus every letter the hero holds (pouch, worn and bagged
+  margins, the chest tab), so an old save starts from what it holds and the song never shrinks. Save: `saveFields` writes
+  `glyphSeen` when non-zero; `addPlayer` / `storage.restore` take it back (main.js passes it); missing = 0.
+- **HUD view**: `hud.letters = { seen, song }`: the hero's mask, and the party's together (`partyLetters`; solo = own).
+  It rides the guest's frame with the rest of the HUD view.
+- **Audio**: `synthPlaceFor({ ..., letters })` puts the mask into the spec (`spec.letters`; all 26 or none = no field, today's
+  theme and id). `synthTrackId` = `synth:<key>:L<base36 mask>:<variant>`. `audio.js` holds the mask from when you came into
+  the area. `sequencer.js` gates by `theme.letters` (src/audio/synth/letters.js: the seeded deal of A to Z over the tune's
+  notes, harp from 8 letters, drums from 16, a bell line of the found letters below 26); the combat layer is never gated.
+  Synth sound Off: no synth theme at all, so nothing changes. Tests compare note schedules, never samples.
+- **UI** (src/ui/letters_ui.js): a toast when the hero's own mask gains a letter (not on load, not with Synth Off), and
+  once a session a log line. Words are DRAFTS (`LETTER_WORDS`).

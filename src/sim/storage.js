@@ -265,6 +265,7 @@ export function createStorage(ctx) {
     saveOf(e) { return e.chest ? clone(e.chest) : null; },
     restore(e, spec) {
       if (spec.chest) e.chest = cleanTab(spec.chest, content);
+      if (Number.isFinite(spec.glyphSeen)) e.glyphSeen = spec.glyphSeen >>> 0;   // wave 9 music: letters ever found
       if (Array.isArray(spec.gbag)) { e.gbag = []; for (const g of spec.gbag) if (g && isGlyph(content, g.item) && g.qty > 0) pouchAdd(e.gbag, g.item, g.qty | 0); }
     },
     shared() { return clone(state.shared); },

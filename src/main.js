@@ -31,6 +31,7 @@ import { photoInput } from './ui/photo_rig.js';
 import { createUI } from './ui/ui.js';
 import { padBar, loadOptions, loadShared, saveShared, SHARED_KEY } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
+import { createLetterNotes } from './ui/letters_ui.js';   // wave 9 music
 import { createCoop } from './net/coop.js';
 
 const ZOOMS = [1, 1.5, 2];
@@ -92,6 +93,7 @@ async function boot() {
   if (q.has('tod')) { const v = Number(q.get('tod')); if (Number.isFinite(v)) view.tod = ((v % 1) + 1) % 1; }
   if (q.has('weather')) view.weather = q.get('weather');
   const fxOverride = ['low', 'high'].includes(q.get('fx')) ? q.get('fx') : null;
+  const letterNotes = createLetterNotes();   // wave 9 music: a toast when a new letter joins the song
   const synthQ = q.get('synth');      // ?synth=0 / 1: the synth switch for QA and the frame budget (Settings otherwise)
 
   // ---- audio (CONTRACTS 11): music after the first user input (browser rule), zone themes, event sfx
@@ -224,6 +226,7 @@ async function boot() {
       qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts,
       bounties: s.bounties,                                                  // the bounty boards: which were handed in today
       dungeons: s.dungeons,                                                  // dungeons: today's first clears, the legendary bad-luck count
+      glyphSeen: s.glyphSeen,                                                // wave 9 music: letters ever found (optional)
       chest: s.chest, gbag: s.gbag,                                          // the hero's Lantern Chest tab and glyph pouch (missing = empty)
       barOff: s.barOff,                                                      // skills the player took off the bar (save v2)
       // rest XP (src/sim/worldlife.js): the bank, and the real time away since the last save (savedAt, ms; this PC's clock,
@@ -445,6 +448,7 @@ async function boot() {
       // an area starts its own music (a new zone or world region; the roads keep the music you came with), its ambience
       // bed, the battle track in a real fight, friends' sounds by distance (src/audio/audio.js frame)
       audio.frame(nowMs, { me, snap, place, zone: z, fresh: musicArea == null });
+      letterNotes.frame(snap.hud && snap.hud[playerId], playerId, ui, { synthOn: synthQ === '0' ? false : ui.options.synth !== false });   // wave 9 music
       musicArea = place.region || place.id;
     } else audio.frame(nowMs, { snap });
     const vm = buildViewModel(snap, playerId, { zoneNames: content.zoneNames, log: ui.logText(), tickHz: TICK_HZ, place: me ? place : null });

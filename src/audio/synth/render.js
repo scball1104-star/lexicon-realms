@@ -14,6 +14,7 @@ import { VOICES, BARK_SHAPES } from './voices.js';
 import { makeRng } from './rng.js';
 import { MURMUR_RECIPES } from './murmur.js';
 import { falls } from './falls_sfx.js';   // wave 7 water kit: the waterfall loop
+import { countOf } from './letters.js';   // wave 9 music
 
 const hasOffline = () => typeof OfflineAudioContext !== 'undefined';
 const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
@@ -73,7 +74,9 @@ export async function renderTheme(spec, variant = 'day', { sampleRate = 32000 } 
   seq.render(arr, 0.05, [{ bar: 0, mix }]);   // a hair after 0: humanised notes may land a few ms early
   const raw = await ctx.startRendering();
   const buffer = foldTail(raw, loopLen, sampleRate);
-  const rmsDb = levelTo(buffer, THEME_RMS_DB[variant === 'combat' ? 'combat' : spec.under ? 'under' : night ? 'night' : 'day'], 0.89);
+  // wave 9 music: a song with few letters sits up to 3 dB under the full theme, as the approved clips did
+  const lettersDb = spec.letters != null ? -3 * (1 - countOf(spec.letters) / 26) : 0;
+  const rmsDb = levelTo(buffer, THEME_RMS_DB[variant === 'combat' ? 'combat' : spec.under ? 'under' : night ? 'night' : 'day'] + lettersDb, 0.89);
   return { buffer, loopEnd: buffer.duration, rmsDb, ms: Math.round(nowMs() - t0), stats: { notes: S.stats.notes, peakVoices: S.stats.peakVoices } };
 }
 

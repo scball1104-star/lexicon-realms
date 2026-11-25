@@ -61,6 +61,7 @@ export function createAudio(opts = {}) {
   // wave 5b: the synth beside the LQ engine (synth_game.js): themes for places with no track of their own, live sounds
   const syn = eng ? createSynthGame({ engine: eng, onTrackReady: () => { synthPick = true; } }) : null;
   let synthPick = false, synthField = false, roadSince = null, family = null;
+  let songK = null, songMask = null;   // wave 9 music: the letters mask held for the area you are in
   const talkVoice = createTalkVoice(syn);   // wave 6 quest scenes: audio.talk({ say: { npc, text } } | { stop } | { flourish })
   const nowMs = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
@@ -121,7 +122,7 @@ export function createAudio(opts = {}) {
     /** Quest scenes (talk_voice.js): { say: { npc, text } } starts the murmur, { stop: true } ends it, { flourish: kind }. */
     talk: (m = {}) => { try { if (m.say) talkVoice.say(m.say); else if (m.stop) talkVoice.stop(); else if (m.flourish) talkVoice.flourish(m.flourish, m); } catch (e) { console.warn('[audio] talk', e); } },
     jingle: safe((id, o = {}) => eng.jingle(id, { duckMusic: o.duck ?? 0.3, volume: o.volume ?? 1 })),
-    debug: () => ({ ...(eng ? eng.debugState() : { available: false }), battle: cm.state, field, bed: bedKey, synth: syn ? syn.debug() : null }),
+    debug: () => ({ ...(eng ? eng.debugState() : { available: false }), battle: cm.state, field, bed: bedKey, synth: syn ? syn.debug() : null, song: songMask }),   // song: wave 9 music
 
     /** Once per drawn frame (main.js render): place music and bed, the battle track, friends' positions. */
     frame(t, { me = null, snap = null, place = null, zone = null, fresh = false } = {}) {
@@ -137,7 +138,11 @@ export function createAudio(opts = {}) {
           // a synth theme for a place with no track of its own (synth_places.js); while it renders, today's track plays
           const tNow = t == null ? nowMs() : t;
           if (me.zone === 'world' && !place.region) { if (roadSince == null) roadSince = tNow; } else roadSince = null;
-          const spec = syn && syn.enabled ? synthPlaceFor({ zoneId: me.zone, zoneKind: zone.kind, zoneName: zone.name, region: place.region, onRoad: roadSince != null && tNow - roadSince > ROAD_MS }) : null;
+          // wave 9 music: the party's letters (HUD view), held from when you came into this area, so a new letter changes
+          // the song at the next area you enter, never mid-tune
+          const hudL = snap && snap.hud && snap.hud[me.id] && snap.hud[me.id].letters;
+          if (k !== songK || songMask == null) { songK = k; songMask = hudL && Number.isFinite(hudL.song) ? hudL.song : null; }
+          const spec = syn && syn.enabled ? synthPlaceFor({ zoneId: me.zone, zoneKind: zone.kind, zoneName: zone.name, region: place.region, onRoad: roadSince != null && tNow - roadSince > ROAD_MS, letters: songMask }) : null;
           const sid = spec ? syn.theme(spec, snap && snap.night ? 'night' : 'day') : null;
           if (sid) {
             placeK = k; synthField = true;
