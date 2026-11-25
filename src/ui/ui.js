@@ -43,6 +43,7 @@ import { applySkin, skinFromOptions, textSizeFrom } from './skin.js';   // wave 
 import { createTalkUI } from './talk_ui.js';   // wave 6 quest scenes: the talk panel and flourishes (view.talk)
 import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing hints for a new hero (Help turns them off)
 import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
+import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -99,7 +100,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const uiSnd = createUiSounds((k) => { if (hooks.sound) hooks.sound(k); });
   const talkUi = createTalkUI({ g, zones, zoneNames, hooks, options: () => options });
   const onb = createOnboard({ g, store, options: () => options, hooks });   // wave 7 onboarding (src/ui/onboard.js)
-  const emoteUi = createEmoteUI({ g, st, send, say: (ch, t) => say(ch, t) });
+  const emoteUi = createEmoteUI({ g, st, send, say: (ch, t) => say(ch, t), photo: (p) => photoUi.open(p) });
+  const photoHooks = { releaseMove: (codes) => { if (hooks.input) for (const c of codes) hooks.input.release(c); } };
+  const photoUi = createPhotoUI({ g, st, send, say: (ch, t) => { say(ch, t); toast(t); }, hooks: photoHooks });   // wave 8 photo
 
   // ---- the action surface menus and screens call
   const act = {
@@ -421,6 +424,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (demoExtra) m = applyDemo(m);
       lastModel = m;
       st.openMenu = [...st.open].pop() || null;
+      if (photoUi.on && photoUi.draw(ctx, L, regions, m)) { st.regions = regions; return; }   // wave 8 photo: the HUD steps aside
       talkUi.frame(st, snap, playerId, act);   // quest scenes: a move, a hit or walking off ends the talk
       talkUi.drawUnder(ctx, L, t);
       if (m.player && !m.player.dead) drawGoalPointer(ctx, m, L, t);
@@ -894,6 +898,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       return;
     }
     // game
+    if (!down) photoUi.keyUp(ev);                // wave 8 photo: lets go of a held camera key (the event goes on as before)
     if (st.rebinding) {
       if (!down) return;
       ev.stopPropagation(); ev.preventDefault();
@@ -903,6 +908,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     }
     if (ev.repeat && down) { if (ev.code === 'Tab') ev.preventDefault(); }
     if (down && !ev.repeat && talkUi.key(ev, st, options.binds, act)) { ev.stopPropagation(); ev.preventDefault(); return; }   // quest scenes
+    if (down && photoUi.key(ev, lastModel, options.binds)) { ev.stopPropagation(); ev.preventDefault(); return; }   // wave 8 photo: P, and every key while open
     if (down && emoteUi.key(ev, options.binds, lastModel)) { ev.stopPropagation(); ev.preventDefault(); return; }   // wave 7 anim: Space, G, the ring
     const route = routeKey(ev.code, down, options.binds);
     if (route.kind === 'pass') return;
@@ -1157,6 +1163,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     get options() { return options; },
     /** wave 6: main.js hands in the boss intro card's draw (src/ui/boss_card.js); drawn after the HUD, under the windows */
     set bossCard(fn) { bossCardDraw = fn; },
+    photo: photoUi, setPhotoHooks(h) { Object.assign(photoHooks, h); },   // wave 8 photo: main.js hands in the capture and the camera
     notify(text, secs = 4) { toast(text, secs); },
     get model() { return lastModel; },
     get regions() { return st.regions; },
@@ -1183,7 +1190,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     talk: talkUi,
     onboard: onb,   // wave 7 onboarding hints (drivers and tests)
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */
-    owns(x, y) { return st.mode !== 'game' || !!topRegion(x, y); },
+    owns(x, y, who) { const r = st.mode === 'game' ? topRegion(x, y) : null; return st.mode !== 'game' || (!!r && !(who === 'cam' && r.camThrough)); },   // 'cam': horizon_input.js (wave 8 photo)
     handleEvents(events, ctx) {
       for (const ev of events) {
         for (const l of eventLines(ev, { me: playerId, resourceKind: resKindNow(), ...ctx })) (l.quiet ? quietSay(l.text) : say(l.ch, l.text));

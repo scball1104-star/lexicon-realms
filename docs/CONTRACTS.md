@@ -1763,3 +1763,19 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   function of the clock, so gameplay is unchanged and a replay's state hash matches the live one.
 - Hub lines: main.js (create it, `render()` hands the frame to the viewer, dev helpers), ui/menus.js (a Replays button in
   Options), render3d/renderer3d.js (`view.replayCam`: the orbit camera also below ground, only in the viewer).
+
+## Photo mode and postcards (wave 8 photo, approved by Scott 2026-11-24; D:/LQOnline/wave8/photo/BRIEF.md)
+
+- **Render-only.** `view.photo` is null (today) or `{ dx, dz, clean }`: renderer3d.js adds `dx, dz` (m) to the camera
+  focus (leashed to 30 m, 8 m in a dungeon or cave) and, with `clean`, draws no plates, numbers, door labels, target ring
+  or cutaway hole. While photo mode is open main.js also puts the player's picked `view.tod` / `view.weather` on (null =
+  the live value) and lends the horizon camera (`view.cam`); on close all four go back exactly as they were. The sim, the
+  save and co-op never see any of it.
+- **Input.** While `ui.photo.on`, tick() passes the sim only `stop` from `input.poll` (`photoInput`, src/ui/photo_rig.js);
+  menu commands still go (a pose is an ordinary `emote` / `sit`). Photo mode's full-screen region is `camThrough`:
+  `ui.owns(x, y, 'cam')` is false there, so horizon_input.js keeps right-drag, the wheel and two fingers.
+- **Gate.** Opens only in 3D, out of combat, alive, not flying, world loaded (`photoGate`); closes itself on combat,
+  death, flight or a zone change (`stillGate`). Keys: action `photo` (P, rebindable); phone: the emote ring's Photo.
+- **Postcard.** `renderer.capture()` draws the 3D frame once more into a 2D canvas (never the HUD); photo_ui.js frames
+  it. PC: a PNG download; phone: a preview, then `navigator.share` with the file on its own tap. Nothing leaves the
+  device unless the player shares it.

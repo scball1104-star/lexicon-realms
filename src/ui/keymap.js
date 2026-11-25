@@ -27,6 +27,7 @@ export const ACTIONS = [
   { id: 'talents', label: 'Talents', key: 'KeyN', group: 'Menus' },
   { id: 'map', label: 'World map', key: 'KeyM', group: 'Menus' },
   { id: 'help', label: 'Help (all controls)', key: 'KeyH', group: 'Menus' },
+  { id: 'photo', label: 'Photo mode', key: 'KeyP', group: 'Menus' },      // wave 8 photo (src/ui/photo_ui.js)
   { id: 'menu', label: 'Menu / close', key: 'Escape', group: 'Menus', fixed: true },
 ];
 export const ACTION_BY_ID = Object.fromEntries(ACTIONS.map((a) => [a.id, a]));

@@ -256,6 +256,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   }
   let shown = null;
   let turntable = null;          // wave 6: made the first time a stage is asked for (turntable.js)
+  let photoClean = false, lastFx = null;        // wave 8 photo (view.photo): no plates, numbers, door labels, target ring or cutaway
   let flightView = null;          // big world: the flight camera's reach while the hero rides the Lantern Kite (M3)
 
   // ---- 2D layers
@@ -738,6 +739,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const k = pe && pe.zone === meE.zone ? alpha : 1;
       focus.set(((pe ? pe.x : meE.x) + (meE.x - (pe ? pe.x : meE.x)) * k) / PX, 0, ((pe ? pe.y : meE.y) + (meE.y - (pe ? pe.y : meE.y)) * k) / PX);
     } else if (zone) { const ar = zone.arrival || [zone.w / 2, zone.h / 2]; focus.set(ar[0] + 0.5, 0, ar[1] + 0.5); }
+    if (view.photo) { focus.x += view.photo.dx || 0; focus.z += view.photo.dz || 0; }   // wave 8 photo: the free camera's step off the hero (m)
+    photoClean = !!(view.photo && view.photo.clean);
     const target = focus.clone().setY(0.9);
     const tnow = performance.now(), rdt = Math.min(0.1, Math.max(0, (tnow - camT) / 1000));
     camT = tnow;
@@ -834,7 +837,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     SEE.uNearR.value = hpose ? hpose.nearR : 0;   // horizon camera: lamp posts, trunks and roof corners at the lens fade out
     SEE.uFocus.value.copy(me ? me.root.position : focus).setY(1.0); SEE.uSeeR.value = me ? 3.2 : 0;
     if (tgA && tgA.e && !tgA.e.dead && tgA.kind !== 'object') { SEE.uFocus2.value.copy(tgA.root.position).setY(Math.min(1.2, tgA.height * 0.55)); SEE.uSeeR2.value = 1.9; } else SEE.uSeeR2.value = 0;
-    cutBuildings(snap, view, me, tgA, rdt);
+    if (photoClean) { SEE.uSeeR.value = 0; SEE.uSeeR2.value = 0; }   // wave 8 photo: no see-through hole round the hero (the shot is framed by hand)
+    cutBuildings(snap, view, photoClean ? null : me, photoClean ? null : tgA, rdt);
     tickWater(now); tickGround(now);
     if (shown) tickRealm3d(shown.group, snap.tick, now);
     animateLineup(now, dt);
@@ -844,7 +848,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (quality.water !== 'off') { const dm = skyKit && skyKit.objects[0] && skyKit.objects[0].visible ? skyKit.objects[0].material.uniforms : null; waterSky(dm, scene.fog, sun, hemi); dev.water = quality.water; }
     dev.realms2 = r2fx.update(snap, view.zone, actors, camera, now, focus);
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
-    if (tg && tg.e && !tg.e.dead && tg.kind !== 'object') {
+    if (tg && tg.e && !tg.e.dead && tg.kind !== 'object' && !photoClean) {
       targetRing.visible = true;
       targetRing.position.copy(tg.root.position).setY(groundY(tg.root.position.x, tg.root.position.z) + 0.04);
       const r = Math.max(0.8, Math.min(2.2, tg.height * 0.55));
@@ -858,6 +862,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     drawTelegraphs(snap);
     if (trans && trans.warm) warmBefore();
     const tr0 = performance.now();
+    lastFx = view.fx;
     if (quality.bloom && composer && view.fx !== 'low') composer.render();
     else renderer.render(scene, camera);
     if (trans && trans.warm) warmAfter(tr0);
@@ -881,8 +886,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
 
     // overlay: nameplates for the target and foes on you, then the floating numbers (HUD px, crisp at every zoom)
     octx.clearRect(0, 0, layout.hudW, layout.hudH);
-    drawPlates(snap, view);
-    fx2.drawNumbers(octx, worldToHud, now);
+    if (!photoClean) { drawPlates(snap, view); fx2.drawNumbers(octx, worldToHud, now); }   // wave 8 photo: a clean picture
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(over, 0, 0, layout.hudW, layout.hudH, layout.ox, layout.oy, layout.hudW * layout.base, layout.hudH * layout.base);
     const ms = performance.now() - t0;
@@ -969,7 +973,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   function drawHud(fn) {
     if (fallback) return fallback.drawHud(fn);
     hctx.clearRect(0, 0, layout.hudW, layout.hudH);
-    if (!trans && !talkHide && !bossLabelsOff) drawDoorLabels();   // hidden over a talk and under the boss intro card (wave 6)
+    if (!trans && !talkHide && !photoClean && !bossLabelsOff) drawDoorLabels();   // hidden over a talk and under the boss intro card (wave 6)
     fn(hctx, layout);
     // loading line (over the title too, so the title never looks frozen while the 3D world loads)
     if (!state.ready || !shown) {
@@ -1039,6 +1043,14 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       for (let i = 0; i < n; i++) { if (quality.bloom && composer) composer.render(); else renderer.render(scene, camera); g.readPixels(0, 0, 1, 1, g.RGBA, g.UNSIGNED_BYTE, px); }
       const per = (performance.now() - t) / n;
       return { uncappedMs: +per.toFixed(2), uncappedFps: +(1000 / per).toFixed(1), calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, size: [gl.width, gl.height], quality };
+    },
+    /** wave 8 photo: the 3D picture as it is now, drawn once more and copied to a 2D canvas (never the HUD). */
+    capture() {
+      if (fallback || !shown) return null;
+      if (quality.bloom && composer && lastFx !== 'low') composer.render(); else renderer.render(scene, camera);
+      const c = document.createElement('canvas'); c.width = gl.width; c.height = gl.height;
+      c.getContext('2d').drawImage(gl, 0, 0);
+      return c;
     },
     invalidate(zoneId) { const z = state.zones.get(keyOf(zoneId)); if (z) { z.dispose(); state.zones.delete(keyOf(zoneId)); } },
   };
