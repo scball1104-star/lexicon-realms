@@ -45,6 +45,7 @@ import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing h
 import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
 import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
 import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
+import { createNotesUI } from './notes_ui.js';   // wave 9 notes: lantern notes (the seals, the writer, the reader)
 import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
 
 const SIDE = ['character', 'bags'];
@@ -106,6 +107,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const photoHooks = { releaseMove: (codes) => { if (hooks.input) for (const c of codes) hooks.input.release(c); } };
   const photoUi = createPhotoUI({ g, st, send, say: (ch, t) => { say(ch, t); toast(t); }, hooks: photoHooks });   // wave 8 photo
   const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
+  const notesUi = createNotesUI({ g, st });   // wave 9 notes (main.js wires it: src/ui/notes_wire.js)
 
   // ---- the action surface menus and screens call
   const act = {
@@ -434,6 +436,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player && !m.player.dead) drawGoalPointer(ctx, m, L, t);
       if (m.player && hooks.namePlates) drawNamePlates(ctx, hooks.namePlates());
       if (m.player) chatUi.drawUnder(ctx, L, hooks.talkHeads ? hooks.talkHeads() : []);   // wave 8 talk: speech bubbles, under the HUD
+      if (m.player) notesUi.drawUnder(ctx, L, regions, t);   // wave 9 notes: the seals over lantern posts, under the HUD
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks().filter((k) => k.id !== talkUi.hiddenMark(st)), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
       regions.push(...hud.draw(ctx, m, L, st, { log: chatUi.active ? [] : log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
@@ -489,6 +492,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         onb.frame(st, m, snap, playerId, t, L, !!(st.open.size || st.dialog || st.bossUp || st.levelUp || st.chest || st.mirror || st.barPick || st.emoteRing || st.slotCard || st.hint || st.story || m.player.dead || (m.group && (m.group.trade || m.group.ready))));
         sizeScope(() => onb.draw(ctx, L, regions, t));
         if (st.emoteRing) sizeScope(() => emoteUi.draw(ctx, L, regions, m));   // wave 7 anim: the emote ring
+        if (!st.mirror && !st.emoteRing) notesUi.draw(ctx, L, regions);   // wave 9 notes: over the phone top bar
         if (st.mirror) looks.drawMirror(ctx, env, regions, t, centred, L);   // the free mirror covers the HUD
       }
     }
@@ -934,6 +938,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       const open = [...st.open];
       if (st.mirror) looks.close();
       else if (chatUi.escape()) { /* wave 9 fixes: Esc closes the Say sheet, a friend's card or the chat log */ }
+      else if (notesUi.escape()) { /* wave 9 notes: Esc closes the writer, the reader or a card */ }
       else if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
       else if (st.hint) act.dismissHint();
       else if (st.dialog) act.closeDialog();
@@ -1198,6 +1203,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     talkView: (snap) => (st.mode === 'game' ? talkUi.view(st, snap, playerId, st.metrics.touch) : null),
     talk: talkUi,
     chat: chatUi,   // wave 8 talk (src/ui/chat_ui.js): coop.js feeds it
+    notes: notesUi,   // wave 9 notes (src/ui/notes_ui.js): main.js wires it
     openEmotes: () => emoteUi.open(true),   // wave 8 talk: the Say sheet's Emotes button
     onboard: onb,   // wave 7 onboarding hints (drivers and tests)
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */

@@ -67,6 +67,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
   const talk = createTalk({ ui, nui, compact, st: { get role() { return role; }, get host() { return hostSess; }, get guest() { return guestSess; },
     get hostName() { return hostName; }, get hostId() { return hostId; }, get myId() { return guestPid; }, get snap() { return lastSnap; }, refresh: () => hostBar() } });
   let lastSnap = null;                   // a guest's newest frame (the names a whisper can go to)
+  let notesNet = null;                   // wave 9 notes (src/ui/notes_wire.js; main.js useNotes): the swap when friends play
 
   // ---------------------------------------------------------------- host
   function spawnGuest(hero) {
@@ -91,9 +92,11 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     sysLog.push({ tick: world.tick, sys: 'party', id: hostId, party });
     hostSess = createHostSession({ world, hostId, hostName, party, room: null, build, spawnGuest, saveOf: (id) => saveState(id), on: {
       join: (g) => { say(`${g.name} joined the party.`); ui.notify(`${g.name} joined.`, 3); hostBar(); },
+      notesMet: (name) => { if (notesNet) notesNet.met(name); },   // wave 9 notes: a friend in this game (Friends words, For...)
       leave: (g, why) => { if (why !== 'kicked') say(`${g.name} ${why === 'left' ? 'left' : 'dropped out'}.`); hostBar(); },   // kicked: talk_coop says it
       watch: () => { ui.notify('A friend is watching your game.', 3); hostBar(); }, unwatch: () => hostBar(),   // drop-in (draft)
       chat: (from, text, meta) => talk.heard(from, text, meta),
+      notes: (from, list) => { if (notesNet) notesNet.take(list, from); }, notesMine: () => (notesNet ? notesNet.offer() : []),   // wave 9 notes
       commandLogged: (id, cmd) => { if (onCommand) onCommand(id, cmd); },
       joinLogged: (tick, spec) => { if (onJoin) onJoin(tick, spec); },
     } });
@@ -261,6 +264,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
         ui.act.enter(c.id);
         say(`You joined ${guestHost}'s game.`);
         talk.start(false); talk.setMyName(c && c.name);
+        if (notesNet) { notesNet.met(guestHost); sess.notes(notesNet.offer()); }   // wave 9 notes: this hero's own notes to the friends here
         nui.setBar([
           compact() ? null : { label: `In ${guestHost}'s game`, id: 'net-bar-room' },
           { label: 'Chat', id: 'net-bar-chat', on: () => talk.openTalk() },
@@ -270,6 +274,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
       save: (hero) => { if (guestPid === sess.id) guestLast = hero; if (c) ui.saveHero(c.id, hero); },
       nope: (why) => drop.refused(why),
       chat: (from, text, meta) => talk.heard(from, text, meta),
+      notes: (from, list) => { if (notesNet) { notesNet.met(from); notesNet.take(list, from); } },   // wave 9 notes
       talk: (on) => talk.watchTalkChanged(on),
       sys: (text) => { say(text); ui.notify(text, 3); },
       end: (reason) => guestEnded(sess, reason, api),
@@ -350,6 +355,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     onCommandLogged(fn) { onCommand = fn; },
     onJoinLogged(fn) { onJoin = fn; },
     setPump(p) { pump = p; },
+    useNotes(n) { notesNet = n; n.onLeave = (list) => { if (hostSess) hostSess.notes(list); else if (guestSess) guestSess.notes(list); }; },   // wave 9 notes
     hostGame, joinGame, endHosting, openChat,
     takeGuestId() { const id = pendingId; pendingId = null; return id; },
     /** The save of a hero this tab plays in a friend's game (main.js saveState hook), or undefined for a local hero. */

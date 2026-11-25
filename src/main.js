@@ -32,6 +32,7 @@ import { createUI } from './ui/ui.js';
 import { padBar, loadOptions, loadShared, saveShared, SHARED_KEY } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
 import { createCoop } from './net/coop.js';
+import { createLanternNotes } from './ui/notes_wire.js';   // wave 9 notes: lantern notes
 
 const ZOOMS = [1, 1.5, 2];
 const TILE = 16;
@@ -156,6 +157,9 @@ async function boot() {
   const coop = createCoop({ world, ui, content, specFor, saveState: (id) => saveState(id), heroId: () => playerId, q,
     // the phone HUD has its menu buttons along the top: the co-op bar goes under the party frames (HUD px -> css px)
     barSpot: () => { const L = ui.layout(); if (!L.touch) return null; const r = L.party(3), l = renderer.layout, d = window.devicePixelRatio || 1; return { left: (l.ox + r.x * l.base) / d, top: (l.oy + (r.y + 2) * l.base) / d }; } });
+  const notes = createLanternNotes({ notesUi: ui.notes, content, storage, bus, hero: () => heroEnt(), heroId: () => playerId,   // wave 9 notes
+    toHud: (x, y) => renderer.worldToHud(x, y), is3d: () => !!(renderer.is3d && renderer.stageOk !== false), notify: (s) => ui.notify(s, 4) });   // wave 9 notes
+  coop.useNotes(notes);   // wave 9 notes: the swap when friends play together (src/net/session.js { t:'notes' })
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
   ui.setItems(content.items);
   ui.setQuests(content.quests, content.npcs);

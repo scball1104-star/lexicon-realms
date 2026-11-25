@@ -183,6 +183,13 @@ Built with Scott's answers: watchers read but do not talk until the host lets th
 - **History** is memory only (the last 200 lines); nothing is written anywhere. Chat never goes through a broker.
 - **No voice chat** (Scott, 2026-11-24).
 
+## Lantern notes (wave 9, 2026-11-25)
+A short note left at a lantern for friends who play later, written only with words from the game's own list (no typing).
+There is no server, so a note reaches a friend who was not online in one of two ways: **a link** (`#note=...`, the note's
+ids after the #, which never reaches the web server; the friend taps it and the note waits on that lantern in their own
+game) or **the swap when friends next play together** (`{ t:'notes' }` over the data channel). A game sends only notes its
+own hero wrote and never passes on notes it was given; watchers get none. Each side checks every word on arrival. There is
+no host-save route and no file. Model: src/net/notes.js; wiring: src/ui/notes_wire.js; drawing: src/ui/notes_ui.js.
 ## Files
 
 - `src/net/transport.js`: data channel link (chunking, close detection), offer / answer, copy-paste codes, the MQTT,

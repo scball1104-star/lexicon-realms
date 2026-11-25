@@ -6,6 +6,7 @@
 //                 { t:'play', hero }                    a watcher picks a hero and joins as a player
 //                 { t:'cmd', c:[cmd...], s }           the same command objects local input makes; s = sequence number
 //                 { t:'chat', text, to? }  { t:'ping', at }  { t:'bye' }   to: a hero id (a whisper; wave 8 talk)
+//                 { t:'notes', list }                 wave 9 notes: this hero's own lantern notes (src/net/notes.js)
 // Host -> guest   { t:'welcome', id, host, room, party, proto }
 //                 { t:'welcome', watch:1, id:null, follow, host, room, party, proto }   a watcher; follow = the host's hero
 //                 { t:'nope', reason }                 a watcher's play was refused (full | bad_hero); it keeps watching
@@ -14,6 +15,7 @@
 //                 { t:'chat', from, text, fid?, w?, to? }  { t:'sys', text }  { t:'pong', at }   fid: the speaker's hero id;
 //                                                      w:1 a whisper (to: on the sender's own copy) (wave 8 talk)
 //                 { t:'talk', watch }                  wave 8 talk: watchers may talk (1) or only read (0)
+//                 { t:'notes', from, list }            wave 9 notes: a friend's own notes (from: their hero name)
 //                 { t:'refuse', reason }               full | version | bad_hero | removed | locked (wave 8 talk)
 //                 { t:'bye', reason }                  host_left | left | kicked
 import { framesFor, createTickCache, createFrameState, applyFrame } from './frames.js';
@@ -96,6 +98,7 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
     g.link.send({ t: 'welcome', id: pid, host: hostName, room, party, proto: PROTO });
     sendSave(g);
     sendAll({ t: 'sys', text: `${g.name} joined.` }, g);
+    notesWelcome(g);   // wave 9 notes
     if (on.join) on.join(g);
     return { pid };
   }
@@ -144,6 +147,7 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
       if (Number.isFinite(m.s)) g.ack = m.s;
     } else if (m.t === 'chat') {
       heard(g, m, g.pid);
+    } else if (m.t === 'notes') { notesIn(g, m);   // wave 9 notes
     } else if (m.t === 'bye') {
       sendSave(g, true);
       g.link.send({ t: 'bye', reason: 'left' });
@@ -175,9 +179,25 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
     if (on.chat) on.chat(g.name, text, { fid });
   }
 
+  // wave 9 notes: the swap when friends play together (src/ui/notes_wire.js). A player's game sends its own hero's notes;
+  // the host keeps the newest list per guest, passes it on to the other players and its own game (on.notes), and gives
+  // a newcomer its own (on.notesMine) and everyone's. Watchers get none. Each side checks every word on arrival.
+  function notesIn(g, m) {
+    if (!Array.isArray(m.list) || (g.notesN = (g.notesN || 0) + 1) > 10) return;
+    g.notes = m.list.slice(0, 20);
+    for (const o of byPid()) if (o !== g) o.link.send({ t: 'notes', from: g.name, list: g.notes });
+    if (on.notes) on.notes(g.name, g.notes);
+  }
+  function notesWelcome(g) {
+    if (on.notesMet) on.notesMet(g.name);
+    const mine = on.notesMine ? on.notesMine() : [];
+    if (mine.length) g.link.send({ t: 'notes', from: hostName, list: mine.slice(0, 20) });
+    for (const o of byPid()) if (o !== g && o.notes && o.notes.length) g.link.send({ t: 'notes', from: o.name, list: o.notes });
+  }
   return {
     get guests() { return byPid().map((g) => ({ id: g.pid, name: g.name, stats: g.link.stats, buffered: g.link.buffered })); },
     get count() { return 1 + byPid().length; },
+    notes(list) { if (Array.isArray(list)) for (const g of byPid()) g.link.send({ t: 'notes', from: hostName, list: list.slice(0, 20) }); },   // wave 9 notes: the host's own notes
     /** Drop-in watchers (no hero). */
     get watching() { return watchers().length; },
     get watcherStats() { return watchers().map((g) => ({ stats: g.link.stats, buffered: g.link.buffered })); },
@@ -298,6 +318,7 @@ export function createGuestSession({ link, hero, build = null, watch: asWatcher 
       case 'save': lastSave = m.hero; if (on.save) on.save(m.hero, !!m.final); if (m.final && leaving) end('left'); break;
       case 'chat': if (on.chat) on.chat(m.from, m.text, { fid: m.fid, w: m.w, to: m.to }); break;
       case 'talk': if (welcome) welcome.talk = m.watch ? 1 : 0; if (on.talk) on.talk(!!m.watch); break;   // wave 8 talk
+      case 'notes': if (on.notes) on.notes(m.from, m.list); break;   // wave 9 notes: a friend's own notes (src/ui/notes_wire.js checks every word)
       case 'sys': if (on.sys) on.sys(m.text); break;
       case 'pong': stats.rttMs = Math.round(now() - m.at); break;
       case 'refuse': end(m.reason || 'refused'); break;
@@ -332,6 +353,7 @@ export function createGuestSession({ link, hero, build = null, watch: asWatcher 
     },
     /** A line to the party, or a whisper (to: a hero id; the host passes it on). */
     chat(text, to = null) { const t = cleanChat(text); if (t && !ended) link.send(to != null ? { t: 'chat', text: t, to } : { t: 'chat', text: t }); return t; },
+    notes(list) { if (!ended && welcome && !welcome.watch && Array.isArray(list)) link.send({ t: 'notes', list: list.slice(0, 20) }); },   // wave 9 notes: this hero's own notes
     /** wave 8 talk: may this tab talk? (players always; a watcher once the host lets watchers talk) */
     get canTalk() { return !!(welcome && (!welcome.watch || welcome.talk)); },
     /**
