@@ -28,9 +28,9 @@ export const PAGE_MIN_MIN = 5;     // a night shorter than 5 minutes never opens
 export const MAX_CHAPTERS = 40;    // moments kept a night (the link carries at most this many)
 
 export const WEIGHT = { boss: 100, legendary: 90, rare: 70, wdoor: 60, mount: 45, level: 40, level5: 55, quest: 40, rez: 35,
-  place: 30, secret: 30, wipe: 25, join: 0 };
+  place: 30, secret: 30, wipe: 25, join: 0, run: 20 };   // run: wave 10 dflow, a dungeon or cave cleared (one line; the boss has the still)
 // how long after the event the still is taken (ticks at 20 Hz): a kill waits for the body to settle and the heroes to turn
-export const DELAY = { boss: 16, rare: 16, legendary: 4, wdoor: 10, mount: 6, level: 2, level5: 2, quest: 2, rez: 8, place: 30, secret: 2, wipe: 4 };
+export const DELAY = { run: 40, boss: 16, rare: 16, legendary: 4, wdoor: 10, mount: 6, level: 2, level5: 2, quest: 2, rez: 8, place: 30, secret: 2, wipe: 4 };
 
 // ---- every word the game writes (DRAFTS: Scott has not written these). {slots} are filled; a list picks one per night.
 export const WORDS = {
@@ -65,7 +65,11 @@ export const LINES = {
   place: ['{party} reached {place} for the first time.'],
   secret: ['{hero} found a secret in {place}.'],
   close: ['{kills} fell and {gold} gold was found. To be continued.'],
+  run: ['{party} cleared {place} in {secs}, with {falls}.'],   // wave 10 dflow: from the run summary (delve_done)
 };
+/** wave 10 dflow: the chronicle's line for a cleared run (tests, and the run summary's own footer). */
+export function journalRunLine(slots) { return fill(LINES.run[0], slots); }
+export const fallsText = (n) => (n ? `${n} ${n === 1 ? 'fall' : 'falls'}` : 'no falls');
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // ---- helpers
@@ -174,6 +178,12 @@ export function createJournal({ get, players = () => [], heroId, placeOf, conten
     }
     if (t === 'rez' && ev.kind === 'done') { const a = get(ev.src), b = get(ev.id); if (!a || !b || !inParty(b.id)) return null; return add('rez', { by: a.name, hero: b.name }, b, tick); }
     if (t === 'secret_found') { const p = get(ev.id); if (!p || !inParty(p.id)) return null; return add('secret', { hero: p.name, place: placeOf(p) }, p, tick); }
+    // wave 10 dflow: the run summary feeds the chronicle: a dungeon or cave cleared, its time and falls (src/sim/delve.js)
+    if (t === 'delve_done' && ev.id === heroId()) {
+      const p = get(ev.id);
+      const party = andList((ev.heroes || []).filter((n) => typeof n === 'string')) || (p ? p.name : '');
+      return add('run', { party, place: ev.name || placeOf(p || {}), secs: secsText(Math.max(1, ev.secs | 0)), falls: fallsText(ev.falls | 0) }, p, tick, { place: ev.place });
+    }
     if (t === 'zone' && ev.id === heroId()) {
       const key = String(ev.to).split('#')[0];
       if (S.seen[key]) return null;
@@ -250,6 +260,7 @@ function slotOk(k, v, known) {
   if (NAME_SLOTS.has(k)) return NAME_OK.test(v);
   if (k === 'party') return v.split(/, | and /).every((n) => NAME_OK.test(n));
   if (k === 'word') return /^[A-Z]{1,12}$/.test(v);
+  if (k === 'falls') return /^(no falls|\d{1,3} falls?)$/.test(v);   // wave 10 dflow
   if (k === 'secs') return /^(\d{1,2} seconds?|\d{1,3} min \d{1,2} s)$/.test(v);
   if (GAME_SLOTS.has(k)) return known ? known(v) : !/[<>{}\\]/.test(v);
   return false;

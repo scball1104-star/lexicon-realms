@@ -138,9 +138,11 @@ export function createDungeons(D) {
       p.lantern = { zone: zid, id: l.id, x: l.x, y: l.y };
       emit({ type: 'lantern', id: p.id, zone: zid, lantern: l.id, name: l.name || l.id, auto: true });
     }
+    if (D.onEnter) D.onEnter(p, zid);              // wave 10 dflow: level sync, the seat and the run record (src/sim/delve.js)
     return zid;
   }
   function leave(p) {
+    if (D.onLeave) D.onLeave(p);                   // wave 10 dflow: back to the hero's own level
     if (p.lanternOut) { p.lantern = p.lanternOut; delete p.lanternOut; }
     else if (p.lantern && isPlace(p.lantern.zone)) { const L = nearestWorldLantern(Math.floor(p.x / 256), Math.floor((p.y - 1) / 256)); if (L) p.lantern = L; }
   }
@@ -148,6 +150,10 @@ export function createDungeons(D) {
   function loadSpec(spec) {
     if (!spec) return spec;
     let out = spec;
+    // wave 10 dflow: a friend who rejoins the party's game while it is inside a copy comes back into that copy
+    // (coop.js puts the guest beside the host; world.addPlayer then calls enter for the lantern, the sync and the seat)
+    const own = spec.zone != null && spec.party != null && copies()[spec.zone] && copies()[spec.zone].key === `party${spec.party}`;
+    if (own) return spec;
     if (spec.zone != null && isPlace(spec.zone)) {
       const [x, y] = doorOut(zoneBase(spec.zone));
       // a place whose door stands in another outdoor zone (the Larch Mine in Larchhill) loads outside it, there

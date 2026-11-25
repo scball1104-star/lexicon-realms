@@ -144,23 +144,39 @@ export function deathPanel(g, ctx, L, grp, regions, act) {
   return { x, y, w, h };
 }
 
+// wave 10 dflow: a dropped friend's kept seat (src/sim/party.js seatSec), in plain words. DRAFT for Scott.
+export function runSeatLine(st) { return `${st.name} lost the connection. Their seat is kept for ${mmss(st.left)}: the same link brings them back in here. Foes stay set for them until then.`; }
+
 /** The ready check popup: who asked, Yes / No (until you answer), and everyone's answer as it comes in. */
 export function readyCheck(g, ctx, L, grp, regions, act) {
   const rc = grp && grp.ready;
   if (!rc) return null;
   const bh = Math.max(18, L.minHit || 0);
-  const w = 200, rows = rc.answers.length, h = 40 + rows * 11 + (rc.mine == null && !rc.done ? bh + 6 : 0);
+  // wave 10 dflow: inside a dungeon the check names the next boss, shows each hero's level here and any kept seat
+  const seats = (grp.seats || []).map((st) => runSeatLine(st));
+  const seatLines = seats.flatMap((t) => g.wrap(t, (rc.boss ? 236 : 200) - 20));
+  const w = rc.boss || seats.length ? 240 : 200, rows = rc.answers.length + (grp.seats || []).length;
+  const h = 40 + rows * 11 + (seatLines.length ? seatLines.length * g.lh + 4 : 0) + (rc.mine == null && !rc.done ? bh + 6 : 0);
   const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.floor(L.H * 0.22) : 96;
   g.window(ctx, x, y, w, h, 'std', 'blue', 0.97);
   regions.push({ rect: { x, y, w, h }, kind: 'window', id: 'ready' });
-  g.text(ctx, rc.done ? (rc.allYes ? 'Everyone is ready' : 'Not everyone is ready') : 'Ready check', x + w / 2, y + 4, rc.done && !rc.allYes ? 'orange' : 'gold', { large: true, align: 'center' });
+  const title = rc.boss && !rc.done ? `Ready for ${rc.boss.name}?` : 'Ready check';
+  g.text(ctx, rc.done ? (rc.allYes ? 'Everyone is ready' : 'Not everyone is ready') : g.clip(title, w - 12, true), x + w / 2, y + 4, rc.done && !rc.allYes ? 'orange' : 'gold', { large: true, align: 'center' });
   g.text(ctx, rc.done ? '' : `${rc.byName} asks. ${Math.ceil(rc.left)} sec`, x + w / 2, y + 22, 'gray', { align: 'center' });
   let yy = y + 34;
   for (const a of rc.answers) {
-    g.text(ctx, g.clip(a.name, w - 70), x + 12, yy, 'white');
+    g.text(ctx, g.clip(a.name, 80), x + 12, yy, 'white');
+    if (a.sync) g.text(ctx, a.sync === 'down' ? `plays as ${a.level}` : `raised to ${a.level}`, x + 96, yy, 'orange');
+    else if (rc.boss && a.level) g.text(ctx, String(a.level), x + 96, yy, 'gray');
     g.text(ctx, a.answer === true ? 'Ready' : a.answer === false ? 'Not ready' : '...', x + w - 12, yy, a.answer === true ? 'green' : a.answer === false ? 'red' : 'dim', { align: 'right' });
     yy += g.lh;
   }
+  for (const st of grp.seats || []) {
+    g.text(ctx, g.clip(st.name, 80), x + 12, yy, 'dim');
+    g.text(ctx, `Seat kept ${mmss(st.left)}`, x + w - 12, yy, 'orange', { align: 'right' });
+    yy += g.lh;
+  }
+  if (seatLines.length) { yy += 2; for (const t of seatLines) { g.text(ctx, t, x + 10, yy, 'orange'); yy += g.lh; } yy += 2; }
   if (rc.mine == null && !rc.done) {
     const bw = Math.floor((w - 26) / 2);
     button(g, ctx, regions, x + 9, yy + 4, bw, bh, 'Ready', 'forest', () => act.send({ t: 'ready_answer', yes: true }), { label: 'grp:ready_yes' });

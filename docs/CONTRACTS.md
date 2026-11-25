@@ -1804,3 +1804,29 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 ## Party chronicle (wave 9 chronicle lane, 2026-11-25; D:/LQOnline/wave9/chronicle/BRIEF.md, Scott: go with the recommendations)
 - `src/chronicle/journal.js` (pure): `createJournal({ get, players, heroId, placeOf, content })` reads bus events on the snapshot (host, guest and solo alike; a guest gets them in the host's frames, `frames.js publicFilter`), keeps the night's moments and asks for a still `DELAY[kind]` ticks later (at most 6). `writeStory`, `packLink` / `readLink` (`#chron=`, words only, slots checked against hero-name rules and `knownNames(content)`). WORDS and LINES are DRAFTS for Scott.
 - `src/chronicle/chronicle.js`: the controller (main.js creates it after the replays): stills from `renderer.capture()` (3D only, never the HUD), drawn over the HUD by its own `renderer.drawHud` wrap with a full-resolution pass for the stills, an HTML `data-overlay="chronicle"` layer for input while the page or list is up. The page opens at Quit to title (main.js logout hook, `endNight('quit')`) and when a host's co-op game ends, for a night of 5 minutes or more (`?dev=1&chronmin=0` drops the floor for drivers). Store: IndexedDB `lexicon_realms_chronicle`, the newest 12 nights. `ui.act.chronicle` is the Options button.
+
+## Delve flow (2026-11-25, wave 10 dflow; Scott: "Yes for your recommendations", D:/LQOnline/wave10/dflow/BRIEF.md)
+
+- **Eastern calendar.** `src/core/eastern_week.js`: `easternDay(ms)`, `easternWeek(day)` (Monday weeks), `weekStartDay`,
+  `easternOffsetMin`. The US Eastern daylight rule, not the device's zone, so every friend gets the same day and week.
+  main.js `bountyDay()` uses it (the bounty board's and the daily chest's day). Every weekly thing keys off `easternWeek`.
+- **Level sync.** `src/sim/delve.js` via `dungeons.js enter / leave` (`D.onEnter / D.onLeave`). Inside a place a hero over
+  its band has `e.level` = the band's top, a hero up to `party.delve.syncUpMax` (3) under the floor has the floor;
+  `e.sync = { from, to, kind: 'down' | 'up', place }` keeps the own level. Worn gear x `to / ilvl` (stats.js). XP and
+  levels go on `e.sync.from` (progression.js `grantXp`, `killXp` gap); the save keeps `e.sync.from` (main.js). A door's
+  `minLevel` is checked against the own level. Event `sync { id, kind: down | up | off, from, to, place }`.
+- **Seats.** `copy.seats = { heroId: lastTickInside }`; a copy's foes count the seats inside `party.seatSec` (300 s): the
+  heroes inside and a friend who left less than 5 minutes ago, never fewer than the heroes present (party.js). HUD
+  `group.seats: [{ id, name, left }]`. `copy.heroes` is still kept (old saves: a copy with no seats counts it).
+- **Commands.** `delve_call { door }`, `delve_come { yes }` (5 s still cast, then at the door), `delve_enter { door,
+  resume? }` (the party heroes within 6 tiles go in on one tick; `resume`: boss ids beaten last time, never the last boss,
+  only into a copy made now), `delve_close`. `ready_start` inside a copy names the next boss (`ready.boss`, answers with
+  `level` and `sync`).
+- **Run record.** `copy.run` (sim state): t0, bosses (with fight secs), down, deaths, loot (`lootLines`: the adapter dloot
+  replaces), gold, moments, names, done. On `dungeon_clear` each hero in the copy gets `delve_done { id, place, zone, name,
+  secs, falls, bosses, heroes }`; the chronicle journal turns it into a `run` line. HUD `delve: { sync, door, call, come,
+  run: { place, down, of, done }, summary }`. Rejoin: `addPlayer` with the party's copy as its zone stays in the copy
+  (`loadSpec`), then `DG.enter` binds the lantern, syncs and seats.
+- **UI.** `src/ui/delve_ui.js`: the door card (`addDoorRow(fn)`: round 2's depth row), the call offer, the Come bar, the
+  sync and seat chip, the run summary (Watch: `ui.act.watchFight(bossId)`, main.js), the bookmark
+  (`lexicon_realms.delve` v1 on this device, 7 days). A phone card hides the top bar; toasts wait under the summary.

@@ -179,7 +179,10 @@ export function createStats(C) {
     const RS = (C.content.resist && C.content.resist.stats) || {};
     let main = null, off = null;
     const items = C.content.items || {};
-    const gearLevel = e.gearMode === 'design' ? (e.designGear || L) : null;
+    // wave 10 dflow: a hero synced to a place's band (src/sim/delve.js, e.sync) wears gear worth that band: item stats x to/ilvl
+    const sy = e.sync && (e.sync.kind === 'down' || e.sync.kind === 'up') ? e.sync : null;
+    const gearMul = (ilvl) => (!sy || !(ilvl > 0) ? 1 : sy.kind === 'down' ? (ilvl > sy.to ? sy.to / ilvl : 1) : (ilvl < sy.to ? sy.to / ilvl : 1));
+    const gearLevel = e.gearMode === 'design' ? (sy ? sy.to : (e.designGear || L)) : null;
     if (gearLevel != null) {
       const g = Math.floor(P.gear.statPerLevel * gearLevel);
       st[cls.mainStat] += g; st.sta += g;
@@ -197,15 +200,17 @@ export function createStats(C) {
         if (!entry) continue;
         const it = items[typeof entry === 'string' ? entry : entry.item] ? resolveItem(C.content, entry, e.cls) : null;
         if (!it) continue;
-        armor += it.armor || 0;
-        for (const [k, v] of Object.entries(it.stats || {})) {
+        const gm = gearMul((entry && entry.inst && entry.inst.ilvl) || it.ilvl || it.level || 0);   // wave 10 dflow: 1 unless synced
+        armor += gm === 1 ? (it.armor || 0) : Math.round((it.armor || 0) * gm);
+        for (const [k, v0] of Object.entries(it.stats || {})) {
+          const v = gm === 1 || k === 'speed' || k === 'crit' || RS[k] ? v0 : Math.round(v0 * gm);
           if (k in st) st[k] += v; else if (k === 'sp') sp += v; else if (k === 'crit') crit += v / 100;
           else if (k === 'speed') gearSpeed += v / 100; else if (k === 'mana') gearMana += v;
           else if (RS[k]) for (const sc of RS[k]) resist[sc] = (resist[sc] || 0) + v / 100;      // resist affixes (src/data/resist.js)
         }
         if (it.power && !powers.includes(it.id)) powers.push(it.id);                               // a legendary's power
-        if (it.damage && (slot === 'main' || slot === 'two')) main = { type: it.weaponType, min: it.damage[0], max: it.damage[1], speed: it.speed };
-        if (it.damage && slot === 'off') off = { type: it.weaponType, min: it.damage[0], max: it.damage[1], speed: it.speed };
+        if (it.damage && (slot === 'main' || slot === 'two')) main = { type: it.weaponType, min: it.damage[0] * gm, max: it.damage[1] * gm, speed: it.speed };
+        if (it.damage && slot === 'off') off = { type: it.weaponType, min: it.damage[0] * gm, max: it.damage[1] * gm, speed: it.speed };
       }
       if (!main) main = weaponFor(cls.weapons[0], 1);
       if (cls.auto.offHand && !off) off = weaponFor(cls.weapons[1], 1);
