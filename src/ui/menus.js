@@ -614,42 +614,36 @@ export function drawMap(ctx, env, m, st, regions, act) {
 
 // ---------------------------------------------------------------- options / game menu
 
-/** Options title bar, left of the close box: Invite a friend (src/net/dropin.js; starts hosting when solo). */
-function inviteButton(ctx, env, r, regions, act) {
+/** Options title bar, right to left from the close box: Invite a friend (src/net/dropin.js; starts hosting when solo),
+ *  Replays (wave 8), Chronicle (wave 9), Use my phone (wave 9 second). Region labels stay fixed (the gates tap them);
+ *  when the full words would reach the "Options" title, every button shows its short word instead. */
+function titleButtons(ctx, env, r, regions, act) {
   const { g } = env;
-  const s = Math.max(16, env.L.minHit || 0), label = 'Invite a friend';
-  const w = g.textW(label) + 14, h = Math.min(s, 22), x = r.x + r.w - 10 - s - w, y = r.y + 4;
-  g.window(ctx, x, y, w, h, 'thin', 'forest', 0.95);
-  g.text(ctx, label, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
-  regions.push({ rect: { x, y, w, h }, kind: 'button', on: () => act.invite(), label });
+  const list = [];
+  if (act.canInvite && act.canInvite()) list.push({ text: 'Invite a friend', short: 'Invite', skin: 'forest', on: () => act.invite(), label: 'Invite a friend' });
+  if (act.replays) list.push({ text: 'Replays', short: 'Replays', skin: 'violet', on: () => act.replays(), label: 'replays' });
+  if (act.chronicle) list.push({ text: 'Chronicle', short: 'Story', skin: 'ember', on: () => act.chronicle(), label: 'chronicle' });
+  if (act.usePhone && act.canPhone && act.canPhone()) list.push({ text: 'Use my phone', short: 'Phone', skin: 'blue', on: () => act.usePhone(), label: 'use_phone', id: 'second-open' });
+  if (!list.length) return;
+  const s = Math.max(16, env.L.minHit || 0), h = Math.min(s, 22), y = r.y + 4, right = r.x + r.w - 10 - s;
+  const titleEnd = r.x + 12 + g.textW('Options') + 8;
+  const span = (key) => list.reduce((n, b) => n + g.textW(b[key]) + 18, 0);
+  const key = right - span('text') + 4 < titleEnd ? 'short' : 'text';
+  let x1 = right;
+  for (const b of list) {
+    const lab = b[key], w = g.textW(lab) + 14, x = x1 - w;
+    g.window(ctx, x, y, w, h, 'thin', b.skin, 0.95);
+    g.text(ctx, lab, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
+    regions.push({ rect: { x, y, w, h }, kind: 'button', ...(b.id ? { id: b.id } : {}), on: b.on, label: b.label });
+    x1 = x - 4;
+  }
 }
 
 export function drawOptions(ctx, env, m, st, regions, act, options) {
   const { g } = env;
   const r = { x: 60, y: 24, w: 520, h: 316 };
   frame(ctx, env, r, 'Options', regions, act, 'menu');
-  if (act.canInvite && act.canInvite()) inviteButton(ctx, env, r, regions, act);   // drop-in with one link (wave 8)
-  if (act.replays) {   // wave 8 replays (src/replay/replay_ui.js): the Replays list, left of the invite button
-    const { g } = env, s = Math.max(16, env.L.minHit || 0), lab = 'Replays', w = g.textW(lab) + 14, h = Math.min(s, 22);
-    const x = r.x + r.w - 10 - s - w - (act.canInvite && act.canInvite() ? g.textW('Invite a friend') + 18 : 0), y = r.y + 4;
-    g.window(ctx, x, y, w, h, 'thin', 'violet', 0.95);
-    g.text(ctx, lab, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
-    regions.push({ rect: { x, y, w, h }, kind: 'button', on: () => act.replays(), label: 'replays' });
-  }
-  if (act.chronicle) {   // wave 9 chronicle (src/chronicle/): past nights, left of Replays
-    const { g } = env, s = Math.max(16, env.L.minHit || 0), lab = 'Chronicle', w = g.textW(lab) + 14, h = Math.min(s, 22);
-    const x = r.x + r.w - 10 - s - w - (act.replays ? g.textW('Replays') + 18 : 0) - (act.canInvite && act.canInvite() ? g.textW('Invite a friend') + 18 : 0), y = r.y + 4;
-    g.window(ctx, x, y, w, h, 'thin', 'ember', 0.95);
-    g.text(ctx, lab, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
-    regions.push({ rect: { x, y, w, h }, kind: 'button', on: () => act.chronicle(), label: 'chronicle' });
-  }
-  if (act.usePhone && act.canPhone && act.canPhone()) {   // wave 9 second (src/net/second_coop.js): Use my phone, left of Replays
-    const s = Math.max(16, env.L.minHit || 0), lab = 'Use my phone', w = g.textW(lab) + 14, h = Math.min(s, 22);
-    const x = r.x + r.w - 10 - s - w - (act.canInvite && act.canInvite() ? g.textW('Invite a friend') + 18 : 0) - (act.replays ? g.textW('Replays') + 18 : 0) - (act.chronicle ? g.textW('Chronicle') + 18 : 0), y = r.y + 4;
-    g.window(ctx, x, y, w, h, 'thin', 'blue', 0.95);
-    g.text(ctx, lab, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
-    regions.push({ rect: { x, y, w, h }, kind: 'button', id: 'second-open', on: () => act.usePhone(), label: 'use_phone' });
-  }
+  titleButtons(ctx, env, r, regions, act);   // Invite a friend (wave 8), Replays (wave 8), Chronicle and Use my phone (wave 9)
   const touch = env.L.touch, big = g.big;
   const short = touch || big;                  // short labels where room is short (a phone, or Large text)
   // key rows: 11 px a row on desktop (22 rows with 8 skill keys); Large text scrolls the list. A phone has no key list.
