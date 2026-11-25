@@ -1278,6 +1278,24 @@ the doors `src/data/maps/doors.js`, the quests `src/data/dungeon_quests.js`, the
   can use (magic, blue); the Watchtower's bosses add their set piece for the killer's class (`setSlot`); the last boss adds
   a rare from `rare` and rolls `legendary` at `legend.chance + legend.step x misses` (0.10 + 0.005 per miss; the count is
   `p.dungeons.miss`, saved, reset on a drop; event `legendary`). Events: `dungeon_clear { id, place, zone, first }`.
+- **Delve loot** (wave 10 dloot, 2026-11-25, BUILD; D:/LQOnline/wave10/dloot/BRIEF.md; names and lines are DRAFTS in
+  `src/data/dloot.js`). Rules `content.dropRules.dloot` (`DLOOT_RULES`). The boss loot above now comes from
+  `src/sim/dloot.js DL.bossDrop` with the hero's own seed `hashSeed('dloot:' world seed, copy zone id, copy made tick, hero
+  id, boss, that hero's kills of that boss in the copy)`: no draw from the world's stream, so friends' drops are order
+  independent. Named pieces roll lines (`namedAffixes`) and quality `inst.q` (fixed stats x 0.9 to 1.1; a power with `q`
+  paths rolls in its band, `src/sim/dloot_q.js powerAt`); 1 legendary or set piece in 8 is `inst.illum` (q 1, lines at
+  the top, one more line). Smart loot: class only, track lean, weakest slot x2, a held legendary skipped. The legendary
+  roll is the per place **Tally** `p.dungeons.tally[place]` (10% + 2.5% a miss, sure on the 25th; a hero from before
+  seeds each place once from `miss`; `miss` mirrors the last count). `barrow_deep.retold` adds the five Retold legendaries
+  (`RETOLD`, `item.retold`, powers on existing records only) to its legendary roll. A piece without `q` resolves exactly
+  as before (qa/tests/dloot.test.mjs hashes every item); a legendary or set piece keeps its own name. Event
+  `dloot { id, place, zone, from, boss, items: [{ item, name, rarity, illum, q }], tally?, sure?, chance? }` per hero per
+  boss kill; `legendary` gains `illum`. Run loot for a summary: `DG.lootOf(zid) -> { heroId: [{ item, inst, from }] }`
+  (kept on `state.copies[zid].loot` until the copy resets) and `DG.lootSummaryOf(zid, id) -> { best, count, legendaries,
+  illuminated }` (`dloot.js lootSummary`). **Pass it on:** a boss drop in a party copy gets `inst.passOn = { until, with }`
+  (2 hours of ticks, the party heroes in the copy); `trade.js` lets it go to one of `with` until `until`, then it binds
+  as before; traded or worn, the mark goes. UI: `src/ui/dloot_ui.js` (columns in 2D, tags, banner, warm edges, the card
+  with Wear it / Keep under the hero frame), `src/render3d/dloot3d.js` (columns) through `view.dloot()`; render only.
 - **Daily chest.** The first clear of a place per day (the bounty boards' day, `state.day` / `world.setDay`) leaves
   "First Clear of the Day" by the last boss for the killer: gold, `glyphs` letter glyphs, a gear roll of `rarity` at `ilvl`,
   and bonus XP = `xpMinutes` x 4 x kill XP at the hero's level (`grantXp` reason 'dungeon'). Opening it records

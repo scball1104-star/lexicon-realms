@@ -51,6 +51,7 @@ import { createNotesUI } from './notes_ui.js';   // wave 9 notes: lantern notes 
 
 import { createSecondUI } from './second_ui.js';   // wave 9 second: the phone screen's tabs, the PC's Phone chip
 import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
+import { createDlootUI } from './dloot_ui.js';   // wave 10 dloot: the drop's columns, tags, banner and card
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -116,6 +117,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const notesUi = createNotesUI({ g, st });   // wave 9 notes (main.js wires it: src/ui/notes_wire.js)
 
   const secondUi = createSecondUI({ g, st, log });   // wave 9 second (src/net/second_coop.js drives it)
+
+  const dlootUi = createDlootUI({ g, st, act: { useItem: (i) => act.useItem(i) } });   // wave 10 dloot (act is made below)
 
   // ---- the action surface menus and screens call
   const act = {
@@ -450,6 +453,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player) chatUi.drawUnder(ctx, L, hooks.talkHeads ? hooks.talkHeads() : []);   // wave 8 talk: speech bubbles, under the HUD
       if (m.player) notesUi.drawUnder(ctx, L, regions, t);   // wave 9 notes: the seals over lantern posts, under the HUD
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks().filter((k) => k.id !== talkUi.hiddenMark(st)), t, regions, L);
+      if (m.player && hooks.toHud) dlootUi.drawUnder(ctx, env, hooks.toHud, t, !!(hooks.scenes && hooks.scenes()), snap.entities.find((e) => e.id === playerId), regions, L);   // wave 10 dloot
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
       regions.push(...hud.draw(ctx, m, L, st, { log: chatUi.active ? [] : log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
       st.bossUp = !!(m.player && bossCardDraw && bossCardDraw(ctx, g, L, t));   // wave 6: the boss intro card (boss_card.js, set by main.js); toasts wait under it
@@ -457,6 +461,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player) glyphs.drawHud(ctx, env, m, L, regions);   // Inscriptions: the Margins button
       if (m.player) chatUi.draw(ctx, L, regions, m);           // wave 8 talk: the chat window (in co-op), Say sheet, card
       if (m.player) secondUi.pcChip(ctx, L, regions);           // wave 9 second: a phone is paired (click twice: unpair)
+
+      if (m.player) dlootUi.draw(ctx, env, m, L, regions);   // wave 10 dloot
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
@@ -955,6 +961,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (route.action === 'menu') {
       const open = [...st.open];
       if (st.mirror) looks.close();
+      else if (dlootUi.close()) { /* wave 10 dloot: Esc closes the drop card */ }
       else if (chatUi.escape()) { /* wave 9 fixes: Esc closes the Say sheet, a friend's card or the chat log */ }
       else if (notesUi.escape()) { /* wave 9 notes: Esc closes the writer, the reader or a card */ }
       else if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
@@ -1226,6 +1233,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     notes: notesUi,   // wave 9 notes (src/ui/notes_ui.js): main.js wires it
 
     second: secondUi,   // wave 9 second (src/ui/second_ui.js): second_coop.js drives it
+
+    dloot: dlootUi,   // wave 10 dloot (src/ui/dloot_ui.js): drivers and the 3D columns read dloot.S.drops
     openEmotes: () => emoteUi.open(true),   // wave 8 talk: the Say sheet's Emotes button
     onboard: onb,   // wave 7 onboarding hints (drivers and tests)
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */
@@ -1233,7 +1242,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     handleEvents(events, ctx) {
       for (const ev of events) {
         for (const l of eventLines(ev, { me: playerId, resourceKind: resKindNow(), ...ctx })) (l.quiet ? quietSay(l.text) : say(l.ch, l.text));
-        if (playerId != null) { onb.onEvent(ev, playerId); onOwnEvent(ev); }   // wave 7 onboarding sees what the hero did
+        if (playerId != null) { onb.onEvent(ev, playerId); onOwnEvent(ev); dlootUi.onEvent(ev, playerId, lastSnap, zoneNames); }   // wave 7 onboarding sees what the hero did; wave 10 dloot: drops
       }
     },
     /** The npc template whose mark is gold after a level-up with new abilities (main.js adds it to the quest marks). */

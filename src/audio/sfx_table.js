@@ -37,7 +37,7 @@ export const AURA_SOUNDS = [
 
 // cast_fail reasons that are just key mashing (no buzzer)
 const QUIET_FAIL = new Set(['gcd', 'busy']);
-const GOOD_RARITY = new Set(['magic', 'rare', 'legendary', 'set']);
+const GOOD_RARITY = new Set(['magic', 'rare', 'epic', 'legendary', 'set']);   // wave 10 dloot: epic (purple) gets the jingle too
 
 const prefixOf = (ability) => String(ability || '').split('_')[0];
 const auraId = (a) => String(a && a.id ? a.id : a || '');
@@ -188,7 +188,8 @@ export function soundsFor(ev, ctx = {}) {
     case 'loot': {
       if (ev.id !== me) break;
       const good = (ev.items || []).some((it) => it.inst && GOOD_RARITY.has(it.inst.rarity));
-      if (good) jingle('item_get');
+      if ((ev.items || []).some((it) => it.inst && it.inst.rarity === 'legendary')) jingle('quest_done');   // wave 10 dloot: a legendary gets the bigger fanfare
+      else if (good) jingle('item_get');
       else if (ev.gold) sfx('coin');
       else if ((ev.items || []).length) sfx('cursor');
       break;

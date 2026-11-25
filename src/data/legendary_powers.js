@@ -75,6 +75,8 @@ export const POWER_ABILITY_NAMES = Object.freeze({
   mn_second_wind: { id: 'mn_second_wind', name: 'Second Wind' },
   affix_embers: { id: 'affix_embers', name: 'Embers' },
   lg_kings_due: { id: 'lg_kings_due', name: "The Barrow-King's Due" },
+  lg_retold_bell: { id: 'lg_retold_bell', name: 'Bell of the Second Name' },   // wave 10 dloot: the Retold powers' log names
+  lg_retold_blot: { id: 'lg_retold_blot', name: 'Spreading Blot' },
 });
 
 // ---------------------------------------------------------------- rare minor powers (BUILDS_2 6.1, polish 2026-11-22)
