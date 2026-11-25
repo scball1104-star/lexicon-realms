@@ -658,6 +658,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     }
     return labelCache.get(k);
   }
+  // wave 10 draid: on a phone the top row of buttons covers the HUD's top 30 px; a door label near the top drops under it
+  const DOOR_LABEL_TOP_TOUCH = 30;
   /** "<name>" over "Dungeon, levels 10 to 12" above each door on the world within reach (HUD layer, under the HUD). */
   function drawDoorLabels() {
     const zone = zones[state.zoneId];
@@ -672,7 +674,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const line2 = d.label || `${d.kind === 'cave' ? 'Cave' : 'Dungeon'}, levels ${d.levels[0]} to ${d.levels[1]}`;
       const t1 = labelText(d.name, 'gold'), t2 = labelText(line2, '#c8c0d8');
       const bw = Math.max(t1.w, t2.w) + 10, bh = t1.h + t2.h;
-      const bx = Math.round(hx - bw / 2), by = Math.max(2, hy - bh);      // a door near the top edge keeps its label on screen
+      const bx = Math.round(hx - bw / 2), by = Math.max(layout.touch ? DOOR_LABEL_TOP_TOUCH : 2, hy - bh);      // a door near the top edge keeps its label on screen (wave 10 draid: below a phone's top buttons)
       hctx.fillStyle = 'rgba(14,10,22,0.72)'; hctx.fillRect(bx, by, bw, bh);
       hctx.fillStyle = '#c9a24c'; hctx.fillRect(bx, by, bw, 1); hctx.fillRect(bx, by + bh - 1, bw, 1);
       hctx.drawImage(t1.c, Math.round(hx - t1.w / 2), by + 1);

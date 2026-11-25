@@ -1309,6 +1309,36 @@ the doors `src/data/maps/doors.js`, the quests `src/data/dungeon_quests.js`, the
   second of the hero leaving the copy; `saveFields` writes lent glyphs into `gbag`. Snapshot: the slab's `wdoor { door,
   name, look, len, face, open, tries, quiet, slots, clue, draft, lit, carried, left, opened }` (never the word), a stone's
   `wstone { door, letter }`. UI `src/ui/worddoor_ui.js`, 3D `src/render3d/worddoor3d.js`, 2D `src/render/worddoor2d.js`.
+## The Endmarket raid, wave A (wave 10 draid, 2026-11-25, BUILD; Scott: "Go with your recommendations"; D:/LQOnline/wave10/draid/BRIEF.md)
+
+Data: `src/data/raid_places.js` (the wing as a DUNGEONS place with `raid: { heroes, wing, wings, label }`; door in Drovers'
+Reach at 302,74, `minLevel: 30`), `src/data/raid_endmarket.js` (`RAID_RULES` = `content.raid`, the foes and their abilities,
+the tier set `RAID_SETS` with `tier: 'endmarket'`, the Lot Tickets, Mother Tally, the three quests, `fairGateDecor`,
+`applyRaid` = buildContent's last step). Map `tools/maps/zone_endmarket_gate.mjs`. Sim `src/sim/raid.js` (`C.raid`).
+All words are DRAFTS for Scott.
+
+- **Week.** `easternWeek(day)` = `floor((day + 3) / 7)` on the sim's day (`world.setDay`); the same rule as dflow's
+  `src/sim/eastern_week.js` (join at merge: raid.js then imports it).
+- **Lockout.** `RD.onKill(mob, p, drop)` runs LAST in `killCreditFor` (after every other extra loot), per hero who shares
+  the kill. Fewer than `minParty` (2) heroes in the copy: the drop keeps only gold and quest items (event `raid_loot { kind:
+  'alone' }`). A boss in `p.raid.killed` this week: the same (`kind: 'locked'`). Else the boss joins `killed` and the drop
+  gets a `lot_ticket_<slot>` (`kind: 'ticket'`; slot = the first in `ticketSlots[boss]` the hero has neither a piece nor a
+  ticket for). The wing's `last` boss, first time this week per hero: the Fair Purse into the same drop (gold, glyphs, one
+  ticket; event `raid_purse`). `p.raid = { week, killed, purse }`, reset when the week changes; `saveFields` / `addPlayer`
+  carry it (`main.js specFor` passes `raid`). Kills are not kept between sittings (copies reset as dungeons do).
+- **Tickets.** `use: { kind: 'lot_ticket', slot }`: `RD.useTicket` gives the class's set piece (ilvl 32, `rarity: 'set'`) for
+  the slot, or for a slot the hero lacks when they own that one; event `raid_ticket`. Fails `no_set`, `bag_full`.
+- **Boss rules** (`RD.tick()` each step, only while a raid copy exists): the Turnpike's `em_pay_toll` (uninterruptible
+  ground ring, no effects of its own) is resolved when its cast time ends: the toll (`swings` x the heroes in the copy)
+  is split between the heroes inside; nobody inside: everyone takes `1 + unpaidMult` portions; alone inside: rooted
+  `soloRootSec`, no damage. Old Shep every `herd.every` s pens the hero furthest from him (not his target): aura
+  `em_penned` (root) and a passive `em_hurdle` beside them; killing it frees them; a flock tick while 2+ heroes are in.
+  Events `raid_toll { heroes, inside }`, `raid_pen { kind: 'penned' | 'broken' | 'out', hero, hurdle }`, `yell`.
+- **Render.** `src/render3d/fair3d.js` (dg_fair_* props through `dungeon3d.js dressPlace`, the Fair Gate for a door whose id
+  starts `endmarket`); recipes in `creature_recipes.js`. Door labels sit under a phone's top buttons (top 30 HUD px).
+- **Tuning.** `EM_TUNE` by `node qa/sim/party_bot.mjs` (the party bot: any place, any party; gate for four heroes: cleared,
+  no wipe, deaths <= 2, each boss 60 to 300 s), also run in the suite as `qa/sim/raid.test.mjs`.
+
 ## World life: rares, rest XP, story chains, Night at the Stones (2026-11-22, LIVE)
 
 Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js`, glued by `src/data/worldlife.js`

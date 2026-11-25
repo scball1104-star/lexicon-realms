@@ -245,7 +245,7 @@ export function drawDoorLabels2d(ctx, zone, font, worldToHud, hud) {
     if (hx < -80 || hy < -30 || hx > hud.w + 80 || hy > hud.h + 30) continue;
     const line2 = d.label || `${d.kind === 'cave' ? 'Cave' : 'Dungeon'}, levels ${d.levels[0]} to ${d.levels[1]}`;
     const t1 = text(d.name, 'gold'), t2 = text(line2, '#c8c0d8');
-    const bw = Math.max(t1.w, t2.w) + 10, bh = t1.h + t2.h, bx = Math.round(hx - bw / 2), by = Math.max(2, hy - bh);
+    const bw = Math.max(t1.w, t2.w) + 10, bh = t1.h + t2.h, bx = Math.round(hx - bw / 2), by = Math.max(hud.top || 2, hy - bh);   // wave 10 draid: hud.top (a phone's top buttons)
     ctx.fillStyle = 'rgba(14,10,22,0.72)'; ctx.fillRect(bx, by, bw, bh);
     ctx.fillStyle = '#c9a24c'; ctx.fillRect(bx, by, bw, 1); ctx.fillRect(bx, by + bh - 1, bw, 1);
     ctx.drawImage(t1.c, Math.round(hx - t1.w / 2), by + 1);
