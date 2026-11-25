@@ -130,7 +130,8 @@ export function createCombat(C) {
 
   // ------------------------------------------------------------------------------------------------ cooldowns
   function cdReady(e, ab) {
-    if (ab.charges) { const ch = chargeState(e, ab); return ch.n > 0; }
+    // a read never writes (wave 8 replays): the catch-up is a pure function of the clock, so a peek gives the same answer
+    if (ab.charges) { const ch = chargeState(e, ab, true); return ch.n > 0; }
     return (e.cd[ab.id] || 0) <= now();
   }
   function chargeState(e, ab, peek = false) {

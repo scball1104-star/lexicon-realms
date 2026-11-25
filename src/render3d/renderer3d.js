@@ -761,7 +761,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     // back to the camera state so a drag cannot pull below it
     const hLite = quality.low || view.fx === 'low';
     if (view.cam && view.cam.mode === 'horizon' && view.cam.lite !== hLite) { view.cam.lite = hLite; view.cam.minPitch = hLite ? H_PITCH_LITE : H_PITCH[0]; view.cam.pitch = Math.max(view.cam.pitch, view.cam.minPitch); }
-    hpose = view.cam && view.cam.mode === 'horizon' && !fv && !isPlace(view.zone) ? horizonPose(view.cam, { lite: hLite }) : null;
+    hpose = view.cam && view.cam.mode === 'horizon' && !fv && (!isPlace(view.zone) || view.replayCam) ? horizonPose(view.cam, { lite: hLite }) : null;
     dev.horizon = hpose ? { yaw: view.cam.yaw, pitch: view.cam.pitch, dist: +hpose.dist.toFixed(2), k: hpose.k, low: hpose.low, lite: hpose.lite, fogFar: +hpose.fogFar.toFixed(1), farR: hpose.farR, cullR: +hpose.cullR.toFixed(1), grassR: +hpose.grassR.toFixed(1), grass: shown && shown.kit ? shown.kit.stats || null : null } : null;
     if (hpose) {
       pitchC = hpose.pitch; dist = dev.camDist || hpose.dist; bx = -Math.sin(hpose.yaw); bz = Math.cos(hpose.yaw);

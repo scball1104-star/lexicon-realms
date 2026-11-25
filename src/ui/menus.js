@@ -629,6 +629,13 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   const r = { x: 60, y: 24, w: 520, h: 316 };
   frame(ctx, env, r, 'Options', regions, act, 'menu');
   if (act.canInvite && act.canInvite()) inviteButton(ctx, env, r, regions, act);   // drop-in with one link (wave 8)
+  if (act.replays) {   // wave 8 replays (src/replay/replay_ui.js): the Replays list, left of the invite button
+    const { g } = env, s = Math.max(16, env.L.minHit || 0), lab = 'Replays', w = g.textW(lab) + 14, h = Math.min(s, 22);
+    const x = r.x + r.w - 10 - s - w - (act.canInvite && act.canInvite() ? g.textW('Invite a friend') + 18 : 0), y = r.y + 4;
+    g.window(ctx, x, y, w, h, 'thin', 'violet', 0.95);
+    g.text(ctx, lab, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
+    regions.push({ rect: { x, y, w, h }, kind: 'button', on: () => act.replays(), label: 'replays' });
+  }
   const touch = env.L.touch, big = g.big;
   const short = touch || big;                  // short labels where room is short (a phone, or Large text)
   // key rows: 11 px a row on desktop (22 rows with 8 skill keys); Large text scrolls the list. A phone has no key list.

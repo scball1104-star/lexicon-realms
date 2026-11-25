@@ -1746,3 +1746,20 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 - **UI.** `ui.mode === 'watch'`: the world draws, the canvas UI draws nothing (the co-op bar is HTML). main.js render
   follows `coop.watchId` while there is no hero. Options has "Invite a friend" in its title bar (`act.invite`,
   `act.canInvite`; hooks `invite`, `canInvite`), hidden for a hero in a friend's game.
+
+## Replays of any fight (wave 8 replay lane, 2026-11-24; D:/LQOnline/wave8/replay/BRIEF.md, Scott: go on the stills)
+- `src/replay/recorder.js` wraps the world's own calls (`enqueue`, `addPlayer`, `removePlayer`, `setParty`, `setDay`,
+  `setShared`, `step`) and logs them, in order, while a recording runs: `[tick, 'c'|'j'|'l'|'p'|'d'|'s', ...]`, applied
+  before the step that makes `tick + 1`. A recording starts at a boss or rare pull (a hero on its threat list) or the R key,
+  with `world.serialize()` as its start, and ends 5 s after the kill or the reset (15 min at most). Only the world that runs
+  the sim records (solo or a co-op host). A `?dev=1` helper used mid-recording drops that recording.
+- File (`src/replay/format.js`): `{ v: 1, kind: 'lexicon-realms-replay', build, stateV, meta, startTick, len, start, ops,
+  check: { every: 100, h } }`; `h` hashes the heroes and the boss every 5 s, so a game that changed since is caught and the
+  viewer plays only to the last match. "Keep forever" replaces start/ops with `baked: { every: 100, frames }` (net/frames.js
+  frames for the recorded hero, a whole frame every 100). Gzipped with the browser's CompressionStream, `.lrreplay`.
+- Store (`src/replay/store.js`): IndexedDB `lexicon_realms_replays` on this device; newest 40 unpinned (12 MB at most),
+  20 pinned (40 MB at most); a pinned one is never cleared out.
+- Sim rule: a read never writes. `combat.cdReady` peeks a charged skill (`chargeState(e, ab, true)`); the catch-up is a pure
+  function of the clock, so gameplay is unchanged and a replay's state hash matches the live one.
+- Hub lines: main.js (create it, `render()` hands the frame to the viewer, dev helpers), ui/menus.js (a Replays button in
+  Options), render3d/renderer3d.js (`view.replayCam`: the orbit camera also below ground, only in the viewer).
