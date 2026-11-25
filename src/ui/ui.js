@@ -46,6 +46,7 @@ import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing h
 import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
 import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
 import { createDelveUI } from './delve_ui.js';   // wave 10 dflow: the door card, Call the party, the run summary
+import { createDepthUI } from './depth_ui.js';   // wave 10 dtiers: the depth rows, the run strip, the friends' board, the coffer
 import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
 import { createNotesUI } from './notes_ui.js';   // wave 9 notes: lantern notes (the seals, the writer, the reader)
 
@@ -115,6 +116,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const delveUi = createDelveUI({ g, st, send, toast, act: new Proxy({}, { get: (_, k) => (typeof act !== 'undefined' ? act[k] : undefined) }) });   // wave 10 dflow
   const delveItems = { items: new Proxy({}, { get: (_, id) => (typeof id === 'string' ? itemInfo(id) : undefined) }), mobs: {} };
   const bossHud = createBossHud({ g });   // wave 10 dbosses
+  const depthUi = createDepthUI({ g, send, toast });   // wave 10 dtiers (after delveUi: its rows go on dflow's door card)
   const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
   const notesUi = createNotesUI({ g, st });   // wave 9 notes (main.js wires it: src/ui/notes_wire.js)
 
@@ -506,11 +508,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         }
         if (st.wdoor) wdoor.draw(ctx, env, m, L, regions);   // word doors: the word panel (worddoor_ui.js)
         if (m.group) sizeScope(() => drawGroup(ctx, env, m, L, regions));       // group play: trade, ready check, a shared quest, death (group_ui.js)
-        if (!(L.touch && delveUi.covers())) hud.menuBar(ctx, L, st, regions);   // wave 10 dflow: a phone card hides the top bar
+        if (!(L.touch && (delveUi.covers() || depthUi.covers()))) hud.menuBar(ctx, L, st, regions);   // wave 10 dflow: a phone card hides the top bar; wave 10 dtiers: the board and coffer too
         riddleUI.draw(ctx, env, m, L, regions);   // wave 9 riddles: the book, the maker, a stone, a link card (riddle_ui.js), over the phone's menu buttons
         if (st.barPick) sizeScope(() => drawBarPick(ctx, L, regions));
         if (st.slotCard) sizeScope(() => drawSlotCard(ctx, env, m, L, regions));
-        if (isBuilds2(m) && !(L.touch && delveUi.covers())) builds2Prompts(ctx, L, m);   // wave 10 dflow: its badge sits on the top bar
+        if (isBuilds2(m) && !(L.touch && (delveUi.covers() || depthUi.covers()))) builds2Prompts(ctx, L, m);   // wave 10 dflow: its badge sits on the top bar
         if (st.hint) drawHint(ctx, L, regions);
         // wave 7 onboarding: one by-doing hint, never over a window, the npc window, the boss card or a banner
         onb.frame(st, m, snap, playerId, t, L, !!(st.open.size || st.dialog || st.bossUp || st.levelUp || st.chest || st.mirror || st.barPick || st.emoteRing || st.slotCard || st.hint || st.story || m.player.dead || (m.group && (m.group.trade || m.group.ready))));
@@ -521,6 +523,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         // wave 10 dflow (delve_ui.js): drawn last so nothing on the bar or a badge sits over its cards
         if (m.player && !st.mirror) sizeScope(() => { st.delveUp = delveUi.draw(ctx, L, regions, snap.hud && snap.hud[playerId], snap.entities.find((e) => e.id === playerId), delveItems,
           !!(st.open.size || st.dialog || st.chest || st.wdoor || st.barPick || st.slotCard || st.emoteRing)); });
+        if (m.player && !st.mirror) sizeScope(() => { st.depthUp = depthUi.draw(ctx, L, regions, snap.hud && snap.hud[playerId], snap.entities.find((e) => e.id === playerId), !!(st.open.size || st.dialog || st.chest || st.wdoor || st.barPick || st.slotCard || st.emoteRing)); });   // wave 10 dtiers: drawn over the door card (the board opens from its row)
       }
     }
     st.regions = regions;
@@ -546,7 +549,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (st.banner.sub) g.text(ctx, st.banner.sub, L.W / 2, by + 16, 'cream', { align: 'center' });
     }
     if (st.mode === 'game') talkUi.drawOver(ctx, env, L, st, regions);   // quest scenes: accept and turn-in flourishes
-    if (st.toast && st.toast.until > t && !((st.bossUp || st.delveUp) && st.mode === 'game')) {   // wave 10 dflow: toasts wait under the run summary
+    if (st.toast && st.toast.until > t && !((st.bossUp || st.delveUp || st.depthUp) && st.mode === 'game')) {   // wave 10 dflow: toasts wait under the run summary
       // above everything, clear of the npc window (CRITIQUE_1 item 20)
       const w = g.textW(st.toast.text) + 16;
       let cx = Math.floor(L.W / 2), ty = L.touch ? L.minHit + 8 : dOrg(L).y + 44;
@@ -967,6 +970,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       else if (dlootUi.close()) { /* wave 10 dloot: Esc closes the drop card */ }
       else if (chatUi.escape()) { /* wave 9 fixes: Esc closes the Say sheet, a friend's card or the chat log */ }
       else if (notesUi.escape()) { /* wave 9 notes: Esc closes the writer, the reader or a card */ }
+      else if (depthUi.escape()) { /* wave 10 dtiers: Esc closes the board or the coffer */ }
       else if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
       else if (st.hint) act.dismissHint();
       else if (st.dialog) act.closeDialog();
@@ -1232,6 +1236,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     talkView: (snap) => (st.mode === 'game' ? talkUi.view(st, snap, playerId, st.metrics.touch) : null),
     talk: talkUi,
     delve: delveUi,   // wave 10 dflow (src/ui/delve_ui.js)
+    depths: depthUi,   // wave 10 dtiers (src/ui/depth_ui.js): drivers
     chat: chatUi,   // wave 8 talk (src/ui/chat_ui.js): coop.js feeds it
     notes: notesUi,   // wave 9 notes (src/ui/notes_ui.js): main.js wires it
 

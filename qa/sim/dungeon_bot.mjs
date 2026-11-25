@@ -5,6 +5,7 @@
 //
 //   node qa/sim/dungeon_bot.mjs                         the Barrow at 11, the Watchtower at 19 and 20, the caves at 5, 8, 15, the Deep Halls at 28 and 30; every class
 //   node qa/sim/dungeon_bot.mjs --place barrow --level 11 --cls warden --builds all --seeds 3
+//   node qa/sim/dungeon_bot.mjs --place barrow_deep --level 30 --depth 3   wave 10 dtiers: the same clear at a depth (src/sim/depths.js)
 //   import { clearRun } from './dungeon_bot.mjs'
 // Prints DUNGEON_BOT_DONE: runs=<n> cleared=<n> max_deaths=<n> gate=<pass|FAIL> (gate: every run clears with deaths <= 2).
 import path from 'node:path';
@@ -39,7 +40,7 @@ function makeHero(w, build, level) {
 }
 
 /** One clear: { place, cls, build, level, cleared, minutes, deaths, xpKills, bosses: { id: s } }. */
-export function clearRun(place, cls, level, { build = null, seed = 1, maxMin = 75, trace = false } = {}) {
+export function clearRun(place, cls, level, { build = null, seed = 1, maxMin = 75, trace = false, depth = 0 } = {}) {   // wave 10 dtiers: depth
   const C0 = content();
   const w = createWorld({ seed: 7000 + seed, content: C0, day: 1 });
   const b = build || NAMED_ALL[cls][0];
@@ -47,6 +48,7 @@ export function clearRun(place, cls, level, { build = null, seed = 1, maxMin = 7
   const p = w.get(pid);
   const K = w.internals.combat;
   // into the hero's copy, at the entry
+  if (depth > 0) { p.depths = { open: { [place]: depth }, runs: [], best: {}, coffer: null }; p.depthPick = { place, depth, candle: false }; }   // wave 10 dtiers: a depth run
   const zid = w.internals.dungeons.enter(p, place);
   const Z = C0.zones[zid];
   p.zone = zid; p.x = Z.arrival[0] * TILE + 128; p.y = (Z.arrival[1] + 1) * TILE - SUB;
@@ -225,7 +227,7 @@ if (isMain) {
   const rows = [];
   const t0 = Date.now();
   for (const [place, level] of cells) for (const cls of classes) for (const b of allBuilds ? NAMED_ALL[cls] : [NAMED_ALL[cls][0]]) for (let s = 1; s <= seeds; s++) {
-    const r = clearRun(place, cls, level, { build: b, seed: s, trace: args.includes('--trace2') ? 2 : args.includes('--trace') });
+    const r = clearRun(place, cls, level, { build: b, seed: s, trace: args.includes('--trace2') ? 2 : args.includes('--trace'), depth: Number(arg('--depth', 0)) });   // wave 10 dtiers: --depth
     rows.push(r);
     console.log(`| ${place} | ${level} | ${cls} | ${r.build} | ${r.cleared ? 'yes' : 'NO'} | ${r.minutes} | ${r.deaths} | ${r.low}% | ${r.xpKills} | ${Object.entries(r.bosses).map(([k, v]) => `${k} ${v}s`).join(', ')} |`);
   }

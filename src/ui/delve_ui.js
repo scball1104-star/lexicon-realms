@@ -145,7 +145,7 @@ export function createDelveUI({ g, st, send, toast, act, storage = globalThis.lo
     const rowH = g.lh + 3;
     const inParty = party.length > 1;
     const H = 6 + g.lh + 2 + g.lh + 4 + (flav.length ? flav.length * g.lh + 6 : 0) + g.lh + 2 + card.rows.length * rowH + 4 + g.lh + 2 + (card.minutesLine ? g.lh + 2 : 0)
-      + extra.length * (g.lh + 2) + stop.length * g.lh + 8 + (inParty ? h + 4 : 0) + h + 8;
+      + extra.reduce((n, r) => n + (r.buttons ? Math.max(g.lh + 2, h + 2) : g.lh + 2), 0) + stop.length * g.lh + 8 + (inParty ? h + 4 : 0) + h + 8;   // wave 10 dtiers: rows with buttons are taller
     const y = touch ? Math.max(2, Math.round((L.H - H) / 2)) : Math.max(30, Math.round((L.H - H) / 2) - 10);
     regions.push({ rect: { x, y, w: Wd, h: H }, kind: 'window', id: 'delve_door' });
     g.window(ctx, x, y, Wd, H, 'std', 'blue', 0.96);
@@ -168,7 +168,14 @@ export function createDelveUI({ g, st, send, toast, act, storage = globalThis.lo
     g.text(ctx, card.scaleLine, x + 8, cy, 'cream'); cy += g.lh + 2;
     if (card.minutesLine) { g.text(ctx, card.minutesLine, x + 8, cy, 'cream'); cy += g.lh + 2; }
     // the reserved slot: round 2's depth row (dtiers, addDoorRow) and any later row goes here, above the stop line
-    for (const r of extra) { g.text(ctx, r.label, x + 8, cy, 'cream'); if (r.value) g.text(ctx, r.value, x + Wd - 8, cy, r.color || 'gold', { align: 'right' }); cy += g.lh + 2; }
+    for (const r of extra) {
+      // wave 10 dtiers: a row may carry buttons ([label, fn, scheme?]) on its right, at the layout's hit size
+      const rh = r.buttons ? Math.max(g.lh + 2, h + 2) : g.lh + 2, ty = cy + Math.round((rh - 2 - g.lh) / 2);
+      let bx = x + Wd - 8;
+      for (const [lab, fn, sch] of [...(r.buttons || [])].reverse()) { const bw = Math.max(h, g.textW(lab) + 12); bx -= bw; btn(ctx, regions, bx, cy, bw, h, lab, sch || 'slate', fn); bx -= 4; }
+      g.text(ctx, r.label, x + 8, ty, 'cream'); if (r.value) g.text(ctx, g.clip(r.value, bx - x - 16 - g.textW(r.label)), bx - 4, ty, r.color || 'gold', { align: 'right' });
+      cy += rh;
+    }
     for (const s of stop) { g.text(ctx, s, x + 8, cy, card.resume ? 'green' : 'dim'); cy += g.lh; }
     cy += 8;
     const notNow = () => { S.notNow = D.id; };
