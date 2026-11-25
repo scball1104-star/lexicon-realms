@@ -21,6 +21,8 @@ import rootbound from './rootbound.js';
 import larchhill from './larchhill.js';
 import droversReach from './drovers_reach.js';
 import larchMine from './larch_mine.js';
+import endmarketGate from './endmarket_gate.js';   // wave 10 draid: the Endmarket raid, wing 1
+import { applyRaid, fairGateDecor } from '../raid_endmarket.js';   // wave 10 draid: the raid (its foes register on import)
 import emberpeak from './emberpeak.js';                 // wave 3 start realms (lane realms1): src/data/start_realms2.js
 import valewyn from './valewyn.js';
 import { composeWorld } from './compose.js';
@@ -64,7 +66,7 @@ import { placeMoorBand, applyMoorBand } from '../moor_band.js';   // quests20: 2
 export const REGIONS = { willowmere, valley, downs, moor };
 // Dungeons and caves (2026-11-22, src/data/dungeons.js): each its own zone (kind 'dungeon' | 'cave'), entered by a door on
 // the world. A party's copy is the zone under the id `<place>#<key>` (copies.js): ZONES resolves it to the place's data.
-export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep };
+export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep, endmarket_gate: endmarketGate };   // wave 10 draid: + endmarket_gate
 // the loading card's one line of flavour (src/ui/loading.js reads zone.flavour)
 for (const [id, z] of Object.entries(PLACES)) if (DUNGEONS[id] && DUNGEONS[id].flavour) PLACES[id] = { ...z, flavour: DUNGEONS[id].flavour };
 // patrols you must time (src/data/patrols.js): a place's patrol pairs spawn with its other foes
@@ -80,7 +82,7 @@ placeMoorBand(WORLD);      // quests20: the Moor band's people, quest nodes and 
 export const OUTDOOR = { rootbound: { ...rootbound, flavour: 'A library grown inside the roots of the Great Willow.' } };
 // the 20 to 30 band (band lane, 2026-11-22): Larchhill (the Larch Mine's door stands in it) and Drovers' Reach
 OUTDOOR.larchhill = { ...withDoors(larchhill, DUNGEONS, PLACES), flavour: "Larch woods, silver mines and the list-writer's grey couriers." };
-OUTDOOR.drovers_reach = { ...droversReach, flavour: "The old drove roads, walled in stone and held by the chain." };
+OUTDOOR.drovers_reach = { ...fairGateDecor(withDoors(droversReach, DUNGEONS, PLACES)), flavour: "The old drove roads, walled in stone and held by the chain." };
 OUTDOOR.emberpeak = { ...emberpeak, flavour: 'A forge town under a black mountain, and the Gate that holds it.' };   // wave 3 start realms (realms1)
 OUTDOOR.valewyn = { ...valewyn, flavour: 'A lake town half under water. The tide is coming in.' };
 Object.assign(OUTDOOR, R2_OUTDOOR);                   // wave 3 realms2: Saffron Haven, the Nameless Hollow
@@ -182,5 +184,5 @@ export function buildContent() {
   out.realms2 = R2.rules;                     // wave 3 realms2: the storm and the lantern watch (src/sim/realms2.js)
   applyRealms2(out);                           // wave 3: Emberpeak and Valewyn (src/data/start_realms2.js)
   // the 20 to 30 band: Larchhill, the Larch Mine, Drovers' Reach (src/data/band_content.js); then the Moor band (moor_band.js)
-  return applyBossFights(applyMoorBand(applyBand(out), worldQuests));   // wave 10 dbosses: boss fights that need the party
+  return applyRaid(applyBossFights(applyMoorBand(applyBand(out), worldQuests)));   // wave 10 dbosses (boss fights that need the party), then draid (the Endmarket raid)
 }

@@ -13,6 +13,7 @@
 // real day (the bounty boards' day, world.setDay) leaves a bonus chest by the last boss: gold, glyphs, a gear roll and
 // bonus XP worth `xpMinutes` of questing at the hero's level (4 kill XP a minute, BUILDS_2 5.2).
 import { BAND_DUNGEONS } from './band_dungeons.js';
+import { RAID_PLACES } from './raid_places.js';   // wave 10 draid: the Endmarket raid's wings
 
 export const DUNGEON_RULES = Object.freeze({
   resetSec: 1800,                        // a copy with no hero inside for 30 minutes of sim time resets
@@ -99,4 +100,5 @@ export const DUNGEONS = {
 };
 // the 20 to 30 band's cave (src/data/band_dungeons.js: the Larch Mine, its door in Larchhill)
 Object.assign(DUNGEONS, BAND_DUNGEONS);
+Object.assign(DUNGEONS, RAID_PLACES);   // wave 10 draid
 export const DUNGEON_IDS = Object.freeze(Object.keys(DUNGEONS));

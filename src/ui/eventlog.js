@@ -104,6 +104,16 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
     case 'mob_emote': return ev.text && (!ev.to || ev.to.includes(me)) ? [{ ch: 'combat', text: ev.text }] : [];
     case 'story': return ev.id === me ? [{ ch: 'system', text: `Story complete: ${ev.title}.` }] : [];
     case 'loot_lost': return ev.id === me ? [{ ch: 'error', text: `Your waiting loot was full: ${(itemInfo(ev.item) || {}).name || ev.item} was lost.` }] : [];
+    // wave 10 draid: the raid's lockout, the Fair Purse, Lot Tickets, the toll and the pen (src/sim/raid.js; words are DRAFTS)
+    case 'raid_loot':
+      if (ev.id !== me) return [];
+      if (ev.kind === 'alone') return [{ ch: 'system', text: 'The fair does not pay a lone bidder: gold only. Bring at least one friend.' }];
+      if (ev.kind === 'locked') return [{ ch: 'system', text: 'Already paid this week: gold only. The lots come round again on Monday.' }];
+      return [];
+    case 'raid_purse': return ev.id === me ? [{ ch: 'loot', text: `The Fair Purse: ${ev.gold} gold, ${ev.glyphs.length} letters and a Lot Ticket. It fills again on Monday.` }] : [];
+    case 'raid_ticket': return ev.id === me ? [{ ch: 'loot', text: `Mother Tally would be proud: your ticket is now ${(itemInfo(ev.item) || {}).name || ev.item}.` }] : [];
+    case 'raid_toll': return ev.inside > 0 && ev.heroes > 1 ? [{ ch: 'combat', text: `The toll is paid, shared ${ev.inside} ways.` }] : ev.heroes > 1 ? [{ ch: 'combat', text: 'Nobody paid the toll, and everyone pays for it.' }] : [];
+    case 'raid_pen': return ev.kind === 'penned' ? [{ ch: 'combat', text: `Old Shep drives ${who(ev.hero)} into the pen. Break the hurdle!` }] : ev.kind === 'broken' ? [{ ch: 'combat', text: 'The hurdle breaks.' }] : [];
     default: return [];
   }
 }

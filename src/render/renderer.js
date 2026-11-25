@@ -515,7 +515,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
 
     // floating combat numbers at the base scale (crisp at every zoom)
     octx.clearRect(0, 0, layout.hudW, layout.hudH);
-    if (zone && zone.doors && !view.bossCam) drawDoorLabels2d(octx, zone, labelFont, worldToHud, { w: layout.hudW, h: layout.hudH });
+    if (zone && zone.doors && !view.bossCam) drawDoorLabels2d(octx, zone, labelFont, worldToHud, { w: layout.hudW, h: layout.hudH, top: layout.touch ? 30 : 2 });   // wave 10 draid: top
     fx.drawNumbers(octx, worldToHud, now);
     ctx.drawImage(over, 0, 0, layout.hudW, layout.hudH, layout.ox, layout.oy, layout.hudW * layout.base, layout.hudH * layout.base);
 

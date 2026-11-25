@@ -25,6 +25,7 @@ import * as THREE from '../vendor/three/three.module.min.js';
 import { radial } from './textures.js';
 import { cells, doorMouths, hashXY, DG_WALL } from '../render/dungeon_plan.js';
 import { dressCave } from './cave3d.js';
+import { fairProp, fairGate } from './fair3d.js';   // wave 10 draid: the Endmarket's fair props and the Fair Gate
 
 export const LIP = 0.55;
 export const CUT = { uCutZ: { value: 0 }, uCutOn: { value: 0 }, uLip: { value: LIP } };
@@ -375,6 +376,11 @@ export async function dressPlace(L, P, B, zone, plan, lamps) {
     else if (p.t === 'dg_mushrooms') {
       for (let i = 0; i < 2 + Math.floor(r * 3); i++) jobs.push(place(i % 3 === 2 ? 'cave/Mushroom_Laetiporus.gltf' : 'cave/Mushroom_Common.gltf', cx + (hashXY(i, 1, p.x) - 0.5) * 0.7, cz + (hashXY(i, 2, p.y) - 0.5) * 0.7, { h: 0.18 + hashXY(i, 3, p.x) * 0.25, ry: hashXY(i, 4) * 6 }));
     } else if (p.t === 'dg_column' || p.t === 'dg_stalagmite') { /* built with the walls */ }
+    else if (p.t === 'dg_unknown' && /^dg_fair_/.test(p.id)) {   // wave 10 draid: the Endmarket's fair props (fair3d.js)
+      const src0 = (zone.decor || []).find((d) => d.t === p.id && d.x === p.x && d.y === p.y) || {};
+      const fp = fairProp({ ...src0, ...p });
+      if (fp) { B.mergeGroup(fp.g); for (const l of fp.lights) lamps.push(l); }
+    }
     else B.mergeGroup(rubble(cx, cz, r));     // an id this renderer does not know yet: a little rubble, never a crash
   }
   await Promise.all(jobs);
@@ -439,6 +445,12 @@ export async function buildDoorMouths(P, B, zone, lamps) {
     else if (d.face === 'n') f = { x: d.x + d.w / 2, z: d.y + d.h, ry: Math.PI };
     else f = { x: d.x + d.w / 2, z: d.y, ry: 0 };
     const seed = d.x * 7 + d.y;
+    if (/^endmarket/.test(d.id)) {   // wave 10 draid: the Fair Gate (fair3d.js), lit by its own lanterns
+      const fg = fairGate(along); fg.g.position.set(f.x, 0, f.z); fg.g.rotation.y = f.ry; fg.g.updateMatrixWorld(true);
+      B.mergeGroup(fg.g);
+      for (const l of fg.lights) lamps.push({ ...l, pos: fg.g.localToWorld(l.pos.clone()), fire: true });
+      continue;
+    }
     const g = d.kind === 'cave' ? (d.face === 'n' ? caveHole(along, seed) : caveArch(along, seed)) : stoneDoor(along);
     g.position.set(f.x, 0, f.z); g.rotation.y = f.ry;
     B.mergeGroup(g);
