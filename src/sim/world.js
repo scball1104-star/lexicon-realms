@@ -40,6 +40,7 @@ import { dayFraction, isNight } from './clock.js';
 import { createWorldLife } from './worldlife.js';
 import { createParty } from './party.js';
 import { createDelve } from './delve.js';   // wave 10 dflow: door card, level sync, Call the party, Go in together, the run record
+import { createRifts } from './rift.js';   // wave 10 drift: word rifts (the Rift Stone, held rooms, learned words)
 import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
 import { createGlyphs } from './glyphs.js';
@@ -201,6 +202,9 @@ function wrap(state, content0, rng, systems) {
   const DV = DG && combatOn && content.party ? createDelve({ state, content, emit, get: (id) => index.get(id) || null, C, DG, tileToSub, remove: (e) => remove(e) }) : null;
   C.delve = DV;
   if (DV) onEmit = (ev) => DV.observe(ev);
+  const RF = DG && combatOn && content.rift ? createRifts({ state, content, emit, get: (id) => index.get(id) || null, C, DG, tileToSub }) : null;   // wave 10 drift
+  C.rift = RF;   // wave 10 drift
+  if (RF) { const prevEmit = onEmit; onEmit = (ev) => { if (prevEmit) prevEmit(ev); RF.observe(ev); }; }   // wave 10 drift: learned words
   // ---- professions (src/sim/professions.js): gathering nodes, the gather and craft casts, trainers, recipes, consumables
   const PF = combatOn && content.professions ? createProfessions({
     state, content, emit, get: (id) => index.get(id) || null, add, remove, nextId: () => state.nextId++, spotFree, reach: INTERACT_RANGE_PX + 24,
@@ -578,6 +582,7 @@ function wrap(state, content0, rng, systems) {
       if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
       if (GP) GP.tick();                         // group play: foe scaling, rez casts, death waits, ready checks
       if (DV) DV.tick();                         // wave 10 dflow: call offers run out, the Come cast
+      if (RF) RF.tick();                         // wave 10 drift: held rooms wake
       if (TR) TR.tick();                         // trades end when the two walk apart
       if (combatOn) C.life.tick(events);
       if (combatOn) C.realms2.tick();           // the sandstorm, the lantern watch, the fog banks
@@ -612,6 +617,7 @@ function wrap(state, content0, rng, systems) {
           h.rest = C.life.hudOf(e);
           if (GP) { const gr = GP.hudOf(e), tr = TR ? TR.hudOf(e, C.hud.itemView) : null; if (gr || tr) h.group = { ...(gr || {}), trade: tr }; }
           if (DV) { const dv = DV.hudOf(e); if (dv) h.delve = dv; }   // wave 10 dflow: sync, the door card, a call, the run summary
+          if (RF) { const rf = RF.hudOf(e); if (rf) h.rift = rf; }   // wave 10 drift: the Rift Stone card, the rift you are in
           if (PF) h.prof = PF.hudOf(e);            // professions: skills, recipes, the gather / craft bar
           if (QS) {
             h.quests = QS.tracker(e);
@@ -654,6 +660,7 @@ function wrap(state, content0, rng, systems) {
     if (!cmd || typeof cmd.t !== 'string') return reject(id, cmd, 'bad_command');
     if (GP && GP.handles(cmd.t)) { GP.command(e, cmd); return; }      // group play (src/sim/party.js): some work while dead
     if (DV && DV.handles(cmd.t)) { DV.command(e, cmd); return; }      // wave 10 dflow: delve_call / come / enter / close
+    if (RF && RF.handles(cmd.t)) { RF.command(e, cmd); return; }      // wave 10 drift: rift_open   
     if (EM.handles(cmd.t) && !e.dead && !(TV && TV.flying(e))) { EM.command(e, cmd); return; }   // wave 7 anim: jump and emotes
     if (TR && TR.handles(cmd.t)) { TR.command(e, cmd); return; }
     if (WD && WD.handles(cmd.t)) { if (!e.dead) WD.command(e, cmd); return; }   // word doors: set or take a letter

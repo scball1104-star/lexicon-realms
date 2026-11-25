@@ -90,6 +90,9 @@ export function createDungeons(D) {
       m.spawn.noRespawn = true;
       m.spawn.copy = zid;
       if (s.boss) m.spawn.boss = true;
+      if (s.held) m.spawn.held = s.held;           // wave 10 drift: a rift's held room (src/sim/rift.js wakes it)
+      const gt = s.boss && placeOf(zid) && placeOf(zid).guardianTune;   // wave 10 drift: the dtiers hook on a rift's guardian (never below 1)
+      if (gt && D.stats) { m.spawn.tune = { hp: gt.hp || 1, dmg: gt.dmg || 1 }; D.stats().recalc(m); m.hp = m.hpMax; }   // wave 10 drift
       // the place's trash tuning (dungeons.js `trash`: a solo hero pulls these one pack at a time); bosses tune in mobs.js
       const tune = !s.boss && placeOf(zid) && placeOf(zid).trash;
       if (tune && D.stats) { m.spawn.tune = { hp: tune.hp || 1, dmg: tune.dmg || 1 }; D.stats().recalc(m); m.hp = m.hpMax; }

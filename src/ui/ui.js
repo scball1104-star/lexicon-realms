@@ -45,6 +45,7 @@ import { createTalkUI } from './talk_ui.js';   // wave 6 quest scenes: the talk 
 import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing hints for a new hero (Help turns them off)
 import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
 import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
+import { createRiftUI } from './rift_ui.js';   // wave 10 drift: the Rift Stone card and the chip in a rift
 import { createDelveUI } from './delve_ui.js';   // wave 10 dflow: the door card, Call the party, the run summary
 import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
 import { createNotesUI } from './notes_ui.js';   // wave 9 notes: lantern notes (the seals, the writer, the reader)
@@ -115,6 +116,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const delveUi = createDelveUI({ g, st, send, toast, act: new Proxy({}, { get: (_, k) => (typeof act !== 'undefined' ? act[k] : undefined) }) });   // wave 10 dflow
   const delveItems = { items: new Proxy({}, { get: (_, id) => (typeof id === 'string' ? itemInfo(id) : undefined) }), mobs: {} };
   const bossHud = createBossHud({ g });   // wave 10 dbosses
+  const riftUi = createRiftUI({ g, send, toast });   // wave 10 drift
   const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
   const notesUi = createNotesUI({ g, st });   // wave 9 notes (main.js wires it: src/ui/notes_wire.js)
 
@@ -523,6 +525,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           !!(st.open.size || st.dialog || st.chest || st.wdoor || st.barPick || st.slotCard || st.emoteRing),
           // wave 10 integrate: the summary waits for dloot's banner and drop card; the chip steps aside for a target or boss frame and the card
           { summary: !!(dlootUi.S.card || (dlootUi.S.banner && t - dlootUi.S.banner.t0 < 5)), chip: !(m.target || dlootUi.S.card) }); });
+
+        if (m.player && !st.mirror && !st.delveUp) sizeScope(() => { st.riftUp = riftUi.draw(ctx, L, regions, snap.hud && snap.hud[playerId], !!(st.open.size || st.dialog || st.chest || st.wdoor || st.barPick || st.slotCard || st.emoteRing)); });   // wave 10 drift
       }
     }
     st.regions = regions;
@@ -1235,6 +1239,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     talkView: (snap) => (st.mode === 'game' ? talkUi.view(st, snap, playerId, st.metrics.touch) : null),
     talk: talkUi,
     delve: delveUi,   // wave 10 dflow (src/ui/delve_ui.js)
+    rift: riftUi,   // wave 10 drift (src/ui/rift_ui.js): main.js passes #rift= links
     chat: chatUi,   // wave 8 talk (src/ui/chat_ui.js): coop.js feeds it
     notes: notesUi,   // wave 9 notes (src/ui/notes_ui.js): main.js wires it
 
@@ -1249,6 +1254,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       for (const ev of events) {
         for (const l of eventLines(ev, { me: playerId, resourceKind: resKindNow(), ...ctx })) (l.quiet ? quietSay(l.text) : say(l.ch, l.text));
         if (playerId != null) { onb.onEvent(ev, playerId); onOwnEvent(ev); dlootUi.onEvent(ev, playerId, lastSnap, zoneNames); }   // wave 7 onboarding sees what the hero did; wave 10 dloot: drops
+        if (playerId != null) riftUi.onEvent(ev, playerId);   // wave 10 drift: rift toasts
       }
     },
     /** The npc template whose mark is gold after a level-up with new abilities (main.js adds it to the quest marks). */

@@ -27,7 +27,8 @@ import emberpeak from './emberpeak.js';                 // wave 3 start realms (
 import valewyn from './valewyn.js';
 import { composeWorld } from './compose.js';
 import { withDoors } from './doors.js';
-import { withCopies, zoneBase } from './copies.js';
+import { withCopies, zoneBase, addZoneMaker } from './copies.js';   // wave 10 drift: + addZoneMaker
+import { riftZoneMaker, RIFT_RULES, RIFT_TEXT, weekWord, riftBook, riftPlace, parseRiftId } from '../rift.js';   // wave 10 drift
 import { DUNGEONS, DUNGEON_RULES } from '../dungeons.js';
 import { DUNGEON_QUESTS, DUNGEON_QUEST_ORDER } from '../dungeon_quests.js';
 import { REGION_AT, WORLD_ID, isRegion, toWorld, toWorldPx } from './layout.js';
@@ -87,12 +88,17 @@ OUTDOOR.emberpeak = { ...emberpeak, flavour: 'A forge town under a black mountai
 OUTDOOR.valewyn = { ...valewyn, flavour: 'A lake town half under water. The tide is coming in.' };
 Object.assign(OUTDOOR, R2_OUTDOOR);                   // wave 3 realms2: Saffron Haven, the Nameless Hollow
 export const ZONES = withCopies({ [WORLD_ID]: WORLD, ...OUTDOOR, ...PLACES });
+// wave 10 drift: a word rift's zone is made on first use (content.zones['rift_ember_22']); its door out is in front of the
+// Rift Stone, Lantern Square's post in Willowmere (src/data/rift.js, src/sim/rift.js)   (wave 10 drift)
+const RIFT_STONE = (() => { const l = WORLD.lanterns.find((x) => x.region === 'willowmere'); const p = l.post || [l.x, l.y]; return { x: p[0], y: p[1], out: [l.x, l.y] }; })();   // wave 10 drift
+addZoneMaker(ZONES, riftZoneMaker(RIFT_STONE.out));   // wave 10 drift
 export { zoneBase };
 /** Is this zone id a dungeon or a cave (or a copy of one)? */
 export const isPlace = (id) => !!PLACES[zoneBase(id)];
 
 // Display names: the world, and each area (the HUD names the area you stand in; quests keep their area as `zone`).
 export const ZONE_NAMES = Object.fromEntries([[WORLD.id, WORLD.name], ...Object.values(REGIONS).map((z) => [z.id, z.name]), ...Object.values(OUTDOOR).map((z) => [z.id, z.name]), ...Object.values(PLACES).map((z) => [z.id, z.name])]);
+addZoneMaker(ZONE_NAMES, (id) => { const r = parseRiftId(id); return r ? RIFT_TEXT.name(r.word) : null; });   // wave 10 drift: a rift's name in the log and the HUD
 
 // ---------------------------------------------------------------- area-local data -> the world
 // Everything authored as { zone: <area>, x, y } in TILES (named spawns, chests, the escort's from/to) or as a where
@@ -184,5 +190,6 @@ export function buildContent() {
   out.realms2 = R2.rules;                     // wave 3 realms2: the storm and the lantern watch (src/sim/realms2.js)
   applyRealms2(out);                           // wave 3: Emberpeak and Valewyn (src/data/start_realms2.js)
   // the 20 to 30 band: Larchhill, the Larch Mine, Drovers' Reach (src/data/band_content.js); then the Moor band (moor_band.js)
+  out.rift = { rules: RIFT_RULES, text: RIFT_TEXT, stone: { zone: WORLD_ID, ...RIFT_STONE }, weekWord, book: riftBook, place: riftPlace, parse: parseRiftId };   // wave 10 drift
   return applyRaid(applyBossFights(applyMoorBand(applyBand(out), worldQuests)));   // wave 10 dbosses (boss fights that need the party), then draid (the Endmarket raid)
 }

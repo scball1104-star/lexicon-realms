@@ -1982,3 +1982,39 @@ gates, frenzyIn, hardIn (s), hardName, unspoken, call: { kind, title, line } | n
 target frame becomes the boss frame, `hud.js targetFrame`; the foe's cast and threat tag step aside; the call-out from
 `uivm` `bossCall`), 3D `src/render3d/boss_marks3d.js`, 2D `src/render/boss_marks2d.js`. The clear bot
 (`qa/sim/dungeon_bot.mjs` danger) also steps out of red marks.
+
+## Word rifts (wave 10 drift, 2026-11-25, BUILD; D:/LQOnline/wave10/drift/BRIEF.md; Scott: "Yes for your recommendations")
+
+Data `src/data/rift.js` (pure: the generator, the looks, the week words, the book, the place record, the link, `RIFT_HOOKS`);
+sim `src/sim/rift.js` (`rift_open`, held rooms, learned words, the HUD part `rift`); card `src/ui/rift_ui.js`.
+- **Ids.** A rift is the place `rift_<word>_<level>` (word 3 to 8 letters a to z, level 1 to 30); a party's copy is
+  `rift_<word>_<level>#party<n>` as for any place. The zone is made on first use: `src/data/maps/copies.js`
+  `addZoneMaker(zones, fn)` lets `content.zones[id]` (and `id in zones`) build it with `riftZoneMaker(out)`; the zone
+  names table names it the same way. Same id, same zone on every machine: every choice comes from
+  `createRng(hashSeed('rift' + RIFT_VERSION + ':' + WORD))`; the level sets foe levels and loot only. A change to the
+  generator must bump `RIFT_VERSION` (qa/tests/rift.test.mjs pins three floors; the link carries the version).
+- **The zone.** The CONTRACTS 6 shape of a hand-built place (kind 'dungeon' or 'cave', `dungeon: { chests, wordDoors }`)
+  plus `zone.rift = { word, version, look, level, guardian, seal, pools, rooms, held: [{ room, x, y }], wordDoorDef }`.
+  Looks reuse four hand-built places' wall kits, floors and their own foes and bosses (`RIFT_LOOKS`); nothing new to draw.
+  The seal before the guardian is a word door (`src/sim/worddoor.js` as it is) whose one word is the rift's own word, its
+  found letters in the rooms before it; its coffer is the Heart Chest.
+- **The place record.** `src/sim/rift.js ensure(base)` puts `content.rift.place(zone)` in `content.dungeons[base]` and
+  the seal's record in `content.wordDoors[base + '_seal']` before a copy is made (and each second for copies that
+  exist). Trash: the hand-built dungeons' copy tuning `{ hp: 0.75, dmg: 0.55 }`; bosses: `[guardian]`, last = guardian;
+  loot pools (`drops`, `rare`, `legendary`, `legend`) from the hand-built dungeon with an epic pool nearest the rift's
+  level (`bandPlace`), rolled by wave 10 dloot; `chest` at the rift's level. No daily chest.
+- **dtiers hook.** `RIFT_HOOKS.scale = (place, { word, level }) => ({ trash?: { hp, dmg }, guardian?: { hp, dmg } })`,
+  multipliers on top of the copy tuning, each clamped to at least 1 (a hook can only make a rift harder); `guardian`
+  lands as `place.guardianTune` (src/sim/dungeons.js spawnCopy sets the guardian's `spawn.tune`).
+- **Opening.** `rift_open { word, link? }` at the Rift Stone (`content.rift.stone`: Lantern Square's post in
+  Willowmere, `stoneTiles` 3). Level = the hero's own level (sync off), at least `minLevel` 10. Allowed: this Eastern
+  week's word (`weekWord(state.day)`, the Monday week of src/core/eastern_week.js), a word in the hero's
+  `e.dungeons.words` (saved with the dungeon record; learned from a word door opened in front of you and from a rift you
+  clear), or with `link: true` (a friend's `#rift=WORD.1.22` link) any word of `riftBook(content)` (week words, word door
+  words, glyph words; never a name-stone's hidden word). Party heroes within `gatherTiles` of the stone go in on the same
+  tick (DG.enter, so dflow's level sync and run record apply). Events `rift { kind: 'open' | 'learn' | 'breath' }`,
+  `rift_fail { reason }`. The door out puts you in front of the stone.
+- **Held rooms.** A spawn with `held: <room>` keeps `m.spawn.held`; `src/sim/ai.js scan` skips it, so its packs never
+  notice a hero until a hero is within `heldTiles` (3) of the room's middle or one of them is pulled; then the whole room
+  engages at once (`rift { kind: 'breath' }`). No foe's stats change.
+- HUD: `hud.rift = { stone: { week, words, level, min, ok } }` at the stone, `{ inside: { word, level, look } }` in a rift.

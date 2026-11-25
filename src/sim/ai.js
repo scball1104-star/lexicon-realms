@@ -601,6 +601,7 @@ export function createAi(C) {
 
   function scan(m) {
     if (behavior(m) !== 'aggressive') return;
+    if (m.spawn && m.spawn.held) return;            // wave 10 drift: a rift's held room waits (src/sim/rift.js wakes it)
     if ((now() + m.id) % 4 !== 0) return;
     let best = null, bd = Infinity;
     for (const p of state.ents) {
