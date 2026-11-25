@@ -38,6 +38,7 @@ const LETTERS = 'abcdefghijklmnopqrstuvwxyz', VOWELS = 'aeiou';
 
 import { createDloot, lootSummary } from './dloot.js';   // wave 10 dloot
 import { itemName } from './loot.js';
+import { createDepths } from './depths.js';   // wave 10 dtiers: Depths (numbered depths, weekly modifiers, the candle, the coffer)
 
 export function createDungeons(D) {
   const { state, content, emit, rng } = D;
@@ -48,6 +49,9 @@ export function createDungeons(D) {
   const copies = () => (state.copies = state.copies || {});
   const DL = createDloot(content);   // wave 10 dloot: boss drops (src/sim/dloot.js)
   // wave 10 dbosses: gates, marks, the red slot, the Last Count, Unspoken (src/sim/boss_mech.js, src/data/boss_fights.js)
+  // wave 10 dtiers: Depths (src/sim/depths.js, content.depths)
+  const DP = content.depths && content.depths.rules && D.stats ? createDepths({ state, content, emit, get: D.get, combat: D.combat, stats: D.stats, spawnMob: D.spawnMob,
+    summon: (m, s, b) => summon(m, s, b), addChest: (...a) => addChest(...a), destroy: (z, r) => destroy(z, r), copies: () => copies(), DL, rollGear: D.rollGear, bagAdd: D.bagAdd, onBag: D.onBag }) : null;
   const BM = content.bossFights && content.bossRules && D.combat ? createBossMech({ state, content, emit, get: D.get, combat: D.combat, summon: (m, s, b) => summon(m, s, b), dun: (p) => dun(p) }) : null;
 
   const placeOf = (zid) => PL[zoneBase(zid)] || null;
@@ -120,15 +124,18 @@ export function createDungeons(D) {
     const zid = `${base}${COPY_SEP}${copyKey(p)}`;
     const c = copies()[zid];
     if (c && c.emptySince != null && now() - c.emptySince >= resetTicks()) destroy(zid);
+    if (DP) DP.beforeEnter(base, p, zid);           // wave 10 dtiers: a different depth makes an empty copy fresh
     if (!copies()[zid]) {
       copies()[zid] = { base, key: copyKey(p), made: now(), emptySince: null, cleared: false };
       spawnCopy(zid);
+      if (DP) DP.onCopy(zid, p);                  // wave 10 dtiers: the picked depth goes on every foe
       emit({ type: 'copy_new', zone: zid, place: base });
     }
     copies()[zid].emptySince = null;
     return zid;
   }
   function tick() {
+    if (DP) DP.tick();                              // wave 10 dtiers: blots, Errata, the candle
     if (now() % TICK_HZ !== 0) return;
     const all = copies();
     for (const zid of Object.keys(all)) {
@@ -203,6 +210,7 @@ export function createDungeons(D) {
   function onKill(mob, p, drop) {
     const place = placeOf(mob.zone);
     if (!place || !isPlace(mob.zone) || !p || p.kind !== 'player') return;
+    if (DP) DP.onKill(mob, p, drop);               // wave 10 dtiers: depth gold, blots, the depth clear and its rewards
     const tpl = mob.template;
     const mt = (content.mobs || {})[tpl] || {};
     if (mt.fight || mt.boss || mt.rare) {
@@ -309,15 +317,16 @@ export function createDungeons(D) {
       b.phases.push(i);
       if (ph.yell) emit({ type: 'yell', id: m.id, text: ph.yell });
       emit({ type: 'boss', id: m.id, kind: 'phase', phase: i + 1, at: ph.at, template: m.template, zone: m.zone });
-      if (ph.summon) summon(m, ph.summon, b);
+      if (ph.summon) summon(m, DP ? DP.phaseSummon(m, ph.summon) : ph.summon, b);   // wave 10 dtiers: Footnoted
     });
-    if (f.frenzy && !b.frenzy && now() - b.t0 >= T(f.frenzy.after)) {
+    if (f.frenzy && !b.frenzy && now() - b.t0 >= T(f.frenzy.after - (DP ? DP.frenzySooner(m) : 0))) {   // wave 10 dtiers: Heavy Hand
       b.frenzy = true;
       if (D.combat) D.combat().applyAura(m, m, { id: 'boss_frenzy', name: 'Frenzy', icon: 'frenzy', kind: 'buff', duration: null, mods: f.frenzy.mods || [] }, {});
       if (f.frenzy.yell) emit({ type: 'yell', id: m.id, text: f.frenzy.yell });
       emit({ type: 'boss', id: m.id, kind: 'frenzy', template: m.template, zone: m.zone });
     }
     if (BM) BM.tick(m, b);                            // wave 10 dbosses
+    if (DP) DP.bossTick(m, b);                        // wave 10 dtiers: Second Draft, Wide Margins
   }
   function summon(m, s, b) {
     const z = zones[m.zone];
@@ -337,6 +346,7 @@ export function createDungeons(D) {
       // a boss's adds are lighter again than its trash (`adds`, default x0.6): they are a distraction, not a second boss
       const ad = (placeOf(m.zone) || {}).adds || { hp: 0.6, dmg: 0.6 };
       if (tune && D.stats) { a.spawn.tune = { hp: (tune.hp || 1) * ad.hp, dmg: (tune.dmg || 1) * ad.dmg }; D.stats().recalc(a); a.hp = a.hpMax; }
+      if (DP) DP.onAdd(a);                          // wave 10 dtiers: a helper in a depth copy gets the depth too
       if (foe && !foe.dead && foe.zone === a.zone && D.ai) { a.threat[foe.id] = 1; D.ai().engage(a, foe, false); }
     }
   }
@@ -363,7 +373,8 @@ export function createDungeons(D) {
    *  and lootSummary (src/sim/dloot.js) of one hero's list. Kept on the copy (state.copies[zid].loot) until it resets. */
   function lootOf(zid) { const c = copies()[zid]; return c && c.loot ? JSON.parse(JSON.stringify(c.loot)) : {}; }
   function lootSummaryOf(zid, id) { return lootSummary(content, (lootOf(zid)[id]) || []); }
-  return { bossView: (m) => (BM ? BM.view(m) : null), bossMarks: () => (BM ? BM.marks() : []),   // wave 10 dbosses
+  return { bossView: (m) => (BM ? BM.view(m) : null), bossMarks: () => [...(BM ? BM.marks() : []), ...(DP ? DP.marks() : [])],   // wave 10 dbosses; wave 10 dtiers: blots
+    depths: DP,   // wave 10 dtiers
     isPlace, placeOf, info, enter, leave, tick, onKill, openChest, bossTick, bossReset, loadSpec, doorOut, destroy, doneToday, fits,
     copies: () => copies(), lootOf, lootSummaryOf };
 }

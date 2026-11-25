@@ -419,7 +419,7 @@ function wrap(state, content0, rng, systems) {
         if (spec.level && spec.level > 1) C.prog.setLevel(e, spec.level);
         C.prog.bindStart(e);
         // restore a saved character (CONTRACTS 3): any of these may come from the save
-        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot', 'bounties', 'dungeons', 'raid']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));
+        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot', 'bounties', 'dungeons', 'raid', 'depths']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));   // wave 10 dtiers: depths
         migrateQuestItems(e, content);
         ensureUids(e);
         if (spec.equip) e.equip = JSON.parse(JSON.stringify(spec.equip));
@@ -461,7 +461,7 @@ function wrap(state, content0, rng, systems) {
       if (!e || e.kind !== 'player') return null;
       const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
       const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []), ...(e.bounties ? { bounties: clone(e.bounties) } : {}),
-        ...(e.dungeons ? { dungeons: clone(e.dungeons) } : {}), ...(e.raid ? { raid: clone(e.raid) } : {}) };   // wave 10 draid: raid = the week's lockout     // dungeons: the daily first clears and the legendary bad-luck count
+        ...(e.dungeons ? { dungeons: clone(e.dungeons) } : {}), ...(e.raid ? { raid: clone(e.raid) } : {}), ...(e.depths ? { depths: clone(e.depths) } : {}) };   // wave 10 dtiers: depths   // wave 10 draid: raid = the week's lockout     // dungeons: the daily first clears and the legendary bad-luck count
       if (e.app) out.app = { ...e.app };          // wave 6: the hero's own look (missing = today's look)
       { const gs = seenMask(content, e); if (gs) out.glyphSeen = gs; }   // wave 9 music: letters ever found (missing = what the hero holds)
       if (!combatOn) return out;
@@ -618,6 +618,8 @@ function wrap(state, content0, rng, systems) {
           if (GP) { const gr = GP.hudOf(e), tr = TR ? TR.hudOf(e, C.hud.itemView) : null; if (gr || tr) h.group = { ...(gr || {}), trade: tr }; }
           if (DV) { const dv = DV.hudOf(e); if (dv) h.delve = dv; }   // wave 10 dflow: sync, the door card, a call, the run summary
           if (RF) { const rf = RF.hudOf(e); if (rf) h.rift = rf; }   // wave 10 drift: the Rift Stone card, the rift you are in
+
+          if (DG && DG.depths) { const dp = DG.depths.hudOf(e); if (dp) h.depths = dp; }   // wave 10 dtiers: Depths, the board, the coffer
           if (PF) h.prof = PF.hudOf(e);            // professions: skills, recipes, the gather / craft bar
           if (QS) {
             h.quests = QS.tracker(e);
@@ -661,6 +663,8 @@ function wrap(state, content0, rng, systems) {
     if (GP && GP.handles(cmd.t)) { GP.command(e, cmd); return; }      // group play (src/sim/party.js): some work while dead
     if (DV && DV.handles(cmd.t)) { DV.command(e, cmd); return; }      // wave 10 dflow: delve_call / come / enter / close
     if (RF && RF.handles(cmd.t)) { RF.command(e, cmd); return; }      // wave 10 drift: rift_open   
+
+    if (DG && DG.depths && DG.depths.handles(cmd.t)) { DG.depths.command(e, cmd); return; }   // wave 10 dtiers: depth_pick / coffer_take
     if (EM.handles(cmd.t) && !e.dead && !(TV && TV.flying(e))) { EM.command(e, cmd); return; }   // wave 7 anim: jump and emotes
     if (TR && TR.handles(cmd.t)) { TR.command(e, cmd); return; }
     if (WD && WD.handles(cmd.t)) { if (!e.dead) WD.command(e, cmd); return; }   // word doors: set or take a letter

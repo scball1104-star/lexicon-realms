@@ -2018,3 +2018,36 @@ sim `src/sim/rift.js` (`rift_open`, held rooms, learned words, the HUD part `rif
   notice a hero until a hero is within `heldTiles` (3) of the room's middle or one of them is pulled; then the whole room
   engages at once (`rift { kind: 'breath' }`). No foe's stats change.
 - HUD: `hud.rift = { stone: { week, words, level, min, ok } }` at the stone, `{ inside: { word, level, look } }` in a rift.
+
+## Depths (wave 10 dtiers, 2026-11-25, BUILD; D:/LQOnline/wave10/dtiers/BRIEF.md; Scott: "Yes for your recommendations")
+
+Data `src/data/depths.js` (`content.depths = { rules, mods, words }`, `applyDepths` last in `buildContent`; every word a
+DRAFT). Sim `src/sim/depths.js` (made by `src/sim/dungeons.js`, `DG.depths`). UI `src/ui/depth_ui.js` (rows on dflow's door
+card through `addDoorRow`, which now takes `buttons: [[label, fn, scheme?]]`; the run strip; the board; the coffer). Board
+`src/net/depth_board.js` (device key `lexicon_realms.depths` v1, the `#depths=` link). Tests `qa/tests/depths.test.mjs`.
+
+- **Depth.** A place a hero has cleared (`p.dungeons.clears[last]` or today's `done`) opens Depth 1; a depth clear opens
+  `depth + 1`, `+ 2` with the candle lit. The party may start as deep as any member has opened. Commands
+  `depth_pick { place, depth, candle }` (0 = today's copy; `p.depthPick`, not saved) and `coffer_take { slot }`. Events
+  `depth_pick`, `depth { kind: 'start' | 'clear' | 'out' | 'blot' | 'mod' }`, `coffer { kind: 'take' }`, `depth_fail`.
+- **Copy.** `DG.enter` -> `ensureCopy`: `DP.beforeEnter` makes an EMPTY copy fresh when the pick differs from its depth
+  (friends inside: join as it is); after `spawnCopy`, `DP.onCopy` sets `state.copies[zid].depth = { depth, week, place,
+  candle, t0, mods, out, done, lit, blots }` and tunes every foe: `spawn.tune` x `(1 + hpStep)^d` health and
+  `(1 + dmgStep)^d` damage (0.10 / 0.06), plus the modifiers; a fixed-number template is scaled directly. A boss's helper
+  gets the depth too (`DP.onAdd` in `summon`). Levels are never changed (heroes play at the band: dflow's sync).
+  Party scaling (party.js) still lands on top. NO FOE IS EVER SOFTER THAN TODAY (the paired tests).
+- **Week.** `easternWeekOfDay(state.day)` = `src/core/eastern_week.js easternWeek`: no new clock in the sim. Three groups
+  (Margin from Depth 1, Bold from 4, Page from 8), one modifier each per week, each round once per 4 week block, never
+  the same two weeks running. Spawn fields read elsewhere: `spawn.speedMul` (ai.js speedOf), `spawn.aggroMul`
+  (aggroRadius, after the clamp), `spawn.leashMul` (the leash). Boss hooks in `dungeons.js bossTick`: Footnoted
+  (`DP.phaseSummon`), Heavy Hand (`DP.frenzySooner`), `DP.bossTick` after dbosses' `BM.tick` (Second Draft, Wide
+  Margins widens new `red` marks). Blots are red circle marks added to `DG.bossMarks()`.
+- **Rewards** (`rewardAt`, equal to data `depthReward`): gold x(1 + 0.1d) on every foe in the copy; with the last boss,
+  through dloot's `pickSmart` / `rollNamed`: a second piece (5% a depth, max 50%; from Depth 8 from the place's epic pool),
+  a second legendary chance (+1% a depth, max 10%), a glyph per 3 depths. Lit candle: a Candle Cache (cache chest).
+- **Hero state** `p.depths = { open: { place: n }, week, runs: [{ place, depth, secs, lit, with }], best, coffer }`
+  (saveFields, addPlayer, main.js specFor; additive, SAVE_VERSION unchanged). When the week turns, last week's runs fill
+  `coffer = { week, runs, slots: [{ need: 1|4|8, open, depth }] }` (slot k at the k-th best depth); `coffer_take` rolls
+  one gear piece (`rollGear`, own level, epic from Depth 8, rare from 3) from its own seed.
+- **HUD** `hud.depths = { week, day, open, runs, best, coffer, slots, mods: { margin, bold, page }, pick?, friends?, run? }`
+  (`friends`: party members' runs this week, for the board in co-op; `run`: depth, mods, candle left / total, falls).

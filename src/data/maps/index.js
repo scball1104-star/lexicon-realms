@@ -58,6 +58,7 @@ import { TRAVEL_ITEMS, TRAVEL_NPCS, TRAVEL_NPC_SPAWNS, travelContent } from '../
 import { MOUNT_ABILITIES, MOUNT_ITEMS, MOUNT_NPCS, MOUNT_NPC_SPAWNS, STABLE, mountsContent } from '../mounts.js';
 import { applyBand } from '../band_content.js';
 import { applyBossFights } from '../boss_fights.js';   // wave 10 dbosses
+import { applyDepths } from '../depths.js';   // wave 10 dtiers: Depths
 import { RB_MOBS, RB_NPCS, RB_ITEMS, RB_QUESTS, RB_QUEST_ORDER, RB_RARE_RUNTIME, RB_RARE_SPAWN, RB_EXTRA_DROPS, START_REALMS } from '../rootbound.js';
 import { applyRealms2 } from '../start_realms2.js';
 import { R2, R2_OUTDOOR } from '../realms2.js';     // wave 3 realms2: Saffron Haven, the Nameless Hollow
@@ -191,5 +192,5 @@ export function buildContent() {
   applyRealms2(out);                           // wave 3: Emberpeak and Valewyn (src/data/start_realms2.js)
   // the 20 to 30 band: Larchhill, the Larch Mine, Drovers' Reach (src/data/band_content.js); then the Moor band (moor_band.js)
   out.rift = { rules: RIFT_RULES, text: RIFT_TEXT, stone: { zone: WORLD_ID, ...RIFT_STONE }, weekWord, book: riftBook, place: riftPlace, parse: parseRiftId };   // wave 10 drift
-  return applyRaid(applyBossFights(applyMoorBand(applyBand(out), worldQuests)));   // wave 10 dbosses (boss fights that need the party), then draid (the Endmarket raid)
+  return applyDepths(applyRaid(applyBossFights(applyMoorBand(applyBand(out), worldQuests))));   // wave 10 dtiers: Depths (content.depths)   // wave 10 dbosses (boss fights that need the party), then draid (the Endmarket raid)
 }

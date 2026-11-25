@@ -245,6 +245,7 @@ async function boot() {
       bounties: s.bounties,                                                  // the bounty boards: which were handed in today
       dungeons: s.dungeons,                                                  // dungeons: today's first clears, the legendary bad-luck count
       raid: s.raid,                                                          // wave 10 draid: the raid's weekly lockout (src/sim/raid.js)
+      depths: s.depths,                                                      // wave 10 dtiers: Depths opened, this week's runs, the coffer
       glyphSeen: s.glyphSeen,                                                // wave 9 music: letters ever found (optional)
       chest: s.chest, gbag: s.gbag,                                          // the hero's Lantern Chest tab and glyph pouch (missing = empty)
       barOff: s.barOff,                                                      // skills the player took off the bar (save v2)
