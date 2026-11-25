@@ -94,6 +94,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
       leave: (g, why) => { if (why !== 'kicked') say(`${g.name} ${why === 'left' ? 'left' : 'dropped out'}.`); hostBar(); },   // kicked: talk_coop says it
       watch: () => { ui.notify('A friend is watching your game.', 3); hostBar(); }, unwatch: () => hostBar(),   // drop-in (draft)
       chat: (from, text, meta) => talk.heard(from, text, meta),
+      riddleOffer: (from, code) => { if (ui.riddles) ui.riddles.offered(from, code); },   // wave 9 riddles: a guest offers a trail
       commandLogged: (id, cmd) => { if (onCommand) onCommand(id, cmd); },
       joinLogged: (tick, spec) => { if (onJoin) onJoin(tick, spec); },
     } });
@@ -332,6 +333,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     get role() { return role; },
     get isGuest() { return role === 'guest'; },
     get isHost() { return role === 'host'; },
+    riddleOffer(code) { if (role === 'guest' && guestSess && guestSess.riddleOffer) guestSess.riddleOffer(code); },   // wave 9 riddles
     get roomCode() { return roomCode; },
     get roomState() { return roomState; },
     get kind() { return kind; },

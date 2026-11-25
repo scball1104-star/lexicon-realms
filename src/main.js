@@ -32,6 +32,8 @@ import { createUI } from './ui/ui.js';
 import { padBar, loadOptions, loadShared, saveShared, SHARED_KEY } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
 import { createCoop } from './net/coop.js';
+import { readRiddle, clearRiddle } from './ui/riddle_book.js';   // wave 9 riddles: a #riddle= link
+import { createRiddleRules } from './sim/riddle.js';   // wave 9 riddles: the link code's rules for the UI
 
 const ZOOMS = [1, 1.5, 2];
 const TILE = 16;
@@ -156,6 +158,9 @@ async function boot() {
   const coop = createCoop({ world, ui, content, specFor, saveState: (id) => saveState(id), heroId: () => playerId, q,
     // the phone HUD has its menu buttons along the top: the co-op bar goes under the party frames (HUD px -> css px)
     barSpot: () => { const L = ui.layout(); if (!L.touch) return null; const r = L.party(3), l = renderer.layout, d = window.devicePixelRatio || 1; return { left: (l.ox + r.x * l.base) / d, top: (l.oy + (r.y + 2) * l.base) / d }; } });
+  ui.riddles.setNet({ isGuest: () => coop.isGuest, offer: (code) => coop.riddleOffer(code), rules: createRiddleRules(content.riddleRules, content.riddleBlocked) });   // wave 9 riddles
+  const riddleHash = () => { const c = readRiddle(window.location); if (c) { ui.riddles.receive(c); clearRiddle(); } };   // wave 9 riddles
+  riddleHash(); window.addEventListener('hashchange', riddleHash);   // wave 9 riddles: the card shows once a hero is in the world
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
   ui.setItems(content.items);
   ui.setQuests(content.quests, content.npcs);
@@ -230,6 +235,7 @@ async function boot() {
       rest: s.rest, offlineSecs: Number.isFinite(s.savedAt) ? Math.max(0, (Date.now() - s.savedAt) / 1000) : 0,
       prof: s.prof,                                                       // professions (optional; src/sim/professions.js)
       home: s.home, flights: s.flights, lanternStone: true,                  // big world travel (src/sim/travel.js); optional fields
+      riddles: s.riddles,                                                    // wave 9 riddles: the riddles solved count (optional)
       mounts: s.mounts, mountPick: s.mountPick,                              // mounts owned, the last ridden (src/sim/mounts.js); optional
       app: s.app || c.app || null };                                         // wave 6: the hero's own look (the mirror's last word is in state)
   }

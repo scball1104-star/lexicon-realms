@@ -34,6 +34,7 @@ import { deathPanel, readyCheck, shareOffers, tradeWindow, groupEvent } from './
 import { createProfUI } from './prof_ui.js';
 import { createGlyphUI } from './glyph_ui.js';
 import { createWordDoorUI } from './worddoor_ui.js';   // word doors (wave 8 glyphdoor)
+import { createRiddleUI } from './riddle_ui.js';   // wave 9 riddles
 import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
@@ -343,6 +344,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const glyphs = createGlyphUI({ st, act, send, toast, say, hero: () => (lastSnap && playerId != null ? { snap: lastSnap, id: playerId } : null) });
   act.profOptions = (d) => [...prof.dialogOptions(d), ...glyphs.dialogOptions(d)];
   const wdoor = createWordDoorUI({ st, send, toast, say, hero: () => (lastSnap && playerId != null ? { snap: lastSnap, id: playerId } : null) });
+  const riddleUI = createRiddleUI({ st, send, toast, say, storage, hero: () => (lastSnap && playerId != null ? { snap: lastSnap, id: playerId } : null),   // wave 9 riddles
+    placeName: (z, tx, ty) => { const p = zones[z] ? placeAt(zones[z], tx, ty) : null; return (p && p.name) || zoneNames[z] || z; } });   // wave 9 riddles
   act.profOpen = (o) => prof.open(o);
   // the creation screen and the free mirror (src/ui/create_screen.js); the turntable request goes to main.js view.stage
   const looks = createLookUI({ st, act, send, toast, say, has3d: () => !!(hooks.has3d && hooks.has3d()), startGear: (cls) => (hooks.startGear ? hooks.startGear(cls) : {}),
@@ -466,6 +469,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           }
           if (st.chest && st.chest.cardFn && m.storage) st.chest.cardFn(regions);
           if (st.open.has('quests')) ((g.skin && g.skin.drawQuestLog) || drawQuestLog)(ctx, env, m, st, regions, act);
+          if (st.open.has('quests')) riddleUI.questButton(ctx, env, regions);   // wave 9 riddles: the Riddles button
           if (st.open.has('map')) drawMap(ctx, env, m, st, regions, act);
           if (st.open.has('talents') && !isBuilds2(m)) g.smallScope(() => drawTalents(ctx, env, m, st, regions, act));   // its tree is a fixed small-text grid
           if (st.open.has('menu')) drawOptions(ctx, env, m, st, regions, act, options);
@@ -481,6 +485,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (st.wdoor) wdoor.draw(ctx, env, m, L, regions);   // word doors: the word panel (worddoor_ui.js)
         if (m.group) sizeScope(() => drawGroup(ctx, env, m, L, regions));       // group play: trade, ready check, a shared quest, death (group_ui.js)
         hud.menuBar(ctx, L, st, regions);
+        riddleUI.draw(ctx, env, m, L, regions);   // wave 9 riddles: the book, the maker, a stone, a link card (riddle_ui.js), over the phone's menu buttons
         if (st.barPick) sizeScope(() => drawBarPick(ctx, L, regions));
         if (st.slotCard) sizeScope(() => drawSlotCard(ctx, env, m, L, regions));
         if (isBuilds2(m)) builds2Prompts(ctx, L, m);
@@ -973,6 +978,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (prof.onEvent(ev, me)) return;            // professions (prof_ui.js)
     if (glyphs.onEvent(ev, me)) return;          // Inscriptions (glyph_ui.js)
     if (wdoor.onEvent(ev, me)) return;           // word doors (worddoor_ui.js)
+    if (riddleUI.onEvent(ev, me)) return;        // wave 9 riddles (riddle_ui.js)
     if (looks.onEvent(ev, me)) return;           // the free mirror (create_screen.js)
     switch (ev.type) {
       case 'interact':
@@ -1221,6 +1227,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     saveHero,
     get playerId() { return playerId; },
     /** Dev start / drivers: play an already-added entity (no saved character). */
+    riddles: riddleUI,   // wave 9 riddles: main.js passes links and the co-op hooks
     attach(id) { playerId = id; st.mode = 'game'; st.open.clear(); nameInput.blur(); },
     validateName: (n) => validateName(n, store.list()),
     talentInfo(cls = 'warden') { return talentTree(cls); },

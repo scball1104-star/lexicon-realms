@@ -50,6 +50,7 @@ import { RESIST_CONTENT } from '../resist.js';
 import { applyProfessions } from '../professions.js';
 import { GLYPHS } from '../glyphs.js';
 import { WORD_DOORS, WORD_DOOR_RULES } from '../word_doors.js';   // word doors (wave 8 glyphdoor)
+import { RIDDLE_RULES, BLOCKED as RIDDLE_BLOCKED } from '../riddle_words.js';   // wave 9 riddles
 import { TRAVEL_ITEMS, TRAVEL_NPCS, TRAVEL_NPC_SPAWNS, travelContent } from '../travel.js';
 import { MOUNT_ABILITIES, MOUNT_ITEMS, MOUNT_NPCS, MOUNT_NPC_SPAWNS, STABLE, mountsContent } from '../mounts.js';
 import { applyBand } from '../band_content.js';
@@ -167,6 +168,7 @@ export function buildContent() {
     travel: travelContent(),                   // big world: the Lantern Stone, inn homes, flight (src/data/travel.js, src/sim/travel.js)
     // the Lantern Chests (src/data/storage.js): where they stand, tab sizes and row prices
     wordDoors: WORD_DOORS, wordDoorRules: WORD_DOOR_RULES,              // word doors (src/data/word_doors.js)
+    riddleRules: RIDDLE_RULES, riddleBlocked: RIDDLE_BLOCKED,          // wave 9 riddles (src/data/riddle_words.js, src/sim/riddles.js)
     glyphs: GLYPHS,                                                     // Inscriptions: margins, letters, words (src/data/glyphs.js)
     storage: STORAGE, lanternChests: LANTERN_CHESTS.map(tileRef).filter((c) => ZONES[c.zone]),
     mirrors: MIRRORS.map(tileRef).filter((c) => ZONES[c.zone]),       // the free mirror in Willowmere (src/data/appearance.js)

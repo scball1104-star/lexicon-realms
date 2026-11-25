@@ -37,6 +37,7 @@ export const cleanChat = (t) => String(t == null ? '' : t).replace(/[\u0000-\u00
 export function guestCommandOk(c) {
   if (!c || typeof c !== 'object' || typeof c.t !== 'string') return false;
   if (c.t === 'chest_move') return false;
+  if (c.t === 'riddle_add' || c.t === 'riddle_remove') return false;   // wave 9 riddles: only the host puts trails out (a guest offers)
   if (c.t.startsWith('chest_') && c.tab === 'shared') return false;
   return true;
 }
@@ -144,6 +145,8 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
       if (Number.isFinite(m.s)) g.ack = m.s;
     } else if (m.t === 'chat') {
       heard(g, m, g.pid);
+    } else if (m.t === 'riddle_offer') {   // wave 9 riddles: a guest offers a trail; the host's card decides
+      if (on.riddleOffer && typeof m.code === 'string' && m.code.length <= 4000) on.riddleOffer(g.name, m.code);
     } else if (m.t === 'bye') {
       sendSave(g, true);
       g.link.send({ t: 'bye', reason: 'left' });
@@ -332,6 +335,7 @@ export function createGuestSession({ link, hero, build = null, watch: asWatcher 
     },
     /** A line to the party, or a whisper (to: a hero id; the host passes it on). */
     chat(text, to = null) { const t = cleanChat(text); if (t && !ended) link.send(to != null ? { t: 'chat', text: t, to } : { t: 'chat', text: t }); return t; },
+    riddleOffer(code) { if (!ended && typeof code === 'string' && code.length <= 4000) link.send({ t: 'riddle_offer', code }); },   // wave 9 riddles
     /** wave 8 talk: may this tab talk? (players always; a watcher once the host lets watchers talk) */
     get canTalk() { return !!(welcome && (!welcome.watch || welcome.talk)); },
     /**

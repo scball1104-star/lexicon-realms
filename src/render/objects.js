@@ -11,6 +11,7 @@
 import { BAYER4 } from './lighting.js';
 import { gatherItems } from './gather2d.js';
 import { wordDoorItems } from './worddoor2d.js';   // wave 8 glyphdoor: word doors
+import { riddleItems } from './riddle2d.js';   // wave 9 riddles
 import { mirrorItems } from './mirror2d.js';   // wave 6: the free mirror (customization kit)
 
 export const GROUND_LOOKS = {
@@ -183,6 +184,7 @@ export function createObjectArt({ tiles, propsDb, img, book, silhouette }) {
       return out;
     }
     if (e.wdoor || e.wstone) return wordDoorItems(e, x, y, now);   // word doors: the slab and a found letter (worddoor2d.js)
+    if (e.rstone) return riddleItems(e, x, y, now);   // wave 9 riddles: a riddle stone (riddle2d.js)
     if (e.mirror) return mirrorItems(e, x, y, now);
     if (e.node && e.node.gather) return gatherItems(e, x, y, now);      // professions: an ore seam or a herb (gather2d.js)
     if (e.node) {
