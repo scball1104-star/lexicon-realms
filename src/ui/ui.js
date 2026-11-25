@@ -47,6 +47,8 @@ import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, th
 import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
 import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
 import { createNotesUI } from './notes_ui.js';   // wave 9 notes: lantern notes (the seals, the writer, the reader)
+
+import { createSecondUI } from './second_ui.js';   // wave 9 second: the phone screen's tabs, the PC's Phone chip
 import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
 
 const SIDE = ['character', 'bags'];
@@ -109,6 +111,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const photoUi = createPhotoUI({ g, st, send, say: (ch, t) => { say(ch, t); toast(t); }, hooks: photoHooks });   // wave 8 photo
   const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
   const notesUi = createNotesUI({ g, st });   // wave 9 notes (main.js wires it: src/ui/notes_wire.js)
+
+  const secondUi = createSecondUI({ g, st, log });   // wave 9 second (src/net/second_coop.js drives it)
 
   // ---- the action surface menus and screens call
   const act = {
@@ -381,6 +385,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
    *  same scale (camera.js `fill`), with the windows centred on it. */
   function hudMode() {
     if (!st.metrics.touch) return 'big';
+    if (secondUi.on) return 'win';               // wave 9 second: the phone screen is all windows
     if (st.mode !== 'game') return 'win';
     if (st.chest) return 'win';
     if (st.mirror) return 'win';                 // the mirror screen is a creation-screen layout
@@ -424,7 +429,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     ctx.imageSmoothingEnabled = false;
     markPage('lr-window', st.mode === 'game' && !!L.touch && (st.open.size > 0 || !!chatUi.sheetOpen || !!chatUi.cardOpen || !!chatUi.state.full));   // wave 9 fixes: the bar hid talents nodes and Say phrases
     if (st.mode !== 'game' && st.mode !== 'watch' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
-    if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
+    if (secondUi.on) { const m2 = playerId != null && snap ? buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones }) : null; if (m2) lastModel = m2; secondUi.draw(ctx, env, m2, L, regions, (id) => g.textScope(() => { if (id === 'map') drawMap(ctx, env, m2, st, regions, act); if (id === 'quests') ((g.skin && g.skin.drawQuestLog) || drawQuestLog)(ctx, env, m2, st, regions, act); if (id === 'bags') { ((g.skin && g.skin.drawCharacter) || drawCharacter)(ctx, env, m2, st, regions, act); drawBags(ctx, env, m2, st, regions, act); } })); }   // wave 9 second: the phone screen
+    else if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'create') looks.drawCreate(ctx, env, regions, t, centred, L);
     else if (st.mode === 'watch') chatUi.drawWatch(ctx, L, regions, hooks.talkHeads ? hooks.talkHeads() : []);   // drop-in watcher: the world and the chat (wave 8 talk)
@@ -447,6 +453,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player) prof.drawHud(ctx, env, m, L, regions);     // professions: the gather / craft bar, the node card, tracking
       if (m.player) glyphs.drawHud(ctx, env, m, L, regions);   // Inscriptions: the Margins button
       if (m.player) chatUi.draw(ctx, L, regions, m);           // wave 8 talk: the chat window (in co-op), Say sheet, card
+      if (m.player) secondUi.pcChip(ctx, L, regions);           // wave 9 second: a phone is paired (click twice: unpair)
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
@@ -1210,6 +1217,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     talk: talkUi,
     chat: chatUi,   // wave 8 talk (src/ui/chat_ui.js): coop.js feeds it
     notes: notesUi,   // wave 9 notes (src/ui/notes_ui.js): main.js wires it
+
+    second: secondUi,   // wave 9 second (src/ui/second_ui.js): second_coop.js drives it
     openEmotes: () => emoteUi.open(true),   // wave 8 talk: the Say sheet's Emotes button
     onboard: onb,   // wave 7 onboarding hints (drivers and tests)
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */

@@ -190,6 +190,36 @@ ids after the #, which never reaches the web server; the friend taps it and the 
 game) or **the swap when friends next play together** (`{ t:'notes' }` over the data channel). A game sends only notes its
 own hero wrote and never passes on notes it was given; watchers get none. Each side checks every word on arrival. There is
 no host-save route and no file. Model: src/net/notes.js; wiring: src/ui/notes_wire.js; drawing: src/ui/notes_ui.js.
+
+## Phone as a second screen (wave 9, 2026-11-25)
+
+Scott approved the brief (D:/LQOnline/wave9/second/BRIEF.md) with its recommendations. A player pairs their own phone to
+their own PC game, solo, hosting or as a guest; the phone shows that hero's Map, Bags (Character and Bags), Quests and
+Chat while the PC keeps the whole screen for the world.
+
+- **Pairing**: Options, **Use my phone**. The PC opens a small room of its own (a fresh room code on the same free
+  signalling) and shows `<this page>#pair=CODE.KEY` as a QR code (src/net/qr.js, our own encoder, no library) and as
+  text with Copy link. KEY is 16 letters from WebCrypto. The phone's camera opens the link; the PC asks **Allow / No**.
+- **What the brokers see**: only what any room code sends: the hashed topic and the offer / answer encrypted with the
+  room code. The KEY never goes there: it is in the link (after the #, so never sent to the web server either), then
+  once over the data channel (DTLS) in the phone's hello. It works once and for 2 minutes. After Allow the phone gets a
+  resume token (memory on the PC, the phone's tab only) and comes back by itself after sleeping (three tries) while
+  the PC game is open.
+- **Who else could pair**: an invite link or room code gives a watcher or a player, never the phone view. Someone who
+  sees the QR in its 2 minutes reaches the Allow ask and nothing more. One phone at a time. A guest's phone pairs to the
+  guest's own PC (its own room), so the host never sees it.
+- **The phone may** equip, unequip, use an item, sort and move bags, share a quest, arrange the bar (the PC applies only
+  these, `phoneCommandOk`), pick the quest the PC's arrow points at and hide tracker rows, and chat (in co-op: a party
+  line or a whisper said by the PC's hero; no emotes). **Nothing else**: moving, casting, targeting, npcs, buying and
+  selling, the Lantern Chest, trade, talents, professions, mounts, word doors, abandoning a quest and Settings stay on
+  the PC.
+- **The phone** never adds a hero (the world, party, saves and replays are unchanged), steps no world, draws no world
+  (2D, covered by the tabs), makes no sound and stores nothing but the resume token in that tab. Frames: 5 a second,
+  only foes beside the hero. The PC shows a **Phone** chip left of the minimap (click twice: Unpair phone).
+- **Not tested on a real phone camera yet**: Scott's real phone scan is the first test after it ships (the link as text
+  always works). `qa/tests/second.test.mjs` checks the QR maths against the standard's known values;
+  `qa/integrate/second.py` pairs a PC and phones (844x390 and 667x375) over real WebRTC with the relay signal.
+
 ## Files
 
 - `src/net/transport.js`: data channel link (chunking, close detection), offer / answer, copy-paste codes, the MQTT,
@@ -199,6 +229,8 @@ no host-save route and no file. Model: src/net/notes.js; wiring: src/ui/notes_wi
 - `src/net/coop.js`: lobby flows and what `main.js` calls each tick.
 - `src/net/netui.js`: the HTML panels, the in-game bar and the chat line (`data-overlay`; `ui.js` ignores input inside).
 - `src/net/talk.js` (the talk model), `src/net/talk_coop.js` (wiring), `src/ui/chat_ui.js` (drawing): talk (wave 8).
+- `src/net/second.js` (pairing, the PC and phone ends), `src/net/second_coop.js` (rooms, panels), `src/net/qr.js`,
+  `src/ui/second_ui.js` (phone tabs, PC chip and panels): the phone as a second screen (wave 9).
 - `src/net/dropin.js`: invite links (`inviteLink`, `readInvite`), share or copy, the join screen for a link (wave 8).
 - `src/sim/world.js`, `src/sim/progression.js`, `src/sim/constants.js`: party id, `setParty`, kill sharing.
 - `src/main.js`: guest playback in `tick()`, host hooks around `world.step()`, name plates, save hooks.

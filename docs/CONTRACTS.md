@@ -1865,3 +1865,12 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   got (code, progress keys, done), hidden author names. On entering a world a host or solo player puts out up to 3 unsolved
   trails; a guest never. UI: `src/ui/riddle_ui.js` (Quest Log > Riddles, the maker, the stone panel, the link card), one hidden
   `<input data-overlay>` for typing. Looks: `src/render3d/riddle3d.js`, `src/render/riddle2d.js`.
+
+- **Phone as a second screen** (wave 9 second, docs/NET.md, src/net/second.js, second_coop.js, src/ui/second_ui.js): a page
+  opened with `#pair=CODE.KEY` is a phone screen (`coop.second.isPhone`; `coop.isGuest` is true for it, so main.js plays
+  back frames and steps no world; 2D only, no sound). It never adds a hero. The PC end sends `framesFor(heroId, { viewPx:
+  160 })` every 4th tick over its own room (never the co-op session) and takes from the phone only `phoneCommandOk`
+  commands (equip, unequip, use_item, bag, quest_share, bar_set) into `ui.act.send`, a `ui { nav, untracked }` ask into
+  `ui.act.selectQuest` and `ui.state.untracked`, and a chat line into the PC's own talk (co-op only; no emotes or other
+  slash commands). `ui.second.state.on` draws the phone tabs instead of the HUD; `pcPaired` draws the PC's Phone chip.
+  `ui.act.usePhone` / `ui.act.canPhone` (set by coop.js) put Use my phone on the Options title bar.
