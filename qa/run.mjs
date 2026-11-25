@@ -33,6 +33,8 @@ for (const f of files) {
     } catch (e) {
       fail++;
       console.log(`  FAIL ${name} :: ${t.name}\n       ${String(e && e.stack || e).split('\n').slice(0, 4).join('\n       ')}`);
+      // on GitHub Actions, also an annotation (readable on the run page without signing in)
+      if (process.env.GITHUB_ACTIONS) console.log(`::error title=${name}::${t.name} :: ${String(e && e.stack || e).split('\n').slice(0, 3).join(' | ').replace(/[\r\n%]/g, ' ')}`);
     }
   }
 }
