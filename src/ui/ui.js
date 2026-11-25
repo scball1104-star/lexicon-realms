@@ -45,6 +45,7 @@ import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing h
 import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
 import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
 import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
+import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -416,6 +417,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, zoneKind: (id) => (zones[id] || {}).kind, flights: (meS && meS.flights) || [] };
     const regions = [];
     ctx.imageSmoothingEnabled = false;
+    markPage('lr-window', st.mode === 'game' && !!L.touch && (st.open.size > 0 || !!chatUi.sheetOpen || !!chatUi.cardOpen || !!chatUi.state.full));   // wave 9 fixes: the bar hid talents nodes and Say phrases
     if (st.mode !== 'game' && st.mode !== 'watch' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
     if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t), env);
@@ -931,6 +933,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (route.action === 'menu') {
       const open = [...st.open];
       if (st.mirror) looks.close();
+      else if (chatUi.escape()) { /* wave 9 fixes: Esc closes the Say sheet, a friend's card or the chat log */ }
       else if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
       else if (st.hint) act.dismissHint();
       else if (st.dialog) act.closeDialog();

@@ -222,6 +222,11 @@ export function createChatUI({ g, st, log }) {
     openSheet() { if (!on()) return false; S.sheet = true; S.card = null; S.full = false; return true; },
     openCard(id) { if (!on() || id == null) return false; S.card = { id, armed: false }; S.sheet = false; return true; },
     close() { S.sheet = false; S.card = null; S.full = false; },
+    /** Esc (wave 9 fixes): closes the card, the Say sheet or the whole log, one at a time; false when none was open */
+    escape() {
+      if (S.card) S.card = null; else if (S.sheet) S.sheet = false; else if (S.full) S.full = false; else return false;
+      return true;
+    },
     /** a long press on a friend's party frame (phone) opens their card */
     longPress(r) { return !!(r && r.kind === 'party' && st.mode === 'game' && this.openCard(r.id)); },
     /** a right click on a friend's party frame (desktop) opens their card */

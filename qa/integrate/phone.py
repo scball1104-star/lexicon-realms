@@ -14,7 +14,9 @@ import json, math, os, sys, time
 from playwright.sync_api import sync_playwright
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-OUT = os.path.join(ROOT, 'qa', 'out', 'integrate')
+# wave 9 fixes: PHONE_VIEW=667x375 runs the same playthrough on the smaller phone (qa/integrate/phone_se.py does that)
+VIEW_W, VIEW_H = (int(v) for v in os.environ.get('PHONE_VIEW', '844x390').lower().split('x'))
+OUT = os.path.join(ROOT, 'qa', 'out', 'integrate', *([] if (VIEW_W, VIEW_H) == (844, 390) else [f'phone_{VIEW_W}x{VIEW_H}']))
 os.makedirs(OUT, exist_ok=True)
 BASE = f"http://127.0.0.1:{int(os.environ.get('PORT', '8790'))}/index.html"   # PORT=8794 for a second tree's server
 GPU = ['--enable-gpu', '--ignore-gpu-blocklist', '--use-angle=d3d11', '--enable-gpu-rasterization']
@@ -96,7 +98,7 @@ class Phone:
 def run():
     with sync_playwright() as pw:
         b = pw.chromium.launch(args=GPU)
-        ctx = b.new_context(viewport={'width': 844, 'height': 390}, device_scale_factor=3, is_mobile=True, has_touch=True)
+        ctx = b.new_context(viewport={'width': VIEW_W, 'height': VIEW_H}, device_scale_factor=3, is_mobile=True, has_touch=True)
         page = ctx.new_page()
         page.on('pageerror', lambda e: errors.append('pageerror: ' + str(e)))
         page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
@@ -410,6 +412,18 @@ def b2_ranks(ph):
     return dict((ph.ev('__drv.me()')['build'] or {}).get('ranks') or {})
 
 
+def tap_b2node(ph, node, wait=0.4):
+    """Tap a Builds 2 node; on a narrow phone (tabs) open the node's tab first (wave 9 fixes: every node is reachable)."""
+    label = f'b2node:{node}'
+    if label not in ph.ev('__drv.labels()'):
+        for tab in ('strength', 'weakness'):
+            if f'b2:tab:{tab}' in ph.ev('__drv.labels()'):
+                ph.tap_region(label=f'b2:tab:{tab}', wait=0.3)
+                if label in ph.ev('__drv.labels()'):
+                    break
+    ph.tap_region(label=label, wait=wait)
+
+
 def mender_builds2(ph):
     N = lambda track, slug: f'b2_mender_{track}_{slug}'  # noqa: E731
     ph.tap_region(kind='menu_button', id='menu', wait=0.4)
@@ -429,6 +443,8 @@ def mender_builds2(ph):
     labels = ph.ev('__drv.labels()')
     assert 'b2:close' in labels, f'the Builds 2 window opened; labels {labels}'
     star = ph.ev('window.__realms.hud().builds2.suggested')
+    # wave 9 fixes: the window opens with the gold star on screen, whatever tab it sits on (667x375 shows tabs)
+    assert f'b2node:{star}' in labels, f'the gold star {star} is on the tab shown; labels {labels}'
     ph.tap_region(label=f'b2node:{star}', wait=0.4)
     assert 'b2:learn' in ph.ev('__drv.labels()'), 'a tap pins the card (Learn, Close)'
     ph.shot('phone_10_b2_card', f'level 1 Mender: the gold-star node ({star}) pinned as a card')
@@ -440,18 +456,18 @@ def mender_builds2(ph):
     ph.ev('window.__realms.dev.level(6)')
     time.sleep(0.3)
     for slug in ('gentle_hands', 'quick_words'):
-        ph.tap_region(label=f'b2node:{N("hearth", slug)}', wait=0.4)
+        tap_b2node(ph, N('hearth', slug))
         ph.tap_region(label='b2:learn', wait=0.4)
         ph.tap_region(label='b2:learn', wait=0.4)
         ph.tap_region(label='b2:card_close', wait=0.3)
     r = b2_ranks(ph)
     assert r.get(N('hearth', 'gentle_hands')) == 2 and r.get(N('hearth', 'quick_words')) == 2, f'Hearth 4 points: {r}'
-    ph.tap_region(label=f'b2node:{N("hearth", "self_kept")}', wait=0.4)
+    tap_b2node(ph, N('hearth', 'self_kept'))
     ph.tap_region(label='b2:learn', wait=0.4)
     r = b2_ranks(ph)
     assert r.get(N('hearth', 'self_kept')) == 1, f'took the fork (Self-Kept): {r}'
     ph.tap_region(label='b2:card_close', wait=0.3)
-    ph.tap_region(label=f'b2node:{N("hearth", "many_names")}', wait=0.4)
+    tap_b2node(ph, N('hearth', 'many_names'))
     ph.shot('phone_11_b2_fork', 'Hearth fork: Self-Kept taken, the Many Names card says the fork is closed')
     ph.tap_region(label='b2:learn', wait=0.4)        # "Locked": a toast, nothing spent
     assert N('hearth', 'many_names') not in b2_ranks(ph), 'the other side stays closed'
@@ -469,5 +485,6 @@ except Exception as e:  # noqa
 for n, note in steps:
     log(f'  {n}: {note}')
 log('console errors:', errors[:20])
+log(f"PHONE_VIEW {VIEW_W}x{VIEW_H}")
 log(f'PHONE_DONE: ok={ok} errors={len(errors)}')
 sys.exit(0 if ok and not errors else 1)
