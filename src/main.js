@@ -167,6 +167,7 @@ async function boot() {
   if (touch && !ui.options.zoomSet && !q.get('zoom')) view.zoom = 1.5;
   view.fx = fxOverride || ui.options.fx;
   view.shake = ui.options.shake !== false;   // the 3D effects' camera kick (Options)
+  view.dloot = () => ({ drops: ui.dloot.S.drops, now: ui.dloot.now });   // wave 10 dloot: the 3D light columns (src/render3d/dloot3d.js)
   audio.setVolumes({ master: 1, music: ui.options.music, sfx: ui.options.sfx });
   const touchCtl = touch ? createTouch({ canvas, input, ui }) : null;
   // the horizon camera (wave 5b, 3D only, an option): ?cam=horizon|fixed in the link wins, else Options: Camera.

@@ -12,6 +12,7 @@ import { TICK_HZ } from './constants.js';
 import { distPx } from './geom.js';
 import { resolveItem } from './loot.js';
 import { gearEffects, minorsOf } from './affixes.js';
+import { powerAt } from './dloot_q.js';   // wave 10 dloot
 
 export function createStats(C) {
   const P = C.P;
@@ -30,10 +31,13 @@ export function createStats(C) {
   function powersOf(e) {
     const items = C.content.items || {};
     const out = [];
-    for (const id of e.powers || []) { const d = items[id]; if (d && d.power) out.push(d.power); }
+    for (const id of e.powers || []) { const d = items[id]; if (d && d.power) out.push(d.power.q ? powerAt(d.power, wornQ(e, id)) : d.power); }   // wave 10 dloot: a Retold power at its rolled quality
     if (e.glyphPw) out.push(...e.glyphPw);                 // Inscriptions: worn letters and spelled words (src/sim/glyphs.js)
     return out;
   }
+
+  /** wave 10 dloot: the quality of the worn copy of item `id` (null: none rolled, the power's middle value). */
+  function wornQ(e, id) { for (const en of Object.values(e.equip || {})) if (en && typeof en === 'object' && en.item === id) return en.inst && en.inst.q != null ? en.inst.q : null; return null; }
 
   function isSolo(e) {
     for (const u of C.state.ents) if (u.kind === 'player' && u !== e && !u.dead && u.zone === e.zone && distPx(u, e) <= 256) return false;

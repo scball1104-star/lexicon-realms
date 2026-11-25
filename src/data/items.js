@@ -12,6 +12,7 @@
 import { glyphItems } from './storage.js';
 import { LEGENDARY_POWERS, MINOR_RULE, LEGEND_DROPS } from './legendary_powers.js';
 import { BAND_DROPS, DEEP_GEAR, DEEP_REWARDS, NAMED_BANDS } from './gear_tier3.js';
+import { DLOOT_RULES, RETOLD } from './dloot.js';   // wave 10 dloot: delve loot rules and the Retold legendaries
 
 export const RARITY = {
   common: { id: 'common', name: 'Common', color: '#e8e8e8', affixes: [0, 0], prefixMax: 0, suffixMax: 0, sellMult: 1.0 },
@@ -40,6 +41,7 @@ export const DROP_RULES = {
   slotWeights: { weapon: 26, chest: 12, legs: 12, head: 12, feet: 10, hands: 10, off: 8, trinket: 10 },
   // cap 30 (src/data/gear_tier3.js): named pieces any foe of a level band may drop, [{ from, to, chance, items }]
   named: NAMED_BANDS,
+  dloot: DLOOT_RULES,   // wave 10 dloot: rolled lines on named pieces, quality, Illuminated, smart loot, the Tally (src/sim/dloot.js)
   // affix tier by ilvl (src/sim/loot.js rollAffixes): the top ilvl of tiers 1 to 8 (AFFIX_TIER_TOP below)
   affixTierTop: [3, 6, 9, 12, 20, 23, 26, 30],
   // BUILDS_2 6.8 drop pacing by the dropper's level (src/sim/loot.js rollKill): [upToLevel, { gearChance, weights }] for
@@ -282,6 +284,8 @@ const withPower = (pid) => (pid && LEGENDARY_POWERS[pid] ? { power: LEGENDARY_PO
 for (const [id, name, slot, type, ilvl, stats, rarity, dungeon, power] of [...D, ...DEEP_GEAR]) gear(id, name, slot, type, ilvl, rarity, stats, { dungeon, ...withPower(power) });
 // the cap 30 gear tier's named world drops by level band (src/data/gear_tier3.js, DROP_RULES.named)
 for (const b of BAND_DROPS) for (const [id, name, slot, type, ilvl, stats] of b.rows) gear(id, name, slot, type, ilvl, b.rarity, stats, { band: [b.from, b.to] });
+// wave 10 dloot: the Retold legendaries (src/data/dloot.js), one per class, from the Deep Halls' last boss (dungeons.js `retold`)
+for (const r of Object.values(RETOLD)) gear(r.id, r.name, r.slot, r.type, r.ilvl, 'legendary', r.stats, { dungeon: 'barrow_deep', retold: true, classes: [r.cls], power: r.power, text: r.power.text });
 
 // The Watchtower sets (BUILDS_2 6.7 and phase 9: sets from dungeon bosses): one per class, three pieces, one from each
 // boss (the Wickwright the head, the Captain of the Stair the legs, the Sentinel the chest). Rarity 'set'. The bonus at 2

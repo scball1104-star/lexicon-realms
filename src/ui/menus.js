@@ -69,6 +69,7 @@ export function itemTooltip(it, extra, worn) {
   if (i.armor) body.push(`${i.armor} armor`);
   for (const [k, v] of Object.entries(i.stats || {})) body.push(`+${v}${k.startsWith('res') || PCT_STAT.has(k) ? '%' : ''} ${STAT_NAME[k] || k}`);
   if (i.text) body.push(i.text);
+  if (i.q != null) body.push(`Quality ${Math.round(i.q * 100)} of 100${i.illum ? '. Illuminated: every line at its best, and one more' : ''}`);   // wave 10 dloot (only pieces dropped since the build carry q)
   if (i.kind === 'quest') body.push('Quest item.');
   // Inscriptions (src/sim/glyphs.js glyphView): the margins, their letters and a spelled word
   if (i.glyph) {

@@ -118,7 +118,7 @@ export function createTrade(D) {
     const k = bagFindUid(e, cmd.uid | 0);
     const slot = k >= 0 ? e.bag[k] : null;
     if (!slot || (cmd.item && slot.item !== cmd.item)) return fail(e, cmd, 'no_item');
-    const why = noTrade(content, slot);
+    const why = passOk(slot, partner(e)) ? null : noTrade(content, slot);   // wave 10 dloot: Pass it on
     if (why) { tr.note = { reason: why, item: slot.item }; return fail(e, cmd, why, { item: slot.item }); }
     if (tr.items.some((x) => x.uid === slot.uid)) return fail(e, cmd, 'offered');
     if (tr.items.length >= R.slots) return fail(e, cmd, 'full');
@@ -133,7 +133,7 @@ export function createTrade(D) {
       const k = bagFindUid(e, x.uid);
       const s = k >= 0 ? e.bag[k] : null;
       if (!s || s.item !== x.item) return { reason: 'gone', item: x.item };
-      const why = noTrade(content, s);
+      const why = passOk(s, partner(e)) ? null : noTrade(content, s);   // wave 10 dloot: Pass it on
       if (why) return { reason: why, item: s.item };
       out.push(s);
     }
@@ -160,6 +160,7 @@ export function createTrade(D) {
     }
     const take = (e, slots) => { const ids = new Set(slots.map((s) => s.uid)); e.bag = e.bag.filter((s) => !ids.has(s.uid)); return slots.map((s) => clone(s)); };
     const fromA = take(a, ga.slots), fromB = take(b, gb.slots);
+    for (const s of [...fromA, ...fromB]) if (s.inst && s.inst.passOn) delete s.inst.passOn;   // wave 10 dloot: passed once, it binds
     for (const s of fromB) bagAdd(a, s.item, s.qty || 1, s.inst || null, content);
     for (const s of fromA) bagAdd(b, s.item, s.qty || 1, s.inst || null, content);
     const goldA = a.trade.gold || 0, goldB = b.trade.gold || 0;
@@ -206,13 +207,26 @@ export function createTrade(D) {
     }
   }
   function onLeave(id) { const e = get(id); if (e && e.trade) close(e, 'gone'); }
+  // wave 10 dloot (src/data/dloot.js passOn): a boss piece may still go, for 2 hours of play, to a friend who shared the kill
+  const passTicks = ((content.dropRules || {}).dloot || {}).passOn ? content.dropRules.dloot.passOn.ticks : 0;
+  function passOk(slot, to) {
+    const pz = slot && slot.inst && slot.inst.passOn;
+    return !!(pz && to && !slot.inst.soulbound && state.tick < pz.until && (pz.with || []).includes(to.id));
+  }
   function onEquip(slot) {
+    if (slot && slot.inst && slot.inst.passOn) delete slot.inst.passOn;   // wave 10 dloot: worn, it stays
     if (slot && slot.inst && bindOf(content, slot) === 'equip' && !slot.inst.soulbound) slot.inst.soulbound = true;
   }
   function onDrop(mob, drop) {
     const t = (content.mobs || {})[mob.template] || {};
     if (!t.boss || !mob.spawn || !mob.spawn.copy) return;
     for (const it of drop.items || []) if (it.inst && (content.items[it.item] || {}).kind !== 'consumable') it.inst.bind = 'pickup';
+    // wave 10 dloot: Pass it on, to the other heroes of the tagger's party in the copy (the kill share)
+    const tg = mob.tagger != null ? get(mob.tagger) : null;
+    if (!passTicks || !tg || tg.party == null) return;
+    const mates = state.ents.filter((u) => u.kind === 'player' && u.party === tg.party && u.zone === mob.zone).map((u) => u.id).sort((a, b) => a - b);
+    if (mates.length < 2) return;
+    for (const it of drop.items || []) if (it.inst && it.inst.bind === 'pickup' && (content.items[it.item] || {}).kind !== 'consumable') it.inst.passOn = { until: state.tick + passTicks, with: mates };
   }
   function hudOf(e, itemView) {
     const tr = e.trade, p = partner(e);

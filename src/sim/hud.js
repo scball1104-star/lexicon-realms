@@ -138,7 +138,7 @@ export function createHud(C) {
     if (!it) return { item: slot.item, qty: slot.qty || 1, name: slot.item, resolved: true };
     const v = { item: slot.item, qty: slot.qty || 1, resolved: true, id: slot.item, name: it.name, icon: it.icon, rarity: it.rarity, kind: it.kind,
       slot: it.slot || null, level: it.level, reqLevel: it.reqLevel || 1, value: it.kind === 'quest' ? 0 : it.value || 0, classes: it.classes || null };
-    for (const k of ['weaponType', 'armorType', 'damage', 'speed', 'armor', 'text', 'use', 'bagSlots']) if (it[k] != null) v[k] = JSON.parse(JSON.stringify(it[k]));
+    for (const k of ['weaponType', 'armorType', 'damage', 'speed', 'armor', 'text', 'use', 'bagSlots', 'q', 'illum']) if (it[k] != null) v[k] = JSON.parse(JSON.stringify(it[k]));   // q, illum: wave 10 dloot (new drops only)
     if (it.stats && Object.keys(it.stats).length) v.stats = { ...it.stats };
     if (slot.inst) v.inst = JSON.parse(JSON.stringify(slot.inst));
     if (slot.uid) v.uid = slot.uid;

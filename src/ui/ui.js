@@ -46,6 +46,7 @@ import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, th
 import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
 import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
 import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
+import { createDlootUI } from './dloot_ui.js';   // wave 10 dloot: the drop's columns, tags, banner and card
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -106,6 +107,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const photoHooks = { releaseMove: (codes) => { if (hooks.input) for (const c of codes) hooks.input.release(c); } };
   const photoUi = createPhotoUI({ g, st, send, say: (ch, t) => { say(ch, t); toast(t); }, hooks: photoHooks });   // wave 8 photo
   const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
+  const dlootUi = createDlootUI({ g, st, act: { useItem: (i) => act.useItem(i) } });   // wave 10 dloot (act is made below)
 
   // ---- the action surface menus and screens call
   const act = {
@@ -435,12 +437,14 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (m.player && hooks.namePlates) drawNamePlates(ctx, hooks.namePlates());
       if (m.player) chatUi.drawUnder(ctx, L, hooks.talkHeads ? hooks.talkHeads() : []);   // wave 8 talk: speech bubbles, under the HUD
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks().filter((k) => k.id !== talkUi.hiddenMark(st)), t, regions, L);
+      if (m.player && hooks.toHud) dlootUi.drawUnder(ctx, env, hooks.toHud, t, !!(hooks.scenes && hooks.scenes()), snap.entities.find((e) => e.id === playerId), regions, L);   // wave 10 dloot
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
       regions.push(...hud.draw(ctx, m, L, st, { log: chatUi.active ? [] : log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
       st.bossUp = !!(m.player && bossCardDraw && bossCardDraw(ctx, g, L, t));   // wave 6: the boss intro card (boss_card.js, set by main.js); toasts wait under it
       if (m.player) prof.drawHud(ctx, env, m, L, regions);     // professions: the gather / craft bar, the node card, tracking
       if (m.player) glyphs.drawHud(ctx, env, m, L, regions);   // Inscriptions: the Margins button
       if (m.player) chatUi.draw(ctx, L, regions, m);           // wave 8 talk: the chat window (in co-op), Say sheet, card
+      if (m.player) dlootUi.draw(ctx, env, m, L, regions);   // wave 10 dloot
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
@@ -933,6 +937,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (route.action === 'menu') {
       const open = [...st.open];
       if (st.mirror) looks.close();
+      else if (dlootUi.close()) { /* wave 10 dloot: Esc closes the drop card */ }
       else if (chatUi.escape()) { /* wave 9 fixes: Esc closes the Say sheet, a friend's card or the chat log */ }
       else if (st.barPick || st.slotCard) { st.barPick = null; st.slotCard = null; }
       else if (st.hint) act.dismissHint();
@@ -1198,6 +1203,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     talkView: (snap) => (st.mode === 'game' ? talkUi.view(st, snap, playerId, st.metrics.touch) : null),
     talk: talkUi,
     chat: chatUi,   // wave 8 talk (src/ui/chat_ui.js): coop.js feeds it
+    dloot: dlootUi,   // wave 10 dloot (src/ui/dloot_ui.js): drivers and the 3D columns read dloot.S.drops
     openEmotes: () => emoteUi.open(true),   // wave 8 talk: the Say sheet's Emotes button
     onboard: onb,   // wave 7 onboarding hints (drivers and tests)
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */
@@ -1205,7 +1211,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     handleEvents(events, ctx) {
       for (const ev of events) {
         for (const l of eventLines(ev, { me: playerId, resourceKind: resKindNow(), ...ctx })) (l.quiet ? quietSay(l.text) : say(l.ch, l.text));
-        if (playerId != null) { onb.onEvent(ev, playerId); onOwnEvent(ev); }   // wave 7 onboarding sees what the hero did
+        if (playerId != null) { onb.onEvent(ev, playerId); onOwnEvent(ev); dlootUi.onEvent(ev, playerId, lastSnap, zoneNames); }   // wave 7 onboarding sees what the hero did; wave 10 dloot: drops
       }
     },
     /** The npc template whose mark is gold after a level-up with new abilities (main.js adds it to the quest marks). */

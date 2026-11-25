@@ -221,26 +221,29 @@ export const tests = [
       }
     }
   } },
-  { name: 'dungeons: the last boss rolls a legendary at 10% plus 0.5% per miss (saved on the hero), reset on a drop', fn() {
+  { name: 'dungeons: the last boss rolls a legendary on the per place Tally (wave 10 dloot: 10% plus 2.5% a miss, sure on the 25th; saved on the hero), reset on a drop', fn() {
     const { w, pid, p, DG } = hero({ seed: 3 });
     let got = 0;
     for (let n = 0; n < 80 && !got; n++) {
       walkIn(w, pid, 'barrow');
-      const misses = (p.dungeons && p.dungeons.miss) || 0;
+      const misses = (p.dungeons && p.dungeons.tally && p.dungeons.tally.barrow) || 0;
       const ev = kill(w, p, mobIn(w, p.zone, 'barrow_reeve'));
       const lg = ev.find((e) => e.type === 'legendary' && e.id === pid);
+      const dl = ev.find((e) => e.type === 'dloot' && e.id === pid && e.boss === 'barrow_reeve');
+      assert(dl && dl.sure === 25, 'a dloot event with the Tally');
       if (lg) {
         got++;
-        assert(Math.abs(lg.chance - (0.1 + 0.005 * misses)) < 1e-9, `chance ${lg.chance} after ${misses} misses`);
-        eq(p.dungeons.miss, 0, 'the count resets on a drop');
-      } else eq(p.dungeons.miss, misses + 1, 'one more miss');
+        const want = misses + 1 >= 25 ? 1 : 0.1 + 0.025 * misses;
+        assert(Math.abs(lg.chance - want) < 1e-9, `chance ${lg.chance} after ${misses} misses`);
+        eq(p.dungeons.tally.barrow, 0, 'the count resets on a drop');
+      } else eq(p.dungeons.tally.barrow, misses + 1, 'one more miss');
       const zid = p.zone;
       walkOut(w, pid);
       DG.destroy(zid);
     }
     assert(got === 1, 'a legendary dropped within 80 clears');
     const save = w.saveFields(pid);
-    assert(save.dungeons && save.dungeons.miss === 0, 'the count is in the save');
+    assert(save.dungeons && save.dungeons.tally && save.dungeons.tally.barrow === 0, 'the count is in the save');
   } },
   { name: 'dungeons: the first clear of the day leaves a bonus chest (gold, glyphs, gear, XP); a second clear that day does not; a new day does', fn() {
     const { w, pid, p, DG } = hero({ level: 11, day: 500 });

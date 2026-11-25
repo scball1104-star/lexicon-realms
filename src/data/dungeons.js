@@ -92,6 +92,7 @@ export const DUNGEONS = {
     },
     rare: ['barrow_kings_mantle', 'last_drove_token'],
     legendary: ['barrow_kings_due', 'drovers_horn'], legend: { chance: 0.1, step: 0.005 },
+    retold: ['hinge_of_oaths', 'second_name_bell', 'unfinished_sentence', 'long_margin', 'spreading_blot'],   // wave 10 dloot: the Retold legendaries share the legendary roll (src/sim/dloot.js)
     chest: { gold: [60, 90], rarity: 'magic', ilvl: 28 },
     daily: { gold: [160, 230], glyphs: 4, rarity: 'rare', ilvl: 29, xpMinutes: 55 },
   },

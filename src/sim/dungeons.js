@@ -35,6 +35,9 @@ const TICK_HZ = 20;
 const T = (sec) => Math.round((sec || 0) * TICK_HZ);
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz', VOWELS = 'aeiou';
 
+import { createDloot, lootSummary } from './dloot.js';   // wave 10 dloot
+import { itemName } from './loot.js';
+
 export function createDungeons(D) {
   const { state, content, emit, rng } = D;
   const PL = content.dungeons || {};
@@ -42,6 +45,7 @@ export function createDungeons(D) {
   const now = () => state.tick;
   const zones = content.zones;
   const copies = () => (state.copies = state.copies || {});
+  const DL = createDloot(content);   // wave 10 dloot: boss drops (src/sim/dloot.js)
 
   const placeOf = (zid) => PL[zoneBase(zid)] || null;
   function isPlace(zid) { const z = zid != null ? zones[zid] : null; return !!(z && (z.kind === 'dungeon' || z.kind === 'cave')); }
@@ -180,22 +184,6 @@ export function createDungeons(D) {
     }
     return true;
   }
-  function instFor(id, cls) {
-    const def = items()[id];
-    if (!def || (def.kind !== 'weapon' && def.kind !== 'armor')) return null;
-    const cg = (content.classGear || {})[cls];
-    const inst = { ilvl: def.level, rarity: def.rarity, affixes: [] };
-    if (def.armorType === 'class') inst.armorType = cg ? cg.armor : 'cloth';
-    else if (Array.isArray(def.armorType)) inst.armorType = cg && def.armorType.includes(cg.armor) ? cg.armor : def.armorType[0];
-    if (Array.isArray(def.weaponType)) inst.weaponType = cg ? (def.weaponType.find((w) => cg.weapons.includes(w)) || def.weaponType[0]) : def.weaponType[0];
-    return inst;
-  }
-  function pickFor(list, cls) {
-    const ok = (list || []).filter((id) => fits(id, cls));
-    const pool = ok.length ? ok : (list || []).filter((id) => items()[id]);
-    return pool.length ? pool[rng.int(0, pool.length - 1)] : null;
-  }
-  function piece(id, cls) { return { item: id, qty: 1, inst: instFor(id, cls) }; }
   const dayOf = () => state.day | 0;
   function dun(p) { if (!p.dungeons || typeof p.dungeons !== 'object') p.dungeons = { day: dayOf(), done: [], miss: 0 }; return p.dungeons; }
   function doneToday(p, base) { const d = p.dungeons; return !!(d && d.day === dayOf() && (d.done || []).includes(base)); }
@@ -210,25 +198,32 @@ export function createDungeons(D) {
       if (mob.ai && mob.ai.boss) for (const aid of mob.ai.boss.adds || []) { const a = D.get(aid); if (a && !a.dead && a.ai && a.ai.mode !== 'combat') { D.remove(a); emit({ type: 'despawn', id: a.id, template: a.template, zone: a.zone, kind: 'mob' }); } }
     }
     if (!(place.bosses || []).includes(tpl)) return;
-    const named = (place.drops || {})[tpl];
-    if (named) { const id = pickFor(named, p.cls); if (id) drop.items.push(piece(id, p.cls)); }
-    const slot = (place.setSlot || {})[tpl];
-    if (slot) {
-      const set = Object.values(content.sets || {}).find((s) => s.cls === p.cls);
-      if (set && set.pieces[slot]) drop.items.push(piece(set.pieces[slot][0], p.cls));
+    // wave 10 dloot (src/sim/dloot.js, D:/LQOnline/wave10/dloot/BRIEF.md): the boss's named piece, set piece, epic and the
+    // legendary roll come from this hero's own seed (the copy, the hero, the boss, their kills of it in this copy), with
+    // rolled lines, quality, Illuminated, smart loot and the per place Tally. The world's shared stream is not drawn from.
+    {
+      const c0 = copies()[mob.zone];
+      const kills = c0 ? (c0.kills = c0.kills || {}) : {};
+      const kk = `${p.id}:${tpl}`;
+      const n = kills[kk] || 0;
+      kills[kk] = n + 1;
+      const d = dun(p);
+      if (!d.tally) d.tally = {};
+      if (d.tally[place.id] == null) d.tally[place.id] = d.miss || 0;     // a hero from before the Tally: the old count seeds each place once
+      const out = DL.bossDrop({ seed: DL.seedFor({ world: state.seed, zid: mob.zone, made: c0 ? c0.made : 0, hero: p.id, tpl, n }), place: place.id, tpl,
+        hero: { cls: p.cls, equip: p.equip, bag: p.bag, pendingLoot: p.pendingLoot, track: p.build && p.build.track }, tally: d.tally[place.id] });
+      for (const it of out.items) drop.items.push(it);
+      if (out.legend) {
+        d.tally[place.id] = out.tally;
+        d.miss = out.tally;                                              // the old field mirrors the last place's count (old readers)
+        if (out.legend.got) emit({ type: 'legendary', id: p.id, item: out.legend.item, place: place.id, chance: out.legend.chance, misses: out.legend.misses,
+          illum: !!(out.items.find((x) => x.item === out.legend.item) || { inst: {} }).inst.illum });
+      }
+      if (c0) { const L = (c0.loot = c0.loot || {}); (L[p.id] = L[p.id] || []).push(...out.items.map((x) => ({ item: x.item, inst: x.inst, from: tpl }))); }
+      emit({ type: 'dloot', id: p.id, place: place.id, zone: mob.zone, from: mob.id, boss: tpl, items: out.items.map((x) => ({ item: x.item, name: itemName(content, x), rarity: x.inst.rarity, illum: !!x.inst.illum, q: x.inst.q })),
+        ...(out.legend ? { tally: out.tally, sure: DL.rules.tally.sure, chance: out.legend.chance } : {}) });
     }
     if (tpl !== place.last) return;
-    if (place.rare) { const id = pickFor(place.rare, p.cls); if (id) drop.items.push(piece(id, p.cls)); }
-    if (place.legendary && place.legend) {
-      const d = dun(p);
-      const chance = Math.min(1, place.legend.chance + place.legend.step * (d.miss || 0));
-      if (rng.chance(chance)) {
-        const lid = Array.isArray(place.legendary) ? pickFor(place.legendary, p.cls) : place.legendary;     // a list: one the killer can use
-        drop.items.push(piece(lid, p.cls));
-        emit({ type: 'legendary', id: p.id, item: lid, place: place.id, chance, misses: d.miss || 0 });
-        d.miss = 0;
-      } else d.miss = (d.miss || 0) + 1;
-    }
     const c = copies()[mob.zone];
     if (c) c.cleared = true;
     const first = !!place.daily && !doneToday(p, place.id);
@@ -349,6 +344,10 @@ export function createDungeons(D) {
     emit({ type: 'boss', id: m.id, kind: 'reset', template: m.template, zone: m.zone });
   }
 
+  /** wave 10 dloot, for a run summary (dflow): the boss pieces each hero got in a copy, { heroId: [{ item, inst, from }] },
+   *  and lootSummary (src/sim/dloot.js) of one hero's list. Kept on the copy (state.copies[zid].loot) until it resets. */
+  function lootOf(zid) { const c = copies()[zid]; return c && c.loot ? JSON.parse(JSON.stringify(c.loot)) : {}; }
+  function lootSummaryOf(zid, id) { return lootSummary(content, (lootOf(zid)[id]) || []); }
   return { isPlace, placeOf, info, enter, leave, tick, onKill, openChest, bossTick, bossReset, loadSpec, doorOut, destroy, doneToday, fits,
-    copies: () => copies() };
+    copies: () => copies(), lootOf, lootSummaryOf };
 }

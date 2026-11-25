@@ -53,6 +53,7 @@ import { tickRealm3d, makeVehicle } from './realm3d.js';   // wave 3: lava glow,
 import { createActors } from './actors.js';
 import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
+import { createDloot3d } from './dloot3d.js';   // wave 10 dloot: light columns at drops
 import { regionInfo } from '../data/maps/compose.js';
 import { zoneBase } from '../data/maps/copies.js';
 import { CUT } from './dungeon3d.js';
@@ -264,6 +265,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   let [hud, hctx] = canvas2d(640, 360);
   let [over, octx] = canvas2d(640, 360);
   let layout = layoutFor(canvas.width, canvas.height, 1, { fill: true });
+  let dloot3 = null;   // wave 10 dloot (src/render3d/dloot3d.js)
   const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null, quality, info: null, camDist: null };   // camDist: drivers' close-up
   let lastNow = null;
   let camK = null, camT = 0;     // camera blend: 0 field, 1 town (eased in real time)
@@ -847,6 +849,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (skyKit) dev.skyKit = skyKit.frame({ f: dayFraction(snap, view), sky, view: wview, zone, area, now, camera, focus, hemi, sun, under: !!(zone && (isPlaceZone(zone) || zone.cavern || zone.atmos)), dev });
     if (quality.water !== 'off') { const dm = skyKit && skyKit.objects[0] && skyKit.objects[0].visible ? skyKit.objects[0].material.uniforms : null; waterSky(dm, scene.fog, sun, hemi); dev.water = quality.water; }
     dev.realms2 = r2fx.update(snap, view.zone, actors, camera, now, focus);
+    if (view.dloot) { const dl = view.dloot(); dloot3 = dloot3 || createDloot3d(scene); dloot3.sync(dl.drops, view.zone, dl.now, groundY); dev.dloot = dloot3.count; }   // wave 10 dloot
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     if (tg && tg.e && !tg.e.dead && tg.kind !== 'object' && !photoClean) {
       targetRing.visible = true;
