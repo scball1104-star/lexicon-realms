@@ -25,6 +25,9 @@ import { createInput } from './input/input.js';
 import { createTouch, isTouchDevice } from './input/touch.js';
 import { attachHorizonInput } from './input/horizon_input.js';   // wave 5b: the optional horizon camera
 import { createHorizonCam } from './render3d/horizon_cam.js';
+import { dayFraction } from './render/daycycle.js';   // wave 8 photo: the live clock under the Time slider
+import { isPlaceZone } from './render/dungeon_plan.js';
+import { photoInput } from './ui/photo_rig.js';
 import { createUI } from './ui/ui.js';
 import { padBar, loadOptions, loadShared, saveShared, SHARED_KEY } from './ui/save.js';
 import { createAudio } from './audio/audio.js';
@@ -175,6 +178,30 @@ async function boot() {
     if (hin) hin.setOn(on);
   }
   setCam(ui.options.cam);
+  // wave 8 photo mode (src/ui/photo_ui.js, photo_rig.js): render-only. While it is open this client draws its own time,
+  // weather and camera (the horizon camera, lent); on close the view goes back exactly as it was. Nothing reaches the sim,
+  // the save or co-op, and tick() passes the sim no command from the keys, mouse or stick but `stop` (the hero stays put).
+  let photoKeep = null;
+  const zoneOf = () => { const e = heroEnt(); return e ? content.zones[e.zone] : null; };
+  ui.setPhotoHooks({
+    capture: () => (renderer.capture ? renderer.capture() : null), is3d: () => !!renderer.is3d && !!hcam, ready: () => !!renderer.ready,
+    place: () => (place && place.name) || null, liveTod: () => dayFraction(snap, photoKeep || view), cam: () => hcam,
+    zone: () => (heroEnt() || {}).zone || null, flying: () => !!(heroEnt() || {}).flight,
+    place3d: () => { const z = zoneOf(); return !!z && isPlaceZone(z); }, under: () => { const z = zoneOf(); return !!z && (isPlaceZone(z) || !!z.cavern || !!z.atmos); },
+  });
+  function photoView() {
+    if (ui.photo.on && ui.mode !== 'game') ui.photo.close('gone');
+    const pv = ui.photo.view;
+    if (pv && !photoKeep) photoKeep = { tod: view.tod, weather: view.weather, cam: view.cam };
+    if (pv) {
+      view.tod = pv.tod != null ? pv.tod : photoKeep.tod; view.weather = pv.weather != null ? pv.weather : photoKeep.weather; view.photo = pv.photo;
+      if (hcam && view.cam !== hcam) { view.cam = hcam; if (hin) hin.setOn(true); }
+    } else if (photoKeep) {
+      view.tod = photoKeep.tod; view.weather = photoKeep.weather; view.photo = null;
+      if (view.cam !== photoKeep.cam) { view.cam = photoKeep.cam; if (hin) hin.setOn(view.cam === hcam); }
+      photoKeep = null;
+    }
+  }
   // Settings: synth music and sounds (wave 5b); off = today's sounds only. ?synth=0 / 1 overrides it (QA, the frame budget)
   audio.setSynth(synthQ === '0' ? false : synthQ === '1' ? true : ui.options.synth !== false);
   // the Lantern Chest's Shared tab (every hero on this device): its own key, never inside a hero save (src/ui/save.js)
@@ -345,7 +372,8 @@ async function boot() {
     if (coop.isGuest) {
       // a guest: input goes to the host; the host's frames come back (one per tick, src/net/session.js nextFrame)
       if (playerId != null) {
-        const cmds = [...input.poll({ snap, playerId, pick: renderer.pick, toWorld: renderer.devToWorld }), ...uiCommands.splice(0)];
+        const ic = input.poll({ snap, playerId, pick: renderer.pick, toWorld: renderer.devToWorld });
+        const cmds = [...(ui.photo.on ? photoInput(ic) : ic), ...uiCommands.splice(0)];   // wave 8 photo: the hero stays put
         coop.sendCmds(cmds);
       } else { input.poll({ snap, playerId: null }); uiCommands.length = 0; }
       const fr = coop.nextFrame();
@@ -354,7 +382,8 @@ async function boot() {
       return;
     }
     if (playerId != null) {
-      for (const cmd of [...input.poll({ snap, playerId, pick: renderer.pick, toWorld: renderer.devToWorld }), ...uiCommands.splice(0)]) {
+      const ic = input.poll({ snap, playerId, pick: renderer.pick, toWorld: renderer.devToWorld });
+      for (const cmd of [...(ui.photo.on ? photoInput(ic) : ic), ...uiCommands.splice(0)]) {   // wave 8 photo: the hero stays put
         world.enqueue(playerId, cmd);
         commandLog.push([world.tick + 1, playerId, cmd]);
       }
@@ -382,6 +411,7 @@ async function boot() {
     view.stage = ui.stage;             // wave 6: the creation screen's or the mirror's turntable (renderer3d draws only it)
     view.inset = ui.mode === 'game' ? insets : null;   // title screens: the art covers the notch strips too
     view.talk = ui.talkView(snap);                     // wave 6 quest scenes: the talk camera (null: today's)
+    photoView();                                       // wave 8 photo: this client's own time, weather and camera step
     // secret caches this hero has opened draw open, without their glint
     for (const e of snap.entities) if (e.node && e.node.secret) e.opened = (e.node.openedBy || []).includes(playerId);
     renderer.draw(prev, snap, alpha, view);
@@ -444,6 +474,7 @@ async function boot() {
     /** Frame timing: { fps, p95ms } over the last ~4 s of animation frames. */
     fps() { const d = [...frames.dts].sort((a, b) => a - b); if (!d.length) return null; const avg = d.reduce((s, v) => s + v, 0) / d.length; return { fps: Math.round(10000 / avg) / 10, p95ms: Math.round(d[Math.floor(d.length * 0.95)] * 10) / 10, n: d.length }; },
     ready: true,
+    photo: ui.photo,                   // wave 8 photo mode: drivers (open, state, save)
   };
   if (q.get('dev') === '1') {
     // DEV ONLY (drivers and testing): never reachable without ?dev=1

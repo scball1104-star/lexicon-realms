@@ -25,7 +25,8 @@ export function camRelMove(dx, dy, yawDeg) {
 export function attachHorizonInput({ canvas, cam, input, ui, touchCtl = null, win = window }) {
   let on = false;
   const setOn = (v) => { on = !!v; input.setMoveTransform(on ? (dx, dy) => camRelMove(dx, dy, cam.yaw) : null); if (!on) { rd = null; two = null; } };
-  const onHud = (cx, cy) => { if (!ui || !ui.hudPoint || !ui.owns) return false; const p = ui.hudPoint(cx, cy); return ui.owns(p.x, p.y); };
+  // 'cam': a region marked camThrough (photo mode's backdrop, src/ui/photo_ui.js) lets the camera gestures through
+  const onHud = (cx, cy) => { if (!ui || !ui.hudPoint || !ui.owns) return false; const p = ui.hudPoint(cx, cy); return ui.owns(p.x, p.y, 'cam'); };
   const devPoint = (ev) => {
     const r = canvas.getBoundingClientRect();
     return [(ev.clientX - r.left) * (canvas.width / r.width), (ev.clientY - r.top) * (canvas.height / r.height)];

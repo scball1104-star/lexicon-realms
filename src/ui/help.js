@@ -21,6 +21,7 @@ export function helpSections(binds) {
       ['Ride a mount', `${k(b, 'mount')} (buy one from Wynn in Willowmere)`, 'Horseshoe button'],
       ['Jump', k(b, 'jump'), 'Hold your portrait, then Jump'],
       ['Emotes', `${k(b, 'emotes')}: wave, cheer, sit, dance. Party chat: /wave`, 'Hold your portrait'],
+      ['Photo mode', `${k(b, 'photo')}: a postcard, out of a fight`, 'Hold your portrait, then Photo'],   // wave 8 photo (draft)
     ] },
     { title: 'Fighting', rows: [
       ['Pick a foe', `Click it, or ${k(b, 'next_target')}`, 'Tap it, or Next'],
