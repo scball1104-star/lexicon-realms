@@ -42,6 +42,7 @@ import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
 import { createGlyphs } from './glyphs.js';
 import { createWordDoors } from './worddoor.js';   // word doors (wave 8 glyphdoor)
+import { createRiddles } from './riddles.js';   // wave 9 riddles: riddle trails friends write
 import { createTravel } from './travel.js';
 import { createLegendDrops } from './legend_drops.js';
 import { createMounts } from './mounts.js';
@@ -202,6 +203,8 @@ function wrap(state, content0, rng, systems) {
   const WD = combatOn && content.wordDoors && DG ? createWordDoors({ state, content, emit, get: (id) => index.get(id) || null, add, remove, nextId: () => state.nextId++,
     tileToSub, distPx, rng, rollGear, bagAdd, onBag: (e) => { if (QS) QS.onBag(e); } }) : null;
   C.wordDoors = WD;
+  const RD = combatOn && content.riddleRules ? createRiddles({ state, content, emit, get: (id) => index.get(id) || null, add, remove, nextId: () => state.nextId++, tileToSub, distPx }) : null;   // wave 9 riddles
+  C.riddles = RD;   // wave 9 riddles
   // ---- travel (big world, src/sim/travel.js): the Lantern Stone, inn homes, flight (content.travel)
   const TV = combatOn && content.travel ? createTravel(C) : null;
   const LD = combatOn && content.items ? createLegendDrops({ content, rng, state, emit }) : null;   // src/sim/legend_drops.js
@@ -419,6 +422,7 @@ function wrap(state, content0, rng, systems) {
         if (PF) PF.restore(e, spec);               // professions: skills, recipes, a flask (save `prof`, missing = none)
         if (TV) { TV.restore(e, spec); if (spec.lanternStone) ensureStone(e, !!spec.newHero); }   // home, flight points; the Lantern Stone (main.js asks)
         if (MT) MT.restore(e, spec);               // mounts owned (save `mounts`, missing = none; the summons are in `known` too)
+        if (RD) RD.restore(e, spec);               // wave 9 riddles: the riddles solved count (save `riddles`, missing = 0)
       }
       add(e);
       emit({ type: 'join', id: e.id, name: e.name });
@@ -460,6 +464,7 @@ function wrap(state, content0, rng, systems) {
       const prof = PF && PF.saveOf(e); if (prof) out.prof = prof;     // professions (missing = none)
       if (TV) Object.assign(out, TV.saveOf(e));                       // travel: home (inn id), flights (known points); missing = none
       if (MT) Object.assign(out, MT.saveOf(e));                       // mounts: owned kinds, the last one ridden; missing = none
+      if (RD) Object.assign(out, RD.saveOf(e));                       // wave 9 riddles: the riddles solved count; missing = 0
       return out;
     },
     get(id) { return index.get(id) || null; },
@@ -633,6 +638,7 @@ function wrap(state, content0, rng, systems) {
     if (EM.handles(cmd.t) && !e.dead && !(TV && TV.flying(e))) { EM.command(e, cmd); return; }   // wave 7 anim: jump and emotes
     if (TR && TR.handles(cmd.t)) { TR.command(e, cmd); return; }
     if (WD && WD.handles(cmd.t)) { if (!e.dead) WD.command(e, cmd); return; }   // word doors: set or take a letter
+    if (RD && RD.handles(cmd.t)) { if (!e.dead) RD.command(e, cmd); return; }   // wave 9 riddles: add, guess, remove
     if (e.dead && cmd.t !== 'target') return reject(id, cmd, 'dead');
     // on a Lantern Kite the hero cannot act (src/sim/travel.js); held keys are ignored quietly
     if (TV && TV.flying(e)) { if (cmd.t !== 'move' && cmd.t !== 'stop') reject(id, cmd, 'flying'); return; }
@@ -728,6 +734,7 @@ function wrap(state, content0, rng, systems) {
           if (t.dchest) WD.openChest(e, t); else WD.interact(e, t);
           return;
         }
+        if (RD && t.kind === 'object' && t.rstone) { if (distPx(e, t) > INTERACT_RANGE_PX + 24) emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); else RD.interact(e, t); return; }   // wave 9 riddles
         if (t.kind === 'object' && t.node) {
           if (distPx(e, t) > INTERACT_RANGE_PX) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
           if (t.dchest) { if (DG) DG.openChest(e, t); return; }      // a dungeon or cave chest (src/sim/dungeons.js)
@@ -1138,6 +1145,7 @@ function wrap(state, content0, rng, systems) {
       o.windup = e.windup && !e.dead && state.tick <= e.windup.at ? { kind: e.windup.kind, start: e.windup.start, at: e.windup.at, target: e.windup.target ?? null } : null;
     }
     if (WD && e.kind === 'object' && (e.wdoor || e.wstone)) Object.assign(o, WD.publicOf(e) || {});   // word doors
+    if (RD && (e.kind === 'player' || e.rstone)) Object.assign(o, RD.publicOf(e) || {});   // wave 9 riddles: a stone, a hero's solved count
     if (e.kind === 'object' && e.node) {
       o.node = { item: e.node.item, channel: e.node.channel || 0 };
       if (e.node.gather) { const { prof, skill, kind, node, pool } = e.node.gather; o.node.gather = { prof, skill, kind, node, pool }; }   // professions: a gathering node

@@ -1839,3 +1839,29 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 - **UI** `ui.notes` (src/ui/notes_ui.js): `setModel(m)` (notes_wire.js), `drawUnder(ctx, L, regions, t)` (the seals, regions
   `notes_seal:<key>`), `draw(ctx, L, regions)` after the phone top bar, `escape()`, `openReader(key)`, `openLink(note)`,
   `openWriter(preset)`. Region labels `notes:<button>`, `notes_frame:`, `notes_tab:`, `notes_word:` (drivers). No sim state.
+
+## Riddles friends write (wave 9 riddles, 2026-11-25, BUILD; D:/LQOnline/wave9/riddles/BRIEF.md; Scott: go with the recommendations)
+- **What**: a friend writes a trail of 1 to 5 riddle stones in the open world (zone `world`), each with a clue (2 lines), an
+  optional hint and an answer (3 to 8 letters A to Z), and sends it as a link. No loot, xp or gold: a "riddles solved" count
+  on the hero and the author's closing line only (Scott). Every player-facing line is a DRAFT in `src/data/riddle_words.js`.
+- **Link code** (`src/sim/riddle.js`, pure, `createRiddleRules(content.riddleRules, content.riddleBlocked)`):
+  `r1.<base64url JSON>.<hashSeed checksum>`; answers SEALED (32-bit hash), stone k+1 and the last words XORed with a key
+  stream from answer k (spoilers, not a lock). `check(text)` is the word check (whole words after case, leet, stretched and
+  spaced letters; links, emails, handles and phone numbers refused). `unpack` refuses over 4000 characters, a bad checksum or
+  shape. The link `#riddle=<code>` sits after `#` like `#join=` (`src/ui/riddle_book.js` readRiddle, codeIn, clearRiddle).
+- **Commands** (`src/sim/riddles.js`): `riddle_add { code, keys? }` (keys = words solved on this device; the walk stops at the
+  first that does not open), `riddle_guess { rid, word }` (within `reachPx`), `riddle_remove { rid }`. Fails:
+  `riddle_fail { id, cmd, reason: bad_link | words | have | full | done | zone | no_riddle | range | quiet }`. A guest's
+  `riddle_add` / `riddle_remove` are dropped by `guestCommandOk`; a guest offers with `{ t:'riddle_offer', code }`
+  (session.js, host `on.riddleOffer(name, code)`, coop.js -> `ui.riddles.offered`). At most `maxActive` (3) trails per world.
+- **Events**: `riddle { kind: added | look | wrong | right | done | removed, id, rid, ... }`; `right` carries `keys` and
+  `next { zone, x, y }` (tiles); `done` carries `end` (null if it fails the check), `solvers` (heroes within `creditTiles`
+  of the last stone, never the author by name), and the hero's `riddlesSolved` goes up by 1.
+- **State and snapshot**: `state.riddles.list[rid]` (exists only after the first add, so old worlds hash as before); the stone
+  is an `object` with `rstone { rid }`; the snapshot adds `rstone { rid, title, by, k, n, len, tries, quiet, clue, hint
+  (after hintAfter wrong words), hasHint }` (a line failing the check is null) and a player's `riddles` (count). Never an
+  answer. Save field `riddles` (missing = 0; main.js specFor passes it).
+- **Device**: the riddle book `lexicon_realms.riddles` (`createRiddleBook`): made (with plain answers, this device only),
+  got (code, progress keys, done), hidden author names. On entering a world a host or solo player puts out up to 3 unsolved
+  trails; a guest never. UI: `src/ui/riddle_ui.js` (Quest Log > Riddles, the maker, the stone panel, the link card), one hidden
+  `<input data-overlay>` for typing. Looks: `src/render3d/riddle3d.js`, `src/render/riddle2d.js`.

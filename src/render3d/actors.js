@@ -19,6 +19,7 @@ import { createRider, createYard } from './mount3d.js';
 import { createAnimKit } from './anim_kit.js';   // heroes' combat moments over the clips (approved 2026-11-23)
 import { groundY } from './ground_plan.js';   // wave 5 ground kit: the visible ground height
 import { wordDoorLook, letterStoneLook } from './worddoor3d.js';   // wave 8 glyphdoor: word doors
+import { riddleStoneLook } from './riddle3d.js';   // wave 9 riddles
 import { createEmoteKit } from './emote_kit.js';   // wave 7 anim: jump, emotes, NPC work loops (approved 2026-11-24)
 
 const PX = 16;
@@ -115,6 +116,7 @@ function objectLook(e) {
   if (e.chest) return lanternChest();
   if (e.wdoor) return wordDoorLook(e);                  // word doors: the slab (worddoor3d.js)
   if (e.wstone) return letterStoneLook(e);              // and a found letter
+  if (e.rstone) return riddleStoneLook(e);              // wave 9 riddles: a riddle stone (riddle3d.js)
   if (e.mirror) return mirrorProp();                     // the free mirror (wave 6 customization kit)
   if (/chicken/.test(sp)) { g.add(chicken()); g.userData.h = 0.7; g.userData.chicken = true; return g; }
   if (e.node && e.node.gather) return gatherLook(e);      // professions: an ore seam or a herb (gather3d.js)
