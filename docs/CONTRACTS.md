@@ -1294,6 +1294,21 @@ the doors `src/data/maps/doors.js`, the quests `src/data/dungeon_quests.js`, the
   chain (`questOrder`, 24) is unchanged. An `explore` objective in a place matches its copies.
 - **Tuning.** `BOSS_TUNE` (hpMult, dmgMult) and each place's `trash` / `adds` are set by `node qa/sim/dungeon_bot.mjs`
   (every class's named builds clear solo; gate: deaths <= 2), also run in the suite as `qa/sim/dungeon_bot.test.mjs`.
+- **Word doors** (wave 8 glyphdoor, 2026-11-24, BUILD; D:/LQOnline/wave8/glyphdoor/BRIEF.md; the words are DRAFTS for
+  Scott in `src/data/word_doors.js`). Map: `zone.dungeon.wordDoors = [{ id, name, cells: [[x, y]], face: { x, y, w },
+  stones: [[x, y]], chest: { id, x, y, name } }]` (the Barrow: the Thirteenth Line north of the Fold Hall). Data:
+  `content.wordDoors[id] = { place, name, look, words: [{ word, clue: [l1, l2], opened, draft? }] }`, `content.wordDoorRules`.
+  Sim `src/sim/worddoor.js`: a copy gets its slab (`kind: 'object'`, `wdoor`), one found letter per letter of its word
+  (`wstone`) and a coffer (`dchest.kind: 'word'`); the word and the stone spots are a hash of (door, copy id, `made`),
+  never the world rng. `state.copies[zid].wd[id] = { word (index), len, slots, tries, quietUntil, open, carried, face,
+  slab, chest, stones, cells }`. `cells` block movement while shut (`collision.js` option `shut`). Commands
+  `wdoor_set { door, letter, from: 'found' | 'pouch' }`, `wdoor_take { door, slot }`; `interact` on a stone picks it up,
+  on the slab emits `wdoor { kind: 'look' }`, on the coffer opens it (once per hero, cache gold, a `rollGear` at the
+  cache ilvl and the daily rarity). Events `wdoor { kind: 'found' | 'look' | 'set' | 'take' | 'wrong' | 'open', id, door,
+  ... }`, `wdoor_fail { id, cmd, reason }`. Pouch glyphs are LENT: back on a wrong word, an open, a take, or within a
+  second of the hero leaving the copy; `saveFields` writes lent glyphs into `gbag`. Snapshot: the slab's `wdoor { door,
+  name, look, len, face, open, tries, quiet, slots, clue, draft, lit, carried, left, opened }` (never the word), a stone's
+  `wstone { door, letter }`. UI `src/ui/worddoor_ui.js`, 3D `src/render3d/worddoor3d.js`, 2D `src/render/worddoor2d.js`.
 ## World life: rares, rest XP, story chains, Night at the Stones (2026-11-22, LIVE)
 
 Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js`, glued by `src/data/worldlife.js`

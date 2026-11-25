@@ -18,6 +18,7 @@ import { gatherLook, animateGather, gatherPick, workClip } from './gather3d.js';
 import { createRider, createYard } from './mount3d.js';
 import { createAnimKit } from './anim_kit.js';   // heroes' combat moments over the clips (approved 2026-11-23)
 import { groundY } from './ground_plan.js';   // wave 5 ground kit: the visible ground height
+import { wordDoorLook, letterStoneLook } from './worddoor3d.js';   // wave 8 glyphdoor: word doors
 import { createEmoteKit } from './emote_kit.js';   // wave 7 anim: jump, emotes, NPC work loops (approved 2026-11-24)
 
 const PX = 16;
@@ -112,6 +113,8 @@ function objectLook(e) {
   const g = new THREE.Group();
   const sp = String(e.sprite || '');
   if (e.chest) return lanternChest();
+  if (e.wdoor) return wordDoorLook(e);                  // word doors: the slab (worddoor3d.js)
+  if (e.wstone) return letterStoneLook(e);              // and a found letter
   if (e.mirror) return mirrorProp();                     // the free mirror (wave 6 customization kit)
   if (/chicken/.test(sp)) { g.add(chicken()); g.userData.h = 0.7; g.userData.chicken = true; return g; }
   if (e.node && e.node.gather) return gatherLook(e);      // professions: an ore seam or a herb (gather3d.js)
@@ -384,6 +387,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
           for (const m of a.mats) { m.transparent = true; m.opacity = k * (m.userData.baseOpacity ?? 1); }
         }
       } else if (b && b.type === 'object') {
+        if (b.o.userData.wdUpdate) b.o.userData.wdUpdate(e, now);   // word doors: lit cuts, the slab sinking
         if (b.o.userData.chicken) { b.o.children[0].position.y = moving ? Math.abs(Math.sin(now * 14)) * 0.05 : 0; }
         if (b.o.userData.secretLid) {
           b.o.userData.secretLid.rotation.x = e.opened ? -1.9 : 0;
