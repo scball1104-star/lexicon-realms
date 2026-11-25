@@ -4,8 +4,10 @@
 // seeded from its own name: the Nameless Hollow (borrows the title theme), every dungeon and cave, and the roads.
 // Pure: no DOM, no audio; node-tested (qa/tests/synth_game.test.mjs).
 //
-//   synthPlaceFor({ zoneId, zoneKind, zoneName, region, onRoad }) -> spec | null
+//   synthPlaceFor({ zoneId, zoneKind, zoneName, region, onRoad, letters }) -> spec | null
 //   synthTrackId(spec, variant)                                   -> engine music id, e.g. 'synth:hollow:night'
+//   wave 9 music: `letters` (the party's 26-bit mask from the HUD view) goes into the spec and the id ('synth:hollow:
+//   L<base36>:day'); all 26, or no mask, is today's theme and today's id.
 //   surfaceOf(tileId)                                             -> 'grass' | 'dirt' | 'stone' | 'wood' | 'water'
 //   familyVoice(template, family)                                 -> a voice family from voices.js
 import { seedFromText } from './synth/rng.js';
@@ -20,19 +22,21 @@ const KIND_SPEC = {
 // field zones that take a synth theme (they have no track of their own)
 export const SYNTH_FIELDS = new Set(['hollow']);
 
-export function synthPlaceFor({ zoneId, zoneKind, zoneName, region = null, onRoad = false } = {}) {
+const ALL_LETTERS = (1 << 26) - 1;
+export function synthPlaceFor({ zoneId, zoneKind, zoneName, region = null, onRoad = false, letters = null } = {}) {
   let kind = null, key = null, name = null;
   if (zoneKind === 'dungeon' || zoneKind === 'cave') { kind = zoneKind; key = zoneId; name = zoneName || zoneId; }
   else if (SYNTH_FIELDS.has(zoneId)) { kind = 'field'; key = zoneId; name = zoneName || zoneId; }
   else if (zoneId === 'world' && !region && onRoad) { kind = 'road'; key = 'road'; name = 'The Roads'; }
   if (!kind) return null;
-  return { key, name, kind, seed: seedFromText(name), beats: 6, ...KIND_SPEC[kind] };
+  const lm = Number.isFinite(letters) ? (letters >>> 0) & ALL_LETTERS : ALL_LETTERS;
+  return { key, name, kind, seed: seedFromText(name), beats: 6, ...KIND_SPEC[kind], ...(lm !== ALL_LETTERS ? { letters: lm } : {}) };
 }
 
 export function synthTrackId(spec, variant = 'day') {
   if (!spec) return null;
   const v = spec.under && variant === 'night' ? 'day' : variant;   // underground: no night
-  return `synth:${spec.key}:${v}`;
+  return spec.letters != null ? `synth:${spec.key}:L${spec.letters.toString(36)}:${v}` : `synth:${spec.key}:${v}`;
 }
 
 const SURF = {

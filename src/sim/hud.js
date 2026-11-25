@@ -5,6 +5,7 @@ import { TICK_HZ } from './constants.js';
 import { ticks as T } from './data.js';
 import { distPx } from './geom.js';
 import { resolveItem, bagCapacity } from './loot.js';
+import { seenMask, partyLetters } from './letters_seen.js';   // wave 9 music
 
 export function createHud(C) {
   const { state, data, stats } = C;
@@ -128,6 +129,8 @@ export function createHud(C) {
       // the glyph pouch (kind 'glyph': no bag slot, one stack per letter, A to Z) and the Lantern Chest while it is open
       glyphBag: (e.gbag || []).map((g) => ({ item: g.item, qty: g.qty, letter: (C.content.items && C.content.items[g.item] || {}).letter || '?' })),
       storage: C.storage ? C.storage.view(e, itemView) : null,
+      // wave 9 music: letters this hero has ever found, and the party's together (solo: the hero's own), as 26-bit masks
+      letters: { seen: seenMask(C.content, e), song: partyLetters(state, C.content, e) },
     };
   }
 

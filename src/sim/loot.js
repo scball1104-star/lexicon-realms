@@ -18,6 +18,7 @@
 // ctx = { content, rng, questNeeds(player, item) -> bool }. questNeeds says whether the player has an active quest that
 // still needs this item; a quest-item drop only rolls when it does (CONTRACTS 7.3 `quest` on a table entry).
 import { rollMargins } from './glyphs.js';
+import { markSeen } from './letters_seen.js';   // wave 9 music: letters ever found
 
 import { rollMinor, minorDef } from './affixes.js';
 
@@ -65,7 +66,7 @@ export function pouchAdd(list, item, qty) {
 /** Add qty of item (stacking up to the item's `stack`). Instanced gear never stacks. Returns how many went in. */
 export function bagAdd(e, item, qty = 1, inst = null, content = null) {
   if (!e.bag) e.bag = [];
-  if (isGlyph(content, item)) { if (!e.gbag) e.gbag = []; return qty > 0 ? pouchAdd(e.gbag, item, qty) : 0; }
+  if (isGlyph(content, item)) { if (!e.gbag) e.gbag = []; if (qty > 0) markSeen(content, e, item); return qty > 0 ? pouchAdd(e.gbag, item, qty) : 0; }
   const quest = isQuestItem(content, item);
   if (quest && !e.qbag) e.qbag = [];
   const list = quest ? e.qbag : e.bag;

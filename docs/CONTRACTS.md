@@ -1800,3 +1800,18 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   `lr-photo` while photo mode is open hides the co-op bar and the chat line; `lr-window` while a phone has a window, the Say
   sheet, a friend's card or the whole log open in game mode hides the co-op bar (it sat over talents nodes and phrases). On a narrow phone (tabs) the Builds 2
   window opens on the gold star's tab (talents2.js `nodeTab`, `openTab`), and the other tab wears a star.
+
+## Music made from your letters (wave 9 music, 2026-11-25; Scott approved D:/LQOnline/wave9/music/BRIEF.md with its recommendations)
+- **Found letters** (src/sim/letters_seen.js): `player.glyphSeen`, a 26-bit mask (bit 0 = A), set by `bagAdd` the first time
+  a glyph enters the pouch. `seenMask(content, e)` = the mask plus every letter the hero holds (pouch, worn and bagged
+  margins, the chest tab), so an old save starts from what it holds and the song never shrinks. Save: `saveFields` writes
+  `glyphSeen` when non-zero; `addPlayer` / `storage.restore` take it back (main.js passes it); missing = 0.
+- **HUD view**: `hud.letters = { seen, song }`: the hero's mask, and the party's together (`partyLetters`; solo = own).
+  It rides the guest's frame with the rest of the HUD view.
+- **Audio**: `synthPlaceFor({ ..., letters })` puts the mask into the spec (`spec.letters`; all 26 or none = no field, today's
+  theme and id). `synthTrackId` = `synth:<key>:L<base36 mask>:<variant>`. `audio.js` holds the mask from when you came into
+  the area. `sequencer.js` gates by `theme.letters` (src/audio/synth/letters.js: the seeded deal of A to Z over the tune's
+  notes, harp from 8 letters, drums from 16, a bell line of the found letters below 26); the combat layer is never gated.
+  Synth sound Off: no synth theme at all, so nothing changes. Tests compare note schedules, never samples.
+- **UI** (src/ui/letters_ui.js): a toast when the hero's own mask gains a letter (not on load, not with Synth Off), and
+  once a session a log line. Words are DRAFTS (`LETTER_WORDS`).
