@@ -65,6 +65,7 @@ import { createTownLife } from './townlife3d.js';   // wave 7 world life: townsf
 import { showerAt } from './townlife_plan.js';
 import { waterTier, waterSky, setSprayScale } from './water_kit.js';   // wave 7 water kit
 import { horizonPose, H_PITCH, H_PITCH_LITE } from './horizon_cam.js';   // wave 5b: the optional horizon camera (view.cam)
+import { createPrepass, horizonLod } from './lod_kit.js';   // wave 8: the horizon camera's level of detail (null for today's camera)
 import { createTurntable } from './turntable.js';   // wave 6: the creation screen's 3D hero (view.stage)   // wave 5b: the optional horizon camera (view.cam)
 import { createTalkCam } from './talk_cam.js';   // wave 6 quest scenes: the talk camera (view.talk)
 import { bossFrame } from './boss_cam.js';   // wave 6: the boss intro push-in (view.bossCam, src/ui/boss_card.js)
@@ -275,6 +276,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   const anchors = new Map();     // id -> { x, y, h (2D-equivalent px), dev: { fx, fy, hx, hy, hw } }
   let fallback = null;
   Object.defineProperty(dev, 'scene', { value: scene, enumerable: false });   // drivers and debugging only
+  const prepass = createPrepass(renderer, scene, camera, { precompile });   // wave 8: the horizon camera's depth prepass (off: unchanged)
   Object.defineProperty(dev, 'see', { value: SEE, enumerable: false });
   Object.defineProperty(dev, 'camera', { value: camera, enumerable: false });   // drivers: what the view frustum holds
   Object.defineProperty(dev, 'programs', { get: () => (renderer.info.programs || []).map((pr) => pr.name), enumerable: false });   // drivers: shaders linked so far
@@ -793,7 +795,9 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     // (a warm-up behind the card draws everything it uploads: the whole small place, or a big zone's first part)
     const warmR = shown.more ? 170 : 1e6;
     if (shown.kit) shown.kit.view = hpose ? { r: hpose.grassR, dx: Math.sin(hpose.yaw) * hpose.grassAhead, dz: -Math.cos(hpose.yaw) * hpose.grassAhead } : null;   // grass ahead of the hero
-    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? warmR : (dev.cullR || (flightView ? flightView.cullR : hpose ? hpose.cullR : 80)), farR);
+    dev.lod = hpose && !(trans && trans.warm) && dev.lodOff !== true ? horizonLod(hpose, camera.position) : null;   // drivers: dev.lodOff = true for an A/B
+    prepass.active = !!(dev.lod && dev.lod.prepass && dev.preOff !== true); prepass.plan = dev.lod; prepass.reach = dev.preReach != null ? dev.preReach : (dev.lod ? dev.lod.preR || 0 : 0); dev.pre = prepass.active ? prepass.info : null;
+    if (shown.cull) dev.cells = shown.cull(focus.x, focus.z, trans && trans.warm ? warmR : (dev.cullR || (flightView ? flightView.cullR : hpose ? hpose.cullR : 80)), farR, dev.lod);
     dev.far = shown.lastCull ? shown.lastCull.far : 0;
     fx3.lite = hLite;   // combat feel: Low quality and phones play the small spark size only
     // hit stop slows the drawn bodies only, never the sim (Options: "Screen shake and hit stop" Off turns it off)

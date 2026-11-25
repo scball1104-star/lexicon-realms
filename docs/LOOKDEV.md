@@ -1,8 +1,8 @@
 # Look-dev harness and frame budget
 
-`qa/lookdev/` boots the real game headless in 3D and saves the same 18 views every run (five start-realm towns,
+`qa/lookdev/` boots the real game headless in 3D and saves the same 22 views every run (five start-realm towns,
 Willowmere by day and night, the Moor by day and in rain, a valley road, the falls, inside the Barrow, a combat moment,
-three UI screens, the world map, a phone and the title), so a change to the look can be compared honestly before and
+three UI screens, the world map, a phone, the title and four horizon camera views), so a change to the look can be compared honestly before and
 after. Since wave 5 every view also carries a frame sample, and a budget check reports any view that got too slow.
 
 It is **report only**. It is not part of `node qa/run.mjs` and it never fails a build: this PC is shared with other
@@ -13,7 +13,7 @@ work and fps is noisy. Read the numbers, rerun a view that looks off, then judge
 Needs Python with Playwright and Pillow (the same as `qa/integrate/*.py`). From the repo root:
 
 ```
-python qa/lookdev/lookdev.py --tag before                 desktop, 1600x900, all 18 views (about 3 to 5 minutes)
+python qa/lookdev/lookdev.py --tag before                 desktop, 1600x900, all 22 views (about 4 to 7 minutes)
 python qa/lookdev/lookdev.py --tag after --only town_,moor   a few views again (a partial run keeps the rest)
 python qa/lookdev/lookdev.py --tag phone --profile phone  every view at 844x390, dpr 2, touch, CPU slowed 4x
 python qa/lookdev/check_budget.py --views qa/out/lookdev/before/views.json   the budget report on its own
@@ -22,6 +22,10 @@ node qa/lookdev/audio_inventory.mjs                       sound files, which sim
 
 Horizon camera (wave 5b): `--query cam=horizon --campose '{"yaw":0,"pitch":12,"dist":10}'` turns it on and poses it
 for every view (the title is left alone); measure today's camera and the horizon camera into two tags and compare.
+Since wave 8 (lod lane) four views are the horizon camera itself, posed per view (`HPOSE` in lookdev.py) and budgeted
+like the rest: `horizon_willowmere` and `horizon_moor` (12 degrees down, 10 m out, beside `willowmere_day` and
+`moor_day` at the same spots), `horizon_willowmere_west` (along the street) and `horizon_moor_shoulder` (7 degrees,
+3.6 m). `--only horizon_` runs just those.
 
 Options: `--port` (default 8821; use your own on a shared PC), `--timeout` (whole run, default 900 s), `--perf-s`
 (seconds of real loop per view, default 3), `--no-perf` (stills only), `--cpu` (phone slowdown), `--budget`.
@@ -48,8 +52,8 @@ After each still (so the picture is unchanged) the harness lets the game loop ru
 The title is not budgeted (it is 2D art). The run ends with
 
 ```
-FRAME_BUDGET: profile=desktop views=17 under=0 unmeasured=0 (report only)
-LOOKDEV_SHOTS: ok=18 fail=0 errors=0
+FRAME_BUDGET: profile=desktop views=21 under=0 unmeasured=0 (report only)
+LOOKDEV_SHOTS: ok=22 fail=0 errors=0
 ```
 
 The numbers in `budget.json` were made by `python qa/lookdev/make_budget.py --desktop <views.json> --phone <views.json>`
