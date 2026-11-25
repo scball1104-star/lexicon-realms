@@ -45,7 +45,8 @@ import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing h
 import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
 import { createPhotoUI } from './photo_ui.js';   // wave 8 photo: photo mode and postcards (main.js lends it the camera)
 import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
-import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
+import { markPage } from './page_marks.js';
+import { createBossHud } from './boss_hud.js';   // wave 10 dbosses: the boss fight call-out   // wave 9 fixes: the co-op bar steps aside for a phone's open window
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -105,6 +106,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const emoteUi = createEmoteUI({ g, st, send, say: (ch, t) => say(ch, t), photo: (p) => photoUi.open(p) });
   const photoHooks = { releaseMove: (codes) => { if (hooks.input) for (const c of codes) hooks.input.release(c); } };
   const photoUi = createPhotoUI({ g, st, send, say: (ch, t) => { say(ch, t); toast(t); }, hooks: photoHooks });   // wave 8 photo
+  const bossHud = createBossHud({ g });   // wave 10 dbosses
   const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
 
   // ---- the action surface menus and screens call
@@ -440,6 +442,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       st.bossUp = !!(m.player && bossCardDraw && bossCardDraw(ctx, g, L, t));   // wave 6: the boss intro card (boss_card.js, set by main.js); toasts wait under it
       if (m.player) prof.drawHud(ctx, env, m, L, regions);     // professions: the gather / craft bar, the node card, tracking
       if (m.player) glyphs.drawHud(ctx, env, m, L, regions);   // Inscriptions: the Margins button
+      if (m.player) bossHud.draw(ctx, L, m);   // wave 10 dbosses: the call-out for the mechanic happening now
       if (m.player) chatUi.draw(ctx, L, regions, m);           // wave 8 talk: the chat window (in co-op), Say sheet, card
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes

@@ -49,7 +49,8 @@ export function createWordDoorUI({ st, send, toast, say, hero }) {
     if (!s) return;
     if (!v || Math.hypot(v.me.x - v.slab.x, v.me.y - v.slab.y) > 72 || v.me.dead) { st.wdoor = null; return; }
     const { g } = env;
-    const w = v.w, touch = !!L.touch;
+    const w0 = v.w, touch = !!L.touch;
+    const w = w0.hint ? { ...w0, clue: [...w0.clue, w0.hint] } : w0;   // wave 10 dbosses: a name-stone's hint after three clears
     const tile = touch ? Math.max(30, Math.min(36, (L.minHit || 30) + 4)) : 22;
     const m = mine(v);
     const pw = touch ? Math.min(L.W - 16, 520) : 330;

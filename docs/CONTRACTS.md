@@ -1819,3 +1819,37 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   Synth sound Off: no synth theme at all, so nothing changes. Tests compare note schedules, never samples.
 - **UI** (src/ui/letters_ui.js): a toast when the hero's own mask gains a letter (not on load, not with Synth Off), and
   once a session a log line. Words are DRAFTS (`LETTER_WORDS`).
+
+## Boss fights that need the party (wave 10 dbosses, 2026-11-25, BUILD; D:/LQOnline/wave10/dbosses/BRIEF.md)
+
+Data `src/data/boss_fights.js` (`BOSS_FIGHTS`, `BOSS_RULES`, `BOSS_RED`, `BOSS_CALLS`, `ROLL_WORDS`; every word a DRAFT),
+applied by `applyBossFights(C)`, the last step of `buildContent()`: each of the 13 dungeon and cave bosses' templates is
+copied with its new phase gates merged into `fight.phases` (`{ at, yell?, name, gate: true }`), a `frenzy` for the three
+caves that had none, and `bossFight` (the def); `content.mobAbilities` gains the red moves and the called casts; each
+boss gets a name-stone word door `ns_<boss>` (pouch glyphs only, no found letters, no coffer: `zone.dungeon.wordDoors`
+entry with `stones: []`, `chest: null`, 7 to 14 tiles from the boss). Nothing of today is removed or lowered
+(`qa/tests/boss_fights.test.mjs` checks abilities, tuning, phases with adds and frenzy times).
+
+Sim `src/sim/boss_mech.js` (`createBossMech`, made by `dungeons.js`; `DG.bossTick` calls `BM.tick(m, b)`, `DG.bossReset`
+`BM.reset(m)`, the boss death `BM.onDeath(m)`): new gates guard the boss (`bf_guard`, damage taken x0.25, 4 s);
+mechanics `share` (gold ring on a hero, `swings x heroes` split between the heroes inside, nobody inside = 2 swings each),
+`notch` (violet ring that follows one hero per two and bursts on the OTHERS within it), `letters` (Roll Call: one floor
+letter per hero, 2 for a lone hero, stood on in order within 8 s / 10 s solo), `call` (an interruptible cast in the boss's
+own bar), `pair` (two adds that must fall within 10 s / 15 s solo or the first comes back at 30%), `stacks` (Leave Denied
+on the boss's target, damage taken +10% a stack, needs 2+ heroes). A LONE hero pays time only: shares and notches hurt
+nobody, a missed call or Roll Call heals the boss 5% (with friends a missed call hits everyone, a missed Roll Call adds
+one of the boss's adds). The red slot: each boss's new red move (`BOSS_RED`, `red: true`) is a mark of kind `red` with its
+own timer, resolved by the mech (never a cast, so it takes no turn from today's moves). The Last Count (`bf_last_count`):
+from `hard.after` s into the fight, damage done x1.25 per 5 s, stacking (a soft wall, no reset). Unspoken: the name-stone
+open while the boss is untouched (full health) wakes it (`bf_unspoken`: damage taken /1.3, damage done x1.15),
+mechanics x0.7 apart, the Last Count 60 s sooner, one of today's adds at each new gate; event `boss { kind: 'unspoken' }`.
+Clears: `p.dungeons.clears[boss]` (saved with `dungeons`) +1 for each hero in the copy; the stone's snapshot `wdoor.hint`
+shows once anyone in the copy has 3. Events `boss_mech { kind: share | notch | letters | letter | letters_done |
+miscount | call_broken | call_landed | pair_down | pair_back }`, `boss_red { ability }`, `boss { kind: 'enrage' }`.
+
+Snapshot: `snap.bossMarks = [{ zone, boss, kind: share | mark | letter | tether | red, x, y, r (px), k (0..1), n, of,
+letter, done, next, to, shape, dir, w, angle, ability }]`; a boss in its fight carries `bossFight = { phase, of, phaseName,
+gates, frenzyIn, hardIn (s), hardName, unspoken, call: { kind, title, line } | null }`. UI: `src/ui/boss_hud.js` (the
+target frame becomes the boss frame, `hud.js targetFrame`; the foe's cast and threat tag step aside; the call-out from
+`uivm` `bossCall`), 3D `src/render3d/boss_marks3d.js`, 2D `src/render/boss_marks2d.js`. The clear bot
+(`qa/sim/dungeon_bot.mjs` danger) also steps out of red marks.

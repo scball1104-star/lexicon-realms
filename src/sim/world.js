@@ -579,6 +579,7 @@ function wrap(state, content0, rng, systems) {
       if (DG) {
         snap.places = {};
         for (const e of state.ents) if (e.kind === 'player' && !snap.places[e.zone]) { const inf = DG.info(e.zone); if (inf) snap.places[e.zone] = inf; }
+        snap.bossMarks = DG.bossMarks();          // wave 10 dbosses: the ground marks (share, notch, letters, tether, the red slot)
       }
       if (combatOn) {
         snap.projectiles = (state.proj || []).map((p) => ({ id: p.id, src: p.src, dst: p.dst, ability: p.ability, zone: p.zone, x: p.x / SUB, y: p.y / SUB }));
@@ -1135,6 +1136,7 @@ function wrap(state, content0, rng, systems) {
       o.aggro = e.ai && e.ai.mode === 'combat' ? e.ai.target : null; o.aiMode = e.ai ? e.ai.mode : null;
       // the wind-up tell (src/sim/ai.js): the glint before a swing, a heavy blow or a telegraphed cast (Ring Block reads it)
       if (PF && e.dead) { const sk = PF.skinView(e); if (sk) o.skin = sk; }     // professions: a corpse that can be skinned
+      if (DG && e.ai && e.ai.bm && !e.dead) { const bf = DG.bossView(e); if (bf) o.bossFight = bf; }   // wave 10 dbosses: the boss frame
       o.windup = e.windup && !e.dead && state.tick <= e.windup.at ? { kind: e.windup.kind, start: e.windup.start, at: e.windup.at, target: e.windup.target ?? null } : null;
     }
     if (WD && e.kind === 'object' && (e.wdoor || e.wstone)) Object.assign(o, WD.publicOf(e) || {});   // word doors

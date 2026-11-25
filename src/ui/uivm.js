@@ -218,10 +218,14 @@ function fromSimHud(vm, snap, ctx) {
     hpPct: Math.round((vm.target.hpFrac || 0) * 100),
     head: tE ? (tE.sprite || '').replace(/^npc_/, '') : null, npc: tE && tE.kind === 'npc' ? tE.template : null,
     auras: tv ? tv.auras : vm.target.auras, threat: tv ? tv.threat : null,
+    bossFight: tE && tE.bossFight ? tE.bossFight : null,   // wave 10 dbosses: the boss frame
   } : null;
+  // wave 10 dbosses: the call-out for the mechanic happening now (any boss in my place that has one)
+  const bossE = meE ? ((snap && snap.entities) || []).find((e) => e.bossFight && e.bossFight.call && e.zone === meE.zone) : null;
   const xp = h.xp || {};
   return {
     tick: vm.tick, live: true,
+    bossCall: bossE ? bossE.bossFight.call : null,   // wave 10 dbosses
     player: { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resWord: resourceWord(resKind), resGauge: resourceGauge(resKind),
       xp: xp.cur || 0, xpToLevel: xp.cap ? 0 : xp.need || 0, derived: h.derived, inCombat: h.inCombat, sitting: h.sitting, respawnIn: h.respawnIn,
       rest: h.rest || null,                      // rest XP (src/sim/worldlife.js): { banked, cap, resting, killMult }

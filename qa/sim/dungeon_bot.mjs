@@ -81,6 +81,16 @@ export function clearRun(place, cls, level, { build = null, seed = 1, maxMin = 7
       const r = (a.radius || 32) + 14;
       if (Math.hypot(p.x - c.x, p.y - c.y) / SUB < r) return c;
     }
+    // wave 10 dbosses: a boss's red slot (src/sim/boss_mech.js) is a ground warning of its own, read from the marks (px)
+    const DG = w.internals.dungeons;
+    for (const mk of DG && DG.bossMarks ? DG.bossMarks() : []) {
+      if (mk.zone !== zid || mk.kind !== 'red') continue;
+      const ox = mk.x * SUB, oy = mk.y * SUB, dx = p.x - ox, dy = p.y - oy, d = Math.hypot(dx, dy) / SUB;
+      if (mk.shape === 'circle') { if (d < mk.r + 14) return { x: ox, y: oy }; continue; }
+      const cs = Math.cos(mk.dir), sn = Math.sin(mk.dir), along = (dx * cs + dy * sn) / SUB, across = (-dx * sn + dy * cs) / SUB;
+      if (mk.shape === 'line' && along > -14 && along < mk.r + 14 && Math.abs(across) < mk.w / 2 + 14) return { x: ox + cs * along * SUB, y: oy + sn * along * SUB };
+      if (mk.shape === 'cone' && d < mk.r + 14) return { x: ox, y: oy };
+    }
     return null;
   }
   // a ground point the hero can see (a dash or a wall aimed into the rock is turned toward open floor)
