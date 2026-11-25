@@ -1800,3 +1800,11 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   `lr-photo` while photo mode is open hides the co-op bar and the chat line; `lr-window` while a phone has a window, the Say
   sheet, a friend's card or the whole log open in game mode hides the co-op bar (it sat over talents nodes and phrases). On a narrow phone (tabs) the Builds 2
   window opens on the gold star's tab (talents2.js `nodeTab`, `openTab`), and the other tab wears a star.
+- **Phone as a second screen** (wave 9 second, docs/NET.md, src/net/second.js, second_coop.js, src/ui/second_ui.js): a page
+  opened with `#pair=CODE.KEY` is a phone screen (`coop.second.isPhone`; `coop.isGuest` is true for it, so main.js plays
+  back frames and steps no world; 2D only, no sound). It never adds a hero. The PC end sends `framesFor(heroId, { viewPx:
+  160 })` every 4th tick over its own room (never the co-op session) and takes from the phone only `phoneCommandOk`
+  commands (equip, unequip, use_item, bag, quest_share, bar_set) into `ui.act.send`, a `ui { nav, untracked }` ask into
+  `ui.act.selectQuest` and `ui.state.untracked`, and a chat line into the PC's own talk (co-op only; no emotes or other
+  slash commands). `ui.second.state.on` draws the phone tabs instead of the HUD; `pcPaired` draws the PC's Phone chip.
+  `ui.act.usePhone` / `ui.act.canPhone` (set by coop.js) put Use my phone on the Options title bar.

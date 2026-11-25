@@ -80,7 +80,7 @@ async function boot() {
   const rOpts = { zones: content.zones, abilities: { ...content.abilities, ...content.mobAbilities }, items: content.items };
   let savedR3d = false;
   try { savedR3d = !!loadOptions(window.localStorage).r3d; } catch { savedR3d = false; }
-  const want3d = q.get('r') === '3d' || (!q.has('r') && savedR3d);
+  const want3d = (q.get('r') === '3d' || (!q.has('r') && savedR3d)) && !/[#&]pair=/.test(location.hash);   // wave 9 second: a phone screen draws no world
   let fell2d = false;
   const renderer = (want3d && await import('./render3d/renderer3d.js').then((m) => m.createRenderer3D(canvas, assets, rOpts))
     .catch((e) => { console.warn('Lexicon Realms: 3D renderer unavailable, using 2D.', e); fell2d = true; return null; })) || createRenderer(canvas, assets, rOpts);
@@ -155,7 +155,8 @@ async function boot() {
   // online co-op (src/net/): host a game for up to 3 friends, or join one by room code or copy-paste codes
   const coop = createCoop({ world, ui, content, specFor, saveState: (id) => saveState(id), heroId: () => playerId, q,
     // the phone HUD has its menu buttons along the top: the co-op bar goes under the party frames (HUD px -> css px)
-    barSpot: () => { const L = ui.layout(); if (!L.touch) return null; const r = L.party(3), l = renderer.layout, d = window.devicePixelRatio || 1; return { left: (l.ox + r.x * l.base) / d, top: (l.oy + (r.y + 2) * l.base) / d }; } });
+    barSpot: () => { const L = ui.layout(); if (!L.touch) return null; const r = L.party(3), l = renderer.layout, d = window.devicePixelRatio || 1; return { left: (l.ox + r.x * l.base) / d, top: (l.oy + (r.y + 2) * l.base) / d }; },
+    second: { setHero: (id) => { playerId = id; if (id != null) renderer.setPlayer(id); }, quiet: () => audio.setVolumes({ master: 0, music: 0, sfx: 0 }) } });   // wave 9 second: the phone screen
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
   ui.setItems(content.items);
   ui.setQuests(content.quests, content.npcs);

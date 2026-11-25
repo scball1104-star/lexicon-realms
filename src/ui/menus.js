@@ -636,6 +636,13 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
     g.text(ctx, lab, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
     regions.push({ rect: { x, y, w, h }, kind: 'button', on: () => act.replays(), label: 'replays' });
   }
+  if (act.usePhone && act.canPhone && act.canPhone()) {   // wave 9 second (src/net/second_coop.js): Use my phone, left of Replays
+    const s = Math.max(16, env.L.minHit || 0), lab = 'Use my phone', w = g.textW(lab) + 14, h = Math.min(s, 22);
+    const x = r.x + r.w - 10 - s - w - (act.canInvite && act.canInvite() ? g.textW('Invite a friend') + 18 : 0) - (act.replays ? g.textW('Replays') + 18 : 0), y = r.y + 4;
+    g.window(ctx, x, y, w, h, 'thin', 'blue', 0.95);
+    g.text(ctx, lab, x + Math.floor(w / 2), y + Math.floor(h / 2) - g.mid(6), 'cream', { align: 'center' });
+    regions.push({ rect: { x, y, w, h }, kind: 'button', id: 'second-open', on: () => act.usePhone(), label: 'use_phone' });
+  }
   const touch = env.L.touch, big = g.big;
   const short = touch || big;                  // short labels where room is short (a phone, or Large text)
   // key rows: 11 px a row on desktop (22 rows with 8 skill keys); Large text scrolls the list. A phone has no key list.

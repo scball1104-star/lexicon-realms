@@ -18,6 +18,7 @@ import { createNetUI } from './netui.js';
 import { emoteFromChat } from '../sim/emotes.js';   // wave 7 anim: /wave /cheer /sit /dance /jump in party chat
 import { readInvite, createDropFlow } from './dropin.js';   // wave 8: drop-in with one link (invite links, watching)
 import { createTalk } from './talk_coop.js';   // wave 8 talk: whispers, mute, remove, lock, watchers read only (docs/NET.md "Talk")
+import { createSecondFlow } from './second_coop.js';   // wave 9 second: the phone as a second screen (docs/NET.md)
 
 const SUB_TILE = 256;     // sim units per tile (src/sim/constants.js TILE), for placing a guest beside the host
 
@@ -42,7 +43,7 @@ const ENDED = {
   kicked: ['The host removed you from the game.', 'Your hero is saved.'],
 };
 
-export function createCoop({ world, ui, content, specFor, saveState, heroId, barSpot = null, q = new URLSearchParams() }) {
+export function createCoop({ world, ui, content, specFor, saveState, heroId, barSpot = null, q = new URLSearchParams(), second: secondHooks = {} }) {
   // the room-code service: free public MQTT brokers (src/net/transport.js mqttSignal); ?net=local|relay for dev and tests
   const kind = ['local', 'relay', 'mqtt'].includes(q.get('net')) ? q.get('net') : 'mqtt';
   const iceServers = q.get('stun') === '0' ? [] : ICE_DEFAULT;
@@ -67,6 +68,12 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
   const talk = createTalk({ ui, nui, compact, st: { get role() { return role; }, get host() { return hostSess; }, get guest() { return guestSess; },
     get hostName() { return hostName; }, get hostId() { return hostId; }, get myId() { return guestPid; }, get snap() { return lastSnap; }, refresh: () => hostBar() } });
   let lastSnap = null;                   // a guest's newest frame (the names a whisper can go to)
+  // wave 9 second: a phone paired to this PC's hero (its own small room), or this tab is that phone (#pair link)
+  const second = createSecondFlow({ ui, nui, kind, iceServers, build: () => build, coopOn: () => role === 'host' || role === 'guest', talkSend: (t) => talk.send(t),
+    hero: () => { const id = heroId(); const e = id == null || ui.mode !== 'game' ? null : role === 'guest' ? (lastSnap || { entities: [] }).entities.find((x) => x.id === id) : world.get(id); return e ? { id, name: e.name } : null; },
+    setHero: secondHooks.setHero, quiet: secondHooks.quiet });   // wave 9 second
+  ui.act.usePhone = () => { ui.act.close('menu'); second.open(); };   // wave 9 second: Options, Use my phone
+  ui.act.canPhone = () => second.canOpen;                            // wave 9 second
 
   // ---------------------------------------------------------------- host
   function spawnGuest(hero) {
@@ -330,7 +337,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
   let onCommand = null, onJoin = null;
   return {
     get role() { return role; },
-    get isGuest() { return role === 'guest'; },
+    get isGuest() { return role === 'guest' || second.isPhone; },   // wave 9 second: the phone plays back like a guest
     get isHost() { return role === 'host'; },
     get roomCode() { return roomCode; },
     get roomState() { return roomState; },
@@ -343,6 +350,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     setBuild(v) {
       build = v || null;
       if (invited) { const c = invited; invited = null; drop.dropIn(c); }   // a #join link: after the build is known
+      else second.boot();                // wave 9 second: a #pair link makes this tab the phone screen
       // a link opened in a tab that already has the game (the page does not reload): the same, from the title or hero list
       window.addEventListener('hashchange', () => { const c = readInvite(window.location); if (c && !role && ui.mode !== 'game') drop.dropIn(c); });
     },
@@ -355,9 +363,13 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     /** The save of a hero this tab plays in a friend's game (main.js saveState hook), or undefined for a local hero. */
     guestSave(id) { return guestPid != null && id === guestPid ? guestLast : undefined; },
     beforeStep() { if (hostSess) hostSess.beforeStep(); },
-    afterStep(events, snap) { if (hostSess) hostSess.afterStep(events, snap); },
-    sendCmds(cmds) { if (guestSess) guestSess.sendCmds(cmds); },
-    nextFrame() { const f = guestSess ? guestSess.nextFrame() : null; if (f) lastSnap = f.snap; return f; },
+    afterStep(events, snap) { if (hostSess) hostSess.afterStep(events, snap); second.frame(snap, events); },   // wave 9 second: frames to a paired phone
+    sendCmds(cmds) { if (second.isPhone) second.sendCmds(cmds); else if (guestSess) guestSess.sendCmds(cmds); },   // wave 9 second
+    nextFrame() {
+      if (second.isPhone) return second.nextFrame();   // wave 9 second: the phone plays back its PC's frames
+      const f = guestSess ? guestSess.nextFrame() : null; if (f) { lastSnap = f.snap; second.frame(f.snap, f.events); } return f;   // wave 9 second: a guest PC's phone
+    },
+    second,                             // wave 9 second (drivers)
     onLogout(id) {
       // (ui.saveProgress ran just before this with the guest save; from here on that id means nothing on this tab)
       if (role === 'guest') { const s = guestSess; role = null; guestPid = null; guestLast = null; nui.setBar(null); nui.close(); if (s) s.leave(); return true; }
@@ -369,6 +381,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     shutdown() {
       if (role === 'host') endHosting('host_left', true);
       else if (role === 'guest' && guestSess) guestSess.close('left');
+      second.shutdown();                 // wave 9 second
     },
     /** Drivers and the bandwidth check. */
     stats() {
