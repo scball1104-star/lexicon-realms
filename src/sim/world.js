@@ -41,6 +41,7 @@ import { createParty } from './party.js';
 import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
 import { createGlyphs } from './glyphs.js';
+import { createWordDoors } from './worddoor.js';   // word doors (wave 8 glyphdoor)
 import { createTravel } from './travel.js';
 import { createLegendDrops } from './legend_drops.js';
 import { createMounts } from './mounts.js';
@@ -196,6 +197,10 @@ function wrap(state, content0, rng, systems) {
   const GL = combatOn && content.glyphs && content.items ? createGlyphs({ state, content, emit, get: (id) => index.get(id) || null, reach: INTERACT_RANGE_PX + 24,
     recalc: (e) => { const f = e.hpMax > 0 ? e.hp / e.hpMax : 1; C.stats.recalc(e); e.hp = Math.max(1, Math.min(e.hpMax, Math.round(e.hpMax * f))); } }) : null;
   C.glyphs = GL;
+  // ---- word doors (src/sim/worddoor.js): a dungeon slab the party spells open from the letters they carry
+  const WD = combatOn && content.wordDoors && DG ? createWordDoors({ state, content, emit, get: (id) => index.get(id) || null, add, remove, nextId: () => state.nextId++,
+    tileToSub, distPx, rng, rollGear, bagAdd, onBag: (e) => { if (QS) QS.onBag(e); } }) : null;
+  C.wordDoors = WD;
   // ---- travel (big world, src/sim/travel.js): the Lantern Stone, inn homes, flight (content.travel)
   const TV = combatOn && content.travel ? createTravel(C) : null;
   const LD = combatOn && content.items ? createLegendDrops({ content, rng, state, emit }) : null;   // src/sim/legend_drops.js
@@ -447,6 +452,7 @@ function wrap(state, content0, rng, systems) {
       out.build = C.b2.saveOf(e);                // Builds 2 (save v2: state.build)
       if (e.chest) out.chest = clone(e.chest);   // the hero's Lantern Chest tab (the Shared tab is NOT here: w.shared())
       if (e.gbag && e.gbag.length) out.gbag = clone(e.gbag);   // the glyph pouch
+      if (WD) WD.saveLent(e, out);               // word doors: a glyph lent to a door is saved as in the pouch
       if (e.barOff && e.barOff.length) out.barOff = [...e.barOff];   // skills taken off the bar (bar_set null on a skill)
       const rest = C.life.saveOf(e); if (rest) out.rest = rest;      // rest XP banked (missing = none)
       const prof = PF && PF.saveOf(e); if (prof) out.prof = prof;     // professions (missing = none)
@@ -546,6 +552,7 @@ function wrap(state, content0, rng, systems) {
       // 3) world: projectiles, traps and zones, combat state
       if (combatOn) C.combat.tickWorld();
       if (QS) QS.tick();
+      if (WD) WD.tick();                         // word doors: a new copy gets its slab, letters and coffer
       if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
       if (GP) GP.tick();                         // group play: foe scaling, rez casts, death waits, ready checks
       if (TR) TR.tick();                         // trades end when the two walk apart
@@ -623,6 +630,7 @@ function wrap(state, content0, rng, systems) {
     if (GP && GP.handles(cmd.t)) { GP.command(e, cmd); return; }      // group play (src/sim/party.js): some work while dead
     if (EM.handles(cmd.t) && !e.dead && !(TV && TV.flying(e))) { EM.command(e, cmd); return; }   // wave 7 anim: jump and emotes
     if (TR && TR.handles(cmd.t)) { TR.command(e, cmd); return; }
+    if (WD && WD.handles(cmd.t)) { if (!e.dead) WD.command(e, cmd); return; }   // word doors: set or take a letter
     if (e.dead && cmd.t !== 'target') return reject(id, cmd, 'dead');
     // on a Lantern Kite the hero cannot act (src/sim/travel.js); held keys are ignored quietly
     if (TV && TV.flying(e)) { if (cmd.t !== 'move' && cmd.t !== 'stop') reject(id, cmd, 'flying'); return; }
@@ -713,6 +721,11 @@ function wrap(state, content0, rng, systems) {
       case 'interact': {
         const t = index.get(cmd.id);
         if (!t || t.zone !== e.zone) return reject(id, cmd, 'bad_target');
+        if (WD && t.kind === 'object' && (t.wdoor || t.wstone || (t.dchest && t.dchest.kind === 'word'))) {   // word doors
+          if (distPx(e, t) > INTERACT_RANGE_PX + 24) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
+          if (t.dchest) WD.openChest(e, t); else WD.interact(e, t);
+          return;
+        }
         if (t.kind === 'object' && t.node) {
           if (distPx(e, t) > INTERACT_RANGE_PX) { emit({ type: 'interact_fail', src: id, id: t.id, reason: 'range' }); return; }
           if (t.dchest) { if (DG) DG.openChest(e, t); return; }      // a dungeon or cave chest (src/sim/dungeons.js)
@@ -985,7 +998,8 @@ function wrap(state, content0, rng, systems) {
 
   function moveEntity(e) {
     const zone = zoneOf(e);
-    const opts = e.kind === 'mob' ? { noJoins: true } : null;
+    let opts = e.kind === 'mob' ? { noJoins: true } : null;
+    const shut = WD ? WD.shutCells(e.zone) : null; if (shut) opts = { ...(opts || {}), shut };   // a shut word door
     let vx = 0, vy = 0, dx = 0, dy = 0;
     if (e.forced) {
       vx = e.forced.vx; vy = e.forced.vy;
@@ -1121,6 +1135,7 @@ function wrap(state, content0, rng, systems) {
       if (PF && e.dead) { const sk = PF.skinView(e); if (sk) o.skin = sk; }     // professions: a corpse that can be skinned
       o.windup = e.windup && !e.dead && state.tick <= e.windup.at ? { kind: e.windup.kind, start: e.windup.start, at: e.windup.at, target: e.windup.target ?? null } : null;
     }
+    if (WD && e.kind === 'object' && (e.wdoor || e.wstone)) Object.assign(o, WD.publicOf(e) || {});   // word doors
     if (e.kind === 'object' && e.node) {
       o.node = { item: e.node.item, channel: e.node.channel || 0 };
       if (e.node.gather) { const { prof, skill, kind, node, pool } = e.node.gather; o.node.gather = { prof, skill, kind, node, pool }; }   // professions: a gathering node
@@ -1131,7 +1146,7 @@ function wrap(state, content0, rng, systems) {
     }
     else if (e.kind === 'object' && e.chest) { o.chest = { id: e.chest.id, place: e.chest.place || null }; }
     else if (e.kind === 'object' && e.mirror) { o.mirror = { id: e.mirror.id, place: e.mirror.place || null }; }
-    else if (e.kind === 'object') {
+    else if (e.kind === 'object' && e.obj) {
       o.owner = e.owner; o.objType = e.obj.def.id; o.radius = e.obj.def.radius || (e.obj.def.trigger && e.obj.def.trigger.radius) || 0;
       o.armed = state.tick >= e.obj.armAt; o.until = e.obj.until;
     }

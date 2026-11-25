@@ -3,6 +3,9 @@
 // under the sealed door, the Fold Hall (two packs), the Pinfold where the Bellwether still leads its flock, the Notching
 // Room, the Tally Chamber (the Tally-Wife), the Long Barrow (two packs) and the Reeve's Chamber at the end.
 // Halls 4 to 5 wide, solid rock elsewhere. Generated into src/data/maps/barrow.js by tools/maps/build_world.mjs.
+// Wave 8 glyphdoor: the thirteenth line, left blank, is a word door (src/data/word_doors.js, src/sim/worddoor.js). A
+// small room north of the Fold Hall (the Thirteenth Line, x 36..47, y 24..27) and its 2-wide passage (x 41..42, y
+// 28..30) are open floor in the map; the sim keeps the passage shut until the party spells the word. Nothing else moves.
 import { carveDungeon, pack, boss } from './dungeon_kit.mjs';
 import { DUNGEONS } from '../../src/data/dungeons.js';
 import { toWorld } from '../../src/data/maps/layout.js';
@@ -19,6 +22,9 @@ export function build() {
     { id: 'tally_chamber', name: 'The Tally Chamber', x: 63, y: 8, w: 15, h: 13 },
     { id: 'long_barrow', name: 'The Long Barrow', x: 60, y: 31, w: 20, h: 9 },
     { id: 'reeves_chamber', name: "The Reeve's Chamber", x: 60, y: 44, w: 20, h: 13 },
+    { id: 'thirteenth_line', name: 'The Thirteenth Line', x: 36, y: 24, w: 12, h: 4 },               // behind the word door (DRAFT name)
+    // the door's passage: 2 wide, 3 deep, carved as a box so the kit's hall rule (4 to 8 wide) is not bent; not an area
+    { id: 'thirteenth_door', name: 'The Thirteenth Line', x: 41, y: 28, w: 2, h: 3, banner: false },
   ];
   const halls = [
     { pts: [[42, 49], [42, 40]], width: 5 },            // entry -> the Fold Hall
@@ -40,7 +46,7 @@ export function build() {
     ...pack('long_b', [['barrow_shade', 12], ['barrow_wether', 12]], 75, 36),
     boss('barrow_reeve', 12, 70, 51),
   ];
-  return carveDungeon({
+  const z = carveDungeon({
     id: 'barrow', name: D.name, kind: 'dungeon', w: W, h: H, levels: D.levels, music: 'the_downs',
     rooms, halls, entry: { x: 41, y: 57, w: 2 }, exitOut: out, arrival: [41, 55],
     lantern: { id: 'barrow_door', name: 'The Sealed Door', x: 38, y: 51 },
@@ -48,4 +54,15 @@ export function build() {
     chests: [{ id: 'barrow_cache', x: 76, y: 10, name: "The Reeve's Strongbox" }],
     signs: [{ id: 'barrow_names', x: 44, y: 49, text: 'Twelve names are cut into the lintel. Under them, a thirteenth line, left blank.' }],
   });
+  z.areas = z.areas.filter((a) => a.id !== 'thirteenth_door');
+  // the word door (CONTRACTS 6 "Word doors"): shut cells, the slab's south face (the Fold Hall's north wall), the found-
+  // letter spots (the first half of the run, so the door is open on the way back; DRAFT spots) and the coffer
+  z.dungeon.wordDoors = [{
+    id: 'barrow_thirteenth', name: 'The Thirteenth Line',
+    cells: [[41, 28], [42, 28], [41, 29], [42, 29], [41, 30], [42, 30]],
+    face: { x: 41, y: 31, w: 2 },
+    stones: [[31, 39], [52, 32], [15, 30], [9, 23], [22, 14], [39, 11], [52, 21], [52, 11]],
+    chest: { id: 'barrow_thirteenth_chest', x: 41, y: 24, name: 'The Thirteenth Coffer' },
+  }];
+  return z;
 }

@@ -33,6 +33,7 @@ import { drawStoryCard } from './worldlife_ui.js';
 import { deathPanel, readyCheck, shareOffers, tradeWindow, groupEvent } from './group_ui.js';
 import { createProfUI } from './prof_ui.js';
 import { createGlyphUI } from './glyph_ui.js';
+import { createWordDoorUI } from './worddoor_ui.js';   // word doors (wave 8 glyphdoor)
 import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
@@ -335,6 +336,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   // Inscriptions (src/ui/glyph_ui.js): the Margins window (J), its minimap button, a smith's "take a glyph out"
   const glyphs = createGlyphUI({ st, act, send, toast, say, hero: () => (lastSnap && playerId != null ? { snap: lastSnap, id: playerId } : null) });
   act.profOptions = (d) => [...prof.dialogOptions(d), ...glyphs.dialogOptions(d)];
+  const wdoor = createWordDoorUI({ st, send, toast, say, hero: () => (lastSnap && playerId != null ? { snap: lastSnap, id: playerId } : null) });
   act.profOpen = (o) => prof.open(o);
   // the creation screen and the free mirror (src/ui/create_screen.js); the turntable request goes to main.js view.stage
   const looks = createLookUI({ st, act, send, toast, say, has3d: () => !!(hooks.has3d && hooks.has3d()), startGear: (cls) => (hooks.startGear ? hooks.startGear(cls) : {}),
@@ -466,6 +468,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
           if (L.touch) drawTalents2(ctx, env, m, st, regions, act);
           else centred(ctx, L, regions, () => drawTalents2(ctx, env, m, st, regions, act), env);
         }
+        if (st.wdoor) wdoor.draw(ctx, env, m, L, regions);   // word doors: the word panel (worddoor_ui.js)
         if (m.group) sizeScope(() => drawGroup(ctx, env, m, L, regions));       // group play: trade, ready check, a shared quest, death (group_ui.js)
         hud.menuBar(ctx, L, st, regions);
         if (st.barPick) sizeScope(() => drawBarPick(ctx, L, regions));
@@ -955,6 +958,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (gl) { if (gl.toast) toast(gl.toast, 3); if (gl.say) say(gl.say[0], gl.say[1]); return; }
     if (prof.onEvent(ev, me)) return;            // professions (prof_ui.js)
     if (glyphs.onEvent(ev, me)) return;          // Inscriptions (glyph_ui.js)
+    if (wdoor.onEvent(ev, me)) return;           // word doors (worddoor_ui.js)
     if (looks.onEvent(ev, me)) return;           // the free mirror (create_screen.js)
     switch (ev.type) {
       case 'interact':

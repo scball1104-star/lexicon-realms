@@ -29,6 +29,7 @@ export function boxTiles(x, y) {
 function cellBlocks(zone, tx, ty, mdx, mdy, wasIn, opts) {
   const c = cellAt(zone, tx, ty);
   if (opts && opts.noJoins && inJoin(zone, tx, ty)) return true;
+  if (opts && opts.shut && opts.shut.has(tx + ty * 4096)) return true;   // a shut word door (src/sim/worddoor.js)
   if (c === WALK) return false;
   const ld = LEDGE_DIR[c];
   if (ld) {
