@@ -1819,3 +1819,23 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   Synth sound Off: no synth theme at all, so nothing changes. Tests compare note schedules, never samples.
 - **UI** (src/ui/letters_ui.js): a toast when the hero's own mask gains a letter (not on load, not with Synth Off), and
   once a session a log line. Words are DRAFTS (`LETTER_WORDS`).
+
+## Lantern notes (wave 9 notes, approved by Scott 2026-11-25; D:/LQOnline/wave9/notes/BRIEF.md; docs/NET.md "Lantern notes")
+- **Model** `src/net/notes.js` (pure): `wordBook(content, { doors })` is every word a note may use (lantern, flight point and
+  inn names, foe names made plural, the glyph and word-door words, the starter words), keyed by stable ids (`p:<zone>:<id>`,
+  `f:`, `h:`, `m:`, `g:`, `d:`, `s:`, `n:<Name>` for a friend). A note is `{ v:1, id, from, at:'<zone>:<lantern id>', parts:
+  [[frameId, wordKey]] (1 or 2), to: Name|null, day:'yyyy-mm-dd' }`. No free text: `makeNote` refuses any word that is not in
+  the book or does not fit its line; `from`/`to` follow the save.js name rule. The writer may only use its own lexicon
+  (`lexiconOf`: starter words, words learned, flight points, friends).
+- **Storage** `lexicon_realms.notes` v1, its own key like the Shared tab (NEVER in CHAR_KEY; a bad or newer blob goes to
+  `.bad`): `{ mine, got, read, hidden, learned: { hero: [key] }, friends: { hero: [Name] } }`. Caps: 3 shown per lantern,
+  60 got, 20 mine, 30 days.
+- **Link** `#note=<base64url of ids>` (`encodeLink` / `readLink`): read once at load by `src/ui/notes_wire.js`, filed, then
+  dropped from the address bar; the link card shows when a hero is in the world. Every word is checked on arrival.
+- **Co-op** `{ t:'notes', list }` guest to host (players only, at most 10 messages), `{ t:'notes', from, list }` host to
+  guest; session `on.notes(from, list)`, `on.notesMine()`, `on.notesMet(name)`; `hostSess.notes(list)`, `guestSess.notes(list)`.
+  A game sends only its own hero's notes (`syncOffer(nb, hero)`) and takes only notes whose `from` is the sender
+  (`syncTake`); it never passes on notes it was given.
+- **UI** `ui.notes` (src/ui/notes_ui.js): `setModel(m)` (notes_wire.js), `drawUnder(ctx, L, regions, t)` (the seals, regions
+  `notes_seal:<key>`), `draw(ctx, L, regions)` after the phone top bar, `escape()`, `openReader(key)`, `openLink(note)`,
+  `openWriter(preset)`. Region labels `notes:<button>`, `notes_frame:`, `notes_tab:`, `notes_word:` (drivers). No sim state.
