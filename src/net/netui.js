@@ -34,9 +34,12 @@ const CSS = `
   align-items: center; background: rgba(20, 16, 30, 0.88); border: 1px solid #6a5a8e; border-radius: 5px; padding: 3px 6px; pointer-events: auto;
   font-size: 13px; white-space: nowrap; }
 #net-ui .net-bar button { min-height: 26px; padding: 2px 9px; font-size: 13px; }
-#net-ui .net-chat { position: absolute; left: max(8px, env(safe-area-inset-left)); bottom: max(8px, env(safe-area-inset-bottom)); width: min(380px, calc(100vw - 16px));
+#net-ui .net-chat { position: absolute; left: max(8px, env(safe-area-inset-left)); bottom: max(8px, env(safe-area-inset-bottom)); width: min(460px, calc(100vw - 16px));
   display: flex; gap: 6px; pointer-events: auto; }
 #net-ui .net-chat input { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+#net-ui .net-chat .net-chip { align-self: center; white-space: nowrap; font-size: 13px; padding: 4px 7px; border-radius: 4px; border: 1px solid #8fb3e8; color: #cfe3ff; background: #1d2a48; }
+#net-ui .net-chat .net-chip.w { border-color: #c09ae8; color: #e6ccff; background: #33204a; }
+#net-ui .net-chat .net-count { align-self: center; font-size: 12px; color: #a79fb8; min-width: 46px; text-align: right; }
 `;
 
 export function createNetUI({ doc = document } = {}) {
@@ -128,16 +131,29 @@ export function createNetUI({ doc = document } = {}) {
   setInterval(placeBar, 1000);
   window.addEventListener('resize', () => setTimeout(placeBar, 50));
   let chat = null;
-  function openChat(onSend) {
-    if (chat) { chat.querySelector('input').focus(); return; }
-    const inp = el('input', { type: 'text', maxLength: 140, placeholder: 'Say something to your party', id: 'net-chat-input', autocomplete: 'off' });
+  /** The chat line. opts (wave 8 talk): { prefill, chip(text) -> { label, whisper } } shows who the line goes to and
+   *  a letter count (the 140 limit; a /w Name prefix does not count). */
+  function openChat(onSend, opts = {}) {
+    if (chat) { const i = chat.querySelector('input'); if (opts.prefill) i.value = opts.prefill; i.focus(); return; }
+    const inp = el('input', { type: 'text', maxLength: 170, placeholder: 'Say something to your party', id: 'net-chat-input', autocomplete: 'off', value: opts.prefill || '' });
+    const chipEl = opts.chip ? el('span', { class: 'net-chip', id: 'net-chat-chip' }) : null;
+    const count = el('span', { class: 'net-count', id: 'net-chat-count' });
+    const show = () => {
+      const c = opts.chip ? opts.chip(inp.value) : null;
+      if (chipEl && c) { chipEl.textContent = c.label; chipEl.className = `net-chip${c.whisper ? ' w' : ''}`; }
+      const body = inp.value.replace(/^\s*\/(w|whisper|tell)\s+\S+\s*|^\s*\/(r|reply|p|party)\s*/i, '');
+      count.textContent = `${body.length}/140`;
+      count.style.color = body.length > 140 ? '#ffb08a' : '';
+    };
+    inp.addEventListener('input', show);
     const done = () => { if (chat) { chat.remove(); chat = null; } };
     const send = () => { const t = inp.value; done(); if (t.trim()) onSend(t); };
     inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); send(); } else if (ev.key === 'Escape') done(); });
     inp.addEventListener('blur', () => setTimeout(() => { if (chat && doc.activeElement !== inp) done(); }, 150));
-    chat = el('div', { class: 'net-chat' }, [inp, el('button', { text: 'Send', onmousedown: (ev) => ev.preventDefault(), onclick: send })]);
+    chat = el('div', { class: 'net-chat' }, [chipEl, inp, count, el('button', { text: 'Send', onmousedown: (ev) => ev.preventDefault(), onclick: send })]);
     root.appendChild(chat);
-    setTimeout(() => inp.focus(), 0);
+    show();
+    setTimeout(() => { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }, 0);
   }
 
   return { el, panel, close, message, copy, setBar, openChat, setBarSpot(fn) { spot = fn || (() => null); placeBar(); }, get chatOpen() { return !!chat; }, get panelOpen() { return !!box; }, root };

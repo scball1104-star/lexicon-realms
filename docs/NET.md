@@ -94,7 +94,7 @@ No library was added. Everything is browser-native (RTCPeerConnection, WebSocket
   field at all, so solo state, hashes and saves are unchanged; a dungeon can treat a hero without a party as a party
   of one.
 - **Chat**: Enter (or Chat) opens a text line; the host relays each line to everyone. "<name> joined the party." and
-  "<name> left." lines appear for everyone.
+  "<name> left." lines appear for everyone. Wave 8 added whispers, bubbles, the Say sheet, mute, remove and lock: see "Talk" below.
 - **Version check**: host and guests must run the same build (`version.json`); a guest on another build is told to
   reload. The game does not auto-reload mid co-op game.
 
@@ -156,6 +156,33 @@ game or the link; seconds are the median of 3 driven runs, page load and connect
 The machine seconds are about the same both ways: page load and the connection dominate. The saving is the human part,
 reading and typing the code and the new friend's detour through the world, which a driven run does not time.
 
+## Talk (wave 8, 2026-11-24)
+
+Scott: "Set up for players to be able to converse with each too." Brief and stills: D:/LQOnline/wave8/talk/BRIEF.md.
+Built with Scott's answers: watchers read but do not talk until the host lets them; no voice chat.
+
+- **Chat window** (in a co-op game only; solo keeps today's log): tabs All, Party, Whispers (with an unread count) and
+  Combat, a time on every talk line, the mouse wheel scrolls it. A phone shows the newest 3 lines (the left thumb walks
+  there, so it lets taps through); the Say sheet's Chat log button opens the whole log.
+- **Speech bubbles** over the speaker's head in 2D and 3D, under the HUD, 2 lines at most, 4 to 9 s, stacked so they
+  never overlap. A muted friend has none.
+- **Typing**: Enter or Chat (desktop). The line shows who it goes to (Party, or To <name>) and a 140 count. `/w Name`
+  whispers, `/r` replies, `/p` goes back to party, `/mute Name`, `/unmute Name`, `/help`, and the emotes.
+- **Phone**: the bar's Chat button opens the Say sheet: Hello!, Follow me, Wait for me, Ready?, On my way, Thanks!,
+  Help!, Good fight, a tap each, no keyboard; then Type, Emotes, Chat log, Close.
+- **A friend's card**: long press their party frame (phone) or right click it (desktop): Whisper, Mute, and for the
+  host Remove from game (tap twice).
+- **Whispers** go only to the two people in them, but a whisper between two guests passes through the host's tab
+  (guests connect only to the host). The game says so in plain words the first time you whisper, and on the host panel.
+- **Mute** is on this device only (the names are kept in this browser); the other player is not told.
+- **Remove from game** (host): the friend goes home with their hero saved; that hero name is refused until the host ends
+  the game. **Lock the game** (host panel) refuses anyone new, players and watchers. A new Host a game makes a new code.
+- **Watchers** read the chat. The host lets them talk with one tap (the bar's Let watchers talk, shown while someone
+  watches, or the host panel).
+- **Flood guard**: the host passes on at most 5 lines in 10 s from each guest, then says "Slow down" once.
+- **History** is memory only (the last 200 lines); nothing is written anywhere. Chat never goes through a broker.
+- **No voice chat** (Scott, 2026-11-24).
+
 ## Files
 
 - `src/net/transport.js`: data channel link (chunking, close detection), offer / answer, copy-paste codes, the MQTT,
@@ -164,6 +191,7 @@ reading and typing the code and the new friend's detour through the world, which
 - `src/net/frames.js`: per-guest delta frames and the guest's rebuild (pure, node-tested).
 - `src/net/coop.js`: lobby flows and what `main.js` calls each tick.
 - `src/net/netui.js`: the HTML panels, the in-game bar and the chat line (`data-overlay`; `ui.js` ignores input inside).
+- `src/net/talk.js` (the talk model), `src/net/talk_coop.js` (wiring), `src/ui/chat_ui.js` (drawing): talk (wave 8).
 - `src/net/dropin.js`: invite links (`inviteLink`, `readInvite`), share or copy, the join screen for a link (wave 8).
 - `src/sim/world.js`, `src/sim/progression.js`, `src/sim/constants.js`: party id, `setParty`, kill sharing.
 - `src/main.js`: guest playback in `tick()`, host hooks around `world.step()`, name plates, save hooks.

@@ -1743,7 +1743,7 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   At most `MAX_WATCHERS` (4); watchers are not players (`count`), `watching` counts them.
 - **Watcher frames.** `framesFor(null, { follow: hostId })` (src/net/frames.js): the view centres on the host, every hero
   is trimmed (the host too), no HUD block, public events only. `publicFilter(null, vis)` matches no hero's own events.
-- **UI.** `ui.mode === 'watch'`: the world draws, the canvas UI draws nothing (the co-op bar is HTML). main.js render
+- **UI.** `ui.mode === 'watch'`: the world draws, and the chat window (wave 8 talk); the co-op bar is HTML. main.js render
   follows `coop.watchId` while there is no hero. Options has "Invite a friend" in its title bar (`act.invite`,
   `act.canInvite`; hooks `invite`, `canInvite`), hidden for a hero in a friend's game.
 
@@ -1779,3 +1779,18 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
 - **Postcard.** `renderer.capture()` draws the 3D frame once more into a 2D canvas (never the HUD); photo_ui.js frames
   it. PC: a PNG download; phone: a preview, then `navigator.share` with the file on its own tap. Nothing leaves the
   device unless the player shares it.
+
+## Talking with friends (wave 8 talk, 2026-11-24; D:/LQOnline/wave8/talk/BRIEF.md; docs/NET.md "Talk")
+
+- **Protocol** (src/net/session.js): guest `chat { text, to? }` (to: a hero id, a whisper); host `chat { from, text, fid?,
+  w?, to? }` (fid: the speaker's hero id for bubbles; w: a whisper, sent only to the two people in it; to: on the
+  sender's echo). `talk { watch }` tells watchers whether they may talk; the watcher's `welcome` carries `talk`.
+  `refuse` adds `removed` and `locked`. Host session: `chat(text, to)`, `kick(pid)`, `setLocked`, `setWatchersTalk`.
+  The host relays at most 5 lines per 10 s per guest (`talk.js createFlood`). A whisper between guests passes through
+  the host's tab; the host's on.chat is not called for it.
+- **Log lines.** Talk lines go into ui.js's own log as `{ ch: 'party', text, talk: { kind, from, to, body, out, fid, at } }`
+  (`ui.say(ch, text, extra)`); `text` keeps today's words (`[Party] Name: text`), so logText and drivers are unchanged.
+  History is that in-memory log (200 lines); nothing is saved except the mute list (`localStorage lr_mutes`, names).
+- **UI** (src/ui/chat_ui.js, `ui.chat`): on only while a co-op game is on (`setActive(on, { host, live })`); solo play
+  draws today's log exactly. Hooks: main.js `talkHeads()` (every hero's head, HUD px). In 3D, `namePlates()` returns []
+  (renderer3d already names every other hero: one name, not two). `ui.mode === 'watch'` now draws the chat window.

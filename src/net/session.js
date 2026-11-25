@@ -5,16 +5,19 @@
 //                 { t:'hello', proto, build, watch:1 }  a watcher (drop-in spectate): no hero, the view follows the host
 //                 { t:'play', hero }                    a watcher picks a hero and joins as a player
 //                 { t:'cmd', c:[cmd...], s }           the same command objects local input makes; s = sequence number
-//                 { t:'chat', text }  { t:'ping', at }  { t:'bye' }
+//                 { t:'chat', text, to? }  { t:'ping', at }  { t:'bye' }   to: a hero id (a whisper; wave 8 talk)
 // Host -> guest   { t:'welcome', id, host, room, party, proto }
 //                 { t:'welcome', watch:1, id:null, follow, host, room, party, proto }   a watcher; follow = the host's hero
 //                 { t:'nope', reason }                 a watcher's play was refused (full | bad_hero); it keeps watching
 //                 { t:'f', ... }                       a frame (src/net/frames.js), every host tick; a = last cmd s applied
 //                 { t:'save', hero, final? }           the guest's hero as a save (every 5 s when it changed, and on leave)
-//                 { t:'chat', from, text }  { t:'sys', text }  { t:'pong', at }
-//                 { t:'refuse', reason }               full | version | bad_hero
+//                 { t:'chat', from, text, fid?, w?, to? }  { t:'sys', text }  { t:'pong', at }   fid: the speaker's hero id;
+//                                                      w:1 a whisper (to: on the sender's own copy) (wave 8 talk)
+//                 { t:'talk', watch }                  wave 8 talk: watchers may talk (1) or only read (0)
+//                 { t:'refuse', reason }               full | version | bad_hero | removed | locked (wave 8 talk)
 //                 { t:'bye', reason }                  host_left | left | kicked
 import { framesFor, createTickCache, createFrameState, applyFrame } from './frames.js';
+import { createFlood } from './talk.js';   // wave 8 talk: the host's flood guard (docs/NET.md "Talk")
 
 export const PROTO = 1;
 export const MAX_PLAYERS = 4;          // the host plus three friends (DESIGN: "start up to 4")
@@ -41,11 +44,17 @@ export function guestCommandOk(c) {
 /**
  * The host side. world: the sim. hostId: the host's hero. party: the room's party id.
  * spawnGuest(hero) -> addPlayer spec (sanitised, placed beside the host) or null. saveOf(id) -> the hero as a save.
- * on: { join(g), leave(g, reason), chat(from, text), commandLogged(id, cmd), joinLogged(tick, spec) }
+ * on: { join(g), leave(g, reason), chat(from, text, meta), commandLogged(id, cmd), joinLogged(tick, spec) }
+ * meta (wave 8 talk): { fid, w }. The host's game shows party lines and whispers to the host; a whisper between two
+ * guests passes through the host's tab, but on.chat is not called for it.
  */
 export function createHostSession({ world, hostId, hostName, party, room, build = null, spawnGuest, saveOf, on = {} }) {
   const guests = new Set();              // every link, joined or not: { link, pid, name, frames, cmds, seen, ack, saveStr }
   let closed = false;
+  // wave 8 talk: watchers read only until the host lets them talk; a locked game takes no one new; a removed hero's name
+  // is refused until the host ends the game; at most FLOOD_LINES lines per FLOOD_MS from each guest
+  let watchTalk = false, locked = false;
+  const banned = new Set(), flood = createFlood();
   const byPid = () => [...guests].filter((g) => g.pid != null);
   const watchers = () => [...guests].filter((g) => g.watch);
   const live = () => [...guests].filter((g) => g.pid != null || g.watch);   // everyone who gets frames, chat and sys lines
@@ -66,13 +75,15 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
     if (g.watch && on.unwatch) on.unwatch(g, reason);
     if (g.pid != null) {
       world.removePlayer(g.pid);
-      sendAll({ t: 'sys', text: `${g.name} left.` });
+      sendAll({ t: 'sys', text: reason === 'kicked' ? `${g.name} was removed by the host.` : `${g.name} left.` });   // drafts
       if (on.leave) on.leave(g, reason);
     }
   }
   /** A hero into the world beside the host: { pid } or { reason } (full | bad_hero). */
   function spawn(g, hero) {
     if (byPid().length >= MAX_PLAYERS - 1) return { reason: 'full' };
+    if (locked) return { reason: 'locked' };                                                       // wave 8 talk
+    if (hero && banned.has(String(hero.name || '').trim().toLowerCase())) return { reason: 'removed' };
     let pid = null;
     let spec = null;
     try { spec = spawnGuest(hero); if (spec) { spec = { ...spec, party }; pid = world.addPlayer(spec); } } catch (e) { pid = null; }
@@ -97,12 +108,13 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
       const refuse = (reason) => { g.link.send({ t: 'refuse', reason }); setTimeout(() => g.link.close('refused'), 500); guests.delete(g); };
       if (m.proto !== PROTO || (build && m.build && m.build !== build)) return refuse('version');
       if (g.watch) return;
+      if (locked) return refuse('locked');   // wave 8 talk: a locked game takes no one new
       if (m.watch) {
         // drop-in: watch first (no hero), pick a hero later with { t:'play' }
         if (watchers().length >= MAX_WATCHERS) return refuse('full');
         g.watch = true; g.name = WATCHER_NAME;
         g.frames = framesFor(null, { follow: hostId });
-        g.link.send({ t: 'welcome', watch: 1, id: null, follow: hostId, host: hostName, room, party, proto: PROTO });
+        g.link.send({ t: 'welcome', watch: 1, id: null, follow: hostId, host: hostName, room, party, proto: PROTO, talk: watchTalk ? 1 : 0 });
         if (on.watch) on.watch(g);
         return;
       }
@@ -117,8 +129,7 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
         if (r.reason) g.link.send({ t: 'nope', reason: r.reason });
         else if (on.unwatch) on.unwatch(g, 'play');
       } else if (m.t === 'chat') {
-        const text = cleanChat(m.text);
-        if (text) { sendAll({ t: 'chat', from: g.name, text }); if (on.chat) on.chat(g.name, text); }
+        if (watchTalk) heard(g, m, null);      // wave 8 talk: read only until the host lets watchers talk (dropped)
       } else if (m.t === 'bye') {
         g.link.send({ t: 'bye', reason: 'left' });
         removeGuest(g, 'left');
@@ -132,16 +143,36 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
       for (const c of list) if (guestCommandOk(c)) g.cmds.push(c);
       if (Number.isFinite(m.s)) g.ack = m.s;
     } else if (m.t === 'chat') {
-      const text = cleanChat(m.text);
-      if (!text) return;
-      sendAll({ t: 'chat', from: g.name, text });
-      if (on.chat) on.chat(g.name, text);
+      heard(g, m, g.pid);
     } else if (m.t === 'bye') {
       sendSave(g, true);
       g.link.send({ t: 'bye', reason: 'left' });
       removeGuest(g, 'left');
       setTimeout(() => g.link.close('left'), 1500);
     }
+  }
+
+  /** wave 8 talk: a guest's line: party to everyone, or a whisper to one hero (plus its echo to the sender). */
+  function heard(g, m, fid) {
+    const text = cleanChat(m.text);
+    if (!text) return;
+    const f = flood.ok(g, now());
+    if (f === 'warn') { g.link.send({ t: 'sys', text: 'Slow down: wait a moment before your next line.' }); return; }   // draft
+    if (!f) return;
+    if (m.to != null && fid != null) {
+      if (m.to === hostId) {
+        g.link.send({ t: 'chat', from: g.name, text, fid, w: 1, to: hostName });
+        if (on.chat) on.chat(g.name, text, { fid, w: 1 });
+        return;
+      }
+      const t = byPid().find((x) => x.pid === m.to);
+      if (!t || t === g) return;
+      t.link.send({ t: 'chat', from: g.name, text, fid, w: 1 });
+      g.link.send({ t: 'chat', from: g.name, text, fid, w: 1, to: t.name });
+      return;
+    }
+    sendAll({ t: 'chat', from: g.name, text, ...(fid != null ? { fid } : {}) });
+    if (on.chat) on.chat(g.name, text, { fid });
   }
 
   return {
@@ -181,11 +212,35 @@ export function createHostSession({ world, hostId, hostName, party, room, build 
         if (g.pid != null && snap.tick % SAVE_EVERY_TICKS === 0) sendSave(g);
       }
     },
-    chat(text) {
+    /** The host's own line: to everyone, or a whisper to one guest (to: their hero id). The cleaned text, or null. */
+    chat(text, to = null) {
       const t = cleanChat(text);
       if (!t) return null;
-      sendAll({ t: 'chat', from: hostName, text: t });
+      if (to != null) {
+        const g = byPid().find((x) => x.pid === to);
+        if (!g) return null;
+        g.link.send({ t: 'chat', from: hostName, text: t, fid: hostId, w: 1 });
+        return t;
+      }
+      sendAll({ t: 'chat', from: hostName, text: t, fid: hostId });
       return t;
+    },
+    /** wave 8 talk: may watchers talk? Every watcher is told, so its Chat button can say so. */
+    get watchersTalk() { return watchTalk; },
+    setWatchersTalk(on) { watchTalk = !!on; for (const g of watchers()) g.link.send({ t: 'talk', watch: watchTalk ? 1 : 0 }); },
+    /** wave 8 talk: a locked game refuses new players and watchers (those already in stay). */
+    get locked() { return locked; },
+    setLocked(on) { locked = !!on; },
+    /** wave 8 talk: remove a friend: their hero goes home saved, and that hero name is refused until the game ends. */
+    kick(pid) {
+      const g = byPid().find((x) => x.pid === pid);
+      if (!g) return false;
+      banned.add(String(g.name || '').trim().toLowerCase());
+      sendSave(g, true);
+      g.link.send({ t: 'bye', reason: 'kicked' });
+      removeGuest(g, 'kicked');
+      setTimeout(() => g.link.close('kicked'), 800);
+      return true;
     },
     /** The host ends the game: every guest gets their hero as a final save, then a goodbye. */
     close(reason = 'host_left') {
@@ -241,7 +296,8 @@ export function createGuestSession({ link, hero, build = null, watch: asWatcher 
         break;
       }
       case 'save': lastSave = m.hero; if (on.save) on.save(m.hero, !!m.final); if (m.final && leaving) end('left'); break;
-      case 'chat': if (on.chat) on.chat(m.from, m.text); break;
+      case 'chat': if (on.chat) on.chat(m.from, m.text, { fid: m.fid, w: m.w, to: m.to }); break;
+      case 'talk': if (welcome) welcome.talk = m.watch ? 1 : 0; if (on.talk) on.talk(!!m.watch); break;   // wave 8 talk
       case 'sys': if (on.sys) on.sys(m.text); break;
       case 'pong': stats.rttMs = Math.round(now() - m.at); break;
       case 'refuse': end(m.reason || 'refused'); break;
@@ -274,7 +330,10 @@ export function createGuestSession({ link, hero, build = null, watch: asWatcher 
       sentAt.set(seq, now());
       link.send({ t: 'cmd', c: cmds, s: seq });
     },
-    chat(text) { const t = cleanChat(text); if (t && !ended) link.send({ t: 'chat', text: t }); return t; },
+    /** A line to the party, or a whisper (to: a hero id; the host passes it on). */
+    chat(text, to = null) { const t = cleanChat(text); if (t && !ended) link.send(to != null ? { t: 'chat', text: t, to } : { t: 'chat', text: t }); return t; },
+    /** wave 8 talk: may this tab talk? (players always; a watcher once the host lets watchers talk) */
+    get canTalk() { return !!(welcome && (!welcome.watch || welcome.talk)); },
     /**
      * The next frame for the game loop's tick, or null (hold the last one). Normally one per tick; two or more behind (a
      * slow frame, a tab that was in the background) it jumps to the newest and keeps every event on the way, so the

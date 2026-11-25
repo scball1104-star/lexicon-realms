@@ -118,6 +118,9 @@ export const tests = [
       const f = g.nextFrame();
       assert(f && f.snap.entities.some((e) => e.id === hostId), 'the watcher plays back frames with the host in them');
       g.chat('hello');
+      assert(!got.chat.includes(`${WATCHER_NAME}: hello`), 'wave 8 talk: a watcher reads only until the host lets watchers talk');
+      sess.setWatchersTalk(true);
+      g.chat('hello');
       assert(got.chat.includes(`${WATCHER_NAME}: hello`), 'watcher chat comes back to everyone');
       g.sendCmds([{ t: 'move', dx: 1, dy: 0 }]);   // no welcome id: nothing to move; the host would ignore it anyway
       // fill the game: three friends
