@@ -38,9 +38,9 @@ jobs:
           cp -r src assets assets3d _site/
           touch _site/.nojekyll
           echo "{\"v\":\"${GITHUB_SHA}\"}" > _site/version.json
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
