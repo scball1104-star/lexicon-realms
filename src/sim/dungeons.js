@@ -16,6 +16,7 @@
 // Every rule that compares zones keeps two copies apart with no extra code. Foes in a copy never respawn: a boss killed
 // stays dead in that copy. The copy resets (every entity in it goes, and the place spawns fresh on the next entry) when no
 // hero has been inside for DUNGEON_RULES.resetSec of sim time.
+import { createBossMech } from './boss_mech.js';   // wave 10 dbosses: boss fights that need the party
 export const COPY_SEP = '#';
 export const zoneBase = (id) => { const s = String(id); const i = s.indexOf(COPY_SEP); return i < 0 ? s : s.slice(0, i); };
 const WRAPPED = new WeakSet();
@@ -46,6 +47,8 @@ export function createDungeons(D) {
   const zones = content.zones;
   const copies = () => (state.copies = state.copies || {});
   const DL = createDloot(content);   // wave 10 dloot: boss drops (src/sim/dloot.js)
+  // wave 10 dbosses: gates, marks, the red slot, the Last Count, Unspoken (src/sim/boss_mech.js, src/data/boss_fights.js)
+  const BM = content.bossFights && content.bossRules && D.combat ? createBossMech({ state, content, emit, get: D.get, combat: D.combat, summon: (m, s, b) => summon(m, s, b), dun: (p) => dun(p) }) : null;
 
   const placeOf = (zid) => PL[zoneBase(zid)] || null;
   function isPlace(zid) { const z = zid != null ? zones[zid] : null; return !!(z && (z.kind === 'dungeon' || z.kind === 'cave')); }
@@ -200,6 +203,7 @@ export function createDungeons(D) {
     const tpl = mob.template;
     const mt = (content.mobs || {})[tpl] || {};
     if (mt.fight || mt.boss || mt.rare) {
+      if (BM) BM.onDeath(mob);                        // wave 10 dbosses: a clear of this boss for each hero in the copy
       emit({ type: 'boss', id: mob.id, kind: 'death', template: tpl, zone: mob.zone, ...(mt.deathLine ? { text: mt.deathLine } : {}) });
       if (mob.ai && mob.ai.boss) for (const aid of mob.ai.boss.adds || []) { const a = D.get(aid); if (a && !a.dead && a.ai && a.ai.mode !== 'combat') { D.remove(a); emit({ type: 'despawn', id: a.id, template: a.template, zone: a.zone, kind: 'mob' }); } }
     }
@@ -310,6 +314,7 @@ export function createDungeons(D) {
       if (f.frenzy.yell) emit({ type: 'yell', id: m.id, text: f.frenzy.yell });
       emit({ type: 'boss', id: m.id, kind: 'frenzy', template: m.template, zone: m.zone });
     }
+    if (BM) BM.tick(m, b);                            // wave 10 dbosses
   }
   function summon(m, s, b) {
     const z = zones[m.zone];
@@ -346,6 +351,7 @@ export function createDungeons(D) {
     }
     if (!b) return;
     for (const aid of b.adds || []) { const a = D.get(aid); if (a && !a.dead) { D.remove(a); emit({ type: 'despawn', id: a.id, template: a.template, zone: a.zone, kind: 'mob', reason: 'boss_reset' }); } }
+    if (BM) BM.reset(m);                              // wave 10 dbosses
     m.ai.boss = null;
     emit({ type: 'boss', id: m.id, kind: 'reset', template: m.template, zone: m.zone });
   }
@@ -354,6 +360,7 @@ export function createDungeons(D) {
    *  and lootSummary (src/sim/dloot.js) of one hero's list. Kept on the copy (state.copies[zid].loot) until it resets. */
   function lootOf(zid) { const c = copies()[zid]; return c && c.loot ? JSON.parse(JSON.stringify(c.loot)) : {}; }
   function lootSummaryOf(zid, id) { return lootSummary(content, (lootOf(zid)[id]) || []); }
-  return { isPlace, placeOf, info, enter, leave, tick, onKill, openChest, bossTick, bossReset, loadSpec, doorOut, destroy, doneToday, fits,
+  return { bossView: (m) => (BM ? BM.view(m) : null), bossMarks: () => (BM ? BM.marks() : []),   // wave 10 dbosses
+    isPlace, placeOf, info, enter, leave, tick, onKill, openChest, bossTick, bossReset, loadSpec, doorOut, destroy, doneToday, fits,
     copies: () => copies(), lootOf, lootSummaryOf };
 }

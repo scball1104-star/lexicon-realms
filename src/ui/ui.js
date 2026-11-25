@@ -52,6 +52,7 @@ import { createNotesUI } from './notes_ui.js';   // wave 9 notes: lantern notes 
 import { createSecondUI } from './second_ui.js';   // wave 9 second: the phone screen's tabs, the PC's Phone chip
 import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
 import { createDlootUI } from './dloot_ui.js';   // wave 10 dloot: the drop's columns, tags, banner and card
+import { createBossHud } from './boss_hud.js';   // wave 10 dbosses: the boss fight call-out
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -113,6 +114,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const photoUi = createPhotoUI({ g, st, send, say: (ch, t) => { say(ch, t); toast(t); }, hooks: photoHooks });   // wave 8 photo
   const delveUi = createDelveUI({ g, st, send, toast, act: new Proxy({}, { get: (_, k) => (typeof act !== 'undefined' ? act[k] : undefined) }) });   // wave 10 dflow
   const delveItems = { items: new Proxy({}, { get: (_, id) => (typeof id === 'string' ? itemInfo(id) : undefined) }), mobs: {} };
+  const bossHud = createBossHud({ g });   // wave 10 dbosses
   const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
   const notesUi = createNotesUI({ g, st });   // wave 9 notes (main.js wires it: src/ui/notes_wire.js)
 
@@ -459,6 +461,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       st.bossUp = !!(m.player && bossCardDraw && bossCardDraw(ctx, g, L, t));   // wave 6: the boss intro card (boss_card.js, set by main.js); toasts wait under it
       if (m.player) prof.drawHud(ctx, env, m, L, regions);     // professions: the gather / craft bar, the node card, tracking
       if (m.player) glyphs.drawHud(ctx, env, m, L, regions);   // Inscriptions: the Margins button
+      if (m.player) bossHud.draw(ctx, L, m);   // wave 10 dbosses: the call-out for the mechanic happening now
       if (m.player) chatUi.draw(ctx, L, regions, m);           // wave 8 talk: the chat window (in co-op), Say sheet, card
       if (m.player) secondUi.pcChip(ctx, L, regions);           // wave 9 second: a phone is paired (click twice: unpair)
 

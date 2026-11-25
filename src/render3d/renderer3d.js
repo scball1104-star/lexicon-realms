@@ -71,7 +71,8 @@ import { createTurntable } from './turntable.js';   // wave 6: the creation scre
 import { createTalkCam } from './talk_cam.js';   // wave 6 quest scenes: the talk camera (view.talk)
 import { bossFrame } from './boss_cam.js';   // wave 6: the boss intro push-in (view.bossCam, src/ui/boss_card.js)
 import { tickGround } from './ground_kit.js';   // wave 5 ground kit: the grass wind clock
-import { groundY, setGroundY } from './ground_plan.js';   // the shown zone's visible ground height (gentle hills)
+import { groundY, setGroundY } from './ground_plan.js';
+import { createBossMarks } from './boss_marks3d.js';   // wave 10 dbosses: share, notch, letters, tether and the red slot   // the shown zone's visible ground height (gentle hills)
 
 const PX = 16;
 const PITCH = THREE.MathUtils.degToRad(40);
@@ -601,6 +602,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     }
     return coneGeo.get(k);
   };
+  const bossMarks = createBossMarks(scene);   // wave 10 dbosses
   const tgPool = [];
   function telegraphMesh(i) {
     if (!tgPool[i]) {
@@ -863,6 +865,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     fx3.update(dt, now, at, camera);
     assignLights(sky, target, me ? me.root.position : null);
     drawTelegraphs(snap);
+    dev.bossMarks = bossMarks.draw(snap.bossMarks, state.zoneId, PX, now);   // wave 10 dbosses
     if (trans && trans.warm) warmBefore();
     const tr0 = performance.now();
     lastFx = view.fx;

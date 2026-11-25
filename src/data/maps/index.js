@@ -54,6 +54,7 @@ import { RIDDLE_RULES, BLOCKED as RIDDLE_BLOCKED } from '../riddle_words.js';   
 import { TRAVEL_ITEMS, TRAVEL_NPCS, TRAVEL_NPC_SPAWNS, travelContent } from '../travel.js';
 import { MOUNT_ABILITIES, MOUNT_ITEMS, MOUNT_NPCS, MOUNT_NPC_SPAWNS, STABLE, mountsContent } from '../mounts.js';
 import { applyBand } from '../band_content.js';
+import { applyBossFights } from '../boss_fights.js';   // wave 10 dbosses
 import { RB_MOBS, RB_NPCS, RB_ITEMS, RB_QUESTS, RB_QUEST_ORDER, RB_RARE_RUNTIME, RB_RARE_SPAWN, RB_EXTRA_DROPS, START_REALMS } from '../rootbound.js';
 import { applyRealms2 } from '../start_realms2.js';
 import { R2, R2_OUTDOOR } from '../realms2.js';     // wave 3 realms2: Saffron Haven, the Nameless Hollow
@@ -181,5 +182,5 @@ export function buildContent() {
   out.realms2 = R2.rules;                     // wave 3 realms2: the storm and the lantern watch (src/sim/realms2.js)
   applyRealms2(out);                           // wave 3: Emberpeak and Valewyn (src/data/start_realms2.js)
   // the 20 to 30 band: Larchhill, the Larch Mine, Drovers' Reach (src/data/band_content.js); then the Moor band (moor_band.js)
-  return applyMoorBand(applyBand(out), worldQuests);
+  return applyBossFights(applyMoorBand(applyBand(out), worldQuests));   // wave 10 dbosses: boss fights that need the party
 }
