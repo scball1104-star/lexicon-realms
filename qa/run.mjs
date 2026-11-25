@@ -18,8 +18,15 @@ const files = DIRS.flatMap((dir) => fs.readdirSync(dir).filter((f) => f.endsWith
 
 let pass = 0, fail = 0;
 const t0 = Date.now();
+// on GitHub Actions, a crash outside a test (a file that will not load, a stray rejection) is an annotation too
+const ghNote = (title, e) => { if (process.env.GITHUB_ACTIONS) console.log(`::error title=${title}::${String(e && e.stack || e).split('\n').slice(0, 4).join(' | ').replace(/[\r\n%]/g, ' ')}`); };
+let current = 'run.mjs';
+process.on('uncaughtException', (e) => { ghNote(`uncaught in ${current}`, e); console.log(`  CRASH ${current}: ${e && e.stack || e}`); process.exit(1); });
+process.on('unhandledRejection', (e) => { ghNote(`unhandled rejection in ${current}`, e); console.log(`  CRASH ${current}: ${e && e.stack || e}`); process.exit(1); });
 for (const f of files) {
-  const mod = await import(pathToFileURL(f).href);
+  current = path.basename(f);
+  let mod;
+  try { mod = await import(pathToFileURL(f).href); } catch (e) { ghNote(`load ${current}`, e); throw e; }
   const name = path.basename(f);
   for (const t of mod.tests || []) {
     const start = Date.now();
