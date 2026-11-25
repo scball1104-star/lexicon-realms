@@ -136,6 +136,7 @@ async function boot() {
       logout: (id) => {
         const wasGuest = coop.onLogout(id);
         if (id != null && !wasGuest) world.removePlayer(id);
+        if (chron) chron.endNight('quit');   // wave 9 chronicle: the night's page at Quit to title (and a guest sent home)
         playerId = null;
         uiCommands.length = 0;
         audio.music('title'); audio.ambience(null);
@@ -386,6 +387,7 @@ async function boot() {
 
   let prev = world.snapshot(), snap = prev;
   let replay = null;                   // wave 8 replays (set below, before the loop starts)
+  let chron = null;                    // wave 9 chronicle (set below, after the replays)
   const commandLog = [];   // [tick, entityId, cmd]: replayable (CONTRACTS section 2.3)
   function tick() {
     if (coop.isGuest) {
@@ -479,6 +481,10 @@ async function boot() {
   replay = await import('./replay/replay_ui.js').then((m) => m.createReplayUi({ world, content, renderer, view, ui, input, canvas, font, touch,
     heroId: () => playerId, liveHero: () => heroEnt(), isGuest: () => coop.isGuest, build: () => bootVersion, createHorizonCam })).catch((e) => { console.warn('replays', e); return null; });
   if (replay) ui.act.replays = () => replay.openList();
+  // wave 9 chronicle (src/chronicle/): the night's story with the stills the game took itself, the picture, the #chron= link
+  chron = await import('./chronicle/chronicle.js').then((m) => m.createChronicle({ bus, content, renderer, ui, input, canvas, font, touch,
+    heroId: () => playerId, snapshot: () => snap, coop, replay: () => replay, q })).catch((e) => { console.warn('chronicle', e); return null; });
+  if (chron) ui.act.chronicle = () => chron.openList();   // wave 9 chronicle: Options: Chronicle
   const loop = createLoop({ hz: TICK_HZ, tick, render });
   coop.setPump({ loop, tick });
   if (q.get('paused') !== '1') loop.start();
@@ -514,6 +520,7 @@ async function boot() {
     };
     if (replay) replay.recorder.devTouch(window.__realms.dev);   // a dev write mid-recording drops that recording
     if (replay) window.__realms.replay = replay;                 // drivers
+    if (chron) window.__realms.chronicle = chron;                // wave 9 chronicle: drivers
   }
   document.title = 'Lexicon Realms';
 }
