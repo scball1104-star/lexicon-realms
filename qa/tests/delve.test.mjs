@@ -229,4 +229,51 @@ export const tests = [
       for (const v of Object.values(DELVE_WORDS)) assert(!String(typeof v === 'function' ? v(2) : v).includes('\u2014'), 'no em dash');
     },
   },
+  {
+    name: 'wave 10 integrate: the Endmarket raid (band 30, gate 30 on the own level): a 30 goes in unsynced, a 28 and a 25 are refused, never raised',
+    fn() {
+      const rd = (C.zones.drovers_reach.doors || []).find((d) => d.id === 'endmarket_gate');
+      assert(rd && rd.minLevel === 30, 'the raid door with its level 30 gate');
+      eq(syncFor(25, [30, 30], 3).kind, 'too_low', 'no sync up for a hero below 27');
+      const w = createWorld({ seed: 4, content: { ...C, spawns: [], nightSpawns: [] } });
+      const ids = [['Ash', 30], ['Bryn', 28], ['Cass', 25]].map(([name, level], i) => w.addPlayer({ name, cls: 'warden', level, party: 1, gearMode: 'design', zone: 'drovers_reach', x: rd.out[0] + i, y: rd.out[1] + 1 }));
+      w.step();
+      const card = w.snapshot().hud[ids[0]].delve.door;
+      eq(card.id, 'endmarket_gate'); eq(card.minLevel, 30);
+      w.enqueue(ids[1], { t: 'delve_enter', door: 'endmarket_gate' });
+      const ev = w.step();
+      assert(ev.some((e) => e.type === 'door_locked' && e.id === ids[1]), 'a 28 is refused');
+      assert(!String(w.get(ids[1]).zone).includes('#'), 'the 28 stays outside');
+      w.enqueue(ids[0], { t: 'delve_enter', door: 'endmarket_gate' }); w.step();
+      const a = w.get(ids[0]);
+      assert(String(a.zone).startsWith('endmarket_gate#'), `the 30 is in: ${a.zone}`);
+      eq(a.level, 30); eq(a.sync, undefined, 'no sync at the band');
+      assert(!String(w.get(ids[1]).zone).includes('#') && !String(w.get(ids[2]).zone).includes('#'), 'the 28 and the 25 were not taken in');
+      eq(w.get(ids[1]).level, 28, 'never raised'); eq(w.get(ids[2]).level, 25);
+    },
+  },
+  {
+    name: 'wave 10 integrate: the run summary reads dloot: boss pieces (with Illuminated), the Tally, and the other loot of the run once',
+    fn() {
+      const K = killer();
+      const { w, ids, P } = party([['Ash', 'warden', 12]], { systems: [K] });
+      w.enqueue(ids[0], { t: 'delve_enter', door: 'barrow' }); w.step();
+      const zid = P[0].zone;
+      for (const tpl of ['barrow_bellwether', 'barrow_tallywife', 'barrow_reeve']) {
+        const m = w.state.ents.find((e) => e.kind === 'mob' && e.zone === zid && e.template === tpl && !e.dead);
+        K.q.push([m, P[0]]); run(w, 3);
+      }
+      const sm = w.snapshot().hud[ids[0]].delve.summary;
+      const mine = sm.heroes[0];
+      const boss = w.internals.dungeons.lootOf(zid)[ids[0]] || [];
+      assert(boss.length >= 3, `dloot pieces: ${boss.length}`);
+      const bossLines = mine.loot.filter((l) => l.boss);
+      eq(bossLines.length, boss.length, 'every dloot piece once');
+      eq(mine.loot.filter((l) => !l.boss && boss.some((b) => b.item === l.item)).length, 0, 'no boss piece twice');
+      assert(mine.tally && mine.tally.n != null, 'the Tally');
+      assert(mine.best && mine.best.item, 'the best piece');
+      const dm = summaryModel(sm, C, ids[0]);
+      assert(/Tally/.test(dm.heroes[0].note), dm.heroes[0].note);
+    },
+  },
 ];

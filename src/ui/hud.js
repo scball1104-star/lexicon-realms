@@ -471,8 +471,11 @@ export function createHud(env) {
       const party = m.party || [];
       const act = opts.act || null;
       // a party frame: a click targets that friend (heals, Trade, Rez); a dead one shows Dead and the Rez button
+      // wave 10 integrate: on a phone the boss frame (dbosses) is taller than the target frame: the party frames step below it
+      const bf = L.touch && m.target && m.target.bossFight ? bossFrameRect(L) : null;
+      const pdy = bf ? Math.max(0, bf.y + bf.h + 2 - L.party(0).y) : 0;
       party.slice(0, 3).forEach((u, i) => {
-        const r = L.party(i); partyFrame(ctx, r, u, L.touch);
+        const r0 = L.party(i), r = pdy ? { ...r0, y: r0.y + pdy } : r0; partyFrame(ctx, r, u, L.touch);
         regions.push({ rect: r, kind: 'party', id: u.id, ...(act ? { on: () => act.send({ t: 'target', id: u.id }) } : {}) });
         partyExtras(g, ctx, r, u, m.group, regions, act, L.touch);
       });

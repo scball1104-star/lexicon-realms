@@ -139,10 +139,15 @@ export function createDelve(D) {
     if (t === 'loot') {
       const p = get(ev.id), run = p && runOf(p.zone);
       if (!run) return;
+      // wave 10 integrate: a boss's pieces come from dloot (DG.lootOf, read in hudOf); this keeps the rest (chests, packs)
+      const src = ev.from != null ? get(ev.from) : null;
+      if (src && src.kind === 'mob' && src.spawn && src.spawn.boss && DG().lootOf) return;
       const got = lootLines(ev, content.items || {}, content.affixes || null);
       if (got.length) run.loot[ev.id] = [...(run.loot[ev.id] || []), ...got].slice(0, RUN_LOOT_MAX);
       return;
     }
+    // wave 10 integrate: dloot's Tally after each boss kill (the legendary roll's count for this place)
+    if (t === 'dloot' && ev.tally != null) { const run = runOf(ev.zone); if (run) (run.tally = run.tally || {})[ev.id] = { n: ev.tally, sure: ev.sure || null }; return; }
     if (t === 'gold' && ev.source === 'dungeon') { const p = get(ev.id), run = p && runOf(p.zone); if (run) run.gold[ev.id] = (run.gold[ev.id] || 0) + (ev.amount | 0); return; }
     if (t === 'legendary') { const p = get(ev.id), run = p && runOf(p.zone); if (run) moment(run, 'legendary', { hero: ev.id, item: ev.item }); return; }
     if (t === 'rez' && ev.kind === 'done') { const p = get(ev.id), run = p && runOf(p.zone); if (run) moment(run, 'rez', { by: ev.src, hero: ev.id }); return; }
@@ -299,7 +304,13 @@ export function createDelve(D) {
       out.run = { place: run.place, name: place.name || run.place, down: [...run.down], of: (place.bosses || []).length, done: run.done != null };
       if (run.done != null && !run.seen.includes(e.id)) {
         const nm = (id) => run.names[id] || (get(Number(id)) || {}).name || '?';
-        const heroes = Object.keys(run.names).map((id) => ({ id: Number(id), name: run.names[id], loot: [...(run.loot[id] || [])], gold: run.gold[id] || 0,
+        // wave 10 integrate: boss pieces from dloot (named lines, Illuminated, the Tally) first, then the other loot of the run
+        const bossLoot = DG().lootOf ? DG().lootOf(e.zone) : {};
+        const fromBoss = (id) => (bossLoot[id] || []).map((x) => { let name = ((content.items || {})[x.item] || {}).name || x.item; try { name = itemName(content, x); } catch { /* base */ }
+          return { item: x.item, name, rarity: (x.inst && x.inst.rarity) || ((content.items || {})[x.item] || {}).rarity || 'common', illum: !!(x.inst && x.inst.illum), boss: x.from }; });
+        const sumOf = (id) => (DG().lootSummaryOf ? DG().lootSummaryOf(e.zone, Number(id)) : null);
+        const heroes = Object.keys(run.names).map((id) => ({ id: Number(id), name: run.names[id], loot: [...fromBoss(id), ...(run.loot[id] || [])], gold: run.gold[id] || 0,
+          best: (sumOf(id) || {}).best || null, illuminated: (sumOf(id) || {}).illuminated || 0, tally: (run.tally || {})[id] || null,
           falls: run.deaths[id] || 0, sync: (() => { const p = get(Number(id)); return p && p.sync ? { kind: p.sync.kind, to: p.sync.to, from: p.sync.from } : null; })() }));
         out.summary = { place: run.place, name: place.name || run.place, secs: Math.round((run.done - run.t0) / TICK_HZ), resumed: run.resumed || 0,
           bosses: run.bosses.map((b) => ({ template: b.template, id: b.id, name: ((content.mobs || {})[b.template] || {}).name || b.template, secs: b.secs })),

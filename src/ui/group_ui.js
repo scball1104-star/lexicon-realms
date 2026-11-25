@@ -157,7 +157,8 @@ export function readyCheck(g, ctx, L, grp, regions, act) {
   const seatLines = seats.flatMap((t) => g.wrap(t, (rc.boss ? 236 : 200) - 20));
   const w = rc.boss || seats.length ? 240 : 200, rows = rc.answers.length + (grp.seats || []).length;
   const h = 40 + rows * 11 + (seatLines.length ? seatLines.length * g.lh + 4 : 0) + (rc.mine == null && !rc.done ? bh + 6 : 0);
-  const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.floor(L.H * 0.22) : 96;
+  // wave 10 integrate: on a phone the check sits below the target spot, where dbosses' boss frame (12 px taller) is drawn
+  const x = Math.floor((L.W - w) / 2), y = L.touch ? Math.max(Math.floor(L.H * 0.22), L.target ? L.target.y + L.target.h + 16 : 0) : 96;
   g.window(ctx, x, y, w, h, 'std', 'blue', 0.97);
   regions.push({ rect: { x, y, w, h }, kind: 'window', id: 'ready' });
   const title = rc.boss && !rc.done ? `Ready for ${rc.boss.name}?` : 'Ready check';

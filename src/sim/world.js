@@ -189,9 +189,9 @@ function wrap(state, content0, rng, systems) {
   }) : null;
   C.dungeons = DG;
   // wave 10 draid: the raid (src/sim/raid.js): the weekly lockout, Lot Tickets, the Fair Purse, the wing bosses' party rules
-  const RD = combatOn && content.raid && DG ? createRaid({ state, content, emit, rng, get: (id) => index.get(id) || null, add, remove, spawnMob: (spec) => spawnMob(spec),
+  const RAID = combatOn && content.raid && DG ? createRaid({ state, content, emit, rng, get: (id) => index.get(id) || null, add, remove, spawnMob: (spec) => spawnMob(spec),
     bagAdd, combat: () => C.combat, ai: () => C.ai }) : null;
-  C.raid = RD;
+  C.raid = RAID;   // wave 10 integrate: RAID, not RD (wave 9 riddles has RD)
   // ---- group play (src/sim/party.js, src/sim/trade.js): foe scaling, rez, release or wait, quest sharing, ready check,
   // trade and binding. Off without content.party (src/data/party.js).
   const GP = combatOn && content.party ? createParty({ state, content, emit, get: (id) => index.get(id) || null, C, quests: () => QS }) : null;
@@ -240,7 +240,7 @@ function wrap(state, content0, rng, systems) {
     if (combatOn) C.life.extraLoot(mob, p, drop);   // a rare's named item and blue piece; Night at the Stones gear
     if (PF) PF.extraLoot(mob, p, drop);             // professions: meat, world Patterns, dungeon Patterns and materials
     if (GL) GL.extraLoot(mob, p, drop);             // Inscriptions: a glyph about 1 kill in 20
-    if (RD) RD.onKill(mob, p, drop);                 // wave 10 draid: last, so a locked or lone hero's drop is gold only; a Lot Ticket, the Fair Purse
+    if (RAID) RAID.onKill(mob, p, drop);                 // wave 10 draid: last, so a locked or lone hero's drop is gold only; a Lot Ticket, the Fair Purse
     const got = [], pending = [];
     for (const it of drop.items) {
       const n = bagAdd(p, it.item, it.qty, it.inst || null, content);
@@ -574,7 +574,7 @@ function wrap(state, content0, rng, systems) {
       if (combatOn) C.combat.tickWorld();
       if (QS) QS.tick();
       if (WD) WD.tick();                         // word doors: a new copy gets its slab, letters and coffer
-      if (RD) RD.tick();                         // wave 10 draid: the raid bosses' party rules
+      if (RAID) RAID.tick();                         // wave 10 draid: the raid bosses' party rules
       if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
       if (GP) GP.tick();                         // group play: foe scaling, rez casts, death waits, ready checks
       if (DV) DV.tick();                         // wave 10 dflow: call offers run out, the Come cast
@@ -1001,7 +1001,7 @@ function wrap(state, content0, rng, systems) {
     else if (u.kind === 'mana_pct') { if (!e.res || e.res.kind !== 'mana') return invFail(e, cmd, 'no_mana'); C.combat.gainRes(e, 'mana', u.amount * e.res.max); }
     else if (u.kind === 'rest_food') { if (e.inCombat) return invFail(e, cmd, 'combat'); e.restFood = u.amount || 0.1; e.mx = 0; e.my = 0; e.sitting = state.tick; emit({ type: 'sit', id: e.id, food: def.id }); }
     else if (u.kind === 'dispel') { for (const a of [...e.auras]) if (a.def.dispel === (u.dispel || 'poison') && a.def.kind === 'debuff') C.combat.removeAura(e, a, 'dispel'); }
-    else if (RD && u.kind === 'lot_ticket') { const why = RD.useTicket(e, def, u); if (why) return invFail(e, cmd, why); }   // wave 10 draid
+    else if (RAID && u.kind === 'lot_ticket') { const why = RAID.useTicket(e, def, u); if (why) return invFail(e, cmd, why); }   // wave 10 draid
     else if (PF && PF.canUse(u)) { const why = PF.useItem(e, def, u); if (why) return invFail(e, cmd, why); }   // professions: elixirs, food, bandages, Patterns
     else return invFail(e, cmd, 'not_usable');
     if (u.cooldown) e.cd[key] = state.tick + Math.round(u.cooldown * 20);

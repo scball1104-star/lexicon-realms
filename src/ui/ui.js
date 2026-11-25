@@ -52,7 +52,7 @@ import { createNotesUI } from './notes_ui.js';   // wave 9 notes: lantern notes 
 import { createSecondUI } from './second_ui.js';   // wave 9 second: the phone screen's tabs, the PC's Phone chip
 import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
 import { createDlootUI } from './dloot_ui.js';   // wave 10 dloot: the drop's columns, tags, banner and card
-import { createBossHud } from './boss_hud.js';   // wave 10 dbosses: the boss fight call-out
+import { createBossHud, bossFrameRect } from './boss_hud.js';   // wave 10 dbosses: the boss fight call-out
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -520,7 +520,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
         if (st.mirror) looks.drawMirror(ctx, env, regions, t, centred, L);   // the free mirror covers the HUD
         // wave 10 dflow (delve_ui.js): drawn last so nothing on the bar or a badge sits over its cards
         if (m.player && !st.mirror) sizeScope(() => { st.delveUp = delveUi.draw(ctx, L, regions, snap.hud && snap.hud[playerId], snap.entities.find((e) => e.id === playerId), delveItems,
-          !!(st.open.size || st.dialog || st.chest || st.wdoor || st.barPick || st.slotCard || st.emoteRing)); });
+          !!(st.open.size || st.dialog || st.chest || st.wdoor || st.barPick || st.slotCard || st.emoteRing),
+          // wave 10 integrate: the summary waits for dloot's banner and drop card; the chip steps aside for a target or boss frame and the card
+          { summary: !!(dlootUi.S.card || (dlootUi.S.banner && t - dlootUi.S.banner.t0 < 5)), chip: !(m.target || dlootUi.S.card) }); });
       }
     }
     st.regions = regions;
@@ -550,6 +552,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       // above everything, clear of the npc window (CRITIQUE_1 item 20)
       const w = g.textW(st.toast.text) + 16;
       let cx = Math.floor(L.W / 2), ty = L.touch ? L.minHit + 8 : dOrg(L).y + 44;
+      if (L.touch && lastModel && lastModel.target && lastModel.target.bossFight) { const bf = bossFrameRect(L); ty = Math.max(ty, bf.y + bf.h + 4); }   // wave 10 integrate: under the boss frame
       if (st.dialog) { const dr = dialogRect(L); cx = Math.floor((dr.x + dr.w + L.W) / 2); ty = L.touch ? Math.floor(L.H / 2) - 30 : dOrg(L).y + 92; }
       const tx = Math.max(2, Math.min(L.W - w - 2, cx - Math.floor(w / 2)));
       g.window(ctx, tx, ty, w, 18, 'thin', 'slate', 0.95);
