@@ -274,7 +274,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
         ui.act.enter(c.id);
         say(`You joined ${guestHost}'s game.`);
         talk.start(false); talk.setMyName(c && c.name);
-        if (notesNet) { notesNet.met(guestHost); sess.notes(notesNet.offer()); }   // wave 9 notes: this hero's own notes to the friends here
+        if (notesNet) { notesNet.met(guestHost, c && c.name); sess.notes(notesNet.offer(c && c.name)); }   // wave 9 notes: this hero's own notes to the friends here
         nui.setBar([
           compact() ? null : { label: `In ${guestHost}'s game`, id: 'net-bar-room' },
           { label: 'Chat', id: 'net-bar-chat', on: () => talk.openTalk() },

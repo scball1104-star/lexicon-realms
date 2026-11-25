@@ -182,6 +182,7 @@ export const tests = [
       N.met('Ash');
       const mine2 = model.leave({ at: SQ, parts: [['thanks', 'n:Ash']], share: true });
       assert(mine2 && sent.length === 1 && sent[0][0].from === 'Bryn', 'left and offered to friends playing now');
+      eq(N.offer('Bryn').length, 1, 'a guest at welcome names its hero (its snapshot is not there yet)');
       eq(await model.sendLink(mine2), 'shared', 'share sheet');
       assert(shared.url.includes('#note=') && /Bryn left you a note/.test(shared.text), 'link text');
       eq(N.take([{ from: 'Cass', at: SQ, parts: [['say', 's:sorry']], day: localDay() }], 'Cass'), 1, 'a friend\'s note');
