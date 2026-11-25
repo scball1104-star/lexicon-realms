@@ -17,6 +17,7 @@ import { createHostSession, createGuestSession, MAX_PLAYERS } from './session.js
 import { createNetUI } from './netui.js';
 import { emoteFromChat } from '../sim/emotes.js';   // wave 7 anim: /wave /cheer /sit /dance /jump in party chat
 import { readInvite, createDropFlow } from './dropin.js';   // wave 8: drop-in with one link (invite links, watching)
+import { createTalk } from './talk_coop.js';   // wave 8 talk: whispers, mute, remove, lock, watchers read only (docs/NET.md "Talk")
 
 const SUB_TILE = 256;     // sim units per tile (src/sim/constants.js TILE), for placing a guest beside the host
 
@@ -29,6 +30,8 @@ const WHY = {
   full: `That game is full (${MAX_PLAYERS} players).`,
   version: "Your game and your friend's game are different versions. Both of you reload the page, then try again.",
   bad_hero: 'The host could not load your hero.',
+  removed: 'The host removed you from this game.',                       // wave 8 talk (draft)
+  locked: 'The host has locked this game. Ask them to unlock it.',       // wave 8 talk (draft)
 };
 const ENDED = {
   host_left: ['The host ended the game.', 'Your hero is saved on this device with everything you earned.'],
@@ -60,6 +63,10 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     st: { get role() { return role; }, set role(v) { role = v; }, get sess() { return guestSess; }, set sess(v) { guestSess = v; },
       get host() { return guestHost; }, set host(v) { guestHost = v; }, set charId(v) { guestCharId = v; }, get roomCode() { return roomCode; } } });
   const say = (text) => ui.say('party', text);
+  // wave 8 talk (src/net/talk_coop.js): what a typed line means, who hears it, mute, remove, lock, watchers read only
+  const talk = createTalk({ ui, nui, compact, st: { get role() { return role; }, get host() { return hostSess; }, get guest() { return guestSess; },
+    get hostName() { return hostName; }, get hostId() { return hostId; }, get myId() { return guestPid; }, get snap() { return lastSnap; }, refresh: () => hostBar() } });
+  let lastSnap = null;                   // a guest's newest frame (the names a whisper can go to)
 
   // ---------------------------------------------------------------- host
   function spawnGuest(hero) {
@@ -84,12 +91,13 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     sysLog.push({ tick: world.tick, sys: 'party', id: hostId, party });
     hostSess = createHostSession({ world, hostId, hostName, party, room: null, build, spawnGuest, saveOf: (id) => saveState(id), on: {
       join: (g) => { say(`${g.name} joined the party.`); ui.notify(`${g.name} joined.`, 3); hostBar(); },
-      leave: (g, why) => { say(`${g.name} ${why === 'left' ? 'left' : 'dropped out'}.`); hostBar(); },
+      leave: (g, why) => { if (why !== 'kicked') say(`${g.name} ${why === 'left' ? 'left' : 'dropped out'}.`); hostBar(); },   // kicked: talk_coop says it
       watch: () => { ui.notify('A friend is watching your game.', 3); hostBar(); }, unwatch: () => hostBar(),   // drop-in (draft)
-      chat: (from, text) => say(`[Party] ${from}: ${text}`),
+      chat: (from, text, meta) => talk.heard(from, text, meta),
       commandLogged: (id, cmd) => { if (onCommand) onCommand(id, cmd); },
       joinLogged: (tick, spec) => { if (onJoin) onJoin(tick, spec); },
     } });
+    talk.start(true);
     openRoom();                         // sets 'opening' at once, so the panel never flashes the failure text
     hostBar();
     hostPanel();
@@ -113,6 +121,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
       const codeBox = el('div', { id: 'net-room' });
       body.appendChild(codeBox);
       body.appendChild(el('p', { class: 'net-dim', text: `Up to ${MAX_PLAYERS} players. Friends play their own heroes in your world. Keep this tab open while you play.` }));
+      talk.hostBlock(body);               // wave 8 talk: lock the game, watchers talk, the whisper note
       // copy-paste: a friend's join code in, a reply code out
       const det = el('details', { id: 'net-manual-host' });
       det.appendChild(el('summary', { text: 'A friend sent you a join code' }));
@@ -164,7 +173,8 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
       { label: roomState === 'open' ? `Room ${roomCode}` : roomState === 'opening' ? 'Opening room' : 'Room: join codes', id: 'net-bar-room', on: () => hostPanel() },
       roomState === 'open' ? { label: 'Invite', id: 'net-bar-invite', on: () => drop.shareInvite(null) } : null,
       { label: `${n} of ${MAX_PLAYERS}${hostSess && hostSess.watching ? (compact() ? ` +${hostSess.watching}` : `, ${hostSess.watching} watching`) : ''}`, id: 'net-bar-count' },
-      { label: 'Chat', id: 'net-bar-chat', on: () => openChat() },
+      talk.watchButton(),                 // wave 8 talk: only while someone watches (null otherwise)
+      { label: 'Chat', id: 'net-bar-chat', on: () => talk.openTalk() },
       { label: compact() ? 'End' : 'End game', id: 'net-bar-leave', cls: 'net-quiet', on: () => { if (confirmEnd()) endHosting('host_left'); } },
     ]);
   }
@@ -183,7 +193,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     if (hostSess) hostSess.close(reason);
     if (room) room.close();
     if (hostId != null && world.get(hostId)) { world.setParty(hostId, null); sysLog.push({ tick: world.tick, sys: 'party', id: hostId, party: null }); }
-    role = null; hostSess = null; room = null; roomCode = null; roomState = 'off';
+    role = null; hostSess = null; room = null; roomCode = null; roomState = 'off'; talk.stop();
     nui.setBar(null); nui.close(); stopPump();
     if (!quiet) say('You ended the game. Your friends kept everything they earned.');
   }
@@ -244,21 +254,23 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     let sess = null;
     sess = createGuestSession({ link, hero: c ? heroBlob(c) : null, build, watch, on: {
       welcome: (w) => {
-        if (w.watch) { drop.startWatching(sess, w); return; }      // drop-in: a watcher first (no hero)
+        if (w.watch) { drop.startWatching(sess, w); talk.start(false); return; }      // drop-in: a watcher first (no hero)
         c = drop.playerWelcome() || c;                             // a watcher picked a hero: now a player
         guestSess = sess; role = 'guest'; pendingId = w.id; guestPid = w.id; guestLast = sess.lastSave; guestCharId = c.id; guestHost = w.host || 'your friend';
         api.close();
         ui.act.enter(c.id);
         say(`You joined ${guestHost}'s game.`);
+        talk.start(false); talk.setMyName(c && c.name);
         nui.setBar([
           compact() ? null : { label: `In ${guestHost}'s game`, id: 'net-bar-room' },
-          { label: 'Chat', id: 'net-bar-chat', on: () => openChat() },
+          { label: 'Chat', id: 'net-bar-chat', on: () => talk.openTalk() },
           { label: 'Leave', id: 'net-bar-leave', cls: 'net-quiet', on: () => ui.act.logout() },
         ]);
       },
       save: (hero) => { if (guestPid === sess.id) guestLast = hero; if (c) ui.saveHero(c.id, hero); },
       nope: (why) => drop.refused(why),
-      chat: (from, text) => say(`[Party] ${from}: ${text}`),
+      chat: (from, text, meta) => talk.heard(from, text, meta),
+      talk: (on) => talk.watchTalkChanged(on),
       sys: (text) => { say(text); ui.notify(text, 3); },
       end: (reason) => guestEnded(sess, reason, api),
     } });
@@ -282,13 +294,9 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
   }
 
   // ---------------------------------------------------------------- chat (both sides)
-  function openChat() {
+  function openChat(prefill = '') {
     if (!role) return;
-    nui.openChat((text) => {
-      const em = emoteFromChat(text); if (em) { ui.act.send(em); return; }   // an emote, not a chat line
-      if (role === 'host' && hostSess) { const t = hostSess.chat(text); if (t) say(`[Party] ${hostName}: ${t}`); }
-      else if (role === 'guest' && guestSess) guestSess.chat(text);   // the host echoes it back to everyone
-    });
+    talk.openChat(prefill);              // wave 8 talk: /w, /r, /mute, the emotes and plain party lines (src/net/talk_coop.js)
   }
   window.addEventListener('keydown', (ev) => {
     if (!role || (ui.mode !== 'game' && ui.mode !== 'watch') || nui.chatOpen || nui.panelOpen) return;
@@ -328,6 +336,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     get roomState() { return roomState; },
     get kind() { return kind; },
     get watchId() { return drop.follow; },
+    talk,                               // wave 8 talk (drivers and tests)
     get watching() { return drop.watching; },
     sysLog,
     ui: nui,
@@ -348,7 +357,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     beforeStep() { if (hostSess) hostSess.beforeStep(); },
     afterStep(events, snap) { if (hostSess) hostSess.afterStep(events, snap); },
     sendCmds(cmds) { if (guestSess) guestSess.sendCmds(cmds); },
-    nextFrame() { return guestSess ? guestSess.nextFrame() : null; },
+    nextFrame() { const f = guestSess ? guestSess.nextFrame() : null; if (f) lastSnap = f.snap; return f; },
     onLogout(id) {
       // (ui.saveProgress ran just before this with the guest save; from here on that id means nothing on this tab)
       if (role === 'guest') { const s = guestSess; role = null; guestPid = null; guestLast = null; nui.setBar(null); nui.close(); if (s) s.leave(); return true; }
@@ -371,6 +380,7 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
         guestCharId,
         watching: drop.watching, watchId: drop.follow,
         watchers: hostSess ? hostSess.watching : 0,
+        canTalk: guestSess ? guestSess.canTalk : null,   // wave 8 talk
       };
     },
   };

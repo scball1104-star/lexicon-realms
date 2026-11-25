@@ -117,7 +117,8 @@ export const tests = [
     eq(JSON.stringify(emoteFromChat('/sit')), JSON.stringify({ t: 'sit' }), '/sit is the real sit');
     eq(emoteFromChat('wave'), null, 'no slash: chat');
     eq(emoteFromChat('/wave at Bee'), null, 'more words: chat');
-    const coop = fs.readFileSync(new URL('../../src/net/coop.js', import.meta.url), 'utf8');
+    // wave 8 talk: the chat line's commands moved to src/net/talk_coop.js (coop.js calls it)
+    const coop = fs.readFileSync(new URL('../../src/net/coop.js', import.meta.url), 'utf8') + fs.readFileSync(new URL('../../src/net/talk_coop.js', import.meta.url), 'utf8');
     assert(/emoteFromChat\(text\)/.test(coop), 'the party chat box checks it before sending');
   } },
   { name: 'keys: Space jumps and G opens the ring, rebindable, no default key shared; Space still shows talk text first', fn() {

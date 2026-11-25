@@ -129,6 +129,7 @@ async function boot() {
       joinGame: (c) => coop.joinGame(c),
       invite: () => coop.invite(), canInvite: () => !coop.isGuest,   // drop-in with one link (src/net/dropin.js)
       namePlates: () => namePlates(),
+      talkHeads: () => talkHeads(),   // wave 8 talk: where each hero's speech bubble sits (src/ui/chat_ui.js)
       logout: (id) => {
         const wasGuest = coop.onLogout(id);
         if (id != null && !wasGuest) world.removePlayer(id);
@@ -311,6 +312,7 @@ async function boot() {
   function namePlates() {
     const me = heroEnt();
     if (!me || me.party == null) return [];
+    if (renderer.is3d && renderer.stageOk !== false) return [];   // wave 8 talk: 3D already names every other hero (renderer3d drawPlates)
     const out = [];
     const l = renderer.layout;
     for (const e of snap.entities) {
@@ -320,6 +322,22 @@ async function boot() {
       const [x, y] = renderer.worldToHud(a.x, a.y - a.h);
       if (x < -40 || y < -16 || x > l.hudW + 40 || y > l.hudH + 16) continue;
       out.push({ x, y, name: e.name, dead: !!e.dead, id: e.id });
+    }
+    return out;
+  }
+  /** wave 8 talk: every hero's head in the zone on screen, HUD px (speech bubbles; a watcher's view follows the host). */
+  function talkHeads() {
+    const zone = view.zone, out = [];
+    const l = renderer.layout;
+    const is3d = !!(renderer.is3d && renderer.stageOk !== false);
+    const me = heroEnt();
+    for (const e of snap.entities) {
+      if (e.kind !== 'player' || e.zone !== zone) continue;
+      const a = renderer.anchorOf(e.id);
+      if (!a) continue;
+      const [x, y] = renderer.worldToHud(a.x, a.y - a.h);
+      if (x < -40 || y < -16 || x > l.hudW + 40 || y > l.hudH + 40) continue;
+      out.push({ id: e.id, name: e.name, x, y, me: e.id === playerId, plate: e.id !== playerId && (is3d || (me && me.party != null && e.party === me.party)), is3d });
     }
     return out;
   }

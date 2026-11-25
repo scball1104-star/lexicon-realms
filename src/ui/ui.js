@@ -42,6 +42,7 @@ import { applySkin, skinFromOptions, textSizeFrom } from './skin.js';   // wave 
 import { createTalkUI } from './talk_ui.js';   // wave 6 quest scenes: the talk panel and flourishes (view.talk)
 import { createOnboard } from './onboard.js';   // wave 7 onboarding: by-doing hints for a new hero (Help turns them off)
 import { createEmoteUI } from './emote_ui.js';   // wave 7 anim: Space jumps, the G emote ring, the portrait long press
+import { createChatUI } from './chat_ui.js';   // wave 8 talk: chat window, bubbles, Say sheet, a friend's card (co-op only)
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -92,13 +93,14 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   const toast = (text, secs = 2.5) => { st.toast = { text, until: st.now + secs }; };
   // an HTML panel over the canvas (src/net/netui.js, data-overlay) owns its own keys and clicks
   const overlayEv = (ev) => !!(ev && ev.target && ev.target.closest && ev.target.closest('[data-overlay]'));
-  const say = (ch, text) => { log.push({ ch, text }); if (log.length > 200) log.splice(0, log.length - 200); st.chatScroll = 0; };
+  const say = (ch, text, extra = null) => { log.push(extra ? { ch, text, ...extra } : { ch, text }); if (log.length > 200) log.splice(0, log.length - 200); st.chatScroll = 0; };
   const localOnly = () => !!demoExtra || !(lastSnap && playerId != null && (lastSnap.entities.find((e) => e.id === playerId) || {}).talents);
   const send = (cmd) => { if (hooks.command) hooks.command(cmd); };
   const uiSnd = createUiSounds((k) => { if (hooks.sound) hooks.sound(k); });
   const talkUi = createTalkUI({ g, zones, zoneNames, hooks, options: () => options });
   const onb = createOnboard({ g, store, options: () => options, hooks });   // wave 7 onboarding (src/ui/onboard.js)
   const emoteUi = createEmoteUI({ g, st, send, say: (ch, t) => say(ch, t) });
+  const chatUi = createChatUI({ g, st, log });   // wave 8 talk (coop.js turns it on and feeds it)
 
   // ---- the action surface menus and screens call
   const act = {
@@ -413,7 +415,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'create') looks.drawCreate(ctx, env, regions, t, centred, L);
-    else if (st.mode === 'watch') { /* drop-in watcher (src/net/dropin.js): the world only, the co-op bar is HTML */ }
+    else if (st.mode === 'watch') chatUi.drawWatch(ctx, L, regions, hooks.talkHeads ? hooks.talkHeads() : []);   // drop-in watcher: the world and the chat (wave 8 talk)
     else {
       let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones });
       if (demoExtra) m = applyDemo(m);
@@ -423,12 +425,14 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       talkUi.drawUnder(ctx, L, t);
       if (m.player && !m.player.dead) drawGoalPointer(ctx, m, L, t);
       if (m.player && hooks.namePlates) drawNamePlates(ctx, hooks.namePlates());
+      if (m.player) chatUi.drawUnder(ctx, L, hooks.talkHeads ? hooks.talkHeads() : []);   // wave 8 talk: speech bubbles, under the HUD
       if (m.player && hooks.worldMarks) drawWorldMarks(ctx, hooks.worldMarks().filter((k) => k.id !== talkUi.hiddenMark(st)), t, regions, L);
       const fade = m.player && hooks.unitRects ? hooks.unitRects() : [];
-      regions.push(...hud.draw(ctx, m, L, st, { log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
+      regions.push(...hud.draw(ctx, m, L, st, { log: chatUi.active ? [] : log, fade, act, keyLabels: Array.from({ length: BAR.n }, (_, i) => keyLabel(effectiveBinds(options.binds)[`slot${i + 1}`])) }));
       st.bossUp = !!(m.player && bossCardDraw && bossCardDraw(ctx, g, L, t));   // wave 6: the boss intro card (boss_card.js, set by main.js); toasts wait under it
       if (m.player) prof.drawHud(ctx, env, m, L, regions);     // professions: the gather / craft bar, the node card, tracking
       if (m.player) glyphs.drawHud(ctx, env, m, L, regions);   // Inscriptions: the Margins button
+      if (m.player) chatUi.draw(ctx, L, regions, m);           // wave 8 talk: the chat window (in co-op), Say sheet, card
       if (m.player && st.dialog) {
         // walk away (or change zone, or die) and the npc window closes
         const me = snap.entities.find((e) => e.id === playerId), n = snap.entities.find((e) => e.id === st.dialog.ent);
@@ -756,6 +760,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       return false;
     }
     if (r.drag) { st.drag = r; r.drag(x); return true; }
+    if (button === 2 && chatUi.rightClick(r)) return true;   // wave 8 talk: right click a friend's party frame: their card
     if (r.on) { r.on(button); uiSnd.press(r.label); return true; }
     switch (r.kind) {
       case 'slot':
@@ -1172,11 +1177,14 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       // a skill out of a fight (its slot fires on release then, so this hold cast nothing): Move, Take off bar
       else if (r && r.kind === 'slot' && r.ability && r.tapOnly) st.slotCard = { slot: r.slot, ability: r.ability };
       else if (emoteUi.longPress(r)) st.longTip = null;   // wave 7 anim: a long press on your own portrait opens the emote ring
+      else if (chatUi.longPress(r)) st.longTip = null;    // wave 8 talk: a long press on a friend's party frame opens their card
     },
     setPressed(id) { st.pressed = id; },
     /** Quest scenes: view.talk for the 3D renderer (talk_ui.js view), and the talk state for drivers. */
     talkView: (snap) => (st.mode === 'game' ? talkUi.view(st, snap, playerId, st.metrics.touch) : null),
     talk: talkUi,
+    chat: chatUi,   // wave 8 talk (src/ui/chat_ui.js): coop.js feeds it
+    openEmotes: () => emoteUi.open(true),   // wave 8 talk: the Say sheet's Emotes button
     onboard: onb,   // wave 7 onboarding hints (drivers and tests)
     /** True when a HUD point belongs to the UI (a region, an open window, or a non-game screen). */
     owns(x, y) { return st.mode !== 'game' || !!topRegion(x, y); },
