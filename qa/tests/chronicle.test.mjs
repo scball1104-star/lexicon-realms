@@ -7,7 +7,7 @@ import { createWorld } from '../../src/sim/world.js';
 import { buildContent } from '../../src/data/maps/index.js';
 import { placeAt } from '../../src/data/maps/compose.js';
 import { framesFor, createFrameState, applyFrame } from '../../src/net/frames.js';
-import { createJournal, writeStory, packLink, readLink, linkPayload, knownNames, toRow, fromRow, WORDS, LINES, SHOTS, DELAY, NAME_OK } from '../../src/chronicle/journal.js';
+import { createJournal, writeStory, packLink, readLink, linkPayload, knownNames, toRow, fromRow, WORDS, LINES, SHOTS, DELAY, NAME_OK, dateText } from '../../src/chronicle/journal.js';
 import { createChronicleStore, memoryBackend, KEEP } from '../../src/chronicle/store.js';
 
 const C0 = buildContent();
@@ -110,7 +110,8 @@ export const tests = [
       eq(JSON.stringify(a), JSON.stringify(b), 'the same night reads the same');
       const all = [a.title, a.sub, a.open, a.close, ...a.also, ...a.chapters.map((c) => c.text)];
       assert(!all.some((s) => /\{\w+\}/.test(s)), 'every slot filled');
-      assert(/25 November 2026, 132 minutes/.test(a.sub), a.sub);
+      // the date line is the player's own local day, so the test reads it in whatever zone it runs in (CI runs in UTC)
+      assert([S.startMs, S.startMs + 132 * 60000].some((ms) => a.sub.startsWith(`${dateText(ms)}, 132 minutes`)), a.sub);
       const words = JSON.stringify([WORDS, LINES, a]);
       assert(!words.includes('—'), 'no em dash in any word the game writes');
       const back = fromRow(toRow(S, { endMs: S.startMs + 1000, openPlace: 'x', finished: true }));
