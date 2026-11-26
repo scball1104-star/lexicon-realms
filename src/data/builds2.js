@@ -20,6 +20,7 @@ const pct = (x) => Math.round(x * 1e6) / 1e6;
 const lv = (base, perLevel) => ({ base, perLevel });
 const mod = (stat, op, extra = {}) => ({ stat, ...op, ...extra });
 const abl = (id, path, op) => ({ id, path, ...op });
+const R8 = { min: 0, max: 128 };
 import { WARDEN, WARDEN_ABILITIES } from './builds2_warden.js';
 import { SCRIBE, SCRIBE_ABILITIES } from './builds2_scribe.js';
 import { WAYFINDER, WAYFINDER_ABILITIES } from './builds2_wayfinder.js';
@@ -61,7 +62,7 @@ export const SKILL_PICKS = {
     { level: 1, options: ['mender_brand', 'mender_warding_word'], axis: 'Drain vs Shield', ready: true },
     { level: 3, options: ['mender_chorus', 'mender_steady_name'], axis: 'Area vs Single heal over time', ready: true },
     { level: 6, options: ['mender_blessing_stone', 'mender_blessing_flame'], axis: 'Armor boost vs Attack boost', ready: true },
-    { level: 14, options: ['mender_purify', 'mender_sunlance'], axis: 'Support vs Burst', ready: false },
+    { level: 14, options: ['mender_purify', 'mender_sunlance'], axis: 'Support vs Burst', ready: true },
   ],
   scribe: [
     { level: 1, options: ['scribe_full_stop', 'scribe_underline'], axis: 'Control vs Over time', ready: true },
@@ -129,7 +130,28 @@ const MENDER_SIGNATURE_ABILITIES = {
   },
 };
 
+// The Mender's level 14 pick (BUILDS_2 4.2): Support vs Burst. Purify strips one harmful effect (hard control first) and
+// heals `10 + 4 L + 0.4 SP`; Sunlance is a 3.0 s light lance for `20 + 9 L + 1.2 SP` (design numbers, not tuned yet).
+const MENDER_PICK14_ABILITIES = {
+  mender_purify: {
+    id: 'mender_purify', name: 'Purify', icon: 'icon_light', cls: 'mender', learnLevel: 14, school: 'light',
+    cost: { kind: 'mana', amount: lv(8, 1.6) }, castTime: 0, cooldown: 8, gcd: true, range: R8, target: 'ally', threatMult: 1,
+    effects: [
+      { type: 'dispel', key: 'cleanse', max: 1, kinds: ['magic', 'poison', 'bleed'], flags: ['stun', 'silence', 'root', 'slow'] },
+      { type: 'heal', key: 'heal', amount: lv(10, 4), coef: { stat: 'sp', k: 0.4 }, canCrit: true },
+    ],
+    text: 'Lift one harmful effect from a friend (or yourself), a stun, silence or root first, and heal them for {heal}.',
+  },
+  mender_sunlance: {
+    id: 'mender_sunlance', name: 'Sunlance', icon: 'icon16_light', cls: 'mender', learnLevel: 14, school: 'light',
+    cost: { kind: 'mana', amount: lv(14, 2.8) }, castTime: 3.0, cooldown: 6, gcd: true, range: R8, target: 'enemy', threatMult: 1,
+    effects: [{ type: 'damage', key: 'hit', amount: lv(20, 9), coef: { stat: 'sp', k: 1.2 }, school: 'light', canCrit: true }],
+    text: 'Gather the dawn for 3 s, then drive a lance of light through the foe for {dmg}.',
+  },
+};
+
 export const B2_ABILITIES = {
+  ...MENDER_PICK14_ABILITIES,
   ...MENDER_SIGNATURE_ABILITIES,
   ...WARDEN_ABILITIES, ...SCRIBE_ABILITIES, ...WAYFINDER_ABILITIES, ...INKBLADE_ABILITIES, ...CAP30_ABILITIES,
   mender_blessing_stone: BLESS('mender_blessing_stone', 'Blessing of Stone', 'icon_protect', [{ stat: 'armor', mul: 1.2 }],
@@ -275,15 +297,15 @@ const P = (track, slug) => `b2_mender_${track}_${slug}`;
 const rep = (id, n) => Array.from({ length: n }, () => id);
 const MENDER_BUILDS = [
   { id: 'tidehammer', name: 'Tidehammer', line: 'Spin hammers through packs; healing power fuels the damage.', tracks: ['sunfire', 'bell', 'hearth'], signature: 'mender_tolling_hammers', signatures: ['mender_tolling_hammers', 'mender_riptide_step', 'mender_kindred_light'],
-    picks: { 1: 'mender_brand', 3: 'mender_chorus', 6: 'mender_blessing_stone' },
+    picks: { 1: 'mender_brand', 3: 'mender_chorus', 6: 'mender_blessing_stone', 14: 'mender_sunlance' },
     path: [...rep(P('bell', 'clear_voice'), 2), ...rep(P('hearth', 'gentle_hands'), 2), ...rep(P('bell', 'toll'), 2), P('bell', 'wide_peal'),
       ...rep(P('sunfire', 'kindling'), 2), ...rep(P('sunfire', 'flare'), 2), P('sunfire', 'zealot'), P('sunfire', 'kindling'), ...rep(P('sunfire', 'sunburst'), 2)] },
   { id: 'lamplighter', name: 'Lamplighter', line: 'Brand drains the foe while you outlast it; slow and nearly unkillable.', tracks: ['tide', 'dawnbrand', 'wardlight'], signature: 'mender_kindred_light', signatures: ['mender_kindred_light', 'mender_tolling_hammers', 'mender_riptide_step'],
-    picks: { 1: 'mender_brand', 3: 'mender_steady_name', 6: 'mender_blessing_stone' },
+    picks: { 1: 'mender_brand', 3: 'mender_steady_name', 6: 'mender_blessing_stone', 14: 'mender_purify' },
     path: [...rep(P('tide', 'deep_well'), 2), ...rep(P('tide', 'long_vigil'), 2), P('wardlight', 'steadfast_ward'), ...rep(P('dawnbrand', 'searing_name'), 2),
       ...rep(P('dawnbrand', 'bright_drain'), 2), P('tide', 'undertow'), P('dawnbrand', 'pure_light'), P('wardlight', 'steadfast_ward'), P('tide', 'deep_well'), ...rep(P('tide', 'ebb'), 2)] },
   { id: 'battle_mender', name: 'Battle Mender', line: 'A cloth brawler with a rod who heals off her own hits.', tracks: ['dawnbrand', 'wardlight', 'hearth'], signature: 'mender_riptide_step', signatures: ['mender_riptide_step', 'mender_tolling_hammers', 'mender_kindred_light'],
-    picks: { 1: 'mender_brand', 3: 'mender_steady_name', 6: 'mender_blessing_stone' }, melee: true,
+    picks: { 1: 'mender_brand', 3: 'mender_steady_name', 6: 'mender_blessing_stone', 14: 'mender_purify' }, melee: true,
     path: [...rep(P('wardlight', 'steadfast_ward'), 2), ...rep(P('wardlight', 'blessed_cloth'), 2), ...rep(P('dawnbrand', 'searing_name'), 2),
       ...rep(P('dawnbrand', 'bright_drain'), 2), P('wardlight', 'tideplate'), P('dawnbrand', 'bell_and_rod'),
       ...rep(P('hearth', 'gentle_hands'), 2), ...rep(P('hearth', 'quick_words'), 2), P('hearth', 'self_kept')] },

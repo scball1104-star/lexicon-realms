@@ -9,6 +9,8 @@ import { createWorld } from '../../src/sim/index.js';
 import { buildContent } from '../../src/data/maps/index.js';
 import { BUILDS2, SKILL_PICKS, B2_ABILITIES } from '../../src/data/builds2.js';
 import { ABILITIES } from '../../src/data/abilities.js';
+import { SKILL_POWERS } from '../../src/data/legendary_powers.js';
+import { createData } from '../../src/sim/data.js';
 
 const CLS4 = ['warden', 'scribe', 'wayfinder', 'inkblade'];
 const SUB = 16, TILE = 256;
@@ -755,6 +757,58 @@ T('skill bar: every named build at level 15 (picks, signature, path) has every s
     eq(off.join(','), '', `${cls} ${b.id}: every known skill on the bar (${p.known.length} known)`);
     if (p.known.length >= 7) assert(p.bar.length >= 7, `${cls} ${b.id}: 7 or more skills, all on the bar`);
   }
+});
+
+// ------------------------------------------------------------------------------------------------ the Mender's level 14 pick
+T('Mender level 14 pick: Purify or Sunlance is ready, offered at 14, and the taken one goes on the bar', () => {
+  const pk = SKILL_PICKS.mender.find((x) => x.level === 14);
+  assert(pk && pk.ready, 'the level 14 pick is ready');
+  for (const id of pk.options) { assert(B2_ABILITIES[id], `${id} built`); assert(!/\u2014/.test(B2_ABILITIES[id].text), `no em dash in ${id}`); }
+  for (const id of pk.options) {
+    const { p, C } = H('mender', { level: 14 });
+    const open = C.b2.picksOpen(p).find((x) => x.level === 14 && !x.signature);
+    assert(open && open.options.includes(id), 'the level 14 pick is open');
+    assert(C.b2.pick(p, { level: 14, ability: id }), `${id} taken`);
+    assert(p.known.includes(id) && p.bar.includes(id), `${id} known and on the bar`);
+  }
+});
+
+T('Purify: lifts one harmful effect (a root before a slow or a poison), leaves the rest, and heals', () => {
+  const h = H('mender', { known: ['mender_purify'], mobs: [['brute_15', 20, 15]] });
+  const p = h.p;
+  const put = (def) => h.C.combat.applyAura(h.m, p, def);
+  put({ id: 't_slow', name: 'Slow', icon: 'icon_haste', kind: 'debuff', duration: 20, flags: ['slow'], mods: [{ stat: 'slow', add: 0.3 }] });
+  put({ id: 't_root', name: 'Root', icon: 'icon_stun', kind: 'debuff', duration: 20, flags: ['root'] });
+  put({ id: 't_poison', name: 'Poison', icon: 'icon_poison', kind: 'debuff', dispel: 'poison', duration: 20 });
+  p.hp = Math.floor(p.hpMax / 2);
+  const ev = castDone(h.w, h.pid, 'mender_purify', p.id);
+  assert(!aura(p, 't_root'), 'the root (hard control) goes first');
+  assert(aura(p, 't_slow') && aura(p, 't_poison'), 'only one effect is lifted');
+  assert(ofType(ev, 'heal', (e) => e.dst === p.id && e.ability === 'mender_purify').length === 1, 'and a heal');
+});
+
+T('Sunlance: a 3 s cast that hits once, harder than a Kindle', () => {
+  const h = H('mender', { known: ['mender_sunlance'], mobs: [['dummy_15', 16, 15]] });
+  const ev = castDone(h.w, h.pid, 'mender_sunlance', h.m.id);
+  const hits = dmgTo(ev, h.m.id, (e) => e.ability === 'mender_sunlance');
+  eq(hits.length, 1, 'Sunlance lands once');
+  const h2 = H('mender', { known: [], mobs: [['dummy_15', 16, 15]] });
+  const ev2 = castDone(h2.w, h2.pid, 'mender_kindle', h2.m.id); ev2.push(...stepN(h2.w, 40));
+  const k = dmgTo(ev2, h2.m.id, (e) => e.ability === 'mender_kindle' && !e.crit);
+  if (!k.length) return;   // the Kindle crit: nothing fair to compare
+  assert(hits[0].amount + (hits[0].absorbed || 0) > 1.7 * (k[0].amount + (k[0].absorbed || 0)), `Sunlance ${hits[0].amount} vs Kindle ${k[0].amount}`);
+});
+
+T('Legendary skill powers: a worn power with modAbility changes the Mender skill (The Tolling Rod: 5 hammers, 1.5x reach); off when not worn', () => {
+  const h = H('mender', { known: ['mender_tolling_hammers'] });
+  const D = createData({ ...h.C.content, items: { ...(h.C.content.items || {}), qa_tolling_rod: { id: 'qa_tolling_rod', kind: 'weapon', rarity: 'legendary', level: 20, power: SKILL_POWERS.tolling_rod } } });
+  const base = D.ability(h.p, 'mender_tolling_hammers').effects[0].object;
+  h.p.powers = ['qa_tolling_rod'];
+  const o = D.ability(h.p, 'mender_tolling_hammers').effects[0].object;
+  eq(o.hammers, 5, 'five hammers'); near(o.reach, base.reach * 1.5, 0.01, 'half again as far');
+  h.p.powers = [];
+  eq(D.ability(h.p, 'mender_tolling_hammers').effects[0].object.hammers, base.hammers, 'back to three when taken off');
+  assert(!/\u2014/.test(SKILL_POWERS.tolling_rod.text), 'no em dash');
 });
 
 export { tests };

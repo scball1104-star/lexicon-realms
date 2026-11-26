@@ -26,6 +26,7 @@ export function createData(content) {
     const t = e.talents || {};
     let key = Object.keys(t).sort().map((k) => `${k}:${t[k]}`).join(',');
     if (e.sets) key += `|sets|${Object.keys(e.sets).sort().map((k) => `${k}:${e.sets[k]}`).join(',')}`;   // set bonuses (dungeons)
+    if (e.powers && e.powers.length) key += `|pw|${e.powers.join(',')}`;   // legendary powers that change a skill (modAbility)
     const pas = passivesKnown(e);
     if (pas.length) key += `|pas|${pas.join(',')}`;
     if (!e.b2 || !e.build) return key;
@@ -81,6 +82,12 @@ export function createData(content) {
         for (const m of fx.mods || []) c.mods.push({ ...m, src: `${sid}_${need}` });
         for (const p of fx.procs || []) c.procs.push({ ...p, src: `${sid}_${need}` });
       }
+    }
+    // legendary item powers that change a skill (BUILDS_2 6.3): `modAbility` on the worn item's power, class-gated by `cls`
+    for (const iid of e.powers || []) {
+      const pw = ((content.items || {})[iid] || {}).power;
+      if (!pw || !pw.modAbility || (pw.cls && pw.cls !== e.cls)) continue;
+      for (const p of pw.modAbility) (c.patches[p.id] = c.patches[p.id] || []).push(p);
     }
     cache.set(e.id, c);
     return c;
