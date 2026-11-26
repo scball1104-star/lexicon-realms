@@ -6,7 +6,7 @@
 // The story: a library grew inside the Great Willow's roots. Something down in the willow's heart has started eating the
 // names out of the books: the Archivore, a starved keeper-beast grown huge on them. Its bookmites strip the shelves, the
 // reading tomes have woken, the shelves walk. At the bottom of it all is a page in a cold hand with a list of names, and
-// the root stair up to Willowmere. Text is original. No em dashes.
+// the root stair up to Willowmere. Ottilie is the locked name of the Head Archivist (WORLD_2's Iris stays in Willowmere). Text is original. No em dashes.
 import { MOBS, MOB_SPRITES, mobStats } from './mobs.js';
 import { makeGear } from './rares.js';
 import { REALMS2_START } from './start_realms2.js';   // wave 3: Emberpeak (the Warden), Valewyn (the Mender)

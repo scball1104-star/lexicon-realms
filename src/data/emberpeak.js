@@ -8,7 +8,7 @@
 // old furnace golems to take the town. His furnace light shows from everywhere. The Gate Watch holds the Ember Gate,
 // the only pass. At the end of it all is a page in a cold hand with a list of names, and the ore cart down the mountain
 // to Willowmere. Names follow WORLD_2, except Corwin (WORLD_2's young smith is Garrick, and Willowmere already has its
-// Garrick): a draft. Text is original. No em dashes.
+// Garrick). Corwin is the locked name. Text is original. No em dashes.
 import { MOBS, MOB_SPRITES, MOB_ABILITIES, mobStats } from './mobs.js';
 import { makeGear } from './rares.js';
 

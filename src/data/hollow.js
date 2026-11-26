@@ -6,14 +6,14 @@
 // town's name and locked it in a mirror. His grey watchmen walk the streets with lanterns and enforce a curfew; the
 // townsfolk who forgot too much have turned faceless. Stay out of the lantern light, steal the mirror keys, get the
 // mayor to the bell tower, break the mirror. Behind it, a page in a cold hand with a list of names, and the Fading Road
-// west out of the fog to Willowmere. Text is original. No em dashes.
+// west out of the fog to Willowmere. Corvin (id nh_corvin) is the locked name of the first teacher. Text is original. No em dashes.
 import { MOBS, MOB_SPRITES, mobStats } from './mobs.js';
 import { makeGear } from './rares.js';
 
 /** The Inkblade's start realm (the default on character creation; src/data/rootbound.js START_REALMS lists it). */
 export const NH_START = Object.freeze({ zone: 'hollow', name: 'The Nameless Hollow', x: 100, y: 194, lantern: { zone: 'hollow', id: 'nh_blank_sign', x: 100, y: 194 }, home: 'blank_sign',
   line: 'A town in fog whose name was stolen. The Inkblade\'s first home.',
-  welcome: 'Jinx of the rooftops has a word for you: look for the gold ! over his head.' });
+  welcome: 'Corvin of the rooftops has a word for you: look for the gold ! over his head.' });
 
 // ---------------------------------------------------------------- foe abilities (merged into content.mobAbilities)
 const veil = (id) => ({ type: 'aura', to: 'self', aura: { id, name: 'Mirror Veil', kind: 'buff', duration: 6, flags: ['untargetable'] } });
@@ -97,7 +97,7 @@ export const NH_RARE_SPAWN = { zone: 'hollow', mob: NH_RARE.id, level: NH_RARE.l
 
 // ---------------------------------------------------------------- people
 export const NH_NPCS = {
-  nh_corvin: { id: 'nh_corvin', name: 'Jinx', sprite: 'npc_sloe', title: 'of the rooftops', faction: 'friendly', roles: ['quest', 'trainer'], vendor: null, trainer: { cls: 'inkblade' }, innkeeper: false,
+  nh_corvin: { id: 'nh_corvin', name: 'Corvin', sprite: 'npc_sloe', title: 'of the rooftops', faction: 'friendly', roles: ['quest', 'trainer'], vendor: null, trainer: { cls: 'inkblade' }, innkeeper: false,
     talk: ['Stay off the streets. That is the first lesson and most days the only one.', 'A lantern only sees what is in front of it. Be beside it. Be behind it. Never be in front of it.', 'I had a name for this town once. I can feel the shape of it, like a missing tooth.'] },
   nh_vessa: { id: 'nh_vessa', name: 'Vessa', sprite: 'npc_shopkeeper', title: 'Fence', faction: 'friendly', roles: ['quest', 'vendor'], innkeeper: false, trainer: null,
     vendor: { items: [{ item: 'potion' }, { item: 'ether' }, { item: 'honey_roll' }, { item: 'antidote' }, { item: 'travel_satchel' },
@@ -106,7 +106,7 @@ export const NH_NPCS = {
   nh_elian: { id: 'nh_elian', name: 'Mayor Elian', sprite: 'npc_elder', title: 'Mayor of the Hollow', faction: 'friendly', roles: ['quest'], vendor: null, trainer: null, innkeeper: false,
     talk: ['I am the mayor of... of... It is on the tip of my tongue. I hate this.', 'I gave a speech last week. Wonderful speech. I could not say where I was the mayor of. Nobody clapped.'] },
   nh_nim: { id: 'nh_nim', name: 'Nim', sprite: 'npc_child_a', title: "the Lamplighter's Girl", faction: 'friendly', roles: ['quest'], vendor: null, trainer: null, innkeeper: false,
-    talk: ['The watchmen took Pa\'s lanterns. Now they carry them round and nobody is allowed out.', 'You can walk right past a watchman if you stay out of his light. I do it all the time. Do not tell Jinx.'] },
+    talk: ['The watchmen took Pa\'s lanterns. Now they carry them round and nobody is allowed out.', 'You can walk right past a watchman if you stay out of his light. I do it all the time. Do not tell Corvin.'] },
   nh_ida: { id: 'nh_ida', name: 'Ida', sprite: 'npc_bellkeeper', title: 'Bellringer', faction: 'friendly', roles: ['quest'], vendor: null, trainer: null, innkeeper: false,
     talk: ['A bell rings the name of its town. Ours has nothing to ring.', 'Bring the mayor up here and I will make this old bell shout.'] },
   // the mayor on the walk to the bell tower ("Names for the Mayor"): the escort
@@ -125,7 +125,7 @@ const qi = (id, name, text, icon = 'icon_scroll') => Object.freeze({ id, name, r
 export const NH_ITEMS = {
   nh_keepsake: qi('nh_keepsake', 'Forgotten Keepsake', 'A ring, a button, a child\'s drawing. Somebody loved this once and cannot remember why.', 'icon_key'),
   nh_mirror_key: qi('nh_mirror_key', 'Mirror Key', 'A key of silvered glass. In it, your face looks back at you a moment too late.', 'icon_key'),
-  nh_written_list: qi('nh_written_list', 'The Written List', 'A page from behind the Steward\'s mirror, in a cold, careful hand: a list of names, and at the bottom, more names. Jinx says Elder Mael must see it.'),
+  nh_written_list: qi('nh_written_list', 'The Written List', 'A page from behind the Steward\'s mirror, in a cold, careful hand: a list of names, and at the bottom, more names. Corvin says Elder Mael must see it.'),
   tallow_toms_wick: rareItem,
 };
 const g = (id, name, slot, type, ilvl, stats) => { NH_ITEMS[id] = makeGear(id, name, slot, type, ilvl, 'magic', stats, { reward: true }); };
@@ -260,7 +260,7 @@ export const NH_QUESTS = {
     objectives: [{ kind: 'kill', mob: 'nh_steward', count: 1, where: [at(506, 194, 8)], label: 'The Faceless Steward' }],
     rewards: { xp: 1060, gold: 33, choice: ['stewards_last_face', 'mirror_shard_greaves', 'fading_road_boots'] },
     text: {
-      offer: 'The Steward waits in the Court of Mirrors, east of the garden. When he is hurt he splits into reflections and hides among them. The reflections have no shadow: strike them down, and the real one has nowhere to hide. Then come back to Jinx, and let us find out what this town is called.',
+      offer: 'The Steward waits in the Court of Mirrors, east of the garden. When he is hurt he splits into reflections and hides among them. The reflections have no shadow: strike them down, and the real one has nowhere to hide. Then come back to Corvin, and let us find out what this town is called.',
       progress: 'The Court of Mirrors. Break the reflections, then the Steward.',
       complete: 'Listen. Listen! The bell. Hollowmere. HOLLOWMERE. Every sign in town just filled in at once. And this was behind the Steward\'s mirror: a page. A list of names in a cold hand. And at the bottom, more names.',
     } }),
@@ -272,7 +272,7 @@ export const NH_QUESTS = {
     text: {
       offer: 'The fog is lifting off the Fading Road, west out of the Blank Sign quarter. For the first time in years it goes somewhere: to Willowmere. Take the list to Elder Mael at the well there. Somebody is writing names down, and somebody stole ours. The Blank Sign keeps your bed. Well. The Hollowmere Arms, now. And the kites will bring you home.',
       progress: 'West down the Fading Road, out of the fog, to Willowmere. Mael is at the well.',
-      complete: 'Out of the fog, are you? Jinx\'s mark. Let me see. Names. Cold hand, careful hand. I have seen this hand before, on another page, from another corner of the world. Sit. This is going to take some telling.',
+      complete: 'Out of the fog, are you? Corvin\'s mark. Let me see. Names. Cold hand, careful hand. I have seen this hand before, on another page, from another corner of the world. Sit. This is going to take some telling.',
     } }),
 };
 export const NH_QUEST_ORDER = Object.keys(NH_QUESTS);

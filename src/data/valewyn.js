@@ -6,8 +6,8 @@
 // The story: the Brine Widow drowned in her own keep, and her grief keeps raising the lake. Every three minutes the tide
 // comes in over the old streets and the drowned walk up out of them. The Tide Chapel bandages whoever the water
 // strands. At the end of it all is a page in a cold hand with a list of names, and Maren's ferry up to Willowmere.
-// Names follow WORLD_2 except Maren and Tilly (WORLD_2's Nella and Lark: Willowmere already has its Nella and Lark): a
-// draft. Text is original. No em dashes.
+// Names follow WORLD_2 except Maren and Tilly (WORLD_2's Nella and Lark: Willowmere already has its Nella and Lark).
+// Maren and Tilly are the locked names. Text is original. No em dashes.
 import { MOBS, MOB_SPRITES, MOB_ABILITIES, mobStats } from './mobs.js';
 import { makeGear } from './rares.js';
 
