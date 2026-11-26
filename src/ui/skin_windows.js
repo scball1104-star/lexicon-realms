@@ -288,7 +288,8 @@ export function drawCharacterSkin(ctx, env, m, st, regions, act, sk) {
   g.text(ctx, `Level ${p.level} ${p.clsName}`, r.x + 48, r.y + 42, 'gray', { large: big });
   const xpw = 120, gxp = r.x + r.w - 10 - xpw;
   if (p.xpToLevel) {
-    g.text(ctx, `${Number(p.xp || 0).toLocaleString('en-US')} / ${Number(p.xpToLevel).toLocaleString('en-US')} XP`, gxp + xpw, r.y + 27, 'violet', { align: 'right' });
+    const capLbl = p.renown ? `Renown ${p.renown.level}` : 'XP';
+    g.text(ctx, `${Number(p.xp || 0).toLocaleString('en-US')} / ${Number(p.xpToLevel).toLocaleString('en-US')} ${capLbl}`, gxp + xpw, r.y + 27, 'violet', { align: 'right' });
     g.gauge(ctx, gxp, r.y + 40, xpw, Math.min(1, (p.xp || 0) / p.xpToLevel), 'exp', true);
   }
   g.icon(ctx, 'icon_gold', gxp + xpw - g.textW(`${Number(m.gold).toLocaleString('en-US')} gold`, big) - 14, r.y + 49 + (big ? 3 : 0));
@@ -398,6 +399,24 @@ export function drawCharacterSkin(ctx, env, m, st, regions, act, sk) {
   if (d && (d.ap != null || d.sp != null || d.crit != null)) {
     y += 3; head('Combat');
     if (d.ap != null) row('Attack power', d.ap); if (d.sp != null) row('Spell power', d.sp); if (d.crit != null) row('Crit', `${(d.crit * 100).toFixed(1)}%`);
+  }
+  const rn = p.renown;
+  if (rn) {
+    y += 3; head('Renown');
+    const bits = [];
+    if (rn.glow) bits.push('Lantern Glow');
+    for (const [id, name] of [['sta', 'Sta'], ['str', 'Str'], ['agi', 'Agi'], ['int', 'Int'], ['spi', 'Spi']]) if (rn.stats && rn.stats[id]) bits.push(`+${rn.stats[id]}% ${name}`);
+    row('Rank', `${rn.level}${bits.length ? '  ' + bits.join(', ') : ''}`);
+    if (rn.pending > 0 && rn.choices && rn.choices.length) {
+      sk.ink(ctx, `${rn.pending} reward${rn.pending === 1 ? '' : 's'} to pick`, ix + 4, y, C.inkText, { big });
+      y += lh + 2;
+      const bw = iw - 8, bh = Math.max(16, (L.minHit || 0) > 24 ? 20 : 16);
+      for (const ch of rn.choices) {
+        if (y + bh > sy + sh - 2) break;
+        button(ctx, env, regions, ix + 4, y, bw, bh, ch.label, 'gold', 'gold', () => act.send({ t: 'renown_pick', choice: ch.id }), sk, { label: `renown:${ch.id}` });
+        y += bh + 2;
+      }
+    }
   }
   if (!m.stats) sk.ink(ctx, g.clip('Base stats from the class table.', iw, big), ix, sy + sh - lh - 4, C.sepia, { big });
 

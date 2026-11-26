@@ -230,7 +230,7 @@ function fromSimHud(vm, snap, ctx) {
     tick: vm.tick, live: true,
     bossCall: bossE ? bossE.bossFight.call : null,   // wave 10 dbosses
     player: { ...p, cls, clsName: ci ? ci.name : cls, look: meE ? meE.look || 0 : 0, resLabel: resourceLabel(resKind), resWord: resourceWord(resKind), resGauge: resourceGauge(resKind),
-      xp: xp.cur || 0, xpToLevel: xp.cap ? 0 : xp.need || 0, derived: h.derived, inCombat: h.inCombat, sitting: h.sitting, respawnIn: h.respawnIn,
+      xp: xp.cap && xp.renown ? xp.renown.xp : xp.cur || 0, xpToLevel: xp.cap ? (xp.renown ? xp.renown.need : 0) : xp.need || 0, renown: xp.renown || null, derived: h.derived, inCombat: h.inCombat, sitting: h.sitting, respawnIn: h.respawnIn,
       rest: h.rest || null,                      // rest XP (src/sim/worldlife.js): { banked, cap, resting, killMult }
       mount: (meE && meE.mount) || null, mounts: (meE && meE.mounts) || [] },   // mounts (src/sim/mounts.js): riding, owned
     target, party: partyRows(vm.party), zone: vm.zone, log: vm.log || [],

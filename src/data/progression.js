@@ -18,7 +18,12 @@ export const PROGRESSION = {
   // aims at 300. [upToLevel, mult], first match wins; above every row, 1.
   // Scott 2026-11-24, "Make the first 3 levels still earn at 100% XP": levels 1 to 3 earn full XP.
   xpRate: [[3, 1], [19, 0.75]],
-  capGoldPerXp: 50,                        // at the cap (now 30): 1 gold per 50 XP (OPEN_QUESTIONS Q17, kept until Renown)
+  // At the cap, overflow XP fills Renown (below). Gold already banked from the old 1-per-50 rule stays in the bags;
+  // leftover xpGoldAcc was never saved and is not converted. capGoldPerXp is kept so old notes and tools still read.
+  capGoldPerXp: 50,
+  // Renown after 30 (BUILDS_2 5.6): each level is a choice of +1% to one main stat (cap +10% total), a one-time
+  // Lantern Glow (the existing lantern icon, no new art), or a gold chest. See src/data/renown.js.
+  renown: { xpToNext: 19200, goldChest: 200, statCap: 10, stats: ['sta', 'str', 'agi', 'int', 'spi'] },
   // The zone re-spread (BUILDS_2 5.5 option 1 on today's zones, PROGRESSION.md 1.1): the zone generators author foe and
   // area levels on the old 1 to 15 scale; index = authoring level, value = the shipped level. The valley (1 to 6) is
   // unchanged; the Downs (5 to 9) stretch to 5 to 11, the High Moor (10 to 14) to 13 to 19. tools/maps/build_world.mjs

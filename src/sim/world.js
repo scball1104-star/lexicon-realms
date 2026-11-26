@@ -28,6 +28,7 @@ import { createStats } from './stats.js';
 import { createCombat } from './combat.js';
 import { createScripts } from './scripts.js';
 import { createProgression } from './progression.js';
+import { createRenown } from './renown.js';
 import { createBuilds2 } from './builds2.js';
 import { createHud } from './hud.js';
 import { createQuests } from './quests.js';
@@ -155,6 +156,7 @@ function wrap(state, content0, rng, systems) {
     C.combat = createCombat(C);
     C.ai = createAi(C);
     C.prog = createProgression(C);
+    C.renown = createRenown(C);          // Renown after the cap (src/sim/renown.js)
     C.b2 = createBuilds2(C);                 // Builds 2 (off unless content.progression.builds2.enabled)
     C.hud = createHud(C);
     C.life = createWorldLife(C);             // rares, rest XP, story cards, Night at the Stones (src/sim/worldlife.js)
@@ -430,10 +432,12 @@ function wrap(state, content0, rng, systems) {
         C.b2.attach(e, spec);                      // Builds 2: the build from the save (save v2), or a new one
         C.prog.restoreBarOff(e, spec.barOff);      // skills the player took off the bar stay off (save v2 barOff)
         C.prog.fillBar(e);                         // 8 slots: a known skill left off a 6-slot bar takes a free slot
+        if (C.renown) C.renown.restore(e, spec);   // Renown after the cap (save `renown`, missing = none)
         C.stats.recalc(e);
         e.hp = e.hpMax;
         if (e.res && e.res.kind === 'mana') e.res.cur = e.res.max;
         restoreVitals(e, spec);
+        if (C.renown) { const hp = e.hp; C.renown.applyGlow(e); C.stats.recalc(e); e.hp = Math.max(1, Math.min(e.hpMax, hp)); }
         C.life.restore(e, spec);                   // the rest XP bank (save `rest`, missing = 0) plus the time away
         if (ST) ST.restore(e, spec);               // the hero's chest tab and glyph pouch (missing = empty)
         if (PF) PF.restore(e, spec);               // professions: skills, recipes, a flask (save `prof`, missing = none)
@@ -482,6 +486,7 @@ function wrap(state, content0, rng, systems) {
       const prof = PF && PF.saveOf(e); if (prof) out.prof = prof;     // professions (missing = none)
       if (TV) Object.assign(out, TV.saveOf(e));                       // travel: home (inn id), flights (known points); missing = none
       if (MT) Object.assign(out, MT.saveOf(e));                       // mounts: owned kinds, the last one ridden; missing = none
+      if (C.renown) Object.assign(out, C.renown.saveOf(e));            // Renown after the cap (missing = none; SAVE_VERSION stays 2)
       if (RD) Object.assign(out, RD.saveOf(e));                       // wave 9 riddles: the riddles solved count; missing = 0
       return out;
     },
@@ -755,6 +760,7 @@ function wrap(state, content0, rng, systems) {
       case 'prof_train': case 'prof_recipe': case 'prof_unlearn': case 'prof_craft': case 'prof_cancel': case 'prof_fish': if (PF) PF.command(e, cmd); return;
       case 'set_home': case 'fly': case 'ride': if (TV) TV.command(e, cmd); return;     // travel: an innkeeper's home, a flight master's route
       case 'mount': if (MT) MT.command(e, cmd); return;                  // mounts: Z / the horseshoe (summon, or get off)
+      case 'renown_pick': if (C.renown) C.renown.command(e, cmd); return; // Renown reward on the character panel
       case 'set_app': AP.set(e, cmd); return;                           // wave 6: a new look, at the mirror the hero opened
       case 'interact': {
         const t = index.get(cmd.id);

@@ -76,6 +76,11 @@ export function eventLines(ev, { me, nameOf = (id) => `#${id}`, zoneNames = {}, 
       return [{ ch: 'xp', text: `You gain ${Math.round(ev.amount).toLocaleString('en-US')} experience${bits.length ? ` (${bits.join(', ')})` : ''}.` }];
     }
     case 'level': return ev.id === me ? [{ ch: 'system', text: `You reach level ${ev.level}!` }] : [];
+    case 'renown': return ev.id === me ? [{ ch: 'system', text: ev.pending
+      ? `Renown ${ev.level}. Open Character (C) to choose a reward (${ev.pending} waiting).`
+      : `Renown ${ev.level}.` }] : [];
+    case 'renown_pick': return ev.id === me ? [{ ch: 'system', text: ev.label ? `Renown: ${ev.label}.` : 'Renown reward taken.' }] : [];
+    case 'renown_fail': return ev.id === me ? [{ ch: 'error', text: ev.reason === 'none' ? 'No Renown reward waiting.' : 'That Renown choice is not available.' }] : [];
     case 'loot': {
       if (ev.id !== me) return [];
       const out = [];

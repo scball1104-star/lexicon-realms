@@ -55,11 +55,9 @@ export function createProgression(C) {
     }
     amount = Math.max(1, Math.round(amount * xpRate(P, e.level)));
     if (e.level >= P.maxLevel) {
-      e.xpGoldAcc = (e.xpGoldAcc || 0) + amount;
-      const gold = Math.floor(e.xpGoldAcc / P.capGoldPerXp);
-      e.xpGoldAcc -= gold * P.capGoldPerXp;
-      emit({ type: 'xp', id: e.id, amount, source: reason, gold, ...extra });
-      if (gold) { e.gold = (e.gold || 0) + gold; emit({ type: 'gold', id: e.id, amount: gold, total: e.gold, source: 'xp_cap' }); }
+      // overflow XP fills Renown (BUILDS_2 5.6). Gold already in the bags stays; leftover xpGoldAcc is not converted.
+      emit({ type: 'xp', id: e.id, amount, source: reason, cap: true, ...extra });
+      if (C.renown) C.renown.grantOverflow(e, amount);
       return amount;
     }
     e.xp += amount;
@@ -70,10 +68,7 @@ export function createProgression(C) {
     }
     if (e.level >= P.maxLevel && e.xp > 0) {
       const over = e.xp; e.xp = 0;
-      e.xpGoldAcc = (e.xpGoldAcc || 0) + over;
-      const gold = Math.floor(e.xpGoldAcc / P.capGoldPerXp);
-      e.xpGoldAcc -= gold * P.capGoldPerXp;
-      if (gold) { e.gold = (e.gold || 0) + gold; emit({ type: 'gold', id: e.id, amount: gold, total: e.gold, source: 'xp_cap' }); }
+      if (C.renown) C.renown.grantOverflow(e, over);
     }
     return amount;
   }

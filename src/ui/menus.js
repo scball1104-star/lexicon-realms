@@ -164,6 +164,25 @@ export function drawCharacter(ctx, env, m, st, regions, act) {
   const gx = big ? r.x + r.w - 10 - g.textW(goldS) - 15 : sx, gyy = big ? r.y + 25 + g.ls(12) : y;
   g.icon(ctx, 'icon_gold', gx, gyy + 1 + (big ? 3 : 0));
   g.text(ctx, goldS, gx + 15, gyy, 'gold');
+  if (p.xpToLevel) {
+    y += 4;
+    const capLbl = p.renown ? `Renown ${p.renown.level}` : 'Experience';
+    g.text(ctx, capLbl, sx, y, 'gold'); y += g.ls(12);
+    g.text(ctx, `${Number(p.xp || 0).toLocaleString('en-US')} / ${Number(p.xpToLevel).toLocaleString('en-US')}`, sx, y, 'violet');
+    y += g.lh;
+  }
+  const rn = p.renown;
+  if (rn && rn.pending > 0 && rn.choices && rn.choices.length) {
+    g.text(ctx, `${rn.pending} reward${rn.pending === 1 ? '' : 's'} to pick`, sx, y, 'gold'); y += g.ls(12);
+    const bh = Math.max(14, Math.min(18, g.ls(16)));
+    for (const ch of rn.choices) {
+      const bw = sw;
+      g.window(ctx, sx, y, bw, bh, 'thin', 'gold', 0.95);
+      g.text(ctx, ch.label, sx + bw / 2, y + Math.floor(bh / 2) - g.mid(6), 'cream', { align: 'center' });
+      regions.push({ rect: { x: sx, y, w: bw, h: bh }, kind: 'button', label: `renown:${ch.id}`, on: () => act.send({ t: 'renown_pick', choice: ch.id }) });
+      y += bh + 2;
+    }
+  }
   if (!m.stats) g.text(ctx, g.clip('Base stats from the class table. Gear is not counted yet.', r.w - 18), r.x + 9, r.y + r.h - g.ls(18), 'dim');
   if (spare) spareSkills(ctx, env, m, st, regions, act, r, spare, pitch, sz, big ? y + 2 : null);
 }

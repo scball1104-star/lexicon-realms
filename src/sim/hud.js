@@ -94,6 +94,7 @@ export function createHud(C) {
     const pts = G().talentPoints(e);
     const cls = data.classes[e.cls] || {};
     const comboMax = ((cls.combo && cls.combo.max) || 3) + stats.mod(e, 'comboMax').add;
+    const rnHud = C.renown ? C.renown.hud(e) : null;
     return {
       id: e.id,
       gcdLeft: r2(sec(e.gcdUntil - state.tick)), gcdTotal: 1,
@@ -106,7 +107,7 @@ export function createHud(C) {
       combo: e.combo && e.combo.until > state.tick ? { target: e.combo.target, n: e.combo.n, max: comboMax, left: r2(sec(e.combo.until - state.tick)) } : null,
       counters: e.counters ? { ...e.counters, pyre: e.counters.pyre ? { ...e.counters.pyre } : null } : null,
       target: t && t.zone === e.zone ? unitView(t, e.id) : null,
-      xp: { cur: e.xp, need: G().xpToNext(e.level), level: e.level, cap: e.level >= C.P.maxLevel },
+      xp: { cur: e.xp, need: G().xpToNext(e.level), level: e.level, cap: e.level >= C.P.maxLevel, ...(rnHud ? { renown: rnHud } : {}) },
       talents: pts,
       // Builds 2 (null while the flag is off): points, the gold-star node, open skill picks, what a respec costs
       builds2: e.b2 ? { points: C.b2.points(e), suggested: C.b2.suggested(e), picks: C.b2.picksOpen(e), respec: C.b2.respecCost(e),

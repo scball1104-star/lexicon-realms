@@ -354,8 +354,10 @@ export function createHud(env) {
     g.text(ctx, `Lv ${p.level}`, 4, y - 3, 'gold');
     // rest XP (src/sim/worldlife.js): "Rested" and the banked part as the lighter segment past the fill; "zz" where the
     // hero would rest if they logged out here (a town, a hub, beside a lantern)
-    const rest = p.rest || null, banked = rest && p.xpToLevel ? rest.banked || 0 : 0;
-    const label = p.xpToLevel ? `${banked > 0 ? 'Rested  ' : ''}${fmtInt(p.xp)} / ${fmtInt(p.xpToLevel)} XP` : 'Max level';
+    const rest = p.rest || null, banked = rest && p.xpToLevel && !p.renown ? rest.banked || 0 : 0;
+    const label = p.renown
+      ? `Renown ${p.renown.level}${p.renown.pending ? ' *' : ''}  ${fmtInt(p.xp)} / ${fmtInt(p.xpToLevel)}`
+      : p.xpToLevel ? `${banked > 0 ? 'Rested  ' : ''}${fmtInt(p.xp)} / ${fmtInt(p.xpToLevel)} XP` : 'Max level';
     const lw = g.textW(label);
     const zz = rest && rest.resting ? 12 : 0;
     const gx = 34, gw = LW - 4 - lw - 8 - gx - zz;
@@ -535,9 +537,14 @@ export function createHud(env) {
         return tip;
       }
       if (region.kind === 'attack') return autoTooltip(liveStats(m), m.player.cls);
-      if (region.kind === 'xp' && m.player.xpToLevel) {
+      if (region.kind === 'xp' && (m.player.xpToLevel || m.player.renown)) {
         const left = m.player.xpToLevel - m.player.xp;
         const rest = m.player.rest || {};
+        if (m.player.renown) {
+          const rn = m.player.renown;
+          const wait = rn.pending ? ` ${rn.pending} reward${rn.pending === 1 ? '' : 's'} waiting on the Character panel (C).` : '';
+          return { title: `Renown ${rn.level}`, sub: `${fmtInt(m.player.xp)} of ${fmtInt(m.player.xpToLevel)} XP`, body: `${fmtInt(left)} XP to the next Renown.${wait}` };
+        }
         const rested = rest.banked > 0 ? ` Rested: kills give double experience for ${fmtInt(rest.banked)} more.` : '';
         const zz = rest.resting ? ' You are resting here: time away from the game banks rest.' : '';
         return { title: `Level ${m.player.level}`, sub: `${fmtInt(m.player.xp)} of ${fmtInt(m.player.xpToLevel)} XP`, body: `${fmtInt(left)} XP to level ${m.player.level + 1}.${rested}${zz}` };

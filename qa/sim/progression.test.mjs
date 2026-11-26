@@ -74,10 +74,11 @@ export const tests = [
     C.combat.kill(m, p);
     eq(p.xp - x0, 40, 'kill XP to the tagger');
   } },
-  { name: 'xp: at the cap (30) XP turns into gold, 1 per 50, remainder kept', fn() {
+  { name: 'xp: at the cap (30) overflow XP fills Renown, not gold; banked gold stays', fn() {
     const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 30 });
-    p.gold = 0;
-    w.grantXp(pid, 120); eq(p.gold, 2, '120 XP = 2 gold'); w.grantXp(pid, 30); eq(p.gold, 3, 'remainder carried');
+    p.gold = 7;
+    w.grantXp(pid, 120); eq(p.gold, 7, 'overflow is not sold'); eq(p.renown.xp, 120, 'banks toward Renown');
+    w.grantXp(pid, 30); eq(p.gold, 7, 'still unsold'); eq(p.renown.xp, 150);
     eq(p.level, 30, 'still 30'); eq(p.xp, 0, 'no XP bar at the cap');
   } },
   { name: 'xp: a hero saved at the old cap 15 (banked cap gold, any leftover XP) loads at 15, keeps both, and levels on to 16', fn() {

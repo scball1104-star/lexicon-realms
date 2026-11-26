@@ -229,6 +229,9 @@ export function createStats(C) {
     // flat points from auras (elixirs, flasks, Well Fed: `{ stat: 'main' | 'str' | 'agi' | 'int' | 'spi' | 'sta', add }`)
     for (const k of ['str', 'agi', 'int', 'spi', 'sta']) { const a = mod(e, k).add; if (a) st[k] += Math.round(a); }
     { const a = mod(e, 'main').add; if (a && st[cls.mainStat] != null) st[cls.mainStat] += Math.round(a); }
+    // Renown after the cap: +1% per pick on a main stat, cap +10% total (src/sim/renown.js)
+    const rn = e.renown && e.renown.stats;
+    if (rn) for (const k of ['str', 'agi', 'int', 'spi', 'sta']) { const p = rn[k] || 0; if (p) st[k] = Math.floor(st[k] * (1 + p / 100)); }
     // Inscriptions (src/sim/glyphs.js): the worn letters and words, read before the health and armor mods below
     const gp = gearLevel == null ? glyphPowers(C.content, e) : null;
     if (gp) { e.glyphPw = gp; e.moveCharges = gp.reduce((n, p) => n + (p.moveCharges || 0), 0) || 0; } else { delete e.glyphPw; delete e.moveCharges; }
