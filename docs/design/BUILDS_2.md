@@ -1,7 +1,8 @@
 # Lexicon Realms: Builds 2 (six tracks, upgrades from level 1, levels past 15, gear that makes builds)
 
-Owner: game design. Written 2026-11-19. **Status: PROPOSAL.** Nothing here is built. Scott approves it before anyone
-builds. Until then CLASSES.md, TALENTS.md, PROGRESSION.md and the class identity pass in CONTRACTS.md stay in force.
+Owner: game design. Written 2026-11-19. **Status: APPROVED and LIVE** (Scott 2026-11-19 "yes to all"; all five classes on
+in src/data/builds2*.js). 2026-11-26: the Mender's level 14 pick (Purify or Sunlance) is built, and legendary powers can
+now change a skill (`modAbility`, src/sim/data.js; first example The Tolling Rod, data only, in src/data/legendary_powers.js).
 Play pass (parity audit, Flourishes, excels and struggles, co-op combos): `BUILDS_2_PLAY.md`. It adds; it changes no Mender number here.
 
 Scott's asks (2026-11-19, verbatim):
