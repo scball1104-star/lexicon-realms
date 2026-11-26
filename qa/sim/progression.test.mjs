@@ -114,6 +114,7 @@ export const tests = [
     w.enqueue(pid, { t: 'train', npc: npc.id, ability: 'warden_second_wind' });
     eq(ofType(w.step(), 'train_fail')[0].reason, 'range', 'must stand at the trainer');
     eq(PROGRESSION.trainCost['10'], 40); eq(PROGRESSION.trainCost['14'], 90);
+    eq(PROGRESSION.trainCost['20'], 150); eq(PROGRESSION.trainCost['25'], 250);
   } },
   { name: 'talents: a point per level from 5 (11 at 15); tiers open at 0/2/4/6/8 in the branch; max ranks; learned talents change stats', fn() {
     const { w, pid, p, C } = trainerWorld('warden', 4);

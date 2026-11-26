@@ -333,7 +333,7 @@ chest 1.2, off and head and legs 1.0, feet and hands and trinket 0.8. Vendors **
 | common gear | | 4 x value | Garrick (plate, mail, swords, shields), Pell (cloth, leather, daggers, bows, rods, quills), Tamsin (everything, ilvl 9), Odo (none) | |
 
 ### 6.3 Trainer costs (a new ability)
-Level 1: free (known). Level 3: 5 gold. Level 6: 15. Level 10: 40. Level 14: 90. Total 150.
+Level 1: free (known). Level 3: 5 gold. Level 6: 15. Level 10: 40. Level 14: 90. Level 20: 150. Level 25: 250. Total 640.
 
 ### 6.4 Talent respec
 `respecCost(level) = 10 + 5 * level` gold (level 15: 85). The first respec is free. No escalation in phase 1.

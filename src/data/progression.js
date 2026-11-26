@@ -42,7 +42,7 @@ export const PROGRESSION = {
   // Talents (TALENTS 0, PROGRESSION 8).
   talents: { firstLevel: 5, pointsPerLevel: 1, tierStep: 2 },     // tier n opens at (n - 1) * tierStep points in its branch
   // Trainer cost of a new ability by its learn level (6.3). Level-1 abilities are known at creation.
-  trainCost: { '1': 0, '3': 5, '6': 15, '10': 40, '14': 90 },
+  trainCost: { '1': 0, '3': 5, '6': 15, '10': 40, '14': 90, '20': 150, '25': 250 },
   // Respec (6.4): 10 + 5 * level gold; the first respec is free.
   respec: { base: 10, perLevel: 5, firstFree: true },
 
