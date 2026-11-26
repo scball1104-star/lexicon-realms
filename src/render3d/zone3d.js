@@ -912,7 +912,11 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     const fb = fence.box, fLen = Math.max(fb.max.x - fb.min.x, fb.max.z - fb.min.z), fAlongX = (fb.max.x - fb.min.x) >= (fb.max.z - fb.min.z);
     const rocks = await Promise.all([1, 2, 3].map((i) => P(`nature/Rock_Medium_${i}.gltf`)));
     const rockH = rocks.map((r) => Math.max(0.1, r.box.max.y - r.box.min.y));
+    // the rock models are about 3 m across: scale by footprint so a rock is sized to its 1 m tile, not three of them
+    const rockW = rocks.map((r) => Math.max(0.5, r.box.max.x - r.box.min.x, r.box.max.z - r.box.min.z));
     const isF = (x, y) => x >= 0 && y >= 0 && x < W && y < H && legendAt[y][x] === 'fence_wood';
+    // walkable by the sim (collision '.'): rocks keep off these tiles, and a blocked tile beside one must look blocked
+    const walkAt = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !!zone.collision[y] && zone.collision[y][x] === '.';
     for (let y = 0; y < H; y++) {
       if (!inPart.row(y)) continue;
       for (let x = 0; x < W; x++) {
@@ -937,9 +941,22 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
           const h = 1.8 + hashXY(x, y, 5) * 0.8;
           // a false rock face (secret passage): the same rock, a little paler and split, so a sharp eye can tell
           const fake = secretCells.has(`${x},${y}`), side = fallSide.get(`${x},${y}`) || 0;
-          const sxz = fake ? 1.35 : side ? 1.05 : 1.5;
-          B.instance(rocks[i], M4(x + 0.5 + side, -0.2, y + 0.5, hashXY(x, y, 9) * 6.28 + (fake ? 0.4 : 0), sxz, h / rockH[i], sxz), { tint: fake ? '#b4a890' : '#9a9286' });
+          // sized by footprint (it was 1.5x the raw ~3 m model, so a rock reached about 2 m onto walkable ground: Scott
+          // 2026-11-26 "can go partway into the rocks"): about 1.9 m, so neighbours still overlap into one wall, and leaned
+          // away from walkable ground so it stops at the tile's edge
+          const sxz = (fake ? 1.6 : side ? 1.3 : 1.9) / rockW[i];
+          const wl = walkAt(x - 1, y), wr = walkAt(x + 1, y), wu = walkAt(x, y - 1), wd = walkAt(x, y + 1);
+          const ox = fake ? 0 : (wl && !wr ? 0.4 : wr && !wl ? -0.4 : 0), oz = fake ? 0 : (wu && !wd ? 0.4 : wd && !wu ? -0.4 : 0);
+          B.instance(rocks[i], M4(x + 0.5 + side + ox, -0.2, y + 0.5 + oz, hashXY(x, y, 9) * 6.28 + (fake ? 0.4 : 0), sxz, h / rockH[i], sxz), { tint: fake ? '#b4a890' : '#9a9286' });
           farAdd(FAR_BOX, '#7a746a', x + 0.5, y + 0.5, 1.2, h, 1.2);
+        } else if (!place && /_top$/.test(id) && !/stairs/.test(id) && zone.collision[y] && zone.collision[y][x] === '#'
+          && !secretCells.has(`${x},${y}`) && (walkAt(x - 1, y) || walkAt(x + 1, y) || walkAt(x, y - 1) || walkAt(x, y + 1))) {
+          // a plateau's rim with no face below it: the ground here is flat in 3D, so without rocks it looked like open
+          // grass the hero could not walk on (Scott 2026-11-26, the Ridge's east edge). A low rock rim, kept in its tile.
+          const i = Math.floor(hashXY(x, y, 3) * 3);
+          const h = 0.9 + hashXY(x, y, 5) * 0.5;
+          B.instance(rocks[i], M4(x + 0.5, -0.15, y + 0.5, hashXY(x, y, 9) * 6.28, 1.2 / rockW[i], h / rockH[i], 1.2 / rockW[i]), { tint: '#8e877c' });
+          farAdd(FAR_BOX, '#7a746a', x + 0.5, y + 0.5, 1, h, 1);
         } else if (/^ledge_/.test(id)) {
           const i = Math.floor(hashXY(x, y, 3) * 3);
           B.instance(rocks[i], M4(x + 0.5, -0.1, y + 0.7, hashXY(x, y, 9) * 6.28, 1.1, 0.5 / rockH[i], 0.7), { tint: '#9a9286' });
