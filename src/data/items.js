@@ -10,7 +10,7 @@
 // armorType, weaponType } }; base gear (gear_*) always drops or sells with one.
 
 import { glyphItems } from './storage.js';
-import { LEGENDARY_POWERS, MINOR_RULE, LEGEND_DROPS } from './legendary_powers.js';
+import { LEGENDARY_POWERS, MINOR_RULE, LEGEND_DROPS, SKILL_POWERS, SKILL_LEGENDARIES } from './legendary_powers.js';
 import { BAND_DROPS, DEEP_GEAR, DEEP_REWARDS, NAMED_BANDS } from './gear_tier3.js';
 import { DLOOT_RULES, RETOLD } from './dloot.js';   // wave 10 dloot: delve loot rules and the Retold legendaries
 
@@ -282,6 +282,12 @@ const D = [
 ];
 const withPower = (pid) => (pid && LEGENDARY_POWERS[pid] ? { power: LEGENDARY_POWERS[pid], text: LEGENDARY_POWERS[pid].text } : {});
 for (const [id, name, slot, type, ilvl, stats, rarity, dungeon, power] of [...D, ...DEEP_GEAR]) gear(id, name, slot, type, ilvl, rarity, stats, { dungeon, ...withPower(power) });
+// skill legendaries (BUILDS_2 6.3, 2026-11-26): one per class, each changes a signature skill (SKILL_POWERS modAbility,
+// src/sim/data.js). Class-only; they share their dungeon's legendary roll and join the random pool (src/sim/legend_drops.js).
+for (const [id, name, slot, type, ilvl, stats, dungeon, pid] of SKILL_LEGENDARIES) {
+  const pw = SKILL_POWERS[pid];
+  gear(id, name, slot, type, ilvl, 'legendary', stats, { dungeon, classes: [pw.cls], power: pw, text: pw.text, skillPower: true });
+}
 // the cap 30 gear tier's named world drops by level band (src/data/gear_tier3.js, DROP_RULES.named)
 for (const b of BAND_DROPS) for (const [id, name, slot, type, ilvl, stats] of b.rows) gear(id, name, slot, type, ilvl, b.rarity, stats, { band: [b.from, b.to] });
 // wave 10 dloot: the Retold legendaries (src/data/dloot.js), one per class, from the Deep Halls' last boss (dungeons.js `retold`)

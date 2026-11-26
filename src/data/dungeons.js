@@ -33,7 +33,7 @@ export const DUNGEONS = {
       barrow_tallywife: ['bellwether_clapper', 'wether_horn_buckler', 'notched_tally_knife', 'barrowfold_bow', 'tally_wifes_hood'],
     },
     rare: ['reeves_counting_coat', 'uncounted_ledger'],
-    legendary: ['reeves_tally_ring', 'bellwethers_last_toll'], legend: { chance: 0.1, step: 0.005 },
+    legendary: ['reeves_tally_ring', 'bellwethers_last_toll', 'the_tolling_rod', 'errata_quill'], legend: { chance: 0.1, step: 0.005 },
     chest: { gold: [18, 30], rarity: 'magic', ilvl: 11 },
     daily: { gold: [45, 70], glyphs: 3, rarity: 'rare', ilvl: 12, xpMinutes: 54 },   // + the clear's ~1,500 kill XP = an hour at 11
   },
@@ -48,7 +48,7 @@ export const DUNGEONS = {
       watch_stair_captain: ['wickglass_rod', 'stair_captains_shield', 'lampblack_knives', 'sightline_bow', 'watchmans_mantle'],
     },
     rare: ['long_watch_greathelm', 'last_lamp_charm'],
-    legendary: ['unsleeping_eye', 'last_wick_mantle'], legend: { chance: 0.1, step: 0.005 },
+    legendary: ['unsleeping_eye', 'last_wick_mantle', 'second_fall_sabatons', 'far_tether_bow'], legend: { chance: 0.1, step: 0.005 },
     setSlot: { watch_wickwright: 'head', watch_stair_captain: 'legs', sentinel_long_watch: 'chest' },
     chest: { gold: [40, 60], rarity: 'magic', ilvl: 19 },
     daily: { gold: [110, 160], glyphs: 4, rarity: 'rare', ilvl: 20, xpMinutes: 55 },   // + ~1,900 kill XP = an hour at 19
@@ -75,7 +75,7 @@ export const DUNGEONS = {
     door: { area: 'moor', x: 42, y: 47, w: 1, h: 1, out: [42, 48], dir: 'up' },     // the tarn's south shore, High Moor
     bosses: ['hollowfang'], last: 'hollowfang',
     drops: { hollowfang: ['tarnwater_band', 'mistwalker_boots'] },
-    legendary: 'hollowfangs_mistwalkers', legend: { chance: 0.1, step: 0.005 },     // combat core 2026-11-22: a third place rolls one
+    legendary: ['hollowfangs_mistwalkers', 'unwritten_cowl'], legend: { chance: 0.1, step: 0.005 },     // combat core 2026-11-22: a third place rolls one
     chest: { gold: [30, 45], rarity: 'magic', ilvl: 16 },
   },
   // cap 30 (2026-11-22): the Barrow grown down under the drove roads (src/data/deep_halls.js, tools/maps/zone_barrow_deep.mjs).

@@ -239,7 +239,10 @@ export function createB2Scripts(C) {
         case 'b2_grapple': {
           // Grapple Line: a small foe (not elite, not heavy) is pulled to the hero; anything bigger pulls the hero to it
           if (!r || r === src) return;
-          const small = !(r.mob && (r.mob.elite || (r.mob.traits || []).includes('heavy')));
+          // The Far Tether (a legendary, args.anySize): anything but a boss counts as small, and args.root roots it on landing
+          const boss = !!(r.mob && (r.mob.boss || ((C.content && C.content.mobs) || {})[r.template] && C.content.mobs[r.template].boss));
+          const small = args && args.anySize ? !boss : !(r.mob && (r.mob.elite || (r.mob.traits || []).includes('heavy')));
+          if (small && args && args.root) K().applyAura(src, r, { id: 'lg_far_tether_root', name: 'Tethered', icon: 'icon_stun', kind: 'debuff', duration: args.root + 0.35, flags: ['root'] }, { abId: 'wayfinder_grapple_line' });
           const d = Math.max(0, distPx(src, r) - 22);
           if (small) { const [vx, vy] = unitTo(r, src, r.dir); K().setForced(r, vx, vy, d, 0.35); K().cancelCast(r, 'interrupt'); }
           else { const [vx, vy] = unitTo(src, r, src.dir); K().setForced(src, vx, vy, d, 0.35); }
@@ -247,12 +250,15 @@ export function createB2Scripts(C) {
           return;
         }
         case 'b2_rewrite': {
-          if (!r || r.kind !== 'mob' || r.dead || (r.mob && r.mob.elite)) return;
+          // Errata (a legendary, args.eliteDuration): an elite can be rewritten, for that long
+          const elite = !!(r && r.mob && r.mob.elite);
+          if (!r || r.kind !== 'mob' || r.dead || (elite && !(args && args.eliteDuration))) return;
+          const secs = elite ? args.eliteDuration : (args && args.duration) || 12;
           K().cancelCast(r, 'interrupt');
           r.b2Faction = r.faction; r.faction = 'player'; r.charmedBy = src.id; r.threat = {};
           r.ai.mode = 'charmed'; r.ai.target = null; r.target = null;
           for (const m of state.ents) if (m.kind === 'mob' && m.threat && m.threat[r.id] != null) delete m.threat[r.id];
-          K().applyAura(src, r, { id: 'scribe_rewritten', name: 'Rewritten', icon: 'icon_charm', kind: 'debuff', duration: args.duration || 12, drFamily: null,
+          K().applyAura(src, r, { id: 'scribe_rewritten', name: 'Rewritten', icon: 'icon_charm', kind: 'debuff', duration: secs, drFamily: null,
             onExpire: [{ type: 'script', name: 'b2_rewrite_end', to: 'holder' }] }, { abId: 'scribe_rewrite' });
           emit({ type: 'b2_proc', id: src.id, what: 'rewrite', target: r.id });
           return;
@@ -279,6 +285,20 @@ export function createB2Scripts(C) {
           return;
         }
         case 'b2_spread_marks': addMarks(src, r, args.n || 1); return;
+        case 'b2_fan_step': {
+          // Black Fan: step through the ink to land behind the farthest living foe in the cone (none: stay put)
+          const rad = (args.radius || 120) * SUB, half = ((args.angle || 60) / 2) * Math.PI / 180;
+          const [fx_, fy_] = K().facingVec(src);
+          let far = null, best = -1;
+          for (const u of K().unitsNear(src.x, src.y, src.zone, args.radius || 120, (x) => !x.dead && K().isHostile(src, x))) {
+            const dx = u.x - src.x, dy = u.y - src.y, d = Math.hypot(dx, dy);
+            if (d > rad || d <= 0) continue;
+            if ((dx * fx_ + dy * fy_) / d < Math.cos(half)) continue;
+            if (d > best) { best = d; far = u; }
+          }
+          if (far) K().runEffects(src, [{ type: 'move', kind: 'blink_behind', to: 'target' }], { caster: src, target: far, ab: null });
+          return;
+        }
         case 'b2_inkwalk': unseen(src, 3); return;
         case 'b2_paragraph': {
           // a 5-tile ink wall across the line from the Scribe to the spot: three blocking stretches 2 tiles apart

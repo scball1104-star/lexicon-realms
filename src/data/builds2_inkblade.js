@@ -68,8 +68,11 @@ export const INKBLADE_ABILITIES = {
       { type: 'damage', key: 'hit', to: 'enemies', weapon: 0.5, amount: lv(2, 1), school: 'physical', canCrit: true },
       { type: 'combo', key: 'mark', to: 'my_target', add: 1 },
       { type: 'script', key: 'marks', to: 'enemies', name: 'b2_spread_marks', args: { n: 1 } },
+      // redesign 2026-11-26 (Scott approved): the rule it breaks is position. You ride the farthest knife and land behind
+      // that foe (src/sim/scripts_b2.js b2_fan_step), so the fan is how an Inkblade crosses a pack, not only hits it
+      { type: 'script', key: 'step', to: 'self', name: 'b2_fan_step', args: { radius: 120, angle: 60 } },
     ],
-    text: 'Throw five ink knives in a 60 degree cone, 7 tiles: up to 5 foes take {dmg}, and each one takes an Ink Mark.',
+    text: 'Throw five ink knives in a 60 degree cone, 7 tiles: up to 5 foes take {dmg} and an Ink Mark. You ride the farthest knife and land behind that foe.',
   },
 };
 
@@ -160,7 +163,7 @@ const INKBLADE_NODES = [
 export const INKBLADE_SIGNATURES = [
   { id: 'inkblade_inkwalk', name: 'Inkwalk', icon: 'icon_nameless', ready: true, text: 'A pool of shadow for 3 s: fast, untouchable, lost to every foe. Open from Fade after.' },
   { id: 'inkblade_mirrorshade', name: 'Mirrorshade', icon: 'icon_reflect', ready: true, text: 'An ink double copies your attacks at 40% for 10 s and draws the foes.' },
-  { id: 'inkblade_black_fan', name: 'Black Fan', icon: 'icon_combo', ready: true, text: 'Five ink knives in a cone: a ranged pack attack that marks each foe.' },
+  { id: 'inkblade_black_fan', name: 'Black Fan', icon: 'icon_combo', ready: true, text: 'Five ink knives in a cone that mark each foe; you ride the farthest one and land behind it.' },
 ];
 
 export const INKBLADE_BUILDS = [

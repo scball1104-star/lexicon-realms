@@ -229,7 +229,7 @@ export const tests = [
     near(epic / n, 0.04, 0.012, `elite epic share at 15: ${(epic / n).toFixed(3)}`);
   } },
   { name: 'legendary powers: seven legendaries with a power and its tooltip line (two from the Barrow Deep Halls, cap 30); worn, they proc on hit, when struck, on a kill and on a dodge', fn() {
-    const L = Object.values(ITEMS).filter((it) => it.rarity === 'legendary' && !it.retold);   // the five Retold (wave 10 dloot) are in qa/tests/dloot.test.mjs
+    const L = Object.values(ITEMS).filter((it) => it.rarity === 'legendary' && !it.retold && !it.skillPower);   // the five Retold (wave 10 dloot) are in qa/tests/dloot.test.mjs; the five skill legendaries in qa/sim/legendaries2.test.mjs
     eq(L.length, 7, 'seven legendaries');
     for (const it of L) { assert(it.power && LEGENDARY_POWERS[it.power.id], `${it.id} has a power`); assert(it.text && it.text.startsWith('Power, '), `${it.id} tooltip`); assert(!/—/.test(it.text), 'no em dash'); }
     const lg = [].concat(...Object.values(DUNGEONS).map((d) => (Array.isArray(d.legendary) ? d.legendary : d.legendary ? [d.legendary] : [])));

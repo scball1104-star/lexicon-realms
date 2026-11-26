@@ -79,8 +79,10 @@ export const WAYFINDER_ABILITIES = {
     cost: null, castTime: 0, cooldown: 2, gcd: false, range: null, target: 'self', threatMult: 0, toggle: true,
     effects: [{ type: 'aura', key: 'storm', to: 'self', aura: { id: 'wayfinder_storm_quiver', name: 'Storm Quiver', icon: 'icon_thunder', kind: 'buff', duration: null,
       mods: [{ stat: 'stormShots', add: 1, ability: SHOTS }, { stat: 'cleave', add: 1, ability: SHOTS }, { stat: 'cleavePct', add: 0.5 }, { stat: 'cleaveRange', add: 48 },
-        { stat: 'cost', add: 5, ability: SHOTS }] } }],
-    text: 'Toggle: every arrow is storm damage (past armor) and jumps to one more foe within 3 tiles for 50%. Each shot costs 5 more Focus.',
+        { stat: 'arcShots', add: 1, ability: SHOTS }, { stat: 'cost', add: 5, ability: SHOTS }] } }],
+    // redesign 2026-11-26 (Scott approved): the rule it breaks is line of sight. Arrows arc over walls, trees and cover like
+    // lightning out of a cloud, so a Wayfinder can shoot from behind a wall or over a ridge (src/sim/combat.js arcShots)
+    text: 'Toggle: your arrows fall from the sky as storm. They need no line of sight, arcing over walls and cover; each is storm damage (past armor) and jumps to one more foe within 3 tiles for 50%. Each shot costs 5 more Focus.',
   },
 };
 
@@ -185,7 +187,7 @@ const WAYFINDER_NODES = [
 export const WAYFINDER_SIGNATURES = [
   { id: 'wayfinder_sand_kestrel', name: 'Sand Kestrel', icon: 'icon_feather', ready: true, text: 'A falcon partner: it hits your target and breaks casts. Call it again to Dive.' },
   { id: 'wayfinder_grapple_line', name: 'Grapple Line', icon: 'icon_spear', ready: true, text: 'Fire a line: pull a small foe to you, or yourself to a big one. Grapple points come later.' },
-  { id: 'wayfinder_storm_quiver', name: 'Storm Quiver', icon: 'icon_thunder', ready: true, text: 'Toggle: every arrow is storm damage and jumps to one more foe.' },
+  { id: 'wayfinder_storm_quiver', name: 'Storm Quiver', icon: 'icon_thunder', ready: true, text: 'Toggle: arrows arc over walls (no line of sight), fall as storm and jump to one more foe.' },
 ];
 
 export const WAYFINDER_BUILDS = [

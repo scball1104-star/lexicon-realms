@@ -38,6 +38,8 @@ export function createCombat(C) {
   const isElite = (e) => e.kind === 'mob' && e.mob && e.mob.elite;
   const sameZone = (a, b) => a && b && a.zone === b.zone;
   const losOk = (a, b) => hasLos(C.zoneOf(a), a, b);
+  // Builds 2 Storm Quiver: a hero with `arcShots` on a skill (or 'auto') arcs it over walls and cover: no line of sight needed
+  const arcs = (e, id) => e.kind === 'player' && stats.mod(e, 'arcShots', { ability: id }).add > 0;
   // an ability filter that may be one id or a list of ids (Builds 2: Balance, Bell and Rod)
   const abMatch = (want, id) => (Array.isArray(want) ? want.includes(id) : want === id);
   /** The friendly hero (player) within 8 tiles of `src`, `src` included, with the lowest health share (Builds 2). */
@@ -269,7 +271,7 @@ export function createCombat(C) {
       if (t && t !== e) { const d = distPx(e, t); if (d > rng_.max || d < rng_.min) return fail(e, ab, 'range'); }
       if (at) { const d = distPxXY(e.x, e.y, at.x, at.y); if (d > rng_.max) return fail(e, ab, 'range'); }
     }
-    if (t && t !== e && !losOk(e, t)) return fail(e, ab, 'los');
+    if (t && t !== e && !losOk(e, t) && !arcs(e, ab.id)) return fail(e, ab, 'los');
     if (at && !losBetween(C.zoneOf(e), e.x, e.y, at.x, at.y)) return fail(e, ab, 'los');
     const cost = costOf(e, ab, t);
     const plan = cost ? payPlan(e, ab, cost) : null;
@@ -1527,7 +1529,7 @@ export function createCombat(C) {
     const cls = data.classes[e.cls];
     const range = cls.auto.range + stats.mod(e, 'range', { ability: 'auto' }).add;
     if (distPx(e, t) > range) return;
-    if (cls.auto.range > 40 && !losOk(e, t)) return;
+    if (cls.auto.range > 40 && !losOk(e, t) && !arcs(e, 'auto')) return;
     let mult = 1;
     if (cls.autoNeedsStill && e.moving) {
       // Builds 2 Skirmisher (60%) and Dancing Bow (full): Auto Shot while moving

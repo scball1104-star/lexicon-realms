@@ -108,14 +108,50 @@ export const MINOR_POWERS = Object.freeze({
 // class; `modAbility` is the same patch record as a talent's (src/sim/data.js applies it while the item is worn). Data only
 // until an item carries it: the item, its drop source and its visible effect on the hero wait for the brief and stills.
 export const SKILL_POWERS = Object.freeze({
-  // the Mender (Tidehammer): the Tolling Rod (BUILDS_2_PLAY 1.1)
+  // the Mender (Tidehammer): the Tolling Rod (BUILDS_2_PLAY 1.1). The Wethers' Barrow.
   tolling_rod: { id: 'tolling_rod', name: 'The Tolling Rod', cls: 'mender',
     text: 'Power, The Tolling Rod: Tolling Hammers sends out 5 hammers instead of 3, and they spiral half again as far.',
     modAbility: [
       { id: 'mender_tolling_hammers', path: 'effects.#hammers.object.hammers', set: 5 },
       { id: 'mender_tolling_hammers', path: 'effects.#hammers.object.reach', mul: 1.5 },
     ] },
+  // the Warden: Ember Leap twice, and the landing pins them. The Watchtower.
+  second_fall: { id: 'second_fall', name: 'Second Fall', cls: 'warden',
+    text: 'Power, Second Fall: Ember Leap holds 2 charges, and every foe its landing burns is rooted for 1.5 s.',
+    modAbility: [
+      { id: 'warden_ember_leap', path: 'charges', set: 2 },
+      { id: 'warden_ember_leap', path: 'land', push: { type: 'aura', key: 'pin', to: 'enemies', aura: { id: 'lg_second_fall_root', name: 'Pinned', icon: 'icon_stun', kind: 'debuff', duration: 1.5, flags: ['root'] } } },
+    ] },
+  // the Scribe: Rewrite reaches elites. The Wethers' Barrow (the Tally-Wife's ledger).
+  errata: { id: 'errata', name: 'Errata', cls: 'scribe',
+    text: 'Power, Errata: Rewrite works on elites too. An elite stays rewritten for 6 s; any other foe for the full 12 s.',
+    modAbility: [
+      { id: 'scribe_rewrite', path: 'requires', set: {} },
+      { id: 'scribe_rewrite', path: 'effects.#charm.args', set: { duration: 12, eliteDuration: 6 } },
+    ] },
+  // the Wayfinder: Grapple Line drags anything that is not a boss, and holds it. The Watchtower.
+  far_tether: { id: 'far_tether', name: 'The Far Tether', cls: 'wayfinder',
+    text: 'Power, The Far Tether: Grapple Line pulls any foe but a boss to you, elites and heavy foes too, and roots it for 1 s when it lands.',
+    modAbility: [
+      { id: 'wayfinder_grapple_line', path: 'effects.#line.args', set: { anySize: true, root: 1 } },
+    ] },
+  // the Inkblade: strike from inside the ink. Tarn Hollow.
+  unwritten_step: { id: 'unwritten_step', name: 'Unwritten Step', cls: 'inkblade',
+    text: 'Power, Unwritten Step: attacking no longer ends Inkwalk. For its 2 s you cut from inside the shadow and nothing can target you.',
+    modAbility: [
+      { id: 'inkblade_inkwalk', path: 'effects.#walk.aura.breakOn', set: [] },
+      { id: 'inkblade_inkwalk', path: 'effects.#walk.aura.duration', set: 2 },
+      { id: 'inkblade_inkwalk', path: 'effects.#walk.aura.opener', set: null },
+    ] },
 });
+/** The skill legendaries as items (src/data/items.js): [id, name, slot, type, ilvl, stats, dungeon, power]. Class-only. */
+export const SKILL_LEGENDARIES = Object.freeze([
+  ['the_tolling_rod', 'The Tolling Rod', 'main', 'rod', 12, { int: 5, spi: 3, crit: 1 }, 'barrow', 'tolling_rod'],
+  ['errata_quill', 'The Errata Quill', 'main', 'quill', 12, { int: 5, sta: 3, crit: 1 }, 'barrow', 'errata'],
+  ['unwritten_cowl', 'Cowl of the Unwritten Step', 'head', 'class', 16, { main: 6, sta: 6 }, 'tarn_hollow', 'unwritten_step'],
+  ['second_fall_sabatons', 'Sabatons of the Second Fall', 'feet', 'class', 20, { main: 7, sta: 7 }, 'watchtower', 'second_fall'],
+  ['far_tether_bow', 'The Far Tether', 'two', 'bow', 20, { agi: 8, sta: 4, crit: 1 }, 'watchtower', 'far_tether'],
+]);
 /** The roll (src/sim/loot.js rollGear reads content.rarity[r].minor): from this item level, this chance, one of these. */
 export const MINOR_RULE = Object.freeze({ fromIlvl: 15, chance: 0.1, powers: MINOR_POWERS });
 // ---------------------------------------------------------------- random legendaries (BUILDS_2 6.8, polish 2026-11-22)
