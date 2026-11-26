@@ -37,8 +37,8 @@ export function familyOf(template = '', sprite = '') {
   if (/rb_shelf_golem/.test(k)) return { f: 'golem', tint: '#6a4a2e', glow: '#9fc4ff' };
   if (/rb_echo_warden/.test(k)) return { f: 'golem', tint: '#7a8aa0', glow: '#bfe0ff' };
   if (/rb_archivore/.test(k)) return { f: 'boar', tint: '#1a1430' };
-  // the 20 to 30 band (band lane, 2026-11-22: src/data/band20.js): the closest code-built bodies until their own exist;
-  // humanoids (couriers, tallymen: hooded shades; cudgels, gangers, warders: stocky golems) are drafts
+  // the 20 to 30 band (band lane, 2026-11-22: src/data/band20.js): fallbacks if the creature-kit recipe is off;
+  // in game they use their own recipes (src/render3d/creature_recipes.js) and their own 2D atlases
   if (/^lh_hornet|rare_queen_bramblesting/.test(template)) return { f: 'crow', tint: '#c89a1c' };
   if (/^lh_lynx/.test(template)) return { f: 'wolf', tint: '#a8844c', eyes: '#ffd27a' };
   if (/^lh_grub/.test(template)) return { f: 'scarab', tint: '#d8c8a0' };

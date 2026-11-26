@@ -441,6 +441,270 @@
     "closest": "props:lamp_post_lit (+ lamp_glow)"
    },
    "variant_of": null
+  },
+  "lh_grub": {
+   "atlas": "lh_grub.json",
+   "name": "Resin Grub",
+   "family": "insect",
+   "cell": [
+    28,
+    22
+   ],
+   "origin": [
+    14,
+    21
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:moss_scarab",
+    "battle": "enemies_battle:moss_scarab"
+   },
+   "variant_of": "moss_scarab_moor"
+  },
+  "lh_courier": {
+   "atlas": "lh_courier.json",
+   "name": "Grey Courier",
+   "family": "humanoid",
+   "cell": [
+    32,
+    40
+   ],
+   "origin": [
+    16,
+    39
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "x1_enemies_field:barrow_shade",
+    "battle": "x1_enemies_battle:barrow_shade"
+   },
+   "variant_of": "barrow_shade"
+  },
+  "lh_courier_captain": {
+   "atlas": "lh_courier_captain.json",
+   "name": "Courier Captain",
+   "family": "humanoid",
+   "cell": [
+    32,
+    40
+   ],
+   "origin": [
+    16,
+    39
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "x1_enemies_field:barrow_shade",
+    "battle": "x1_enemies_battle:barrow_shade"
+   },
+   "variant_of": "barrow_shade"
+  },
+  "lh_cudgel": {
+   "atlas": "lh_cudgel.json",
+   "name": "Cudgel",
+   "family": "humanoid",
+   "cell": [
+    40,
+    44
+   ],
+   "origin": [
+    20,
+    43
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:glass_sentinel",
+    "battle": "enemies_battle:glass_sentinel",
+    "closest": "x1_enemies_field:millstone_golem (stone construct)"
+   },
+   "variant_of": "tower_sentinel"
+  },
+  "lm_damp_miner": {
+   "atlas": "lm_damp_miner.json",
+   "name": "Damp Miner",
+   "family": "spirit",
+   "cell": [
+    32,
+    40
+   ],
+   "origin": [
+    16,
+    39
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "x1_enemies_field:barrow_shade",
+    "battle": "x1_enemies_battle:barrow_shade"
+   },
+   "variant_of": "barrow_shade"
+  },
+  "lm_gaffer": {
+   "atlas": "lm_gaffer.json",
+   "name": "The Gaffer",
+   "family": "spirit",
+   "cell": [
+    32,
+    40
+   ],
+   "origin": [
+    16,
+    39
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "x1_enemies_field:barrow_shade",
+    "battle": "x1_enemies_battle:barrow_shade"
+   },
+   "variant_of": "barrow_shade"
+  },
+  "dr_ganger": {
+   "atlas": "dr_ganger.json",
+   "name": "Ganger",
+   "family": "humanoid",
+   "cell": [
+    40,
+    44
+   ],
+   "origin": [
+    20,
+    43
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:glass_sentinel",
+    "battle": "enemies_battle:glass_sentinel",
+    "closest": "x1_enemies_field:millstone_golem (stone construct)"
+   },
+   "variant_of": "tower_sentinel"
+  },
+  "dr_warder": {
+   "atlas": "dr_warder.json",
+   "name": "Warder",
+   "family": "humanoid",
+   "cell": [
+    40,
+    44
+   ],
+   "origin": [
+    20,
+    43
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:glass_sentinel",
+    "battle": "enemies_battle:glass_sentinel",
+    "closest": "x1_enemies_field:millstone_golem (stone construct)"
+   },
+   "variant_of": "tower_sentinel"
+  },
+  "dr_shade": {
+   "atlas": "dr_shade.json",
+   "name": "Drove Shade",
+   "family": "spirit",
+   "cell": [
+    32,
+    40
+   ],
+   "origin": [
+    16,
+    39
+   ],
+   "anims": [
+    "attack",
+    "cast",
+    "death",
+    "hurt",
+    "idle",
+    "walk"
+   ],
+   "lq": {
+    "field": "x1_enemies_field:barrow_shade",
+    "battle": "x1_enemies_battle:barrow_shade"
+   },
+   "variant_of": "barrow_shade"
+  },
+  "dr_chainmaster": {
+   "atlas": "dr_chainmaster.json",
+   "name": "The Chainmaster",
+   "family": "humanoid",
+   "cell": [
+    64,
+    64
+   ],
+   "origin": [
+    32,
+    63
+   ],
+   "anims": [
+    "attack",
+    "death",
+    "hurt",
+    "idle",
+    "special",
+    "walk"
+   ],
+   "lq": {
+    "field": "enemies_field:echo_warden",
+    "battle": "bosses_battle:echo_warden",
+    "closest": "x1_bosses_battle:millstone_golem (the X1 elite construct)"
+   },
+   "variant_of": "sentinel_long_watch"
   }
  }
 }

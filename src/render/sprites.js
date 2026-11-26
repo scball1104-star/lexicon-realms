@@ -13,8 +13,8 @@
 
 export const CLASS_IDS = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
 /** Mob atlases in assets/sprites/mobs/ (art wave 2; tools/art/build_mobs.py). */
-export const MOB_ATLASES = ['barrow_shade', 'briar_wolf', 'fold_ram', 'gorse_boar', 'gorse_crow', 'ink_blot', 'ink_slime_deep', 'ink_slime',
-  'ink_wraith', 'mist_wolf', 'moss_scarab_moor', 'moss_scarab', 'page_wraith', 'sentinel_long_watch', 'thornback_wolf', 'tower_sentinel', 'watch_lamp'];
+export const MOB_ATLASES = ['barrow_shade', 'briar_wolf', 'dr_chainmaster', 'dr_ganger', 'dr_shade', 'dr_warder', 'fold_ram', 'gorse_boar', 'gorse_crow', 'ink_blot', 'ink_slime_deep', 'ink_slime',
+  'ink_wraith', 'lh_courier', 'lh_courier_captain', 'lh_cudgel', 'lh_grub', 'lm_damp_miner', 'lm_gaffer', 'mist_wolf', 'moss_scarab_moor', 'moss_scarab', 'page_wraith', 'sentinel_long_watch', 'thornback_wolf', 'tower_sentinel', 'watch_lamp'];
 const MOB_SET = new Set(MOB_ATLASES);
 /** Seconds a mob corpse stays: the death anim plays, the last frame holds, then it fades out (CORPSE_FADE s). */
 export const CORPSE_SECS = 4, CORPSE_FADE = 1.5;

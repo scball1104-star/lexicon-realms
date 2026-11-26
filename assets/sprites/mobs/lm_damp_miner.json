@@ -1,0 +1,751 @@
+{
+ "image": "lm_damp_miner.png",
+ "mob": "lm_damp_miner",
+ "name": "Damp Miner",
+ "family": "spirit",
+ "cell": [
+  32,
+  40
+ ],
+ "origin": [
+  16,
+  39
+ ],
+ "anchor_note": "origin = feet point (ground row) in every frame; draw at (x - 16, y - 39), integer positions, nearest neighbour",
+ "layout": "one row per dir (down, left, right, up); columns idle 0-1, walk 0-3, attack 0-2, hurt 0-0, death 0-2, cast 0-1. Right is the mirrored left.",
+ "hitFrame": {
+  "attack": 1
+ },
+ "windupFrame": {
+  "attack": 0
+ },
+ "frames": {
+  "idle_down_0": [
+   0,
+   0,
+   32,
+   40
+  ],
+  "idle_down_1": [
+   32,
+   0,
+   32,
+   40
+  ],
+  "walk_down_0": [
+   64,
+   0,
+   32,
+   40
+  ],
+  "walk_down_1": [
+   96,
+   0,
+   32,
+   40
+  ],
+  "walk_down_2": [
+   128,
+   0,
+   32,
+   40
+  ],
+  "walk_down_3": [
+   160,
+   0,
+   32,
+   40
+  ],
+  "attack_down_0": [
+   192,
+   0,
+   32,
+   40
+  ],
+  "attack_down_1": [
+   224,
+   0,
+   32,
+   40
+  ],
+  "attack_down_2": [
+   256,
+   0,
+   32,
+   40
+  ],
+  "hurt_down_0": [
+   288,
+   0,
+   32,
+   40
+  ],
+  "death_down_0": [
+   320,
+   0,
+   32,
+   40
+  ],
+  "death_down_1": [
+   352,
+   0,
+   32,
+   40
+  ],
+  "death_down_2": [
+   384,
+   0,
+   32,
+   40
+  ],
+  "cast_down_0": [
+   416,
+   0,
+   32,
+   40
+  ],
+  "cast_down_1": [
+   448,
+   0,
+   32,
+   40
+  ],
+  "idle_left_0": [
+   0,
+   40,
+   32,
+   40
+  ],
+  "idle_left_1": [
+   32,
+   40,
+   32,
+   40
+  ],
+  "walk_left_0": [
+   64,
+   40,
+   32,
+   40
+  ],
+  "walk_left_1": [
+   96,
+   40,
+   32,
+   40
+  ],
+  "walk_left_2": [
+   128,
+   40,
+   32,
+   40
+  ],
+  "walk_left_3": [
+   160,
+   40,
+   32,
+   40
+  ],
+  "attack_left_0": [
+   192,
+   40,
+   32,
+   40
+  ],
+  "attack_left_1": [
+   224,
+   40,
+   32,
+   40
+  ],
+  "attack_left_2": [
+   256,
+   40,
+   32,
+   40
+  ],
+  "hurt_left_0": [
+   288,
+   40,
+   32,
+   40
+  ],
+  "death_left_0": [
+   320,
+   40,
+   32,
+   40
+  ],
+  "death_left_1": [
+   352,
+   40,
+   32,
+   40
+  ],
+  "death_left_2": [
+   384,
+   40,
+   32,
+   40
+  ],
+  "cast_left_0": [
+   416,
+   40,
+   32,
+   40
+  ],
+  "cast_left_1": [
+   448,
+   40,
+   32,
+   40
+  ],
+  "idle_right_0": [
+   0,
+   80,
+   32,
+   40
+  ],
+  "idle_right_1": [
+   32,
+   80,
+   32,
+   40
+  ],
+  "walk_right_0": [
+   64,
+   80,
+   32,
+   40
+  ],
+  "walk_right_1": [
+   96,
+   80,
+   32,
+   40
+  ],
+  "walk_right_2": [
+   128,
+   80,
+   32,
+   40
+  ],
+  "walk_right_3": [
+   160,
+   80,
+   32,
+   40
+  ],
+  "attack_right_0": [
+   192,
+   80,
+   32,
+   40
+  ],
+  "attack_right_1": [
+   224,
+   80,
+   32,
+   40
+  ],
+  "attack_right_2": [
+   256,
+   80,
+   32,
+   40
+  ],
+  "hurt_right_0": [
+   288,
+   80,
+   32,
+   40
+  ],
+  "death_right_0": [
+   320,
+   80,
+   32,
+   40
+  ],
+  "death_right_1": [
+   352,
+   80,
+   32,
+   40
+  ],
+  "death_right_2": [
+   384,
+   80,
+   32,
+   40
+  ],
+  "cast_right_0": [
+   416,
+   80,
+   32,
+   40
+  ],
+  "cast_right_1": [
+   448,
+   80,
+   32,
+   40
+  ],
+  "idle_up_0": [
+   0,
+   120,
+   32,
+   40
+  ],
+  "idle_up_1": [
+   32,
+   120,
+   32,
+   40
+  ],
+  "walk_up_0": [
+   64,
+   120,
+   32,
+   40
+  ],
+  "walk_up_1": [
+   96,
+   120,
+   32,
+   40
+  ],
+  "walk_up_2": [
+   128,
+   120,
+   32,
+   40
+  ],
+  "walk_up_3": [
+   160,
+   120,
+   32,
+   40
+  ],
+  "attack_up_0": [
+   192,
+   120,
+   32,
+   40
+  ],
+  "attack_up_1": [
+   224,
+   120,
+   32,
+   40
+  ],
+  "attack_up_2": [
+   256,
+   120,
+   32,
+   40
+  ],
+  "hurt_up_0": [
+   288,
+   120,
+   32,
+   40
+  ],
+  "death_up_0": [
+   320,
+   120,
+   32,
+   40
+  ],
+  "death_up_1": [
+   352,
+   120,
+   32,
+   40
+  ],
+  "death_up_2": [
+   384,
+   120,
+   32,
+   40
+  ],
+  "cast_up_0": [
+   416,
+   120,
+   32,
+   40
+  ],
+  "cast_up_1": [
+   448,
+   120,
+   32,
+   40
+  ]
+ },
+ "anims": {
+  "idle_down": {
+   "frames": [
+    "idle_down_0",
+    "idle_down_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_down": {
+   "frames": [
+    "walk_down_0",
+    "walk_down_1",
+    "walk_down_2",
+    "walk_down_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_down": {
+   "frames": [
+    "attack_down_0",
+    "attack_down_1",
+    "attack_down_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_down": {
+   "frames": [
+    "hurt_down_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_down": {
+   "frames": [
+    "death_down_0",
+    "death_down_1",
+    "death_down_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "cast_down": {
+   "frames": [
+    "cast_down_0",
+    "cast_down_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "idle_left": {
+   "frames": [
+    "idle_left_0",
+    "idle_left_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_left": {
+   "frames": [
+    "walk_left_0",
+    "walk_left_1",
+    "walk_left_2",
+    "walk_left_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_left": {
+   "frames": [
+    "attack_left_0",
+    "attack_left_1",
+    "attack_left_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_left": {
+   "frames": [
+    "hurt_left_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_left": {
+   "frames": [
+    "death_left_0",
+    "death_left_1",
+    "death_left_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "cast_left": {
+   "frames": [
+    "cast_left_0",
+    "cast_left_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "idle_right": {
+   "frames": [
+    "idle_right_0",
+    "idle_right_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_right": {
+   "frames": [
+    "walk_right_0",
+    "walk_right_1",
+    "walk_right_2",
+    "walk_right_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_right": {
+   "frames": [
+    "attack_right_0",
+    "attack_right_1",
+    "attack_right_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_right": {
+   "frames": [
+    "hurt_right_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_right": {
+   "frames": [
+    "death_right_0",
+    "death_right_1",
+    "death_right_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "cast_right": {
+   "frames": [
+    "cast_right_0",
+    "cast_right_1"
+   ],
+   "fps": 6,
+   "loop": true
+  },
+  "idle_up": {
+   "frames": [
+    "idle_up_0",
+    "idle_up_1"
+   ],
+   "fps": 3,
+   "loop": true
+  },
+  "walk_up": {
+   "frames": [
+    "walk_up_0",
+    "walk_up_1",
+    "walk_up_2",
+    "walk_up_3"
+   ],
+   "fps": 8,
+   "loop": true
+  },
+  "attack_up": {
+   "frames": [
+    "attack_up_0",
+    "attack_up_1",
+    "attack_up_2"
+   ],
+   "fps": 10,
+   "loop": false
+  },
+  "hurt_up": {
+   "frames": [
+    "hurt_up_0"
+   ],
+   "fps": 8,
+   "loop": false
+  },
+  "death_up": {
+   "frames": [
+    "death_up_0",
+    "death_up_1",
+    "death_up_2"
+   ],
+   "fps": 6,
+   "loop": false
+  },
+  "cast_up": {
+   "frames": [
+    "cast_up_0",
+    "cast_up_1"
+   ],
+   "fps": 6,
+   "loop": true
+  }
+ },
+ "points": {
+  "attack_down_0": {
+   "hand": [
+    24,
+    11
+   ]
+  },
+  "attack_down_1": {
+   "hand": [
+    16,
+    28
+   ]
+  },
+  "attack_down_2": {
+   "hand": [
+    20,
+    25
+   ]
+  },
+  "cast_down_0": {
+   "hand": [
+    19,
+    14
+   ],
+   "cast": [
+    16,
+    4
+   ]
+  },
+  "cast_down_1": {
+   "hand": [
+    19,
+    13
+   ],
+   "cast": [
+    16,
+    2
+   ]
+  },
+  "attack_left_0": {
+   "hand": [
+    18,
+    9
+   ]
+  },
+  "attack_left_1": {
+   "hand": [
+    5,
+    28
+   ]
+  },
+  "attack_left_2": {
+   "hand": [
+    11,
+    26
+   ]
+  },
+  "cast_left_0": {
+   "hand": [
+    13,
+    12
+   ],
+   "cast": [
+    9,
+    12
+   ]
+  },
+  "cast_left_1": {
+   "hand": [
+    13,
+    11
+   ],
+   "cast": [
+    9,
+    10
+   ]
+  },
+  "attack_right_0": {
+   "hand": [
+    13,
+    9
+   ]
+  },
+  "attack_right_1": {
+   "hand": [
+    26,
+    28
+   ]
+  },
+  "attack_right_2": {
+   "hand": [
+    20,
+    26
+   ]
+  },
+  "cast_right_0": {
+   "hand": [
+    18,
+    12
+   ],
+   "cast": [
+    22,
+    12
+   ]
+  },
+  "cast_right_1": {
+   "hand": [
+    18,
+    11
+   ],
+   "cast": [
+    22,
+    10
+   ]
+  },
+  "attack_up_0": {
+   "hand": [
+    24,
+    11
+   ]
+  },
+  "attack_up_1": {
+   "hand": [
+    16,
+    28
+   ]
+  },
+  "attack_up_2": {
+   "hand": [
+    20,
+    25
+   ]
+  },
+  "cast_up_0": {
+   "hand": [
+    19,
+    14
+   ],
+   "cast": [
+    16,
+    4
+   ]
+  },
+  "cast_up_1": {
+   "hand": [
+    19,
+    13
+   ],
+   "cast": [
+    16,
+    2
+   ]
+  }
+ },
+ "notes": "Larch Mine damp miner: sooty amber ghost.",
+ "lq": {
+  "field": "x1_enemies_field:barrow_shade",
+  "battle": "x1_enemies_battle:barrow_shade"
+ },
+ "emissive": "lm_damp_miner_emissive.png",
+ "variant_of": "barrow_shade"
+}
