@@ -2,6 +2,7 @@
 // (Esc). The talents window is talents.js. Each draw function pushes hit regions { rect, kind, on(button), tip }.
 // `act` is the controller's action surface (commands to the sim, local state, close, toast).
 import { FLIGHT } from '../data/travel.js';   // big world: flight points on the world map
+import { AFFIXES } from '../data/items.js';   // loot fixes 2026-11-26: the Embers line says what it really does
 import { menuRect, bagGrid } from './layout.js';
 import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, abilityTooltip, resourceLabel, liveStats } from './gamedata.js';
 import { drawMarkers, worldView, serifWidth } from './minimap.js';
@@ -38,6 +39,15 @@ const STAT_NAME = { str: 'Strength', agi: 'Agility', int: 'Intellect', spi: 'Spi
   crit: 'Critical Strike chance', sp: 'Spell Power', mana: 'Mana', speed: 'Movement Speed', armorPct: 'Armor', main: 'Main Stat',
   dodge: 'Dodge chance', maxHp: 'Health', armor: 'Armor', haste: 'Haste' };
 const PCT_STAT = new Set(['crit', 'speed', 'armorPct', 'dodge', 'leech']);
+/** One stat line on a tooltip. Embers and Leech say what they do in a fight (src/sim/affixes.js, with its caps). */
+export function statLine(k, v) {
+  if (k === 'fireOnHit') {
+    const c = (AFFIXES.of_embers && AFFIXES.of_embers.combat) || { chance: 0.25, per: 4 };
+    return `Embers: ${Math.round((c.chance == null ? 1 : c.chance) * 100)}% chance on a hit to deal ${Math.round(v * (c.per || 1))} more fire damage`;
+  }
+  if (k === 'leech') return `+${v}% Life Leech (heal for that share of your direct hits; gear leech caps at 10%)`;
+  return `+${v}${k.startsWith('res') || PCT_STAT.has(k) ? '%' : ''} ${STAT_NAME[k] || k}`;
+}
 /** Green / red lines: what wearing `i` instead of `worn` changes (CRITIQUE_1 item 13). */
 export function compareLines(i, worn) {
   const w = worn ? itemInfo(worn) : null;
@@ -67,7 +77,7 @@ export function itemTooltip(it, extra, worn) {
   const body = [];
   if (i.damage) body.push(`${i.damage[0]} to ${i.damage[1]} damage, speed ${i.speed}`);
   if (i.armor) body.push(`${i.armor} armor`);
-  for (const [k, v] of Object.entries(i.stats || {})) body.push(`+${v}${k.startsWith('res') || PCT_STAT.has(k) ? '%' : ''} ${STAT_NAME[k] || k}`);
+  for (const [k, v] of Object.entries(i.stats || {})) body.push(statLine(k, v));
   if (i.text) body.push(i.text);
   if (i.q != null) body.push(`Quality ${Math.round(i.q * 100)} of 100${i.illum ? '. Illuminated: every line at its best, and one more' : ''}`);   // wave 10 dloot (only pieces dropped since the build carry q)
   if (i.kind === 'quest') body.push('Quest item.');

@@ -12,6 +12,12 @@
 // carries the dps. No imports from outside sim.
 
 const WEAPON_SLOTS = { main: 'main', two: 'main', off: 'off' };
+// Caps (loot fixes 2026-11-26): gear leech tops out at 10% of the damage dealt (two of Leeching weapons cannot reach 18%),
+// and only the strongest chance-on-hit fires on a blow (two of Embers weapons roll one Embers, not two). src/sim/combat.js
+// also caps all leech on one hit (talents plus gear) at LEECH_TOTAL_CAP.
+export const GEAR_LEECH_CAP = 0.1;
+export const LEECH_TOTAL_CAP = 0.3;
+export const GEAR_ONHIT_MAX = 1;
 
 export function gearEffects(content, e) {
   const A = content.affixes || {};
@@ -30,6 +36,9 @@ export function gearEffects(content, e) {
     }
     if (inst.minor && minorDef(content, inst.minor) && !out.minors.includes(inst.minor)) out.minors.push(inst.minor);
   }
+  out.leech = Math.min(out.leech, GEAR_LEECH_CAP);
+  out.onHit.sort((a, b) => b.amount * b.chance - a.amount * a.chance || (a.ability < b.ability ? -1 : 1));
+  out.onHit.length = Math.min(out.onHit.length, GEAR_ONHIT_MAX);
   out.any = out.leech > 0 || out.onHit.length > 0;
   return out;
 }

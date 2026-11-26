@@ -13,6 +13,7 @@ import { TICK_HZ, SUB, TILE, GCD_TICKS } from './constants.js';
 import { levelValue, ticks as T, clone } from './data.js';
 import { distPx, distPxXY, unitTo, DIR_VEC, dirFromVec } from './geom.js';
 import { hasLos, losBetween } from './los.js';
+import { LEECH_TOTAL_CAP } from './affixes.js';
 import { rideable, MOUNT_FLAG } from './mounts.js';
 
 export function createCombat(C) {
@@ -1025,7 +1026,8 @@ export function createCombat(C) {
       const lm = stats.mod(src, 'leech', { ability: info.ability, periodic: !!info.periodic, school: info.school });
       // gear: of Leeching on direct hits (src/sim/affixes.js; e.gearFx from stats.js recalcPlayer)
       const gl = src.gearFx && !info.periodic && !info.gearFx ? src.gearFx.leech : 0;
-      if (lm.add + gl > 0) heal(src, src, total * (lm.add + gl), { ability: 'leech', canCrit: false, noThreat: true });
+      const lk = Math.min(lm.add + gl, LEECH_TOTAL_CAP);   // loot fixes 2026-11-26: all leech on one hit tops out at 30%
+      if (lk > 0) heal(src, src, total * lk, { ability: 'leech', canCrit: false, noThreat: true });
       // Builds 2 Radiance: part of the damage heals the lowest friend (you, alone)
       const ll = stats.mod(src, 'leechLowest', { ability: info.ability, periodic: !!info.periodic, school: info.school }).add;
       if (ll > 0) { const to = lowestAlly(src); if (to) heal(src, to, total * ll, { ability: 'leech', canCrit: false, noThreat: true }); }

@@ -1465,6 +1465,9 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `{ kind: 'leech', per }` heals `value x per` of direct damage dealt, `{ kind: 'onHit', chance, per, school, ability }`
   deals `value x per` damage of `school` on a direct hit (no crit; info `gearFx`, which never procs again). recalcPlayer
   puts `e.gearFx = { leech, onHit } | null` and `e.minors` on the hero; the weapon's min and max carry the dps.
+  Caps (loot fixes 2026-11-26, src/sim/affixes.js): gear leech at most `GEAR_LEECH_CAP` (10%), only the strongest
+  `GEAR_ONHIT_MAX` (1) chance-on-hit per blow, and all leech on one hit (talents plus gear) at most `LEECH_TOTAL_CAP` (30%).
+  Tooltips (src/ui/menus.js statLine) say Embers' chance and real fire damage, and Leech's cap.
 - **Minor powers** (`content.rarity.rare.minor` and `.epic.minor` = `{ fromIlvl: 15, chance: 0.1, powers }`,
   src/data/legendary_powers.js MINOR_POWERS): `rollGear` may put `inst.minor = id` on a rare or epic; `resolveItem` adds the
   power's `text` and `minor`; worn ids on `e.minors`; `stats.mod` adds their mods and `combat.procs` their procs (ICD key
