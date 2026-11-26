@@ -518,7 +518,8 @@ Later bands, two zones and a small dungeon each (names are placeholders, from to
 | **Renown** (after the cap) | XP fills Renown levels: each gives a choice of +1% to one stat (max +10% total), a cosmetic glow, or a gold chest | phase 3 |
 | **Sidekick with friends** | in a party, a lower hero is raised to within 2 levels of the leader; XP still pays at their real level | phase 2 (up to 4 friends) |
 
-Today's "XP at the cap becomes gold" (Fact: Q17) stays at each phase's temporary cap until Renown exists.
+Today's "XP at the cap becomes gold" (Fact: Q17) stayed at each phase's temporary cap until Renown shipped (live at
+cap 30: overflow XP fills Renown; see PROGRESSION.md).
 
 ### 5.7 Cap 30, built (2026-11-22; Scott: "Go with all of it")
 
@@ -542,8 +543,10 @@ Today's "XP at the cap becomes gold" (Fact: Q17) stays at each phase's temporary
 - **Gear tier.** Affix tiers 6 to 8 above ilvl 20 (16 to 20 stay tier 5); eight named pieces that any foe of levels 21 to
   25 (magic, ilvl 23) or 26 to 30 (rare, ilvl 28) may drop at 1%; the Barrow Deep Halls' pools, two epics and two
   legendaries (The Barrow-King's Due, The Drovers' Horn) (`src/data/gear_tier3.js`).
-- **Not built:** the level 30 pick (3.2 says "written when those levels are built"; no design yet), 5-piece sets (6.8),
-  Renown.
+- **Renown.** Live at cap 30 (finish pass, 2026-11-26): overflow XP fills Renown levels at 19,200 XP; each level is a
+  choice of +1% to one main stat (cap +10% total), a one-time Lantern Glow, or a 200 gold chest. Shown on the XP bar
+  and the Character panel. SAVE_VERSION stays 2 (additive `renown` field).
+- **Not built:** the level 30 pick (3.2 says "written when those levels are built"; no design yet), 5-piece sets (6.8).
 
 ---
 

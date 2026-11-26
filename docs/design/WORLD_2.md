@@ -1,8 +1,13 @@
 # Lexicon Realms: World 2, five starting realms
 
 Owner: world design. Written 2026-11-19, rewritten the same day after Scott's direction: "No need to stick to canon,
-focus instead of making an excellent game". **Status: PROPOSAL.** Nothing here is built. `ZONES_QUESTS.md` stays in
-force until Scott approves this file.
+focus instead of making an excellent game". **Status: the five starting realms are live** (finish pass, 2026-11-26).
+Emberpeak, Valewyn, the Rootbound, Saffron Haven and the Nameless Hollow ship as playable start zones (levels 1 to 6),
+each with its own music track and signature mechanic. First-teacher names that this file drafted differently are
+locked in data as Corwin (Emberpeak), Maren and Tilly (Valewyn), Ottilie (the Rootbound) and Corvin (the Hollow).
+Larchhill (20 to 25), Drovers' Reach (25 to 30) and the Barrow Deep Halls are also live. Sections below may still
+describe the original 1 to 5 proposal where they have not been updated. `ZONES_QUESTS.md` still covers Willowmere, the
+valley, the Downs and the High Moor.
 
 Also decided today and assumed here: zones about 3x bigger (about 2 minutes to walk across), levels 1 to 15, angled
 3D, mounts later for gold, groups of 2 to 3 foes from about level 4, up to 4 friends online later, mostly solo.

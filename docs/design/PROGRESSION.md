@@ -10,12 +10,13 @@ section 9.4 so the engine agent can port it to a node test.
 
 **Cap 30 (BUILDS_2 phase 10, the 20 to 30 band, 2026-11-22; Scott: "Go with all of it").** Levels 1 to 19 keep their
 numbers; 20 to 29 extend the same rule (target minutes 26 to 35), so 30 comes at 226,920 XP, about 10 hours of pure
-levelling (BUILDS_2 5.2). The content for 20 to 30 is the Larchhill and Drovers' Reach zones (a separate build) and the
-Barrow Deep Halls (src/data/dungeons.js `barrow_deep`, levels 26 to 30). At the cap (now 30) XP turns into gold as below.
+levelling (BUILDS_2 5.2). The content for 20 to 30 is live: Larchhill and Drovers' Reach, and the Barrow Deep Halls
+(src/data/dungeons.js `barrow_deep`, levels 26 to 30). At the cap, overflow XP fills Renown (below).
 
 **Cap 20 (phase 5 of BUILDS_2 section 9, 2026-11-19).** Scott approved "cap 50, shipped at 20 first, re-spread World 2
-to levels 1 to 20". World 2 is not built, so today's four zones were re-spread instead (1.1). Levels 1 to 14 keep their
-numbers exactly, so no live hero moves; 15 to 19 extend the same rule (BUILDS_2 5.2).
+to levels 1 to 20". At that time World 2 was not built, so today's four zones were re-spread instead (1.1). The five
+starting realms, Larchhill and Drovers' Reach are live now (WORLD_2.md). Levels 1 to 14 keep their numbers exactly, so
+no live hero moves; 15 to 19 extend the same rule (BUILDS_2 5.2).
 
 Target: a first character reaches 15 in **about 3 to 3.5 hours** of play (about 185 minutes of pure levelling time
 plus first-time wandering), with **quests giving 70%** of the XP and kills 30%; and 20 in **about 5 hours** (300 minutes
@@ -55,9 +56,15 @@ of pure levelling: the chain plus one day of the bounty boards, 2.4).
 | 30 | cap | **226,920** | |
 
 How it was built: `xp_to_next(L) = 4 * kill_xp(L) * minutes(L)`, rounded to tens, which is "30% of the level from
-about 1.2 kills a minute". Past 14 the target minutes are `20 + (L - 14)` (BUILDS_2 5.2). At the cap (now 20) further
-XP converts to gold at 1 gold per 50 XP (shown as "+n gold" instead), until Renown exists (now at 30). A hero saved at 15 under
-the old cap keeps its level, its XP and any gold the cap already banked, and levels on from there.
+about 1.2 kills a minute". Past 14 the target minutes are `20 + (L - 14)` (BUILDS_2 5.2). A hero saved at 15 under the
+old cap keeps its level, its XP and any gold the cap already banked, and levels on from there.
+
+**Renown after 30 (BUILDS_2 5.6, live).** Overflow XP no longer converts to gold. It fills Renown levels at a flat
+19,200 XP each (about one late level). Each Renown level is a choice on the Character panel: +1% to one of Stamina,
+Strength, Agility, Intellect or Spirit (cap +10% total across those stats), a one-time Lantern Glow (the existing
+lantern icon, a lasting buff, no new art), or a repeatable 200 gold chest. Gold already in the bags from the old
+1-per-50 cap rule stays; leftover unsaved `xpGoldAcc` is not converted. Existing v2 saves load without a Renown field
+and start earning it on the next overflow. SAVE_VERSION stays 2.
 
 ### 1.1 The zone re-spread (BUILDS_2 5.5 option 1, mapped onto today's zones)
 
