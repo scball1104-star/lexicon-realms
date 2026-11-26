@@ -5,6 +5,7 @@
 //
 //   node qa/sim/dungeon_bot.mjs                         the Barrow at 11, the Watchtower at 19 and 20, the caves at 5, 8, 15, the Deep Halls at 28 and 30; every class
 //   node qa/sim/dungeon_bot.mjs --place barrow --level 11 --cls warden --builds all --seeds 3
+//   node qa/sim/dungeon_bot.mjs --place barrow_deep --level 30 --depth 3   wave 10 dtiers: the same clear at a depth (src/sim/depths.js)
 //   import { clearRun } from './dungeon_bot.mjs'
 // Prints DUNGEON_BOT_DONE: runs=<n> cleared=<n> max_deaths=<n> gate=<pass|FAIL> (gate: every run clears with deaths <= 2).
 import path from 'node:path';
@@ -39,7 +40,7 @@ function makeHero(w, build, level) {
 }
 
 /** One clear: { place, cls, build, level, cleared, minutes, deaths, xpKills, bosses: { id: s } }. */
-export function clearRun(place, cls, level, { build = null, seed = 1, maxMin = 75, trace = false } = {}) {
+export function clearRun(place, cls, level, { build = null, seed = 1, maxMin = 75, trace = false, depth = 0 } = {}) {   // wave 10 dtiers: depth
   const C0 = content();
   const w = createWorld({ seed: 7000 + seed, content: C0, day: 1 });
   const b = build || NAMED_ALL[cls][0];
@@ -47,6 +48,7 @@ export function clearRun(place, cls, level, { build = null, seed = 1, maxMin = 7
   const p = w.get(pid);
   const K = w.internals.combat;
   // into the hero's copy, at the entry
+  if (depth > 0) { p.depths = { open: { [place]: depth }, runs: [], best: {}, coffer: null }; p.depthPick = { place, depth, candle: false }; }   // wave 10 dtiers: a depth run
   const zid = w.internals.dungeons.enter(p, place);
   const Z = C0.zones[zid];
   p.zone = zid; p.x = Z.arrival[0] * TILE + 128; p.y = (Z.arrival[1] + 1) * TILE - SUB;
@@ -80,6 +82,16 @@ export function clearRun(place, cls, level, { build = null, seed = 1, maxMin = 7
       if (!c) continue;
       const r = (a.radius || 32) + 14;
       if (Math.hypot(p.x - c.x, p.y - c.y) / SUB < r) return c;
+    }
+    // wave 10 dbosses: a boss's red slot (src/sim/boss_mech.js) is a ground warning of its own, read from the marks (px)
+    const DG = w.internals.dungeons;
+    for (const mk of DG && DG.bossMarks ? DG.bossMarks() : []) {
+      if (mk.zone !== zid || mk.kind !== 'red') continue;
+      const ox = mk.x * SUB, oy = mk.y * SUB, dx = p.x - ox, dy = p.y - oy, d = Math.hypot(dx, dy) / SUB;
+      if (mk.shape === 'circle') { if (d < mk.r + 14) return { x: ox, y: oy }; continue; }
+      const cs = Math.cos(mk.dir), sn = Math.sin(mk.dir), along = (dx * cs + dy * sn) / SUB, across = (-dx * sn + dy * cs) / SUB;
+      if (mk.shape === 'line' && along > -14 && along < mk.r + 14 && Math.abs(across) < mk.w / 2 + 14) return { x: ox + cs * along * SUB, y: oy + sn * along * SUB };
+      if (mk.shape === 'cone' && d < mk.r + 14) return { x: ox, y: oy };
     }
     return null;
   }
@@ -215,7 +227,7 @@ if (isMain) {
   const rows = [];
   const t0 = Date.now();
   for (const [place, level] of cells) for (const cls of classes) for (const b of allBuilds ? NAMED_ALL[cls] : [NAMED_ALL[cls][0]]) for (let s = 1; s <= seeds; s++) {
-    const r = clearRun(place, cls, level, { build: b, seed: s, trace: args.includes('--trace2') ? 2 : args.includes('--trace') });
+    const r = clearRun(place, cls, level, { build: b, seed: s, trace: args.includes('--trace2') ? 2 : args.includes('--trace'), depth: Number(arg('--depth', 0)) });   // wave 10 dtiers: --depth
     rows.push(r);
     console.log(`| ${place} | ${level} | ${cls} | ${r.build} | ${r.cleared ? 'yes' : 'NO'} | ${r.minutes} | ${r.deaths} | ${r.low}% | ${r.xpKills} | ${Object.entries(r.bosses).map(([k, v]) => `${k} ${v}s`).join(', ')} |`);
   }

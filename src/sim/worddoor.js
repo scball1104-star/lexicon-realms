@@ -56,9 +56,10 @@ export function createWordDoors(X) {
       const wi = Math.floor(h.next() * def.words.length);
       const word = def.words[wi].word;
       // the found letters: one per letter of the word, on distinct spots, in a hashed order
-      const spots = d.stones.map((s, i) => ({ s, k: h.next(), i })).sort((a, b) => a.k - b.k || a.i - b.i).slice(0, word.length);
+      const spots = (d.stones || []).map((s, i) => ({ s, k: h.next(), i })).sort((a, b) => a.k - b.k || a.i - b.i).slice(0, word.length);
       const stones = [];
       word.split('').forEach((L, i) => {
+        if (!spots[i]) return;            // wave 10 dbosses: a name-stone has no found letters (pouch glyphs only)
         const [x, y] = X.tileToSub(spots[i].s[0], spots[i].s[1]);
         const ent = X.add({ id: X.nextId(), kind: 'object', zone: zid, x, y, dir: 'down', moving: false, name: `Lintel stone (${L})`, level: 1, faction: 'neutral',
           sprite: 'glyph_stone', template: 'wdoor_stone', hp: 1, hpMax: 1, res: null, target: null, cast: null, auras: [], cd: {}, gcdUntil: 0, dead: false,
@@ -69,14 +70,15 @@ export function createWordDoors(X) {
       const slab = X.add({ id: X.nextId(), kind: 'object', zone: zid, x: sx + (d.face.w > 1 ? 128 : 0), y: sy, dir: 'down', moving: false, name: def.name, level: 1, faction: 'neutral',
         sprite: 'word_door', template: 'wdoor_slab', hp: 1, hpMax: 1, res: null, target: null, cast: null, auras: [], cd: {}, gcdUntil: 0, dead: false,
         wdoor: { door: d.id } });
-      const [cx, cy] = X.tileToSub(d.chest.x, d.chest.y);
-      const chest = X.add({ id: X.nextId(), kind: 'object', zone: zid, x: cx, y: cy, dir: 'down', moving: false, name: d.chest.name, level: 1, faction: 'neutral',
+      // wave 10 dbosses: a name-stone (src/data/boss_fights.js) has no coffer
+      const [cx, cy] = d.chest ? X.tileToSub(d.chest.x, d.chest.y) : [0, 0];
+      const chest = !d.chest ? null : X.add({ id: X.nextId(), kind: 'object', zone: zid, x: cx, y: cy, dir: 'down', moving: false, name: d.chest.name, level: 1, faction: 'neutral',
         sprite: 'chest_gold', template: d.chest.id, hp: 1, hpMax: 1, res: null, target: null, cast: null, auras: [], cd: {}, gcdUntil: 0, dead: false,
         node: { item: null, respawn: 0, channel: 0, perPlayer: true, readyAt: 0, secret: { id: d.chest.id } },
         dchest: { place: zoneBase(zid), opened: [], kind: 'word', door: d.id } });
       c.wd[d.id] = { word: wi, len: word.length, slots: new Array(word.length).fill(null), tries: 0, quietUntil: 0, open: false,
-        carried: {}, face: { ...d.face }, slab: slab.id, chest: chest.id, stones, cells: d.cells.map(([x, y]) => CELL(x, y)) };
-      if (now() > 0) for (const id of [...stones, slab.id, chest.id]) emit({ type: 'spawn', id, template: (get(id) || {}).template, zone: zid, kind: 'object' });
+        carried: {}, face: { ...d.face }, slab: slab.id, chest: chest ? chest.id : null, stones, cells: (d.cells || []).map(([x, y]) => CELL(x, y)) };
+      if (now() > 0) for (const id of [...stones, slab.id, ...(chest ? [chest.id] : [])]) emit({ type: 'spawn', id, template: (get(id) || {}).template, zone: zid, kind: 'object' });
     }
   }
 
@@ -225,6 +227,9 @@ export function createWordDoors(X) {
       carried: Object.values(d.carried).map((c) => ({ letter: c.letter, by: c.by })),
       left: d.stones.filter((id) => get(id)).length,   // found letters still lying in the copy
       opened: d.open ? W.opened || null : null,
+      // wave 10 dbosses: a name-stone's hint line, once anyone in the copy has cleared its boss `hintAfter` times
+      ...(def.hint && state.ents.some((p) => p.kind === 'player' && p.zone === t.zone && ((((p.dungeons || {}).clears || {})[def.boss]) || 0) >= (def.hintAfter || 3)) ? { hint: def.hint } : {}),
+      ...(def.nameStone ? { nameStone: def.boss } : {}),
     } };
   }
 

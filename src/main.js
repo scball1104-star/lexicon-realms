@@ -36,7 +36,10 @@ import { createCoop } from './net/coop.js';
 import { createLanternNotes } from './ui/notes_wire.js';   // wave 9 notes: lantern notes
 
 import { readRiddle, clearRiddle } from './ui/riddle_book.js';   // wave 9 riddles: a #riddle= link
+import { readRiftLink } from './data/rift.js';   // wave 10 drift: a #rift= link
 import { createRiddleRules } from './sim/riddle.js';   // wave 9 riddles: the link code's rules for the UI
+
+import { easternDay } from './core/eastern_week.js';   // wave 10 dflow: the one shared Eastern calendar
 
 const ZOOMS = [1, 1.5, 2];
 const TILE = 16;
@@ -75,7 +78,7 @@ async function boot() {
   }
   const seed = Number(q.get('seed')) || 20261119;
   // the bounty boards' day (BUILDS_2 5.6): this PC's local calendar day, so the boards repost at local midnight; ?day=n pins it
-  const bountyDay = () => (q.has('day') ? Number(q.get('day')) | 0 : Math.floor((Date.now() - new Date().getTimezoneOffset() * 60000) / 86400000));
+  const bountyDay = () => (q.has('day') ? Number(q.get('day')) | 0 : easternDay(Date.now()));   // wave 10 dflow: the Eastern day, the same on every device
   const world = createWorld({ seed, content, day: bountyDay() });
   let playerId = null;                 // created by the title screen (or at once in dev mode, below)
   const joins = [];                    // [tick, spec]: addPlayer calls, replayable with commandLog (CONTRACTS 2.3)
@@ -171,6 +174,8 @@ async function boot() {
   ui.riddles.setNet({ isGuest: () => coop.isGuest, offer: (code) => coop.riddleOffer(code), rules: createRiddleRules(content.riddleRules, content.riddleBlocked) });   // wave 9 riddles
   const riddleHash = () => { const c = readRiddle(window.location); if (c) { ui.riddles.receive(c); clearRiddle(); } };   // wave 9 riddles
   riddleHash(); window.addEventListener('hashchange', riddleHash);   // wave 9 riddles: the card shows once a hero is in the world
+  const riftHash = () => { const r = readRiftLink(window.location.hash); if (r && r.word) { ui.rift.receive(r); try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch { /* keep the hash */ } } };   // wave 10 drift
+  riftHash(); window.addEventListener('hashchange', riftHash);   // wave 10 drift: a friend's #rift= link
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
   ui.setItems(content.items);
   ui.setQuests(content.quests, content.npcs);
@@ -181,6 +186,7 @@ async function boot() {
   if (touch && !ui.options.zoomSet && !q.get('zoom')) view.zoom = 1.5;
   view.fx = fxOverride || ui.options.fx;
   view.shake = ui.options.shake !== false;   // the 3D effects' camera kick (Options)
+  view.dloot = () => ({ drops: ui.dloot.S.drops, now: ui.dloot.now });   // wave 10 dloot: the 3D light columns (src/render3d/dloot3d.js)
   audio.setVolumes({ master: 1, music: ui.options.music, sfx: ui.options.sfx });
   const touchCtl = touch ? createTouch({ canvas, input, ui }) : null;
   // the horizon camera (wave 5b, 3D only, an option): ?cam=horizon|fixed in the link wins, else Options: Camera.
@@ -238,6 +244,8 @@ async function boot() {
       qbag: s.qbag, pendingLoot: s.pendingLoot, hp: s.hp, res: s.res, cdLeft: s.cdLeft, auras: s.auras, escorts: s.escorts,
       bounties: s.bounties,                                                  // the bounty boards: which were handed in today
       dungeons: s.dungeons,                                                  // dungeons: today's first clears, the legendary bad-luck count
+      raid: s.raid,                                                          // wave 10 draid: the raid's weekly lockout (src/sim/raid.js)
+      depths: s.depths,                                                      // wave 10 dtiers: Depths opened, this week's runs, the coffer
       glyphSeen: s.glyphSeen,                                                // wave 9 music: letters ever found (optional)
       chest: s.chest, gbag: s.gbag,                                          // the hero's Lantern Chest tab and glyph pouch (missing = empty)
       barOff: s.barOff,                                                      // skills the player took off the bar (save v2)
@@ -268,7 +276,7 @@ async function boot() {
     const fl = e.flight && content.travel ? content.travel.flight.points[e.flight.to] || (content.travel.rides || {})[e.flight.to] || null : null;   // a ride (wave 3) saves at its landing too
     const spot = e.dead && e.lantern ? { zone: e.lantern.zone, tx: e.lantern.x, ty: e.lantern.y } : fl ? { zone: fl.zone, tx: fl.land[0], ty: fl.land[1] }
       : { zone: e.zone, tx: Math.floor(e.x / (TILE * 16)), ty: Math.floor((e.y - 1) / (TILE * 16)) };   // SUB -> tiles
-    return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.level, xp: e.xp, gold: e.gold || 0, ...spot,
+    return { v: 2, name: e.name, cls: e.cls, look: e.look, level: e.sync ? e.sync.from : e.level, xp: e.xp, gold: e.gold || 0, ...spot,   // wave 10 dflow: a synced hero saves its own level
       bag: clone(e.bag), bags: clone(e.bags), equip: clone(e.equip), known: clone(e.known), bar: padBar(e.bar), talents: clone(e.talents),
       quests: clone(e.quests), questsDone: clone(e.questsDone), nodesUsed: clone(e.nodesUsed), respecs: e.respecs || 0, lantern: clone(e.lantern),
       ...(world.saveFields ? clone(world.saveFields(id)) || {} : {}), savedAt: Date.now() };   // savedAt: rest XP's time away (specFor)
@@ -502,6 +510,7 @@ async function boot() {
   chron = await import('./chronicle/chronicle.js').then((m) => m.createChronicle({ bus, content, renderer, ui, input, canvas, font, touch,
     heroId: () => playerId, snapshot: () => snap, coop, replay: () => replay, q })).catch((e) => { console.warn('chronicle', e); return null; });
   if (chron) ui.act.chronicle = () => chron.openList();   // wave 9 chronicle: Options: Chronicle
+  ui.act.watchFight = async (bossId) => { if (!replay) return false; try { await replay.refresh(); } catch { return false; } const i = replay.list.rows.findIndex((r) => r.bossId === bossId); if (i < 0) return false; replay.watch(i); return true; };   // wave 10 dflow: the run summary's Watch
   const loop = createLoop({ hz: TICK_HZ, tick, render });
   coop.setPump({ loop, tick });
   if (q.get('paused') !== '1') loop.start();

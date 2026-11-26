@@ -21,6 +21,7 @@ import { rollMargins } from './glyphs.js';
 import { markSeen } from './letters_seen.js';   // wave 9 music: letters ever found
 
 import { rollMinor, minorDef } from './affixes.js';
+import { statScale, powerAt } from './dloot_q.js';   // wave 10 dloot: quality on a dropped named piece
 
 // ---------------------------------------------------------------- bags
 export function bagCapacity(e, content) {
@@ -235,6 +236,12 @@ export function resolveItem(content, entry, cls) {
   const cg = (content.classGear || {})[cls] || null;
   const ilvl = inst && inst.ilvl ? inst.ilvl : def.level;
   const out = { ...def, stats: { ...(def.stats || {}) }, level: ilvl, reqLevel: Math.max(1, ilvl - 2), rarity: inst && inst.rarity ? inst.rarity : def.rarity };
+  // wave 10 dloot (src/sim/dloot.js): a dropped named piece's quality scales its fixed stats; a power with `q` paths rolls in
+  // its band. No `q` (every piece saved before the build): the old numbers exactly.
+  const q = inst && inst.q != null ? inst.q : null;
+  if (q != null) { for (const k of Object.keys(out.stats)) out.stats[k] = Math.max(1, Math.round(out.stats[k] * statScale(q))); out.q = q; }
+  if (inst && inst.illum) out.illum = true;
+  if (def.power && def.power.q) { out.power = powerAt(def.power, q); out.text = out.power.text; }
   // armor type: 'class' or a list resolve to the class's own (or the list's first)
   if (def.kind === 'armor' && def.slot !== 'trinket') {
     let a = (inst && inst.armorType) || def.armorType;
@@ -294,6 +301,7 @@ export function itemName(content, entry) {
   const def = content.items[id];
   if (!def) return id;
   if (!inst || !inst.affixes || !inst.affixes.length) return def.name;
+  if (def.rarity === 'legendary' || def.rarity === 'set') return def.name;   // wave 10 dloot: a legendary or set piece keeps its own name
   const pre = inst.affixes.filter((a) => content.affixes[a.id] && content.affixes[a.id].kind === 'prefix').map((a) => content.affixes[a.id].name);
   const suf = inst.affixes.filter((a) => content.affixes[a.id] && content.affixes[a.id].kind === 'suffix').map((a) => content.affixes[a.id].name);
   return [...pre, def.name, ...(suf.length ? [suf[0]] : [])].join(' ');

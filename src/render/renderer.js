@@ -33,6 +33,7 @@ import { mountLift, drawMount2d } from './mount2d.js';
 import { drawRealm2d } from './realm2d.js';   // wave 3: Emberpeak's lava, Valewyn's tide, the ride vehicles
 import { isPlaceZone, doorMouths } from './dungeon_plan.js';
 import { placeLive, drawBrazier, drawFlames, drawDoorMouth, drawTelegraphs2d, drawDoorLabels2d } from './dungeon2d.js';
+import { drawBossMarks2d } from './boss_marks2d.js';   // wave 10 dbosses: the boss fight ground marks
 import { drawRealms2Ground, drawRealms2Over } from './realms2_2d.js';   // wave 3 realms2: lantern cones, fog banks, the sandstorm
 
 function canvas2d(w, h) {
@@ -273,6 +274,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
     for (const [e, x, y] of grounds) objArt.drawGround(g, e, x, y, cam, now);
     // red ground warnings for telegraphed casts (bosses), under every actor
     dev.telegraphs = drawTelegraphs2d(g, snap, abilities, (id) => { const p = pos.get(id); return p || null; }, cam, zoneId);
+    dev.bossMarks = drawBossMarks2d(g, snap.bossMarks, cam, zoneId, (snap.tick || 0) / 20);   // wave 10 dbosses
     dev.cones = drawRealms2Ground(g, snap, (id) => pos.get(id) || null, cam, zoneId);
 
     // shadows (lean with the sun, fainter at night) and the target ring go under every sprite
@@ -513,7 +515,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
 
     // floating combat numbers at the base scale (crisp at every zoom)
     octx.clearRect(0, 0, layout.hudW, layout.hudH);
-    if (zone && zone.doors && !view.bossCam) drawDoorLabels2d(octx, zone, labelFont, worldToHud, { w: layout.hudW, h: layout.hudH });
+    if (zone && zone.doors && !view.bossCam) drawDoorLabels2d(octx, zone, labelFont, worldToHud, { w: layout.hudW, h: layout.hudH, top: layout.touch ? 30 : 2 });   // wave 10 draid: top
     fx.drawNumbers(octx, worldToHud, now);
     ctx.drawImage(over, 0, 0, layout.hudW, layout.hudH, layout.ox, layout.oy, layout.hudW * layout.base, layout.hudH * layout.base);
 

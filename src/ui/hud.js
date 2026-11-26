@@ -6,6 +6,7 @@ import { W, H, trackerRows, inRect } from './layout.js';
 import { drawMarkers } from './minimap.js';
 import { abilityInfo, abilityTooltip, autoTooltip, classInfo, resourceWord, liveStats } from './gamedata.js';
 import { targetCast, threatTag, buffRow, partyExtras } from './group_ui.js';
+import { bossFrameRect, drawBossFrame } from './boss_hud.js';   // wave 10 dbosses: the boss frame
 
 const MENU_ICON = { character: 'icon_helm', bags: 'icon_bag', quests: 'icon_quest', talents: 'icon_star', map: 'icon_scroll', help: 'emote_question_0', menu: 'icon_gear' };
 /** Quest marks drawn in code (CRITIQUE_1 item 1): a gold ! (quest to take) or ? (ready to turn in), grey when trivial or
@@ -156,6 +157,7 @@ export function createHud(env) {
   }
 
   function targetFrame(ctx, L, t) {
+    if (t.bossFight) { drawBossFrame(g, ctx, L, t); return; }   // wave 10 dbosses: a boss in its fight gets the boss frame
     const r = L.target;
     const hostile = t.faction === 'hostile';
     g.window(ctx, r.x, r.y, r.w, r.h, 'std', hostile ? 'crimson' : t.kind === 'player' ? 'forest' : 'blue');
@@ -180,8 +182,12 @@ export function createHud(env) {
   function groupTarget(ctx, L, m, regions, act) {
     const t = m.target;
     if (!L.targetCast) return;
-    if (m.targetCast) targetCast(g, ctx, L.targetCast, m.targetCast);
-    if (t.faction === 'hostile' && t.threat && m.player.inCombat) threatTag(g, ctx, L.threat.x, L.threat.y, t.threat, { tank: m.player.cls === 'warden' });
+    // wave 10 dbosses: the boss frame is taller and wider, so the foe's cast and the threat warning step aside
+    const bf = t.bossFight ? bossFrameRect(L) : null;
+    const tc = bf ? { ...L.targetCast, x: L.touch ? bf.x + bf.w + 4 : L.targetCast.x, y: L.touch ? L.targetCast.y : bf.y + bf.h + 2 } : L.targetCast;
+    const th = bf ? { x: bf.x + bf.w + 4, y: L.threat.y } : L.threat;
+    if (m.targetCast) targetCast(g, ctx, tc, m.targetCast);
+    if (t.faction === 'hostile' && t.threat && m.player.inCombat) threatTag(g, ctx, th.x, th.y, t.threat, { tank: m.player.cls === 'warden' });
     const friend = act && m.group && t.kind === 'player' && (m.party || []).some((u) => u.id === t.id);
     if (!friend) return;
     const r = L.targetCast, bh = Math.max(16, L.touch ? L.minHit || 0 : 0);
@@ -465,8 +471,11 @@ export function createHud(env) {
       const party = m.party || [];
       const act = opts.act || null;
       // a party frame: a click targets that friend (heals, Trade, Rez); a dead one shows Dead and the Rez button
+      // wave 10 integrate: on a phone the boss frame (dbosses) is taller than the target frame: the party frames step below it
+      const bf = L.touch && m.target && m.target.bossFight ? bossFrameRect(L) : null;
+      const pdy = bf ? Math.max(0, bf.y + bf.h + 2 - L.party(0).y) : 0;
       party.slice(0, 3).forEach((u, i) => {
-        const r = L.party(i); partyFrame(ctx, r, u, L.touch);
+        const r0 = L.party(i), r = pdy ? { ...r0, y: r0.y + pdy } : r0; partyFrame(ctx, r, u, L.touch);
         regions.push({ rect: r, kind: 'party', id: u.id, ...(act ? { on: () => act.send({ t: 'target', id: u.id }) } : {}) });
         partyExtras(g, ctx, r, u, m.group, regions, act, L.touch);
       });

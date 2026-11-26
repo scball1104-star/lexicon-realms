@@ -1278,6 +1278,24 @@ the doors `src/data/maps/doors.js`, the quests `src/data/dungeon_quests.js`, the
   can use (magic, blue); the Watchtower's bosses add their set piece for the killer's class (`setSlot`); the last boss adds
   a rare from `rare` and rolls `legendary` at `legend.chance + legend.step x misses` (0.10 + 0.005 per miss; the count is
   `p.dungeons.miss`, saved, reset on a drop; event `legendary`). Events: `dungeon_clear { id, place, zone, first }`.
+- **Delve loot** (wave 10 dloot, 2026-11-25, BUILD; D:/LQOnline/wave10/dloot/BRIEF.md; names and lines are DRAFTS in
+  `src/data/dloot.js`). Rules `content.dropRules.dloot` (`DLOOT_RULES`). The boss loot above now comes from
+  `src/sim/dloot.js DL.bossDrop` with the hero's own seed `hashSeed('dloot:' world seed, copy zone id, copy made tick, hero
+  id, boss, that hero's kills of that boss in the copy)`: no draw from the world's stream, so friends' drops are order
+  independent. Named pieces roll lines (`namedAffixes`) and quality `inst.q` (fixed stats x 0.9 to 1.1; a power with `q`
+  paths rolls in its band, `src/sim/dloot_q.js powerAt`); 1 legendary or set piece in 8 is `inst.illum` (q 1, lines at
+  the top, one more line). Smart loot: class only, track lean, weakest slot x2, a held legendary skipped. The legendary
+  roll is the per place **Tally** `p.dungeons.tally[place]` (10% + 2.5% a miss, sure on the 25th; a hero from before
+  seeds each place once from `miss`; `miss` mirrors the last count). `barrow_deep.retold` adds the five Retold legendaries
+  (`RETOLD`, `item.retold`, powers on existing records only) to its legendary roll. A piece without `q` resolves exactly
+  as before (qa/tests/dloot.test.mjs hashes every item); a legendary or set piece keeps its own name. Event
+  `dloot { id, place, zone, from, boss, items: [{ item, name, rarity, illum, q }], tally?, sure?, chance? }` per hero per
+  boss kill; `legendary` gains `illum`. Run loot for a summary: `DG.lootOf(zid) -> { heroId: [{ item, inst, from }] }`
+  (kept on `state.copies[zid].loot` until the copy resets) and `DG.lootSummaryOf(zid, id) -> { best, count, legendaries,
+  illuminated }` (`dloot.js lootSummary`). **Pass it on:** a boss drop in a party copy gets `inst.passOn = { until, with }`
+  (2 hours of ticks, the party heroes in the copy); `trade.js` lets it go to one of `with` until `until`, then it binds
+  as before; traded or worn, the mark goes. UI: `src/ui/dloot_ui.js` (columns in 2D, tags, banner, warm edges, the card
+  with Wear it / Keep under the hero frame), `src/render3d/dloot3d.js` (columns) through `view.dloot()`; render only.
 - **Daily chest.** The first clear of a place per day (the bounty boards' day, `state.day` / `world.setDay`) leaves
   "First Clear of the Day" by the last boss for the killer: gold, `glyphs` letter glyphs, a gear roll of `rarity` at `ilvl`,
   and bonus XP = `xpMinutes` x 4 x kill XP at the hero's level (`grantXp` reason 'dungeon'). Opening it records
@@ -1309,6 +1327,36 @@ the doors `src/data/maps/doors.js`, the quests `src/data/dungeon_quests.js`, the
   second of the hero leaving the copy; `saveFields` writes lent glyphs into `gbag`. Snapshot: the slab's `wdoor { door,
   name, look, len, face, open, tries, quiet, slots, clue, draft, lit, carried, left, opened }` (never the word), a stone's
   `wstone { door, letter }`. UI `src/ui/worddoor_ui.js`, 3D `src/render3d/worddoor3d.js`, 2D `src/render/worddoor2d.js`.
+## The Endmarket raid, wave A (wave 10 draid, 2026-11-25, BUILD; Scott: "Go with your recommendations"; D:/LQOnline/wave10/draid/BRIEF.md)
+
+Data: `src/data/raid_places.js` (the wing as a DUNGEONS place with `raid: { heroes, wing, wings, label }`; door in Drovers'
+Reach at 302,74, `minLevel: 30`), `src/data/raid_endmarket.js` (`RAID_RULES` = `content.raid`, the foes and their abilities,
+the tier set `RAID_SETS` with `tier: 'endmarket'`, the Lot Tickets, Mother Tally, the three quests, `fairGateDecor`,
+`applyRaid` = buildContent's last step). Map `tools/maps/zone_endmarket_gate.mjs`. Sim `src/sim/raid.js` (`C.raid`).
+All words are DRAFTS for Scott.
+
+- **Week.** `easternWeek(day)` = `floor((day + 3) / 7)` on the sim's day (`world.setDay`); the same rule as dflow's
+  `src/sim/eastern_week.js` (join at merge: raid.js then imports it).
+- **Lockout.** `RD.onKill(mob, p, drop)` runs LAST in `killCreditFor` (after every other extra loot), per hero who shares
+  the kill. Fewer than `minParty` (2) heroes in the copy: the drop keeps only gold and quest items (event `raid_loot { kind:
+  'alone' }`). A boss in `p.raid.killed` this week: the same (`kind: 'locked'`). Else the boss joins `killed` and the drop
+  gets a `lot_ticket_<slot>` (`kind: 'ticket'`; slot = the first in `ticketSlots[boss]` the hero has neither a piece nor a
+  ticket for). The wing's `last` boss, first time this week per hero: the Fair Purse into the same drop (gold, glyphs, one
+  ticket; event `raid_purse`). `p.raid = { week, killed, purse }`, reset when the week changes; `saveFields` / `addPlayer`
+  carry it (`main.js specFor` passes `raid`). Kills are not kept between sittings (copies reset as dungeons do).
+- **Tickets.** `use: { kind: 'lot_ticket', slot }`: `RD.useTicket` gives the class's set piece (ilvl 32, `rarity: 'set'`) for
+  the slot, or for a slot the hero lacks when they own that one; event `raid_ticket`. Fails `no_set`, `bag_full`.
+- **Boss rules** (`RD.tick()` each step, only while a raid copy exists): the Turnpike's `em_pay_toll` (uninterruptible
+  ground ring, no effects of its own) is resolved when its cast time ends: the toll (`swings` x the heroes in the copy)
+  is split between the heroes inside; nobody inside: everyone takes `1 + unpaidMult` portions; alone inside: rooted
+  `soloRootSec`, no damage. Old Shep every `herd.every` s pens the hero furthest from him (not his target): aura
+  `em_penned` (root) and a passive `em_hurdle` beside them; killing it frees them; a flock tick while 2+ heroes are in.
+  Events `raid_toll { heroes, inside }`, `raid_pen { kind: 'penned' | 'broken' | 'out', hero, hurdle }`, `yell`.
+- **Render.** `src/render3d/fair3d.js` (dg_fair_* props through `dungeon3d.js dressPlace`, the Fair Gate for a door whose id
+  starts `endmarket`); recipes in `creature_recipes.js`. Door labels sit under a phone's top buttons (top 30 HUD px).
+- **Tuning.** `EM_TUNE` by `node qa/sim/party_bot.mjs` (the party bot: any place, any party; gate for four heroes: cleared,
+  no wipe, deaths <= 2, each boss 60 to 300 s), also run in the suite as `qa/sim/raid.test.mjs`.
+
 ## World life: rares, rest XP, story chains, Night at the Stones (2026-11-22, LIVE)
 
 Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js`, glued by `src/data/worldlife.js`
@@ -1874,3 +1922,132 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   `ui.act.selectQuest` and `ui.state.untracked`, and a chat line into the PC's own talk (co-op only; no emotes or other
   slash commands). `ui.second.state.on` draws the phone tabs instead of the HUD; `pcPaired` draws the PC's Phone chip.
   `ui.act.usePhone` / `ui.act.canPhone` (set by coop.js) put Use my phone on the Options title bar.
+
+## Delve flow (2026-11-25, wave 10 dflow; Scott: "Yes for your recommendations", D:/LQOnline/wave10/dflow/BRIEF.md)
+
+- **Eastern calendar.** `src/core/eastern_week.js`: `easternDay(ms)`, `easternWeek(day)` (Monday weeks), `weekStartDay`,
+  `easternOffsetMin`. The US Eastern daylight rule, not the device's zone, so every friend gets the same day and week.
+  main.js `bountyDay()` uses it (the bounty board's and the daily chest's day). Every weekly thing keys off `easternWeek`.
+- **Level sync.** `src/sim/delve.js` via `dungeons.js enter / leave` (`D.onEnter / D.onLeave`). Inside a place a hero over
+  its band has `e.level` = the band's top, a hero up to `party.delve.syncUpMax` (3) under the floor has the floor;
+  `e.sync = { from, to, kind: 'down' | 'up', place }` keeps the own level. Worn gear x `to / ilvl` (stats.js). XP and
+  levels go on `e.sync.from` (progression.js `grantXp`, `killXp` gap); the save keeps `e.sync.from` (main.js). A door's
+  `minLevel` is checked against the own level. Event `sync { id, kind: down | up | off, from, to, place }`.
+- **Seats.** `copy.seats = { heroId: lastTickInside }`; a copy's foes count the seats inside `party.seatSec` (300 s): the
+  heroes inside and a friend who left less than 5 minutes ago, never fewer than the heroes present (party.js). HUD
+  `group.seats: [{ id, name, left }]`. `copy.heroes` is still kept (old saves: a copy with no seats counts it).
+- **Commands.** `delve_call { door }`, `delve_come { yes }` (5 s still cast, then at the door), `delve_enter { door,
+  resume? }` (the party heroes within 6 tiles go in on one tick; `resume`: boss ids beaten last time, never the last boss,
+  only into a copy made now), `delve_close`. `ready_start` inside a copy names the next boss (`ready.boss`, answers with
+  `level` and `sync`).
+- **Run record.** `copy.run` (sim state): t0, bosses (with fight secs), down, deaths, loot (`lootLines`: the adapter dloot
+  replaces), gold, moments, names, done. On `dungeon_clear` each hero in the copy gets `delve_done { id, place, zone, name,
+  secs, falls, bosses, heroes }`; the chronicle journal turns it into a `run` line. HUD `delve: { sync, door, call, come,
+  run: { place, down, of, done }, summary }`. Rejoin: `addPlayer` with the party's copy as its zone stays in the copy
+  (`loadSpec`), then `DG.enter` binds the lantern, syncs and seats.
+- **UI.** `src/ui/delve_ui.js`: the door card (`addDoorRow(fn)`: round 2's depth row), the call offer, the Come bar, the
+  sync and seat chip, the run summary (Watch: `ui.act.watchFight(bossId)`, main.js), the bookmark
+  (`lexicon_realms.delve` v1 on this device, 7 days). A phone card hides the top bar; toasts wait under the summary.
+
+## Boss fights that need the party (wave 10 dbosses, 2026-11-25, BUILD; D:/LQOnline/wave10/dbosses/BRIEF.md)
+
+Data `src/data/boss_fights.js` (`BOSS_FIGHTS`, `BOSS_RULES`, `BOSS_RED`, `BOSS_CALLS`, `ROLL_WORDS`; every word a DRAFT),
+applied by `applyBossFights(C)`, the last step of `buildContent()`: each of the 13 dungeon and cave bosses' templates is
+copied with its new phase gates merged into `fight.phases` (`{ at, yell?, name, gate: true }`), a `frenzy` for the three
+caves that had none, and `bossFight` (the def); `content.mobAbilities` gains the red moves and the called casts; each
+boss gets a name-stone word door `ns_<boss>` (pouch glyphs only, no found letters, no coffer: `zone.dungeon.wordDoors`
+entry with `stones: []`, `chest: null`, 7 to 14 tiles from the boss). Nothing of today is removed or lowered
+(`qa/tests/boss_fights.test.mjs` checks abilities, tuning, phases with adds and frenzy times).
+
+Sim `src/sim/boss_mech.js` (`createBossMech`, made by `dungeons.js`; `DG.bossTick` calls `BM.tick(m, b)`, `DG.bossReset`
+`BM.reset(m)`, the boss death `BM.onDeath(m)`): new gates guard the boss (`bf_guard`, damage taken x0.25, 4 s);
+mechanics `share` (gold ring on a hero, `swings x heroes` split between the heroes inside, nobody inside = 2 swings each),
+`notch` (violet ring that follows one hero per two and bursts on the OTHERS within it), `letters` (Roll Call: one floor
+letter per hero, 2 for a lone hero, stood on in order within 8 s / 10 s solo), `call` (an interruptible cast in the boss's
+own bar), `pair` (two adds that must fall within 10 s / 15 s solo or the first comes back at 30%), `stacks` (Leave Denied
+on the boss's target, damage taken +10% a stack, needs 2+ heroes). A LONE hero pays time only: shares and notches hurt
+nobody, a missed call or Roll Call heals the boss 5% (with friends a missed call hits everyone, a missed Roll Call adds
+one of the boss's adds). The red slot: each boss's new red move (`BOSS_RED`, `red: true`) is a mark of kind `red` with its
+own timer, resolved by the mech (never a cast, so it takes no turn from today's moves). The Last Count (`bf_last_count`):
+from `hard.after` s into the fight, damage done x1.25 per 5 s, stacking (a soft wall, no reset). Unspoken: the name-stone
+open while the boss is untouched (full health) wakes it (`bf_unspoken`: damage taken /1.3, damage done x1.15),
+mechanics x0.7 apart, the Last Count 60 s sooner, one of today's adds at each new gate; event `boss { kind: 'unspoken' }`.
+Clears: `p.dungeons.clears[boss]` (saved with `dungeons`) +1 for each hero in the copy; the stone's snapshot `wdoor.hint`
+shows once anyone in the copy has 3. Events `boss_mech { kind: share | notch | letters | letter | letters_done |
+miscount | call_broken | call_landed | pair_down | pair_back }`, `boss_red { ability }`, `boss { kind: 'enrage' }`.
+
+Snapshot: `snap.bossMarks = [{ zone, boss, kind: share | mark | letter | tether | red, x, y, r (px), k (0..1), n, of,
+letter, done, next, to, shape, dir, w, angle, ability }]`; a boss in its fight carries `bossFight = { phase, of, phaseName,
+gates, frenzyIn, hardIn (s), hardName, unspoken, call: { kind, title, line } | null }`. UI: `src/ui/boss_hud.js` (the
+target frame becomes the boss frame, `hud.js targetFrame`; the foe's cast and threat tag step aside; the call-out from
+`uivm` `bossCall`), 3D `src/render3d/boss_marks3d.js`, 2D `src/render/boss_marks2d.js`. The clear bot
+(`qa/sim/dungeon_bot.mjs` danger) also steps out of red marks.
+
+## Word rifts (wave 10 drift, 2026-11-25, BUILD; D:/LQOnline/wave10/drift/BRIEF.md; Scott: "Yes for your recommendations")
+
+Data `src/data/rift.js` (pure: the generator, the looks, the week words, the book, the place record, the link, `RIFT_HOOKS`);
+sim `src/sim/rift.js` (`rift_open`, held rooms, learned words, the HUD part `rift`); card `src/ui/rift_ui.js`.
+- **Ids.** A rift is the place `rift_<word>_<level>` (word 3 to 8 letters a to z, level 1 to 30); a party's copy is
+  `rift_<word>_<level>#party<n>` as for any place. The zone is made on first use: `src/data/maps/copies.js`
+  `addZoneMaker(zones, fn)` lets `content.zones[id]` (and `id in zones`) build it with `riftZoneMaker(out)`; the zone
+  names table names it the same way. Same id, same zone on every machine: every choice comes from
+  `createRng(hashSeed('rift' + RIFT_VERSION + ':' + WORD))`; the level sets foe levels and loot only. A change to the
+  generator must bump `RIFT_VERSION` (qa/tests/rift.test.mjs pins three floors; the link carries the version).
+- **The zone.** The CONTRACTS 6 shape of a hand-built place (kind 'dungeon' or 'cave', `dungeon: { chests, wordDoors }`)
+  plus `zone.rift = { word, version, look, level, guardian, seal, pools, rooms, held: [{ room, x, y }], wordDoorDef }`.
+  Looks reuse four hand-built places' wall kits, floors and their own foes and bosses (`RIFT_LOOKS`); nothing new to draw.
+  The seal before the guardian is a word door (`src/sim/worddoor.js` as it is) whose one word is the rift's own word, its
+  found letters in the rooms before it; its coffer is the Heart Chest.
+- **The place record.** `src/sim/rift.js ensure(base)` puts `content.rift.place(zone)` in `content.dungeons[base]` and
+  the seal's record in `content.wordDoors[base + '_seal']` before a copy is made (and each second for copies that
+  exist). Trash: the hand-built dungeons' copy tuning `{ hp: 0.75, dmg: 0.55 }`; bosses: `[guardian]`, last = guardian;
+  loot pools (`drops`, `rare`, `legendary`, `legend`) from the hand-built dungeon with an epic pool nearest the rift's
+  level (`bandPlace`), rolled by wave 10 dloot; `chest` at the rift's level. No daily chest.
+- **dtiers hook.** `RIFT_HOOKS.scale = (place, { word, level }) => ({ trash?: { hp, dmg }, guardian?: { hp, dmg } })`,
+  multipliers on top of the copy tuning, each clamped to at least 1 (a hook can only make a rift harder); `guardian`
+  lands as `place.guardianTune` (src/sim/dungeons.js spawnCopy sets the guardian's `spawn.tune`).
+- **Opening.** `rift_open { word, link? }` at the Rift Stone (`content.rift.stone`: Lantern Square's post in
+  Willowmere, `stoneTiles` 3). Level = the hero's own level (sync off), at least `minLevel` 10. Allowed: this Eastern
+  week's word (`weekWord(state.day)`, the Monday week of src/core/eastern_week.js), a word in the hero's
+  `e.dungeons.words` (saved with the dungeon record; learned from a word door opened in front of you and from a rift you
+  clear), or with `link: true` (a friend's `#rift=WORD.1.22` link) any word of `riftBook(content)` (week words, word door
+  words, glyph words; never a name-stone's hidden word). Party heroes within `gatherTiles` of the stone go in on the same
+  tick (DG.enter, so dflow's level sync and run record apply). Events `rift { kind: 'open' | 'learn' | 'breath' }`,
+  `rift_fail { reason }`. The door out puts you in front of the stone.
+- **Held rooms.** A spawn with `held: <room>` keeps `m.spawn.held`; `src/sim/ai.js scan` skips it, so its packs never
+  notice a hero until a hero is within `heldTiles` (3) of the room's middle or one of them is pulled; then the whole room
+  engages at once (`rift { kind: 'breath' }`). No foe's stats change.
+- HUD: `hud.rift = { stone: { week, words, level, min, ok } }` at the stone, `{ inside: { word, level, look } }` in a rift.
+
+## Depths (wave 10 dtiers, 2026-11-25, BUILD; D:/LQOnline/wave10/dtiers/BRIEF.md; Scott: "Yes for your recommendations")
+
+Data `src/data/depths.js` (`content.depths = { rules, mods, words }`, `applyDepths` last in `buildContent`; every word a
+DRAFT). Sim `src/sim/depths.js` (made by `src/sim/dungeons.js`, `DG.depths`). UI `src/ui/depth_ui.js` (rows on dflow's door
+card through `addDoorRow`, which now takes `buttons: [[label, fn, scheme?]]`; the run strip; the board; the coffer). Board
+`src/net/depth_board.js` (device key `lexicon_realms.depths` v1, the `#depths=` link). Tests `qa/tests/depths.test.mjs`.
+
+- **Depth.** A place a hero has cleared (`p.dungeons.clears[last]` or today's `done`) opens Depth 1; a depth clear opens
+  `depth + 1`, `+ 2` with the candle lit. The party may start as deep as any member has opened. Commands
+  `depth_pick { place, depth, candle }` (0 = today's copy; `p.depthPick`, not saved) and `coffer_take { slot }`. Events
+  `depth_pick`, `depth { kind: 'start' | 'clear' | 'out' | 'blot' | 'mod' }`, `coffer { kind: 'take' }`, `depth_fail`.
+- **Copy.** `DG.enter` -> `ensureCopy`: `DP.beforeEnter` makes an EMPTY copy fresh when the pick differs from its depth
+  (friends inside: join as it is); after `spawnCopy`, `DP.onCopy` sets `state.copies[zid].depth = { depth, week, place,
+  candle, t0, mods, out, done, lit, blots }` and tunes every foe: `spawn.tune` x `(1 + hpStep)^d` health and
+  `(1 + dmgStep)^d` damage (0.10 / 0.06), plus the modifiers; a fixed-number template is scaled directly. A boss's helper
+  gets the depth too (`DP.onAdd` in `summon`). Levels are never changed (heroes play at the band: dflow's sync).
+  Party scaling (party.js) still lands on top. NO FOE IS EVER SOFTER THAN TODAY (the paired tests).
+- **Week.** `easternWeekOfDay(state.day)` = `src/core/eastern_week.js easternWeek`: no new clock in the sim. Three groups
+  (Margin from Depth 1, Bold from 4, Page from 8), one modifier each per week, each round once per 4 week block, never
+  the same two weeks running. Spawn fields read elsewhere: `spawn.speedMul` (ai.js speedOf), `spawn.aggroMul`
+  (aggroRadius, after the clamp), `spawn.leashMul` (the leash). Boss hooks in `dungeons.js bossTick`: Footnoted
+  (`DP.phaseSummon`), Heavy Hand (`DP.frenzySooner`), `DP.bossTick` after dbosses' `BM.tick` (Second Draft, Wide
+  Margins widens new `red` marks). Blots are red circle marks added to `DG.bossMarks()`.
+- **Rewards** (`rewardAt`, equal to data `depthReward`): gold x(1 + 0.1d) on every foe in the copy; with the last boss,
+  through dloot's `pickSmart` / `rollNamed`: a second piece (5% a depth, max 50%; from Depth 8 from the place's epic pool),
+  a second legendary chance (+1% a depth, max 10%), a glyph per 3 depths. Lit candle: a Candle Cache (cache chest).
+- **Hero state** `p.depths = { open: { place: n }, week, runs: [{ place, depth, secs, lit, with }], best, coffer }`
+  (saveFields, addPlayer, main.js specFor; additive, SAVE_VERSION unchanged). When the week turns, last week's runs fill
+  `coffer = { week, runs, slots: [{ need: 1|4|8, open, depth }] }` (slot k at the k-th best depth); `coffer_take` rolls
+  one gear piece (`rollGear`, own level, epic from Depth 8, rare from 3) from its own seed.
+- **HUD** `hud.depths = { week, day, open, runs, best, coffer, slots, mods: { margin, bold, page }, pick?, friends?, run? }`
+  (`friends`: party members' runs this week, for the board in co-op; `run`: depth, mods, candle left / total, falls).

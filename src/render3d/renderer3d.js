@@ -53,6 +53,7 @@ import { tickRealm3d, makeVehicle } from './realm3d.js';   // wave 3: lava glow,
 import { createActors } from './actors.js';
 import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
+import { createDloot3d } from './dloot3d.js';   // wave 10 dloot: light columns at drops
 import { regionInfo } from '../data/maps/compose.js';
 import { zoneBase } from '../data/maps/copies.js';
 import { CUT } from './dungeon3d.js';
@@ -70,7 +71,8 @@ import { createTurntable } from './turntable.js';   // wave 6: the creation scre
 import { createTalkCam } from './talk_cam.js';   // wave 6 quest scenes: the talk camera (view.talk)
 import { bossFrame } from './boss_cam.js';   // wave 6: the boss intro push-in (view.bossCam, src/ui/boss_card.js)
 import { tickGround } from './ground_kit.js';   // wave 5 ground kit: the grass wind clock
-import { groundY, setGroundY } from './ground_plan.js';   // the shown zone's visible ground height (gentle hills)
+import { groundY, setGroundY } from './ground_plan.js';
+import { createBossMarks } from './boss_marks3d.js';   // wave 10 dbosses: share, notch, letters, tether and the red slot   // the shown zone's visible ground height (gentle hills)
 
 const PX = 16;
 const PITCH = THREE.MathUtils.degToRad(40);
@@ -264,6 +266,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   let [hud, hctx] = canvas2d(640, 360);
   let [over, octx] = canvas2d(640, 360);
   let layout = layoutFor(canvas.width, canvas.height, 1, { fill: true });
+  let dloot3 = null;   // wave 10 dloot (src/render3d/dloot3d.js)
   const dev = { clock: null, stats: { ms: 0, avg: 0, n: 0 }, sky: null, quality, info: null, camDist: null };   // camDist: drivers' close-up
   let lastNow = null;
   let camK = null, camT = 0;     // camera blend: 0 field, 1 town (eased in real time)
@@ -599,6 +602,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     }
     return coneGeo.get(k);
   };
+  const bossMarks = createBossMarks(scene);   // wave 10 dbosses
   const tgPool = [];
   function telegraphMesh(i) {
     if (!tgPool[i]) {
@@ -658,6 +662,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     }
     return labelCache.get(k);
   }
+  // wave 10 draid: on a phone the top row of buttons covers the HUD's top 30 px; a door label near the top drops under it
+  const DOOR_LABEL_TOP_TOUCH = 30;
   /** "<name>" over "Dungeon, levels 10 to 12" above each door on the world within reach (HUD layer, under the HUD). */
   function drawDoorLabels() {
     const zone = zones[state.zoneId];
@@ -672,7 +678,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const line2 = d.label || `${d.kind === 'cave' ? 'Cave' : 'Dungeon'}, levels ${d.levels[0]} to ${d.levels[1]}`;
       const t1 = labelText(d.name, 'gold'), t2 = labelText(line2, '#c8c0d8');
       const bw = Math.max(t1.w, t2.w) + 10, bh = t1.h + t2.h;
-      const bx = Math.round(hx - bw / 2), by = Math.max(2, hy - bh);      // a door near the top edge keeps its label on screen
+      const bx = Math.round(hx - bw / 2), by = Math.max(layout.touch ? DOOR_LABEL_TOP_TOUCH : 2, hy - bh);      // a door near the top edge keeps its label on screen (wave 10 draid: below a phone's top buttons)
       hctx.fillStyle = 'rgba(14,10,22,0.72)'; hctx.fillRect(bx, by, bw, bh);
       hctx.fillStyle = '#c9a24c'; hctx.fillRect(bx, by, bw, 1); hctx.fillRect(bx, by + bh - 1, bw, 1);
       hctx.drawImage(t1.c, Math.round(hx - t1.w / 2), by + 1);
@@ -847,6 +853,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (skyKit) dev.skyKit = skyKit.frame({ f: dayFraction(snap, view), sky, view: wview, zone, area, now, camera, focus, hemi, sun, under: !!(zone && (isPlaceZone(zone) || zone.cavern || zone.atmos)), dev });
     if (quality.water !== 'off') { const dm = skyKit && skyKit.objects[0] && skyKit.objects[0].visible ? skyKit.objects[0].material.uniforms : null; waterSky(dm, scene.fog, sun, hemi); dev.water = quality.water; }
     dev.realms2 = r2fx.update(snap, view.zone, actors, camera, now, focus);
+    if (view.dloot) { const dl = view.dloot(); dloot3 = dloot3 || createDloot3d(scene); dloot3.sync(dl.drops, view.zone, dl.now, groundY); dev.dloot = dloot3.count; }   // wave 10 dloot
     const tg = view.targetId != null && view.targetId !== view.followId ? actors.get(view.targetId) : null;
     if (tg && tg.e && !tg.e.dead && tg.kind !== 'object' && !photoClean) {
       targetRing.visible = true;
@@ -860,6 +867,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     fx3.update(dt, now, at, camera);
     assignLights(sky, target, me ? me.root.position : null);
     drawTelegraphs(snap);
+    dev.bossMarks = bossMarks.draw(snap.bossMarks, state.zoneId, PX, now);   // wave 10 dbosses
     if (trans && trans.warm) warmBefore();
     const tr0 = performance.now();
     lastFx = view.fx;

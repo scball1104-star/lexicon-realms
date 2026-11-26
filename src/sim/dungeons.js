@@ -16,6 +16,7 @@
 // Every rule that compares zones keeps two copies apart with no extra code. Foes in a copy never respawn: a boss killed
 // stays dead in that copy. The copy resets (every entity in it goes, and the place spawns fresh on the next entry) when no
 // hero has been inside for DUNGEON_RULES.resetSec of sim time.
+import { createBossMech } from './boss_mech.js';   // wave 10 dbosses: boss fights that need the party
 export const COPY_SEP = '#';
 export const zoneBase = (id) => { const s = String(id); const i = s.indexOf(COPY_SEP); return i < 0 ? s : s.slice(0, i); };
 const WRAPPED = new WeakSet();
@@ -35,6 +36,10 @@ const TICK_HZ = 20;
 const T = (sec) => Math.round((sec || 0) * TICK_HZ);
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz', VOWELS = 'aeiou';
 
+import { createDloot, lootSummary } from './dloot.js';   // wave 10 dloot
+import { itemName } from './loot.js';
+import { createDepths } from './depths.js';   // wave 10 dtiers: Depths (numbered depths, weekly modifiers, the candle, the coffer)
+
 export function createDungeons(D) {
   const { state, content, emit, rng } = D;
   const PL = content.dungeons || {};
@@ -42,6 +47,12 @@ export function createDungeons(D) {
   const now = () => state.tick;
   const zones = content.zones;
   const copies = () => (state.copies = state.copies || {});
+  const DL = createDloot(content);   // wave 10 dloot: boss drops (src/sim/dloot.js)
+  // wave 10 dbosses: gates, marks, the red slot, the Last Count, Unspoken (src/sim/boss_mech.js, src/data/boss_fights.js)
+  // wave 10 dtiers: Depths (src/sim/depths.js, content.depths)
+  const DP = content.depths && content.depths.rules && D.stats ? createDepths({ state, content, emit, get: D.get, combat: D.combat, stats: D.stats, spawnMob: D.spawnMob,
+    summon: (m, s, b) => summon(m, s, b), addChest: (...a) => addChest(...a), destroy: (z, r) => destroy(z, r), copies: () => copies(), DL, rollGear: D.rollGear, bagAdd: D.bagAdd, onBag: D.onBag }) : null;
+  const BM = content.bossFights && content.bossRules && D.combat ? createBossMech({ state, content, emit, get: D.get, combat: D.combat, summon: (m, s, b) => summon(m, s, b), dun: (p) => dun(p) }) : null;
 
   const placeOf = (zid) => PL[zoneBase(zid)] || null;
   function isPlace(zid) { const z = zid != null ? zones[zid] : null; return !!(z && (z.kind === 'dungeon' || z.kind === 'cave')); }
@@ -83,6 +94,9 @@ export function createDungeons(D) {
       m.spawn.noRespawn = true;
       m.spawn.copy = zid;
       if (s.boss) m.spawn.boss = true;
+      if (s.held) m.spawn.held = s.held;           // wave 10 drift: a rift's held room (src/sim/rift.js wakes it)
+      const gt = s.boss && placeOf(zid) && placeOf(zid).guardianTune;   // wave 10 drift: the dtiers hook on a rift's guardian (never below 1)
+      if (gt && D.stats) { m.spawn.tune = { hp: gt.hp || 1, dmg: gt.dmg || 1 }; D.stats().recalc(m); m.hp = m.hpMax; }   // wave 10 drift
       // the place's trash tuning (dungeons.js `trash`: a solo hero pulls these one pack at a time); bosses tune in mobs.js
       const tune = !s.boss && placeOf(zid) && placeOf(zid).trash;
       if (tune && D.stats) { m.spawn.tune = { hp: tune.hp || 1, dmg: tune.dmg || 1 }; D.stats().recalc(m); m.hp = m.hpMax; }
@@ -110,15 +124,18 @@ export function createDungeons(D) {
     const zid = `${base}${COPY_SEP}${copyKey(p)}`;
     const c = copies()[zid];
     if (c && c.emptySince != null && now() - c.emptySince >= resetTicks()) destroy(zid);
+    if (DP) DP.beforeEnter(base, p, zid);           // wave 10 dtiers: a different depth makes an empty copy fresh
     if (!copies()[zid]) {
       copies()[zid] = { base, key: copyKey(p), made: now(), emptySince: null, cleared: false };
       spawnCopy(zid);
+      if (DP) DP.onCopy(zid, p);                  // wave 10 dtiers: the picked depth goes on every foe
       emit({ type: 'copy_new', zone: zid, place: base });
     }
     copies()[zid].emptySince = null;
     return zid;
   }
   function tick() {
+    if (DP) DP.tick();                              // wave 10 dtiers: blots, Errata, the candle
     if (now() % TICK_HZ !== 0) return;
     const all = copies();
     for (const zid of Object.keys(all)) {
@@ -138,9 +155,11 @@ export function createDungeons(D) {
       p.lantern = { zone: zid, id: l.id, x: l.x, y: l.y };
       emit({ type: 'lantern', id: p.id, zone: zid, lantern: l.id, name: l.name || l.id, auto: true });
     }
+    if (D.onEnter) D.onEnter(p, zid);              // wave 10 dflow: level sync, the seat and the run record (src/sim/delve.js)
     return zid;
   }
   function leave(p) {
+    if (D.onLeave) D.onLeave(p);                   // wave 10 dflow: back to the hero's own level
     if (p.lanternOut) { p.lantern = p.lanternOut; delete p.lanternOut; }
     else if (p.lantern && isPlace(p.lantern.zone)) { const L = nearestWorldLantern(Math.floor(p.x / 256), Math.floor((p.y - 1) / 256)); if (L) p.lantern = L; }
   }
@@ -148,6 +167,10 @@ export function createDungeons(D) {
   function loadSpec(spec) {
     if (!spec) return spec;
     let out = spec;
+    // wave 10 dflow: a friend who rejoins the party's game while it is inside a copy comes back into that copy
+    // (coop.js puts the guest beside the host; world.addPlayer then calls enter for the lantern, the sync and the seat)
+    const own = spec.zone != null && spec.party != null && copies()[spec.zone] && copies()[spec.zone].key === `party${spec.party}`;
+    if (own) return spec;
     if (spec.zone != null && isPlace(spec.zone)) {
       const [x, y] = doorOut(zoneBase(spec.zone));
       // a place whose door stands in another outdoor zone (the Larch Mine in Larchhill) loads outside it, there
@@ -180,22 +203,6 @@ export function createDungeons(D) {
     }
     return true;
   }
-  function instFor(id, cls) {
-    const def = items()[id];
-    if (!def || (def.kind !== 'weapon' && def.kind !== 'armor')) return null;
-    const cg = (content.classGear || {})[cls];
-    const inst = { ilvl: def.level, rarity: def.rarity, affixes: [] };
-    if (def.armorType === 'class') inst.armorType = cg ? cg.armor : 'cloth';
-    else if (Array.isArray(def.armorType)) inst.armorType = cg && def.armorType.includes(cg.armor) ? cg.armor : def.armorType[0];
-    if (Array.isArray(def.weaponType)) inst.weaponType = cg ? (def.weaponType.find((w) => cg.weapons.includes(w)) || def.weaponType[0]) : def.weaponType[0];
-    return inst;
-  }
-  function pickFor(list, cls) {
-    const ok = (list || []).filter((id) => fits(id, cls));
-    const pool = ok.length ? ok : (list || []).filter((id) => items()[id]);
-    return pool.length ? pool[rng.int(0, pool.length - 1)] : null;
-  }
-  function piece(id, cls) { return { item: id, qty: 1, inst: instFor(id, cls) }; }
   const dayOf = () => state.day | 0;
   function dun(p) { if (!p.dungeons || typeof p.dungeons !== 'object') p.dungeons = { day: dayOf(), done: [], miss: 0 }; return p.dungeons; }
   function doneToday(p, base) { const d = p.dungeons; return !!(d && d.day === dayOf() && (d.done || []).includes(base)); }
@@ -203,32 +210,41 @@ export function createDungeons(D) {
   function onKill(mob, p, drop) {
     const place = placeOf(mob.zone);
     if (!place || !isPlace(mob.zone) || !p || p.kind !== 'player') return;
+    if (DP) DP.onKill(mob, p, drop);               // wave 10 dtiers: depth gold, blots, the depth clear and its rewards
     const tpl = mob.template;
     const mt = (content.mobs || {})[tpl] || {};
     if (mt.fight || mt.boss || mt.rare) {
+      if (BM) BM.onDeath(mob);                        // wave 10 dbosses: a clear of this boss for each hero in the copy
       emit({ type: 'boss', id: mob.id, kind: 'death', template: tpl, zone: mob.zone, ...(mt.deathLine ? { text: mt.deathLine } : {}) });
       if (mob.ai && mob.ai.boss) for (const aid of mob.ai.boss.adds || []) { const a = D.get(aid); if (a && !a.dead && a.ai && a.ai.mode !== 'combat') { D.remove(a); emit({ type: 'despawn', id: a.id, template: a.template, zone: a.zone, kind: 'mob' }); } }
     }
     if (!(place.bosses || []).includes(tpl)) return;
-    const named = (place.drops || {})[tpl];
-    if (named) { const id = pickFor(named, p.cls); if (id) drop.items.push(piece(id, p.cls)); }
-    const slot = (place.setSlot || {})[tpl];
-    if (slot) {
-      const set = Object.values(content.sets || {}).find((s) => s.cls === p.cls);
-      if (set && set.pieces[slot]) drop.items.push(piece(set.pieces[slot][0], p.cls));
+    // wave 10 dloot (src/sim/dloot.js, D:/LQOnline/wave10/dloot/BRIEF.md): the boss's named piece, set piece, epic and the
+    // legendary roll come from this hero's own seed (the copy, the hero, the boss, their kills of it in this copy), with
+    // rolled lines, quality, Illuminated, smart loot and the per place Tally. The world's shared stream is not drawn from.
+    {
+      const c0 = copies()[mob.zone];
+      const kills = c0 ? (c0.kills = c0.kills || {}) : {};
+      const kk = `${p.id}:${tpl}`;
+      const n = kills[kk] || 0;
+      kills[kk] = n + 1;
+      const d = dun(p);
+      if (!d.tally) d.tally = {};
+      if (d.tally[place.id] == null) d.tally[place.id] = d.miss || 0;     // a hero from before the Tally: the old count seeds each place once
+      const out = DL.bossDrop({ seed: DL.seedFor({ world: state.seed, zid: mob.zone, made: c0 ? c0.made : 0, hero: p.id, tpl, n }), place: place.id, tpl,
+        hero: { cls: p.cls, equip: p.equip, bag: p.bag, pendingLoot: p.pendingLoot, track: p.build && p.build.track }, tally: d.tally[place.id] });
+      for (const it of out.items) drop.items.push(it);
+      if (out.legend) {
+        d.tally[place.id] = out.tally;
+        d.miss = out.tally;                                              // the old field mirrors the last place's count (old readers)
+        if (out.legend.got) emit({ type: 'legendary', id: p.id, item: out.legend.item, place: place.id, chance: out.legend.chance, misses: out.legend.misses,
+          illum: !!(out.items.find((x) => x.item === out.legend.item) || { inst: {} }).inst.illum });
+      }
+      if (c0) { const L = (c0.loot = c0.loot || {}); (L[p.id] = L[p.id] || []).push(...out.items.map((x) => ({ item: x.item, inst: x.inst, from: tpl }))); }
+      emit({ type: 'dloot', id: p.id, place: place.id, zone: mob.zone, from: mob.id, boss: tpl, items: out.items.map((x) => ({ item: x.item, name: itemName(content, x), rarity: x.inst.rarity, illum: !!x.inst.illum, q: x.inst.q })),
+        ...(out.legend ? { tally: out.tally, sure: DL.rules.tally.sure, chance: out.legend.chance } : {}) });
     }
     if (tpl !== place.last) return;
-    if (place.rare) { const id = pickFor(place.rare, p.cls); if (id) drop.items.push(piece(id, p.cls)); }
-    if (place.legendary && place.legend) {
-      const d = dun(p);
-      const chance = Math.min(1, place.legend.chance + place.legend.step * (d.miss || 0));
-      if (rng.chance(chance)) {
-        const lid = Array.isArray(place.legendary) ? pickFor(place.legendary, p.cls) : place.legendary;     // a list: one the killer can use
-        drop.items.push(piece(lid, p.cls));
-        emit({ type: 'legendary', id: p.id, item: lid, place: place.id, chance, misses: d.miss || 0 });
-        d.miss = 0;
-      } else d.miss = (d.miss || 0) + 1;
-    }
     const c = copies()[mob.zone];
     if (c) c.cleared = true;
     const first = !!place.daily && !doneToday(p, place.id);
@@ -301,14 +317,16 @@ export function createDungeons(D) {
       b.phases.push(i);
       if (ph.yell) emit({ type: 'yell', id: m.id, text: ph.yell });
       emit({ type: 'boss', id: m.id, kind: 'phase', phase: i + 1, at: ph.at, template: m.template, zone: m.zone });
-      if (ph.summon) summon(m, ph.summon, b);
+      if (ph.summon) summon(m, DP ? DP.phaseSummon(m, ph.summon) : ph.summon, b);   // wave 10 dtiers: Footnoted
     });
-    if (f.frenzy && !b.frenzy && now() - b.t0 >= T(f.frenzy.after)) {
+    if (f.frenzy && !b.frenzy && now() - b.t0 >= T(f.frenzy.after - (DP ? DP.frenzySooner(m) : 0))) {   // wave 10 dtiers: Heavy Hand
       b.frenzy = true;
       if (D.combat) D.combat().applyAura(m, m, { id: 'boss_frenzy', name: 'Frenzy', icon: 'frenzy', kind: 'buff', duration: null, mods: f.frenzy.mods || [] }, {});
       if (f.frenzy.yell) emit({ type: 'yell', id: m.id, text: f.frenzy.yell });
       emit({ type: 'boss', id: m.id, kind: 'frenzy', template: m.template, zone: m.zone });
     }
+    if (BM) BM.tick(m, b);                            // wave 10 dbosses
+    if (DP) DP.bossTick(m, b);                        // wave 10 dtiers: Second Draft, Wide Margins
   }
   function summon(m, s, b) {
     const z = zones[m.zone];
@@ -328,6 +346,7 @@ export function createDungeons(D) {
       // a boss's adds are lighter again than its trash (`adds`, default x0.6): they are a distraction, not a second boss
       const ad = (placeOf(m.zone) || {}).adds || { hp: 0.6, dmg: 0.6 };
       if (tune && D.stats) { a.spawn.tune = { hp: (tune.hp || 1) * ad.hp, dmg: (tune.dmg || 1) * ad.dmg }; D.stats().recalc(a); a.hp = a.hpMax; }
+      if (DP) DP.onAdd(a);                          // wave 10 dtiers: a helper in a depth copy gets the depth too
       if (foe && !foe.dead && foe.zone === a.zone && D.ai) { a.threat[foe.id] = 1; D.ai().engage(a, foe, false); }
     }
   }
@@ -345,10 +364,17 @@ export function createDungeons(D) {
     }
     if (!b) return;
     for (const aid of b.adds || []) { const a = D.get(aid); if (a && !a.dead) { D.remove(a); emit({ type: 'despawn', id: a.id, template: a.template, zone: a.zone, kind: 'mob', reason: 'boss_reset' }); } }
+    if (BM) BM.reset(m);                              // wave 10 dbosses
     m.ai.boss = null;
     emit({ type: 'boss', id: m.id, kind: 'reset', template: m.template, zone: m.zone });
   }
 
-  return { isPlace, placeOf, info, enter, leave, tick, onKill, openChest, bossTick, bossReset, loadSpec, doorOut, destroy, doneToday, fits,
-    copies: () => copies() };
+  /** wave 10 dloot, for a run summary (dflow): the boss pieces each hero got in a copy, { heroId: [{ item, inst, from }] },
+   *  and lootSummary (src/sim/dloot.js) of one hero's list. Kept on the copy (state.copies[zid].loot) until it resets. */
+  function lootOf(zid) { const c = copies()[zid]; return c && c.loot ? JSON.parse(JSON.stringify(c.loot)) : {}; }
+  function lootSummaryOf(zid, id) { return lootSummary(content, (lootOf(zid)[id]) || []); }
+  return { bossView: (m) => (BM ? BM.view(m) : null), bossMarks: () => [...(BM ? BM.marks() : []), ...(DP ? DP.marks() : [])],   // wave 10 dbosses; wave 10 dtiers: blots
+    depths: DP,   // wave 10 dtiers
+    isPlace, placeOf, info, enter, leave, tick, onKill, openChest, bossTick, bossReset, loadSpec, doorOut, destroy, doneToday, fits,
+    copies: () => copies(), lootOf, lootSummaryOf };
 }

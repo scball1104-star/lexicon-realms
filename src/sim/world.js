@@ -35,9 +35,12 @@ import { createStorage } from './storage.js';
 import { createAppearance } from './appearance.js';   // wave 6: a hero's own look (`app`) and the free mirror
 import { rollKill, rollGear, bagAdd, bagRemove, bagFree, resolveItem, ensureUids, migrateQuestItems, bagFindUid } from './loot.js';
 import { createDungeons, withCopies } from './dungeons.js';
+import { createRaid } from './raid.js';   // wave 10 draid: the Endmarket raid's lockout, tickets, Purse and boss rules
 import { dayFraction, isNight } from './clock.js';
 import { createWorldLife } from './worldlife.js';
 import { createParty } from './party.js';
+import { createDelve } from './delve.js';   // wave 10 dflow: door card, level sync, Call the party, Go in together, the run record
+import { createRifts } from './rift.js';   // wave 10 drift: word rifts (the Rift Stone, held rooms, learned words)
 import { createTrade } from './trade.js';
 import { createProfessions } from './professions.js';
 import { createGlyphs } from './glyphs.js';
@@ -118,7 +121,8 @@ function wrap(state, content0, rng, systems) {
     if (spec.lantern && RA[spec.lantern.zone] && !content.zones[spec.lantern.zone]) out = { ...out, lantern: worldRef(spec.lantern) };
     return out;
   };
-  const emit = (ev) => { events.push({ tick: state.tick, ...ev }); };
+  let onEmit = null;                     // wave 10 dflow: the run record reads every event (src/sim/delve.js observe)
+  const emit = (ev) => { const o = { tick: state.tick, ...ev }; events.push(o); if (onEmit) onEmit(o); };
   const combatOn = !!(content.classes && content.abilities && content.progression);
 
   /**
@@ -182,13 +186,25 @@ function wrap(state, content0, rng, systems) {
     grantXp: (e, amount, reason, extra) => (combatOn ? C.prog.grantXp(e, amount, reason, extra) : 0),
     killXp: (L) => (content.progression ? content.progression.killXp.base + content.progression.killXp.perLevel * L : 20 + 4 * L),
     combat: () => C.combat, ai: () => C.ai, stats: combatOn ? () => C.stats : null,
+    onEnter: (p, zid) => { if (DV) DV.onEnter(p, zid); }, onLeave: (p) => { if (DV) DV.onLeave(p); },   // wave 10 dflow
   }) : null;
   C.dungeons = DG;
+  // wave 10 draid: the raid (src/sim/raid.js): the weekly lockout, Lot Tickets, the Fair Purse, the wing bosses' party rules
+  const RAID = combatOn && content.raid && DG ? createRaid({ state, content, emit, rng, get: (id) => index.get(id) || null, add, remove, spawnMob: (spec) => spawnMob(spec),
+    bagAdd, combat: () => C.combat, ai: () => C.ai }) : null;
+  C.raid = RAID;   // wave 10 integrate: RAID, not RD (wave 9 riddles has RD)
   // ---- group play (src/sim/party.js, src/sim/trade.js): foe scaling, rez, release or wait, quest sharing, ready check,
   // trade and binding. Off without content.party (src/data/party.js).
   const GP = combatOn && content.party ? createParty({ state, content, emit, get: (id) => index.get(id) || null, C, quests: () => QS }) : null;
   const TR = combatOn && content.party && content.items ? createTrade({ state, content, emit, get: (id) => index.get(id) || null, onBag: (e) => { if (QS) QS.onBag(e); } }) : null;
   C.party = GP; C.trade = TR;
+  // ---- wave 10 dflow (src/sim/delve.js): level sync, Call the party, Go in together, the run record and summary
+  const DV = DG && combatOn && content.party ? createDelve({ state, content, emit, get: (id) => index.get(id) || null, C, DG, tileToSub, remove: (e) => remove(e) }) : null;
+  C.delve = DV;
+  if (DV) onEmit = (ev) => DV.observe(ev);
+  const RF = DG && combatOn && content.rift ? createRifts({ state, content, emit, get: (id) => index.get(id) || null, C, DG, tileToSub }) : null;   // wave 10 drift
+  C.rift = RF;   // wave 10 drift
+  if (RF) { const prevEmit = onEmit; onEmit = (ev) => { if (prevEmit) prevEmit(ev); RF.observe(ev); }; }   // wave 10 drift: learned words
   // ---- professions (src/sim/professions.js): gathering nodes, the gather and craft casts, trainers, recipes, consumables
   const PF = combatOn && content.professions ? createProfessions({
     state, content, emit, get: (id) => index.get(id) || null, add, remove, nextId: () => state.nextId++, spotFree, reach: INTERACT_RANGE_PX + 24,
@@ -228,6 +244,7 @@ function wrap(state, content0, rng, systems) {
     if (combatOn) C.life.extraLoot(mob, p, drop);   // a rare's named item and blue piece; Night at the Stones gear
     if (PF) PF.extraLoot(mob, p, drop);             // professions: meat, world Patterns, dungeon Patterns and materials
     if (GL) GL.extraLoot(mob, p, drop);             // Inscriptions: a glyph about 1 kill in 20
+    if (RAID) RAID.onKill(mob, p, drop);                 // wave 10 draid: last, so a locked or lone hero's drop is gold only; a Lot Ticket, the Fair Purse
     const got = [], pending = [];
     for (const it of drop.items) {
       const n = bagAdd(p, it.item, it.qty, it.inst || null, content);
@@ -402,7 +419,7 @@ function wrap(state, content0, rng, systems) {
         if (spec.level && spec.level > 1) C.prog.setLevel(e, spec.level);
         C.prog.bindStart(e);
         // restore a saved character (CONTRACTS 3): any of these may come from the save
-        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot', 'bounties', 'dungeons']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));
+        for (const k of ['xp', 'gold', 'bag', 'qbag', 'bags', 'quests', 'questsDone', 'nodesUsed', 'respecs', 'pendingLoot', 'bounties', 'dungeons', 'raid', 'depths']) if (spec[k] != null) e[k] = JSON.parse(JSON.stringify(spec[k]));   // wave 10 dtiers: depths
         migrateQuestItems(e, content);
         ensureUids(e);
         if (spec.equip) e.equip = JSON.parse(JSON.stringify(spec.equip));
@@ -426,6 +443,7 @@ function wrap(state, content0, rng, systems) {
       }
       add(e);
       emit({ type: 'join', id: e.id, name: e.name });
+      if (DG && combatOn && DG.isPlace(e.zone)) DG.enter(e, e.zone);   // wave 10 dflow: a friend back in the party's copy (lantern, sync, seat)
       if (QS && combatOn) QS.ensureEscorts(e);            // an escort in the save restarts fresh (PLAYTEST_BOT bug 1)
       return e.id;
     },
@@ -443,7 +461,7 @@ function wrap(state, content0, rng, systems) {
       if (!e || e.kind !== 'player') return null;
       const clone = (v) => (v == null ? v : JSON.parse(JSON.stringify(v)));
       const out = { qbag: clone(e.qbag || []), pendingLoot: clone(e.pendingLoot || []), ...(e.bounties ? { bounties: clone(e.bounties) } : {}),
-        ...(e.dungeons ? { dungeons: clone(e.dungeons) } : {}) };     // dungeons: the daily first clears and the legendary bad-luck count
+        ...(e.dungeons ? { dungeons: clone(e.dungeons) } : {}), ...(e.raid ? { raid: clone(e.raid) } : {}), ...(e.depths ? { depths: clone(e.depths) } : {}) };   // wave 10 dtiers: depths   // wave 10 draid: raid = the week's lockout     // dungeons: the daily first clears and the legendary bad-luck count
       if (e.app) out.app = { ...e.app };          // wave 6: the hero's own look (missing = today's look)
       { const gs = seenMask(content, e); if (gs) out.glyphSeen = gs; }   // wave 9 music: letters ever found (missing = what the hero holds)
       if (!combatOn) return out;
@@ -560,8 +578,11 @@ function wrap(state, content0, rng, systems) {
       if (combatOn) C.combat.tickWorld();
       if (QS) QS.tick();
       if (WD) WD.tick();                         // word doors: a new copy gets its slab, letters and coffer
+      if (RAID) RAID.tick();                         // wave 10 draid: the raid bosses' party rules
       if (DG) DG.tick();                         // copies nobody has been inside for 30 minutes reset
       if (GP) GP.tick();                         // group play: foe scaling, rez casts, death waits, ready checks
+      if (DV) DV.tick();                         // wave 10 dflow: call offers run out, the Come cast
+      if (RF) RF.tick();                         // wave 10 drift: held rooms wake
       if (TR) TR.tick();                         // trades end when the two walk apart
       if (combatOn) C.life.tick(events);
       if (combatOn) C.realms2.tick();           // the sandstorm, the lantern watch, the fog banks
@@ -584,6 +605,7 @@ function wrap(state, content0, rng, systems) {
       if (DG) {
         snap.places = {};
         for (const e of state.ents) if (e.kind === 'player' && !snap.places[e.zone]) { const inf = DG.info(e.zone); if (inf) snap.places[e.zone] = inf; }
+        snap.bossMarks = DG.bossMarks();          // wave 10 dbosses: the ground marks (share, notch, letters, tether, the red slot)
       }
       if (combatOn) {
         snap.projectiles = (state.proj || []).map((p) => ({ id: p.id, src: p.src, dst: p.dst, ability: p.ability, zone: p.zone, x: p.x / SUB, y: p.y / SUB }));
@@ -594,6 +616,10 @@ function wrap(state, content0, rng, systems) {
           h.zone = (DG && DG.info(e.zone)) || { id: e.zone, base: e.zone, kind: zz.kind || 'field', name: zz.name || '', levels: zz.levels ? [...zz.levels] : null };
           h.rest = C.life.hudOf(e);
           if (GP) { const gr = GP.hudOf(e), tr = TR ? TR.hudOf(e, C.hud.itemView) : null; if (gr || tr) h.group = { ...(gr || {}), trade: tr }; }
+          if (DV) { const dv = DV.hudOf(e); if (dv) h.delve = dv; }   // wave 10 dflow: sync, the door card, a call, the run summary
+          if (RF) { const rf = RF.hudOf(e); if (rf) h.rift = rf; }   // wave 10 drift: the Rift Stone card, the rift you are in
+
+          if (DG && DG.depths) { const dp = DG.depths.hudOf(e); if (dp) h.depths = dp; }   // wave 10 dtiers: Depths, the board, the coffer
           if (PF) h.prof = PF.hudOf(e);            // professions: skills, recipes, the gather / craft bar
           if (QS) {
             h.quests = QS.tracker(e);
@@ -635,6 +661,10 @@ function wrap(state, content0, rng, systems) {
     if (!e || e.kind !== 'player') return reject(id, cmd, 'no_actor');
     if (!cmd || typeof cmd.t !== 'string') return reject(id, cmd, 'bad_command');
     if (GP && GP.handles(cmd.t)) { GP.command(e, cmd); return; }      // group play (src/sim/party.js): some work while dead
+    if (DV && DV.handles(cmd.t)) { DV.command(e, cmd); return; }      // wave 10 dflow: delve_call / come / enter / close
+    if (RF && RF.handles(cmd.t)) { RF.command(e, cmd); return; }      // wave 10 drift: rift_open   
+
+    if (DG && DG.depths && DG.depths.handles(cmd.t)) { DG.depths.command(e, cmd); return; }   // wave 10 dtiers: depth_pick / coffer_take
     if (EM.handles(cmd.t) && !e.dead && !(TV && TV.flying(e))) { EM.command(e, cmd); return; }   // wave 7 anim: jump and emotes
     if (TR && TR.handles(cmd.t)) { TR.command(e, cmd); return; }
     if (WD && WD.handles(cmd.t)) { if (!e.dead) WD.command(e, cmd); return; }   // word doors: set or take a letter
@@ -982,6 +1012,7 @@ function wrap(state, content0, rng, systems) {
     else if (u.kind === 'mana_pct') { if (!e.res || e.res.kind !== 'mana') return invFail(e, cmd, 'no_mana'); C.combat.gainRes(e, 'mana', u.amount * e.res.max); }
     else if (u.kind === 'rest_food') { if (e.inCombat) return invFail(e, cmd, 'combat'); e.restFood = u.amount || 0.1; e.mx = 0; e.my = 0; e.sitting = state.tick; emit({ type: 'sit', id: e.id, food: def.id }); }
     else if (u.kind === 'dispel') { for (const a of [...e.auras]) if (a.def.dispel === (u.dispel || 'poison') && a.def.kind === 'debuff') C.combat.removeAura(e, a, 'dispel'); }
+    else if (RAID && u.kind === 'lot_ticket') { const why = RAID.useTicket(e, def, u); if (why) return invFail(e, cmd, why); }   // wave 10 draid
     else if (PF && PF.canUse(u)) { const why = PF.useItem(e, def, u); if (why) return invFail(e, cmd, why); }   // professions: elixirs, food, bandages, Patterns
     else return invFail(e, cmd, 'not_usable');
     if (u.cooldown) e.cd[key] = state.tick + Math.round(u.cooldown * 20);
@@ -1142,6 +1173,7 @@ function wrap(state, content0, rng, systems) {
       o.aggro = e.ai && e.ai.mode === 'combat' ? e.ai.target : null; o.aiMode = e.ai ? e.ai.mode : null;
       // the wind-up tell (src/sim/ai.js): the glint before a swing, a heavy blow or a telegraphed cast (Ring Block reads it)
       if (PF && e.dead) { const sk = PF.skinView(e); if (sk) o.skin = sk; }     // professions: a corpse that can be skinned
+      if (DG && e.ai && e.ai.bm && !e.dead) { const bf = DG.bossView(e); if (bf) o.bossFight = bf; }   // wave 10 dbosses: the boss frame
       o.windup = e.windup && !e.dead && state.tick <= e.windup.at ? { kind: e.windup.kind, start: e.windup.start, at: e.windup.at, target: e.windup.target ?? null } : null;
     }
     if (WD && e.kind === 'object' && (e.wdoor || e.wstone)) Object.assign(o, WD.publicOf(e) || {});   // word doors

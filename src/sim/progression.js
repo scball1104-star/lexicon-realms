@@ -30,7 +30,7 @@ export function createProgression(C) {
 
   function killXp(p, m) {
     const t = C.content.mobs[m.template] || {};
-    const gap = m.level - p.level;
+    const gap = m.level - (p.sync ? p.sync.from : p.level);   // wave 10 dflow: a synced hero's kill XP is by its own level
     if (gap < -4) return 0;
     const gm = P.killGap[String(Math.min(4, gap))];
     let base = t.xp != null ? t.xp : P.killXp.base + P.killXp.perLevel * m.level;
@@ -44,6 +44,15 @@ export function createProgression(C) {
 
   function grantXp(e, amount, reason = 'quest', extra = {}) {
     if (!e || e.kind !== 'player' || !(amount > 0)) return 0;
+    // wave 10 dflow: a hero synced to a place's band (src/sim/delve.js) earns and levels on its own level, then plays on synced
+    if (e.sync && e.sync.from !== e.level) {
+      const to = e.level;
+      e.level = e.sync.from;
+      const got = grantXp(e, amount, reason, extra);
+      e.sync.from = e.level; e.level = to;
+      C.stats.recalc(e);
+      return got;
+    }
     amount = Math.max(1, Math.round(amount * xpRate(P, e.level)));
     if (e.level >= P.maxLevel) {
       e.xpGoldAcc = (e.xpGoldAcc || 0) + amount;

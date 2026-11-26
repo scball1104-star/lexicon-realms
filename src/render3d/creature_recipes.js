@@ -280,6 +280,20 @@ const R = {
     palette: { base: '#4a5058', robe: '#3a4048', cloak: '#2a3038', hood: '#3a4048', glow: '#8ae0d0', eyes: '#d0fff4' } }),
   deep_barrow_king: V(GHOST, { human: { out: 'Ranger', shoulders: true }, seed: 263, size: 1.75, aura: 2.0, head: { kind: 'skull' }, weapon: 'longsword', parts: ['ghost', 'crown', 'cloak', 'pauldrons:spiked', 'breastplate', 'wisps'], proportions: { bulk: 1.2, height: 1.95 },
     palette: { base: '#2a2840', robe: '#1e1c34', cloak: '#3a1a2a', gold: '#d8b848', glow: '#b8a8ff', eyes: '#e8e0ff', metal: '#5a5870', bone: '#c8c0b0' } }),
+
+  // ======== wave 10 draid: the Endmarket raid, wing 1 (the Drove Gate). Original looks; every name a draft.
+  fair_drover: V(GHOST, { seed: 291, head: { kind: 'wide' }, weapon: 'crook', parts: ['ghost', 'cloak:ragged', 'scarf', 'wisps'],
+    palette: { base: '#5a5444', robe: '#4a4436', cloak: '#3a3428', hat: '#2e2a20', glow: '#ffd8a0', eyes: '#fff0c8' } }),
+  fair_stallholder: V(GHOST, { human: { out: 'Ranger', shoulders: true }, seed: 293, size: 1.15, head: { kind: 'hat' }, weapon: 'hammer', parts: ['ghost', 'apron', 'belt', 'bracers'],
+    palette: { base: '#5a3a2a', robe: '#4a2e20', hat: '#2a1a12', apron: '#8a7a5a', metal: '#6a6058', glow: '#ffc890', eyes: '#fff0d0' } }),
+  fair_dog: V(WOLF, { seed: 297, ghost: 0.75, parts: ['ears:floppy', 'nose:dog', 'cheeks', 'tail:bushy', 'mane', 'wisps'],
+    palette: { base: '#2a2a32', belly: '#d8d4cc', mane: '#e0dcd4', accent: '#e0dcd4', eyes: '#cff4ff', glow: '#b8e0ff' } }),
+  em_hurdle: V(GOLEM, { size: 0.75, seed: 299, flat: true, pattern: 'none', parts: [], proportions: { hunch: 0.1, armLen: 0.8 },
+    palette: { base: '#7a5a34', belly: '#8a6a40', accent: '#5a3c24', eyes: '#3a2618', glow: null, dark: '#2a1a10' } }),
+  em_turnpike: V(SENTINEL, { size: 1.8, seed: 301, aura: 1.5, weapon: 'halberd', parts: ['core', 'runes', 'helm:plume', 'chains', 'shield:tower'], proportions: { weaponLen: 1.25 },
+    palette: { base: '#6a5440', belly: '#7a6450', accent: '#3a2a1e', metal: '#3a3430', glow: '#ffc46a', eyes: '#ffe08a', plume: '#7a2622', shield: '#7a2622' } }),
+  em_old_shep: V(WOLF, { seed: 303, size: 1.75, ghost: 0.74, aura: 1.3, parts: ['ears:floppy', 'nose:dog', 'cheeks', 'tail:bushy', 'mane:alpha', 'bell', 'wisps'], head: { angry: 1.2 },
+    palette: { base: '#24242c', belly: '#ece8e0', mane: '#f2eee6', accent: '#ece8e0', eyes: '#d8f4ff', glow: '#a8dcff', bellC: '#b8a070' } }),
 };
 for (const [id, r] of Object.entries(R)) r.id = id;
 export const RECIPES = R;
@@ -300,4 +314,5 @@ export const ZONES = {
   larchhill: ['lh_hornet', 'lh_lynx', 'lh_grub', 'lh_courier', 'lh_cudgel', 'lh_bear', 'lh_courier_captain', 'rare_queen_bramblesting', 'rare_old_greybark', 'lm_damp_miner', 'lm_gaffer'],
   drovers: ['dr_ox', 'dr_kite', 'dr_hound', 'dr_ganger', 'dr_tallyman', 'dr_warder', 'dr_shade', 'dr_chainmaster', 'rare_old_ironhorn', 'rare_tallow_mag'],
   deep: ['deep_wether', 'drove_shade', 'cairn_ward', 'the_long_uncounted', 'deep_drove_herd', 'deep_cairn_counter', 'deep_barrow_king'],
+  endmarket: ['fair_drover', 'fair_stallholder', 'fair_dog', 'em_hurdle', 'em_turnpike', 'em_old_shep'],   // wave 10 draid
 };

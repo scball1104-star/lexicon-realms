@@ -21,11 +21,14 @@ import rootbound from './rootbound.js';
 import larchhill from './larchhill.js';
 import droversReach from './drovers_reach.js';
 import larchMine from './larch_mine.js';
+import endmarketGate from './endmarket_gate.js';   // wave 10 draid: the Endmarket raid, wing 1
+import { applyRaid, fairGateDecor } from '../raid_endmarket.js';   // wave 10 draid: the raid (its foes register on import)
 import emberpeak from './emberpeak.js';                 // wave 3 start realms (lane realms1): src/data/start_realms2.js
 import valewyn from './valewyn.js';
 import { composeWorld } from './compose.js';
 import { withDoors } from './doors.js';
-import { withCopies, zoneBase } from './copies.js';
+import { withCopies, zoneBase, addZoneMaker } from './copies.js';   // wave 10 drift: + addZoneMaker
+import { riftZoneMaker, RIFT_RULES, RIFT_TEXT, weekWord, riftBook, riftPlace, parseRiftId } from '../rift.js';   // wave 10 drift
 import { DUNGEONS, DUNGEON_RULES } from '../dungeons.js';
 import { DUNGEON_QUESTS, DUNGEON_QUEST_ORDER } from '../dungeon_quests.js';
 import { REGION_AT, WORLD_ID, isRegion, toWorld, toWorldPx } from './layout.js';
@@ -54,6 +57,8 @@ import { RIDDLE_RULES, BLOCKED as RIDDLE_BLOCKED } from '../riddle_words.js';   
 import { TRAVEL_ITEMS, TRAVEL_NPCS, TRAVEL_NPC_SPAWNS, travelContent } from '../travel.js';
 import { MOUNT_ABILITIES, MOUNT_ITEMS, MOUNT_NPCS, MOUNT_NPC_SPAWNS, STABLE, mountsContent } from '../mounts.js';
 import { applyBand } from '../band_content.js';
+import { applyBossFights } from '../boss_fights.js';   // wave 10 dbosses
+import { applyDepths } from '../depths.js';   // wave 10 dtiers: Depths
 import { RB_MOBS, RB_NPCS, RB_ITEMS, RB_QUESTS, RB_QUEST_ORDER, RB_RARE_RUNTIME, RB_RARE_SPAWN, RB_EXTRA_DROPS, START_REALMS } from '../rootbound.js';
 import { applyRealms2 } from '../start_realms2.js';
 import { R2, R2_OUTDOOR } from '../realms2.js';     // wave 3 realms2: Saffron Haven, the Nameless Hollow
@@ -63,7 +68,7 @@ import { placeMoorBand, applyMoorBand } from '../moor_band.js';   // quests20: 2
 export const REGIONS = { willowmere, valley, downs, moor };
 // Dungeons and caves (2026-11-22, src/data/dungeons.js): each its own zone (kind 'dungeon' | 'cave'), entered by a door on
 // the world. A party's copy is the zone under the id `<place>#<key>` (copies.js): ZONES resolves it to the place's data.
-export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep };
+export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep, endmarket_gate: endmarketGate };   // wave 10 draid: + endmarket_gate
 // the loading card's one line of flavour (src/ui/loading.js reads zone.flavour)
 for (const [id, z] of Object.entries(PLACES)) if (DUNGEONS[id] && DUNGEONS[id].flavour) PLACES[id] = { ...z, flavour: DUNGEONS[id].flavour };
 // patrols you must time (src/data/patrols.js): a place's patrol pairs spawn with its other foes
@@ -79,17 +84,22 @@ placeMoorBand(WORLD);      // quests20: the Moor band's people, quest nodes and 
 export const OUTDOOR = { rootbound: { ...rootbound, flavour: 'A library grown inside the roots of the Great Willow.' } };
 // the 20 to 30 band (band lane, 2026-11-22): Larchhill (the Larch Mine's door stands in it) and Drovers' Reach
 OUTDOOR.larchhill = { ...withDoors(larchhill, DUNGEONS, PLACES), flavour: "Larch woods, silver mines and the list-writer's grey couriers." };
-OUTDOOR.drovers_reach = { ...droversReach, flavour: "The old drove roads, walled in stone and held by the chain." };
+OUTDOOR.drovers_reach = { ...fairGateDecor(withDoors(droversReach, DUNGEONS, PLACES)), flavour: "The old drove roads, walled in stone and held by the chain." };
 OUTDOOR.emberpeak = { ...emberpeak, flavour: 'A forge town under a black mountain, and the Gate that holds it.' };   // wave 3 start realms (realms1)
 OUTDOOR.valewyn = { ...valewyn, flavour: 'A lake town half under water. The tide is coming in.' };
 Object.assign(OUTDOOR, R2_OUTDOOR);                   // wave 3 realms2: Saffron Haven, the Nameless Hollow
 export const ZONES = withCopies({ [WORLD_ID]: WORLD, ...OUTDOOR, ...PLACES });
+// wave 10 drift: a word rift's zone is made on first use (content.zones['rift_ember_22']); its door out is in front of the
+// Rift Stone, Lantern Square's post in Willowmere (src/data/rift.js, src/sim/rift.js)   (wave 10 drift)
+const RIFT_STONE = (() => { const l = WORLD.lanterns.find((x) => x.region === 'willowmere'); const p = l.post || [l.x, l.y]; return { x: p[0], y: p[1], out: [l.x, l.y] }; })();   // wave 10 drift
+addZoneMaker(ZONES, riftZoneMaker(RIFT_STONE.out));   // wave 10 drift
 export { zoneBase };
 /** Is this zone id a dungeon or a cave (or a copy of one)? */
 export const isPlace = (id) => !!PLACES[zoneBase(id)];
 
 // Display names: the world, and each area (the HUD names the area you stand in; quests keep their area as `zone`).
 export const ZONE_NAMES = Object.fromEntries([[WORLD.id, WORLD.name], ...Object.values(REGIONS).map((z) => [z.id, z.name]), ...Object.values(OUTDOOR).map((z) => [z.id, z.name]), ...Object.values(PLACES).map((z) => [z.id, z.name])]);
+addZoneMaker(ZONE_NAMES, (id) => { const r = parseRiftId(id); return r ? RIFT_TEXT.name(r.word) : null; });   // wave 10 drift: a rift's name in the log and the HUD
 
 // ---------------------------------------------------------------- area-local data -> the world
 // Everything authored as { zone: <area>, x, y } in TILES (named spawns, chests, the escort's from/to) or as a where
@@ -181,5 +191,6 @@ export function buildContent() {
   out.realms2 = R2.rules;                     // wave 3 realms2: the storm and the lantern watch (src/sim/realms2.js)
   applyRealms2(out);                           // wave 3: Emberpeak and Valewyn (src/data/start_realms2.js)
   // the 20 to 30 band: Larchhill, the Larch Mine, Drovers' Reach (src/data/band_content.js); then the Moor band (moor_band.js)
-  return applyMoorBand(applyBand(out), worldQuests);
+  out.rift = { rules: RIFT_RULES, text: RIFT_TEXT, stone: { zone: WORLD_ID, ...RIFT_STONE }, weekWord, book: riftBook, place: riftPlace, parse: parseRiftId };   // wave 10 drift
+  return applyDepths(applyRaid(applyBossFights(applyMoorBand(applyBand(out), worldQuests))));   // wave 10 dtiers: Depths (content.depths)   // wave 10 dbosses (boss fights that need the party), then draid (the Endmarket raid)
 }

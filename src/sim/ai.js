@@ -105,6 +105,7 @@ export function createAi(C) {
     const base = t.aggroRadius != null ? t.aggroRadius : A.aggroRadius;
     const gap = m.level - p.level;
     let r = Math.max(A.aggroMin, Math.min(A.aggroMax, base + A.aggroPerLevel * gap));
+    if (m.spawn && m.spawn.aggroMul) r *= m.spawn.aggroMul;          // wave 10 dtiers: Running Ink, Faded Lamps (a depth copy)
     if (stats.hasFlag(p, 'stealth')) {
       r = A.stealthNotice + A.stealthPerLevel * Math.max(0, gap) + stats.mod(p, 'stealthNotice').add;
       r = Math.max(8, r);
@@ -187,6 +188,7 @@ export function createAi(C) {
     let pxs = t.speed != null ? t.speed : (m.mob.kind === 'armored' ? A.armoredSpeed : A.speed);
     if (mode === 'flee') pxs = A.fleeSpeed;
     if (m.mob && m.mob.speedMult) pxs *= m.mob.speedMult;          // the fast trait (class identity pass)
+    if (m.spawn && m.spawn.speedMul) pxs *= m.spawn.speedMul;      // wave 10 dtiers: Running Ink (a depth copy)
     return pxToSub(pxs);
   }
   function steer(m, tx, ty, speed, stopAt = 0) {
@@ -337,7 +339,7 @@ export function createAi(C) {
     m.target = t.id;
     const H = homeOf(m);
     const home = distPxXY(m.x, m.y, H.x, H.y);
-    const leashDist = template(m).leash != null ? template(m).leash : A.leashDist;
+    const leashDist = (template(m).leash != null ? template(m).leash : A.leashDist) * ((m.spawn && m.spawn.leashMul) || 1);   // wave 10 dtiers: Run-on
     // CONTRACTS 5.7 "10 s without reaching or being hurt by its target": a foe that a hero on its threat list keeps hurting
     // does not leash on the clock (a kited foe, a held foe under Long Bramble); it still leashes by distance, and a foe with
     // no path at all still evades on its own rule (cannotReach)
@@ -601,6 +603,7 @@ export function createAi(C) {
 
   function scan(m) {
     if (behavior(m) !== 'aggressive') return;
+    if (m.spawn && m.spawn.held) return;            // wave 10 drift: a rift's held room waits (src/sim/rift.js wakes it)
     if ((now() + m.id) % 4 !== 0) return;
     let best = null, bd = Infinity;
     for (const p of state.ents) {
