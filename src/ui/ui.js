@@ -92,6 +92,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   }
   const log = demo ? demoLog(demo === 'worst') : [];
   let lastModel = null, playerId = null, lastSnap = null;
+  let dollReq = null;   // this frame's Character window turntable request (inset over the world), or null
 
   // hidden text field: brings up the phone keyboard and handles IME / paste on desktop
   const nameInput = document.createElement('input');
@@ -431,13 +432,16 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     st.now = t;
     uiSnd.frame(st);
     looks.frame();
+    dollReq = null;
     lastSnap = snap;
     const L = layoutNow();
     st.layer = { W: L.W, H: L.H };
     g.setTextSize(textSizeFrom(options, st.metrics.touch, skinQ));   // Large by default on a phone, Normal on PC
     // big world: the hero's known flight points (the world map lights them, menus.js drawMap)
     const meS = snap && playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
-    const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, zoneKind: (id) => (zones[id] || {}).kind, flights: (meS && meS.flights) || [] };
+    const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, zoneKind: (id) => (zones[id] || {}).kind, flights: (meS && meS.flights) || [],
+      // the Character window's 3D doll (skin_windows.js): my body, and where the window wants the turntable drawn
+      has3d: () => !!(hooks.has3d && hooks.has3d()), me: meS, doll: (req) => { dollReq = req; } };
     const regions = [];
     ctx.imageSmoothingEnabled = false;
     markPage('lr-window', st.mode === 'game' && !!L.touch && (st.open.size > 0 || !!chatUi.sheetOpen || !!chatUi.cardOpen || !!chatUi.state.full));   // wave 9 fixes: the bar hid talents nodes and Say phrases
@@ -1269,7 +1273,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     /** Phone layer mode for the renderer: 'big' (play) or 'win' (a 640x360 menu window is open). */
     get hudMode() { return hudMode(); },
     /** The creation screen's or the mirror's turntable request (main.js view.stage; renderer3d draws the 3D hero), or null. */
-    get stage() { return looks.stage(); },
+    get stage() { return looks.stage() || (dollReq && st.mode === 'game' && st.open.has('character') ? dollReq : null); },
     setAbilityContent,
     say,
     logText: () => log.map((l) => l.text),

@@ -733,7 +733,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // wave 6: the creation screen or the mirror asks for its turntable (view.stage); the screen covers the world, so only it draws
-    if (view.stage && view.stage.rect) { (turntable || (turntable = createTurntable(L, { items, quality, environment: scene.environment }))).render(renderer, view.stage, layout, gl, canvas, now); dev.turntable = turntable.dev; return; }
+    if (view.stage && view.stage.rect && !view.stage.inset) { (turntable || (turntable = createTurntable(L, { items, quality, environment: scene.environment }))).render(renderer, view.stage, layout, gl, canvas, now); dev.turntable = turntable.dev; return; }
     if (!shown) {
       renderer.setClearColor('#0b0a12'); renderer.clear();
       return;
@@ -874,6 +874,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (quality.bloom && composer && view.fx !== 'low') composer.render();
     else renderer.render(scene, camera);
     if (trans && trans.warm) warmAfter(tr0);
+    // the Character window's doll (view.stage.inset): the real 3D hero drawn into the window's niche over the world
+    if (view.stage && view.stage.rect && view.stage.inset) { (turntable || (turntable = createTurntable(L, { items, quality, environment: scene.environment }))).render(renderer, view.stage, layout, gl, canvas, now); dev.turntable = turntable.dev; }
     else if (!shown.warmed) shown.warmed = true;          // a scene drawn whole once is warm (leaving back to it is instant)
     if (!trans && dev.zoneChange && dev.zoneChange.firstFrameAt == null) { dev.zoneChange.firstFrameAt = performance.now(); dev.zoneChange.firstFrameMs = +(performance.now() - dev.zoneChange.t0).toFixed(1); dev.zoneChange.firstDrawMs = +(performance.now() - t0).toFixed(1); }
 

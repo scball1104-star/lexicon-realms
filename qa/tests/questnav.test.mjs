@@ -114,6 +114,16 @@ export const tests = [
       // picking a quest that is not in the log falls back to the first tracked one
       const m2 = buildHudModel(vm, snap, { ...ctx, state: { navQuest: 'nope' } });
       eq(m2.selectedQuest, 'wm_yard_slimes');
+      // the selected quest leads the tracker even when it sits past the rows the phone (3) or desktop (5) shows
+      // (Scott 2026-11-25: a bounty picked 5th in the log was missing from the small list)
+      const row = vm.hud.quests[0];
+      const many = { ...vm, hud: { ...vm.hud, quests: [row, ...[1, 2, 3, 4, 5].map((k) => ({ ...row, quest: `fake_${k}`, name: `Fake ${k}` }))] } };
+      const m3 = buildHudModel(many, snap, { ...ctx, state: { navQuest: 'fake_5' } });
+      eq(m3.tracked[0].id, 'fake_5', 'the picked quest is the first tracker row');
+      eq(m3.tracked.length, 5, 'still five rows');
+      eq(m3.tracked.filter((q) => q.id === 'fake_5').length, 1, 'listed once');
+      const m4 = buildHudModel(many, snap, { ...ctx, state: { navQuest: 'fake_5', untracked: new Set(['fake_5']) } });
+      assert(!m4.tracked.some((q) => q.id === 'fake_5'), 'an untracked pick stays off the tracker');
       // the areas are one map now: no joins between loaded zones, so the route to any area is the empty route
       eq(JSON.stringify(zoneRoute(content.zones, 'world', 'world')), '[]', 'world -> world: no steps');
       // dungeon and cave doors (2026-11-22) are the only joins to loaded zones: each names its door

@@ -196,7 +196,10 @@ function fromSimHud(vm, snap, ctx) {
   const castBar = c ? { ability: c.ability, name: c.name, frac: c.kind === 'channel' ? 1 - c.frac : c.frac, left: c.left, channel: c.kind === 'channel' }
     : rz ? { ability: null, name: `${rz.spell}: ${rz.name}`, frac: rz.frac, left: rz.left, channel: false } : null;
   const quests = questRows(h.quests, st.untracked || new Set(), ctx.zoneNames || {}, ctx.zones || {});
-  const tracked = quests.filter((q) => q.tracked).slice(0, 5);
+  // the selected quest leads the tracker: the phone shows only 3 rows and the desktop 5, so a quest picked in the log
+  // further down the list used to fall off it (Scott, 2026-11-25)
+  const pick = st.navQuest != null ? quests.find((q) => q.id === st.navQuest && q.tracked) : null;
+  const tracked = [...(pick ? [pick] : []), ...quests.filter((q) => q.tracked && q !== pick)].slice(0, 5);
   const places = questPlaces(quests, tracked, snap, meE, st.navQuest, ctx.zones, ctx.zoneNames);
   // minimap: quest marks from the sim (npcMarkers), everything else from positions
   const markers = [];

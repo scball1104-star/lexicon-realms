@@ -116,7 +116,9 @@ export function createTalkUI({ g, zones = {}, zoneNames = {}, hooks = {}, option
    *  until then they fall back to today's numbers. */
   function metrics(L) {
     const lh = g.lh || 11;                                       // one line of the normal font
-    const mid = (h) => (g.mid ? g.mid(h) : Math.floor(h / 2) - 6);   // a line's top so it sits in the middle of a row h tall
+    // a line's top so it sits in the middle of a row h tall. g.mid(n) is the font's centring OFFSET (6 normal, 8 large),
+    // not a row centre: passing h to it put every button label one row low, under its box (Scott's phone, 2026-11-25).
+    const mid = (h) => Math.floor(h / 2) - (g.mid ? g.mid(6) : 6);
     return {
       lh, mid,
       lhBig: lh + 4,                                             // one line of the large font (the npc's name)

@@ -272,6 +272,8 @@ export function drawQuestLogSkin(ctx, env, m, st, regions, act, sk) {
 
 // ---------------------------------------------------------------- character sheet
 
+const DOLL_BG = { c: null, key: '' };   // the Character window's 3D doll backdrop (one canvas, remade when the window moves)
+
 export function drawCharacterSkin(ctx, env, m, st, regions, act, sk) {
   const { g, L, charArt } = env;
   const big = g.big, lh = g.lh;
@@ -295,39 +297,61 @@ export function drawCharacterSkin(ctx, env, m, st, regions, act, sk) {
   // ---- the doll: gear left and right of the hero, standing in lantern light
   const dx = r.x + 8, dy = r.y + 66, dw = 160, sz = 26, pitch = Math.max(big ? 38 : 40, L.minHit || 0);
   const dh = 4 + 4 * pitch + 2;
-  g.window(ctx, dx, dy, dw, dh, 'thin', 'blue', 0.95);
   const midX = dx + Math.floor(dw / 2), footY = dy + dh - 14;
-  // an arched niche behind the hero, rimmed in bronze, with lantern light pooled on its floor
   const nw = 74, nx = midX - nw / 2, ntop = dy + 10, nbot = footY + 6, rad = nw / 2;
-  for (let yy = ntop; yy < nbot; yy++) {
-    const dyy = yy - (ntop + rad);
-    const half = dyy >= 0 ? rad : Math.floor(Math.sqrt(Math.max(0, rad * rad - dyy * dyy)));
-    if (half <= 0) continue;
-    g.rect(ctx, midX - half - 1, yy, 1, 1, '#a87b3c'); g.rect(ctx, midX + half, yy, 1, 1, '#5e3f1c');
-    const u = (yy - ntop) / (nbot - ntop);
-    g.rect(ctx, midX - half, yy, half * 2, 1, `rgba(${Math.round(8 + 40 * u)},${Math.round(7 + 26 * u)},${Math.round(16 + 10 * u)},0.85)`);
-  }
-  g.rect(ctx, nx - 1, nbot, nw + 2, 1, '#a87b3c');
-  // lantern light pooled round the feet: an ellipse, brightest in the middle
-  for (let k = 0; k < 4; k++) {
-    const rx = 34 - k * 8, ry = 7 - k * 1.5, a = 0.10 + k * 0.05;
-    for (let yy = -Math.floor(ry); yy <= Math.floor(ry); yy++) {
-      const hw = Math.floor(rx * Math.sqrt(Math.max(0, 1 - (yy * yy) / (ry * ry))));
-      if (hw > 0) g.rect(ctx, midX - hw, footY + 1 + yy, hw * 2, 1, `rgba(255,190,100,${a.toFixed(3)})`);
+  // the panel and an arched niche behind the hero, rimmed in bronze, with lantern light pooled on its floor
+  const niche = (c) => {
+    g.window(c, dx, dy, dw, dh, 'thin', 'blue', 0.95);
+    for (let yy = ntop; yy < nbot; yy++) {
+      const dyy = yy - (ntop + rad);
+      const half = dyy >= 0 ? rad : Math.floor(Math.sqrt(Math.max(0, rad * rad - dyy * dyy)));
+      if (half <= 0) continue;
+      g.rect(c, midX - half - 1, yy, 1, 1, '#a87b3c'); g.rect(c, midX + half, yy, 1, 1, '#5e3f1c');
+      const u = (yy - ntop) / (nbot - ntop);
+      g.rect(c, midX - half, yy, half * 2, 1, `rgba(${Math.round(8 + 40 * u)},${Math.round(7 + 26 * u)},${Math.round(16 + 10 * u)},0.85)`);
     }
-  }
-  // the hero at 2x, whole pixels
-  try {
-    const tmp = env.scratch ? env.scratch(40, 48) : null;
-    if (tmp) {
-      const c2 = tmp.getContext('2d');
-      c2.clearRect(0, 0, 40, 48);
-      charArt.draw(c2, p.cls, p.look, 'idle', 'down', 0, 20, 44);
-      const prev = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(tmp, 0, 0, 40, 48, midX - 40, footY - 88 + 4, 80, 96);
-      ctx.imageSmoothingEnabled = prev;
+    g.rect(c, nx - 1, nbot, nw + 2, 1, '#a87b3c');
+    // lantern light pooled round the feet: an ellipse, brightest in the middle
+    for (let k = 0; k < 4; k++) {
+      const rx = 34 - k * 8, ry = 7 - k * 1.5, a = 0.10 + k * 0.05;
+      for (let yy = -Math.floor(ry); yy <= Math.floor(ry); yy++) {
+        const hw = Math.floor(rx * Math.sqrt(Math.max(0, 1 - (yy * yy) / (ry * ry))));
+        if (hw > 0) g.rect(c, midX - hw, footY + 1 + yy, hw * 2, 1, `rgba(255,190,100,${a.toFixed(3)})`);
+      }
     }
-  } catch { /* the doll is decoration */ }
+  };
+  niche(ctx);
+  // 3D graphics: the real hero (the creation screen's turntable, src/render3d/turntable.js) stands in the niche, wearing
+  // what you wear; 2D: today's sprite at 2x. Scott 2026-11-25: "Character image not in the better quality".
+  const me = env.me && env.has3d && env.has3d() && typeof document !== 'undefined' ? env.me : null;
+  if (me && env.doll) {
+    const tr = ctx.getTransform ? ctx.getTransform() : { e: 0, f: 0 };
+    const LW = L.W || 640, LH = L.H || 360, ox = Math.round(tr.e), oy = Math.round(tr.f);
+    // the backdrop the turntable draws behind the hero: the same panel and niche, at layer size (cached per place)
+    const key = `${LW}x${LH}:${ox},${oy},${dx},${dy},${dh}:${g.skin ? g.skin.id : ''}`;
+    if (!DOLL_BG.c || DOLL_BG.key !== key) {
+      const c = document.createElement('canvas'); c.width = LW; c.height = LH;
+      const b = c.getContext('2d'); b.imageSmoothingEnabled = false; b.translate(ox, oy); niche(b);
+      DOLL_BG.c = c; DOLL_BG.key = key;
+    }
+    const rh = nbot - ntop + 1;
+    env.doll({ mode: 'doll', inset: true, rect: { x: nx + ox, y: ntop + oy, w: nw, h: rh }, cls: p.cls, look: me.look || p.look || 0,
+      app: me.app || null, equip: me.equip || {}, yaw: 0.45, bg: DOLL_BG.c, phone: !!L.touch });
+    ctx.clearRect(nx, ntop, nw, rh);
+  } else {
+    // the hero at 2x, whole pixels
+    try {
+      const tmp = env.scratch ? env.scratch(40, 48) : null;
+      if (tmp) {
+        const c2 = tmp.getContext('2d');
+        c2.clearRect(0, 0, 40, 48);
+        charArt.draw(c2, p.cls, p.look, 'idle', 'down', 0, 20, 44);
+        const prev = ctx.imageSmoothingEnabled; ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(tmp, 0, 0, 40, 48, midX - 40, footY - 88 + 4, 80, 96);
+        ctx.imageSmoothingEnabled = prev;
+      }
+    } catch { /* the doll is decoration */ }
+  }
   const gear = (list, x) => list.forEach((slot, i) => {
     const sr = { x, y: dy + 5 + i * pitch, w: sz, h: sz };
     const it = m.equip[slot];

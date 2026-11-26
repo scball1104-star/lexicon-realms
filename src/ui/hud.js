@@ -54,7 +54,8 @@ export const RARE_SILVER = '#d4dce8', REST_BLUE = '#9fc4ff';
 export function fmtInt(n) { return Math.round(n).toLocaleString('en-US'); }
 
 /** Draw a tooltip box near (x, y), kept on screen. tip: { title, right, sub, body, foot, footColor, lines }. */
-export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360 } = {}) {
+export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360, flat = false, measure = false } = {}) {
+  // flat: no frame of its own and no nudging on screen (the caller's card frames and places it); measure: size only, no drawing
   w = Math.max(w, Math.min(300, g.textW(tip.title || '', true) + (tip.right ? g.textW(tip.right) + 10 : 0) + 18));
   const bodyLines = tip.body ? g.wrap(tip.body, w - 14) : [];
   const subLines = tip.sub ? g.wrap(tip.sub, w - 14) : [];
@@ -66,12 +67,15 @@ export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360 } = {
   for (const d of tip.delta || []) for (const ln of g.wrap(d.text, w - 14)) deltaLines.push({ text: ln, color: d.color });
   const lh = g.lh;   // 11, or 16 with Large text (gfx.js g.big, wave 6 uiskin)
   const h = 8 + 16 + subLines.length * lh + (numLines.length ? 2 + numLines.length * lh : 0) + (bodyLines.length ? 2 + bodyLines.length * lh : 0) + (footLines.length ? 4 + footLines.length * lh : 0) + (deltaLines.length ? 3 + deltaLines.length * lh : 0) + 6;
+  if (measure) return { x, y, w, h };
   let tx = Math.round(x), ty = Math.round(y);
-  if (tx + w > W - 2) tx = x - 16 - w;
-  if (tx + w > W - 2) tx = W - 2 - w;
-  if (ty + h > H - 2) ty = H - 2 - h;
-  tx = Math.max(2, tx); ty = Math.max(2, ty);
-  g.window(ctx, tx, ty, w, h, 'std', 'blue', 0.98);
+  if (!flat) {
+    if (tx + w > W - 2) tx = x - 16 - w;
+    if (tx + w > W - 2) tx = W - 2 - w;
+    if (ty + h > H - 2) ty = H - 2 - h;
+    tx = Math.max(2, tx); ty = Math.max(2, ty);
+    g.window(ctx, tx, ty, w, h, 'std', 'blue', 0.98);
+  }
   const rw = tip.right ? g.textW(tip.right) + 10 : 0;
   g.text(ctx, g.clip(tip.title || '', w - 14 - rw, true), tx + 7, ty + 5, tip.titleColor || 'gold', { large: true });
   if (tip.right) g.text(ctx, tip.right, tx + w - 7, ty + 8, 'cream', { align: 'right' });

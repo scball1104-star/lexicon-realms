@@ -132,10 +132,12 @@ export function createTurntable(L, { items = null, quality = {}, environment = n
     camera.fov = stage.phone ? 26 : 24;
     camera.position.set(0, 1.5, stage.phone ? 5.9 : 5.8); camera.lookAt(0, 0.8, 0);
     camera.updateProjectionMatrix();
-    renderer.setClearColor('#0b0a12'); renderer.clear();
+    // inset (the Character window's doll): the world is already drawn, so clear only inside the rect
+    if (!stage.inset) { renderer.setClearColor('#0b0a12'); renderer.clear(); }
     renderer.shadowMap.needsUpdate = true;      // underground the world stops shadow updates; the stage always has them
     renderer.setScissorTest(true);
     renderer.setViewport(x, y, w, h); renderer.setScissor(x, y, w, h);
+    if (stage.inset) { renderer.setClearColor('#0b0a12'); renderer.clear(); }
     try { renderer.render(scene, camera); } finally {
       renderer.setScissorTest(false);
       renderer.setViewport(0, 0, gl.width, gl.height);

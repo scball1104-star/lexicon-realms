@@ -323,6 +323,8 @@ export function cardPlace(R, lay, at, tipH, L, cw = 250) {
   return { x, y, w: cw, h: tipH, learn: { x, y: by, w: bw, h: lay.hit }, close: { x: x + bw + 6, y: by, w: bw, h: lay.hit } };
 }
 
+const CARD_W = 290;   // the phone card's text width (layer px)
+
 // ------------------------------------------------------------------------------------------------ draw
 export function drawTalents2(ctx, env, m, st, regions, act) {
   const { g, charArt, L } = env;
@@ -595,24 +597,28 @@ function drawCards(ctx, env, m, st, regions, act, { touch, hovered, cd, build, p
     }
     // the window dims behind the card; a tap on the dim closes it
     const dim = { x: R.x + 4, y: R.y + lay.headH + 2, w: R.w - 8, h: R.h - lay.headH - 6 };
-    g.scrim(ctx, dim.x, dim.y, dim.w, dim.h, 120);
+    g.scrim(ctx, dim.x, dim.y, dim.w, dim.h, 200);   // dark enough that the tree does not read through round the card
     regions.push({ rect: dim, kind: 'button', on: () => { st.talentSel = null; }, label: 'b2:card_dim' });
     g.window(ctx, at.x, at.y, at.w, at.h, 'thin', can ? 'blue' : 'slate', 1);
     if (nodeAt[sel]) g.iconIn(ctx, cd.nodes[sel].icon, at.x, at.y, at.w, at.h, 1);
     else g.iconIn(ctx, skillIcon(picksAt[sel].o.id), at.x, at.y, at.w, at.h, 1);
     g.outline(ctx, at.x - 2, at.y - 2, at.x + at.w + 1, at.y + at.h + 1, '#fff7d6');
-    const size = tipSize(g, tip, 250);
-    const card = cardPlace(R, lay, at, size.h, L, size.w);
-    const box = drawTooltip(g, ctx, tip, card.x, card.y, { w: 250, W: L.W, H: L.H });
-    regions.push({ rect: box, kind: 'window', id: 'b2card' });
-    g.rect(ctx, box.x + 2, box.y + box.h, box.w - 4, 2, '#14101e');
+    // one framed card (Scott 2026-11-25: "still isn't clean"): the text and its two buttons inside a single frame, wide
+    // enough that the Large text wraps less, the buttons' words centred in them
+    const PAD = 8, cw = Math.min(CARD_W, R.w - 22);
+    const size = drawTooltip(g, ctx, tip, 0, 0, { w: cw, measure: true });   // the real size in the text size in use
+    const card = cardPlace(R, lay, at, size.h + PAD * 2 + 4, L, size.w + PAD * 2);
+    const outer = { x: card.x, y: card.y, w: size.w + PAD * 2, h: size.h + 4 + lay.hit + PAD * 2 };
+    g.window(ctx, outer.x, outer.y, outer.w, outer.h, 'std', 'blue', 1);
+    regions.push({ rect: outer, kind: 'window', id: 'b2card' });
+    const box = drawTooltip(g, ctx, tip, outer.x + PAD, outer.y + PAD, { w: size.w, W: L.W, H: L.H, flat: true });
     const cb = (r, text, scheme, color, on, lab) => {
       g.window(ctx, r.x, r.y, r.w, r.h, 'thin', scheme, 0.97);
-      g.text(ctx, g.clip(text, r.w - 8), r.x + r.w / 2, r.y + Math.floor(r.h / 2) - 5, color, { align: 'center' });
+      g.text(ctx, g.clip(text, r.w - 8), r.x + r.w / 2, r.y + Math.floor(r.h / 2) - g.mid(6), color, { align: 'center' });
       regions.push({ rect: r, kind: 'button', on, label: lab });
     };
-    const bw = Math.floor((box.w - 6) / 2), by = box.y + box.h + 2;
-    cb({ x: box.x, y: by, w: bw, h: card.learn.h }, can ? label : 'Locked', can ? 'forest' : 'slate', can ? 'cream' : 'dim', () => { if (can) learn(); else act.toast(tip.foot); }, 'b2:learn');
-    cb({ x: box.x + bw + 6, y: by, w: bw, h: card.close.h }, 'Close', 'slate', 'cream', () => { st.talentSel = null; }, 'b2:card_close');
+    const bw = Math.floor((box.w - 6) / 2), by = box.y + box.h + 4;
+    cb({ x: outer.x + PAD, y: by, w: bw, h: lay.hit }, can ? label : 'Locked', can ? 'forest' : 'slate', can ? 'cream' : 'dim', () => { if (can) learn(); else act.toast(tip.foot); }, 'b2:learn');
+    cb({ x: outer.x + PAD + bw + 6, y: by, w: box.w - bw - 6, h: lay.hit }, 'Close', 'slate', 'cream', () => { st.talentSel = null; }, 'b2:card_close');
   }
 }
