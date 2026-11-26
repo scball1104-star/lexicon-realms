@@ -447,10 +447,27 @@ const BUILDING = {
 // most of its height (the doors stay taller than the hero), the upper floors and the roof give up more. About 0.78 of
 // the full height overall. The footprint never changes, so the walls still stand where the collision map blocks.
 const TOWN_H = { ground: 0.85, upper: 0.72, roof: 0.75 };
+
+// Style kits for Larchhill and Drovers' Reach: the same CC0 village pieces (plaster, brick, wood floors, round-tile
+// roofs), tinted and chosen so the two towns no longer share Willowmere's look. No new pack files.
+function styleKit(zone) {
+  if (!zone || !zone.style) return null;
+  if (zone.style === 'larch') return {
+    house: (t, def) => (t === 'x1_watchtower' ? def : { ...def, style: 'plaster' }),
+    wallTint: '#f0e4c8', roofTint: '#6a7a38', plaza: 'wood', plazaTint: '#8a7048',
+    farWall: '#d2c4a0', farRoof: '#4a5a28',
+  };
+  if (zone.style === 'drove') return {
+    house: (t, def) => (t === 'x1_turf_hut' ? def : { ...def, style: 'brick' }),
+    wallTint: '#d8c4b0', roofTint: '#5a463c', plaza: 'cobble', plazaTint: '#6e5e50',
+    farWall: '#6a4e42', farRoof: '#3a322c',
+  };
+  return null;
+}
 const EAVE = 0.12;   // roof overhang past the footprint (m per side): a sliver over the lane, no more
 
 /** One house from kit pieces on the footprint (x0, z0, w, d). Returns its bounds for the cutaway. */
-async function buildHouse(P, B, def, x0, z0, w, d, doorCol, seed, { town = false, bld = 0 } = {}) {
+async function buildHouse(P, B, def, x0, z0, w, d, doorCol, seed, { town = false, bld = 0, tints = null } = {}) {
   const st = STYLE[def.style];
   const nx = Math.max(1, Math.round(w / 2)), nz = Math.max(1, Math.round(d / 2));
   const sx = w / (nx * 2), sz = d / (nz * 2);
@@ -462,7 +479,9 @@ async function buildHouse(P, B, def, x0, z0, w, d, doorCol, seed, { town = false
   const roofK = low * (town ? TOWN_H.roof : 1);
   const cx = x0 + w / 2, cz = z0 + d / 2;
   const floorRoot = (f) => new THREE.Matrix4().compose(new THREE.Vector3(cx, fy[f].y, cz), new THREE.Quaternion(), new THREE.Vector3(sx, fy[f].k, sz));
-  const put = async (f, name, lx, ly, lz, ry) => { const pr = await P(`village/${name}.gltf`); B.mergeModel(pr, floorRoot(f).multiply(M4(lx, ly, lz, ry)), { bld }); };
+  const put = async (f, name, lx, ly, lz, ry, tint = null) => { const pr = await P(`village/${name}.gltf`); B.mergeModel(pr, floorRoot(f).multiply(M4(lx, ly, lz, ry)), { bld, tint: tint || (tints && tints.wallTint) || null }); };
+  const roofTint = (tints && tints.roofTint) || null;
+  const putRoof = (pr, m) => B.mergeModel(pr, m, { bld, tint: roofTint });
   const W2 = nx, D2 = nz;
   const door = Math.max(0, Math.min(nx - 1, Math.floor(doorCol / 2)));
   const jobs = [];
@@ -496,7 +515,7 @@ async function buildHouse(P, B, def, x0, z0, w, d, doorCol, seed, { town = false
     const b = pr.box, bw = b.max.x - b.min.x, bd = b.max.z - b.min.z;
     const kx = (w + EAVE * 2) / bw, kz = (d + EAVE * 2) / bd, ky = Math.min(kx, kz) * roofK;
     const m = new THREE.Matrix4().compose(new THREE.Vector3(cx - (b.min.x + b.max.x) / 2 * kx, top - b.min.y * ky, cz - (b.min.z + b.max.z) / 2 * kz), new THREE.Quaternion(), new THREE.Vector3(kx, ky, kz));
-    B.mergeModel(pr, m, { bld });
+    putRoof(pr, m);
     roofTop = top + (b.max.y - b.min.y) * ky;
   } else {
     const want = [w + EAVE * 2, d + EAVE * 2];
@@ -517,13 +536,13 @@ async function buildHouse(P, B, def, x0, z0, w, d, doorCol, seed, { town = false
     const scl = new THREE.Matrix4().makeScale(best.rot ? kz : kx, ky, best.rot ? kx : kz);
     const cen = new THREE.Matrix4().makeTranslation(-bcx, -b.min.y, -bcz);
     const at = new THREE.Matrix4().makeTranslation(cx, top, cz);
-    B.mergeModel(best.pr, at.multiply(rot).multiply(scl).multiply(cen), { bld });
+    putRoof(best.pr, at.multiply(rot).multiply(scl).multiply(cen));
     roofTop = top + (b.max.y - b.min.y) * ky;
   }
   if (def.chimney) {
     const pr = await P('village/Prop_Chimney.gltf');
     const k = roofK, m = new THREE.Matrix4().compose(new THREE.Vector3(cx + (W2 - 0.8) * sx, top + 0.6 * k, cz + (-D2 + 0.8) * sz), new THREE.Quaternion(), new THREE.Vector3(1, k, 1));
-    B.mergeModel(pr, m, { bld });
+    putRoof(pr, m);
   }
   return { id: bld, x0, z0, w, d, top: roofTop };
 }
@@ -869,7 +888,13 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     const plankK = 1 / Math.max(0.01, plank.box.max.x - plank.box.min.x);
     for (let y = 0; y < H; y++) {
       if (!inPart.row(y)) continue;
-      for (let x = 0; x < W; x++) if ((terr[y][x] === 'plaza' ? !(kit && kit.cobbles) : terr[y][x] === 'lr_dfloor') && inPart(x, y)) B.instance(cob, M4(x + 0.5, 0.0, y + 0.5, Math.floor(hashXY(x, y) * 4) * Math.PI / 2, cobK, 1, cobK), { cast: false, tint: terr[y][x] === 'lr_dfloor' ? '#8a8078' : roots ? '#b0a890' : null });
+      for (let x = 0; x < W; x++) if ((terr[y][x] === 'plaza' ? !(kit && kit.cobbles) : terr[y][x] === 'lr_dfloor') && inPart(x, y)) {
+        const sk = styleKit(zone);
+        const wood = terr[y][x] === 'plaza' && sk && sk.plaza === 'wood';
+        const proto = wood ? plank : cob, pk = wood ? plankK : cobK;
+        const tint = terr[y][x] === 'lr_dfloor' ? '#8a8078' : roots ? '#b0a890' : (sk && sk.plazaTint) || null;
+        B.instance(proto, M4(x + 0.5, 0.0, y + 0.5, Math.floor(hashXY(x, y) * 4) * Math.PI / 2, pk, 1, pk), { cast: false, tint });
+      }
     }
     for (const o of zone.overlays || []) {
       if (!inPart(o.x, o.y)) continue;
@@ -956,14 +981,15 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
         buildings.push(r2DomeHouse(B, fx0, fz0, fw, fd, bldSlot(), d.x * 7 + d.y));
         farAdd(FAR_BOX, '#e0c49a', cx, cz, fw, 2.6, fd);
       } else if (BUILDING[t]) {
-        const def = BUILDING[t];
+        const sk = styleKit(zone);
+        const def = sk && sk.house ? sk.house(t, BUILDING[t]) : BUILDING[t];
         const door = meta && meta.doorAt ? meta.doorAt[0] : Math.floor(fw / 2);
-        const o = { town: townAt(d.x, d.y), bld: bldSlot() };
+        const o = { town: townAt(d.x, d.y), bld: bldSlot(), tints: sk };
         const fd2 = def.solidTower ? Math.max(fd, 3) : fd;
         jobs.push(buildHouse(P, B, def, fx0, def.solidTower ? fz0 + fd - fd2 : fz0, fw, fd2, door, d.x * 7 + d.y, o).then((bb) => { buildings.push(bb); }));
         const hh = (def.floors || 1) * 2.6 * (o.town ? 0.85 : 1);
-        farAdd(FAR_BOX, def.style === 'brick' ? '#8a6a58' : '#c8b898', cx, cz, fw, hh, fd2);
-        farAdd(FAR_ROOF, '#8a3a26', cx, cz, fw + 0.4, Math.min(fw, fd2) * 0.55, fd2 + 0.4, 0, hh);   // the roof
+        farAdd(FAR_BOX, (sk && sk.farWall) || (def.style === 'brick' ? '#8a6a58' : '#c8b898'), cx, cz, fw, hh, fd2);
+        farAdd(FAR_ROOF, (sk && sk.farRoof) || '#8a3a26', cx, cz, fw + 0.4, Math.min(fw, fd2) * 0.55, fd2 + 0.4, 0, hh);   // the roof
       } else if (t === 'town_gate') B.mergeGroup(townGate(fx0, d.y + 0.5, fw));
       else if (t === 'x1_barrow_door_closed') { if (!doorAt(zone, fx0, fz0, fw, fd)) B.mergeGroup(barrowMound(cx, cz, fw)); }   // an open door replaces it
       else if (t === 'well') B.mergeGroup(well(cx, cz));

@@ -215,7 +215,8 @@ export function build(db) {
     { id: 'lh_post_sign', x: 440, y: 356, text: 'THE GREY POST. COURIERS ONLY. A cold, careful hand has written it.' },
   ];
   const zone = k.zone({
-    id: 'larchhill', name: 'Larchhill', music: 'valley', under: 'grass',
+    id: 'larchhill', name: 'Larchhill', music: 'valley', under: 'grass', style: 'larch',
+    palette: { grass: '#4a6a3a', tallgrass: '#3e5c32', dirt: '#8a6a42', plaza: '#8a7048', x1_bracken: '#5a6a32', x1_heath: '#6a7a4a' },
     lighting: { tint: 'none', dark: 0 },
     levels: [20, 25], arrival: [GATE.arrive[0], GATE.arrive[1]],
     regions: [{ id: 'lh_larch_cross', name: 'Larch Cross', kind: 'town', x: T.box.x0 - 6, y: T.box.y0 - 6, w: T.box.x1 - T.box.x0 + 13, h: T.box.y1 - T.box.y0 + 13, levels: [20, 25], music: 'valley', lighting: { tint: 'none', dark: 0 }, under: 'grass' }],

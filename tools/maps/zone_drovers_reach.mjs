@@ -211,7 +211,8 @@ export function build(db) {
     { id: 'dr_toll_sign', x: 276, y: 398, text: 'TOLL. PAY THE TALLYMAN. EVERY HEAD IS COUNTED. EVERY NAME IS WRITTEN.' },
   ];
   return k.zone({
-    id: 'drovers_reach', name: "Drovers' Reach", music: 'the_downs', under: 'x1_moor_turf',
+    id: 'drovers_reach', name: "Drovers' Reach", music: 'the_downs', under: 'x1_moor_turf', style: 'drove',
+    palette: { 'x1_moor_turf': '#5a5a3a', grass: '#4a5234', dirt: '#6a5a42', plaza: '#6e5e50', x1_heath: '#6a5a40', x1_peat: '#3a3228', x1_bracken: '#5a4a30' },
     lighting: { tint: 'none', dark: 0 },
     levels: [25, 30], arrival: [GAP.arrive[0], GAP.arrive[1]],
     regions: [{ id: 'dr_highdrove', name: 'Highdrove', kind: 'town', x: T.box.x0 - 6, y: T.box.y0 - 6, w: T.box.x1 - T.box.x0 + 13, h: T.box.y1 - T.box.y0 + 13, levels: [25, 30], music: 'the_downs', lighting: { tint: 'none', dark: 0 }, under: 'x1_moor_turf' }],
