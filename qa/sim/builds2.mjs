@@ -68,6 +68,10 @@ function bot(world, p, t, foes, build) {
   // signatures (level 10): the spirit back out if it fell; the hammers whenever a foe stands inside their reach
   if (knows('mender_kindred_light') && !objs(world, p, 'mender_kindred_light').length && can('mender_kindred_light')) return { ab: 'mender_kindred_light' };
   if (alive.some((m) => dpx(m, p) <= 64) && can('mender_tolling_hammers')) return { ab: 'mender_tolling_hammers' };
+  // the level 14 pick: Purify lifts a harmful effect off her (and heals); Sunlance opens on a healthy foe (3 s cast)
+  if (knows('mender_purify') && p.auras.some((a) => a.def.kind === 'debuff' && ((a.def.flags || []).some((f) => ['root', 'slow', 'silence'].includes(f)) || ['magic', 'poison', 'bleed'].includes(a.def.dispel)))
+    && can('mender_purify', p)) return { ab: 'mender_purify', target: p };
+  if (knows('mender_sunlance') && t.hp > t.hpMax * 0.5 && hp > 0.6 && can('mender_sunlance', t)) return { ab: 'mender_sunlance', target: t };
   if (knows('mender_brand')) {
     const bare = alive.find((m) => !auraOn(m, 'mender_brand', p.id) && dpx(m, p) <= 128);
     if (bare && can('mender_brand', bare)) return { ab: 'mender_brand', target: bare };
@@ -101,6 +105,7 @@ function menderFight(build, level, seed, { pack = 1 } = {}) {
   p.hp = p.hpMax; p.res.cur = p.res.max;
   const hp0 = p.hpMax;
   let tgt = foes[0], start = null, low = p.hp, holdUntil = -1;
+  const uses = {};   // the bot's asks per skill (qa/sim/legendaries2.test.mjs reads it: the level 14 picks are used)
   world.enqueue(pid, { t: 'target', id: tgt.id });
   if (melee) world.enqueue(pid, { t: 'attack', id: tgt.id });
   const sigAb = (id) => world.internals.data.ability(p, id);
@@ -135,14 +140,14 @@ function menderFight(build, level, seed, { pack = 1 } = {}) {
     }
     if (!p.cast && world.tick >= p.gcdUntil && !(p.mx || p.my)) {
       const pick = bot(world, p, tgt, foes, build);
-      if (pick) world.enqueue(pid, { t: 'cast', ability: pick.ab, ...(pick.target ? { target: pick.target.id } : {}) });
+      if (pick) { uses[pick.ab] = (uses[pick.ab] || 0) + 1; world.enqueue(pid, { t: 'cast', ability: pick.ab, ...(pick.target ? { target: pick.target.id } : {}) }); }
     }
     const ev = world.step();
     if (start == null && ev.some((e) => e.type === 'damage' && e.amount > 0 && (e.src === pid || (world.get(e.src) && world.get(e.src).owner === pid)))) start = world.tick;
     low = Math.min(low, p.hp);
   }
   const won = foes.every((m) => m.dead);
-  return { ttk: ((won || p.dead ? world.tick : MAX_TICKS) - (start ?? 0)) / 20, pct: (100 * (hp0 - p.hp)) / hp0, low: (100 * (hp0 - low)) / hp0, died: p.dead, won };
+  return { ttk: ((won || p.dead ? world.tick : MAX_TICKS) - (start ?? 0)) / 20, pct: (100 * (hp0 - p.hp)) / hp0, low: (100 * (hp0 - low)) / hp0, died: p.dead, won, uses };
 }
 
 // ------------------------------------------------------------------------------------------------ the other four classes
