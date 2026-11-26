@@ -104,6 +104,18 @@ export const MINOR_POWERS = Object.freeze({
     text: 'Minor power, Small Ward: when you are struck, a ward absorbs damage equal to 5% of your health for 6 s. At most once every 30 s.',
     procs: [{ on: 'damageTaken', icd: 30, effects: [{ type: 'aura', to: 'self', aura: { id: 'mn_small_ward', name: 'Small Ward', icon: 'mender_warding_word', kind: 'buff', duration: 6, absorb: { pctMaxHp: 0.05 } } }] }] },
 });
+// Skill-changing legendary powers (BUILDS_2 6.3: "legendary item powers that change a skill"). `cls` gates the power to one
+// class; `modAbility` is the same patch record as a talent's (src/sim/data.js applies it while the item is worn). Data only
+// until an item carries it: the item, its drop source and its visible effect on the hero wait for the brief and stills.
+export const SKILL_POWERS = Object.freeze({
+  // the Mender (Tidehammer): the Tolling Rod (BUILDS_2_PLAY 1.1)
+  tolling_rod: { id: 'tolling_rod', name: 'The Tolling Rod', cls: 'mender',
+    text: 'Power, The Tolling Rod: Tolling Hammers sends out 5 hammers instead of 3, and they spiral half again as far.',
+    modAbility: [
+      { id: 'mender_tolling_hammers', path: 'effects.#hammers.object.hammers', set: 5 },
+      { id: 'mender_tolling_hammers', path: 'effects.#hammers.object.reach', mul: 1.5 },
+    ] },
+});
 /** The roll (src/sim/loot.js rollGear reads content.rarity[r].minor): from this item level, this chance, one of these. */
 export const MINOR_RULE = Object.freeze({ fromIlvl: 15, chance: 0.1, powers: MINOR_POWERS });
 // ---------------------------------------------------------------- random legendaries (BUILDS_2 6.8, polish 2026-11-22)

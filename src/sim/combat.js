@@ -650,11 +650,19 @@ export function createCombat(C) {
         return 1;
       }
       case 'dispel': {
+        // fx.max: remove at most that many (Purify: one). Hard control (stun, silence, root) goes first, then the newest.
+        const hits = [];
         for (const a of [...r.auras]) {
           const byFlag = fx.flags && (a.def.flags || []).some((f) => fx.flags.includes(f));
           const byKind = fx.kinds && fx.kinds.includes(a.def.dispel);
-          if ((byFlag || byKind) && (a.def.kind === 'debuff') !== !!fx.hostile) removeAura(r, a, 'dispel');
+          if ((byFlag || byKind) && (a.def.kind === 'debuff') !== !!fx.hostile) hits.push(a);
         }
+        if (fx.max) {
+          const hard = (a) => ((a.def.flags || []).some((f) => f === 'stun' || f === 'silence' || f === 'root') ? 1 : 0);
+          hits.reverse().sort((x, y) => hard(y) - hard(x));
+          hits.length = Math.min(hits.length, fx.max);
+        }
+        for (const a of hits) removeAura(r, a, 'dispel');
         return 1;
       }
       case 'script': S().run(fx.name, src, r, fx.args, ctx); return 1;
