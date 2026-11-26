@@ -473,7 +473,10 @@ async function boot() {
       musicArea = place.region || place.id;
     } else audio.frame(nowMs, { snap });
     const vm = buildViewModel(snap, playerId, { zoneNames: content.zoneNames, log: ui.logText(), tickHz: TICK_HZ, place: me ? place : null });
-    renderer.drawHud((ctx) => ui.draw(ctx, vm, snap, nowMs / 1000));
+    // map art: the vellum minimap and world map at device pixels on the game canvas, inside drawHud so it lands under
+    // the HUD layer (both renderers composite that layer right after this callback): what the HUD draws over the map
+    // box (tooltips, windows, cards) stays on top (src/ui/minimap.js createMapPass)
+    renderer.drawHud((ctx, l) => { ui.draw(ctx, vm, snap, nowMs / 1000); ui.drawMapPass(canvas.getContext('2d'), l || renderer.layout); });
   }
   window.addEventListener('keydown', (ev) => {
     if (ui.mode !== 'game') return;    // zoom keys only in play (the name field takes '-')

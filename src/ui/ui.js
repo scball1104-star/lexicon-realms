@@ -13,7 +13,7 @@
 import { loadUiArt } from './uiassets.js';
 import { createGfx } from './gfx.js';
 import { createCharArt } from './charsprite.js';
-import { createMinimapBook } from './minimap.js';
+import { createMinimapBook, createMapPass } from './minimap.js';
 import { createHud, drawTooltip, drawQuestMark, drawGoalArrow } from './hud.js';
 import { arrowMode } from './questnav.js';
 import { hudLayout, hitPx, inRect, menuRect, designOrigin, W, H, BAR } from './layout.js';
@@ -65,8 +65,11 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   // window style and text size (wave 6 uiskin, src/ui/skin.js): Settings rows; ?skin= and ?text= in the link override them
   const skinQ = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
   const charArt = createCharArt(art);
-  const mapBook = createMinimapBook(zones);
-  const hud = createHud({ g, charArt, mapBook });
+  // map art (D:\LQOnline\mapart\BRIEF.md look A): the vellum minimap and world map, drawn at screen resolution by the
+  // map pass (main.js runs it under the HUD layer). ?mapart=0 keeps today's maps (review and comparison).
+  const mapBook = createMinimapBook(zones, null, skinQ && skinQ.get('mapart') === '0' ? { art: false } : {});
+  const mapPass = mapBook.art ? createMapPass(mapBook, (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }) : null;
+  const hud = createHud({ g, charArt, mapBook, mapPass });
   const store = createCharStore(storage);
   let options = loadOptions(storage);
   applySkin(g, art, skinFromOptions(options, skinQ));
@@ -251,7 +254,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       if (CENTER.includes(id)) for (const c of CENTER) st.open.delete(c);
       if (st.metrics.touch) st.open.clear();         // one window at a time on a phone
       st.open.add(id); st.confirm = null; st.itemPick = null;
-      if (id === 'map') st.mapZone = null;
+      if (id === 'map') { st.mapZone = null; st.mapWhole = false; st.mapCenter = null; }   // map art: opens zoomed on your area
     },
     /** The selected quest (questnav.js): the map, the minimap arrow and the gold arrow in the world follow it. Saved
      *  with the character. */
@@ -263,7 +266,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     showOnMap(id) {
       act.selectQuest(id);
       if (!st.open.has('map')) act.toggle('map');
-      st.mapZone = null;           // the map opens on the selected quest's zone
+      st.mapZone = null; st.mapWhole = false; st.mapCenter = 'goal';   // the map opens on the selected quest's goal, zoomed
     },
     learnTalent(id) {
       send({ t: 'learn_talent', talent: id });
@@ -437,7 +440,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     g.setTextSize(textSizeFrom(options, st.metrics.touch, skinQ));   // Large by default on a phone, Normal on PC
     // big world: the hero's known flight points (the world map lights them, menus.js drawMap)
     const meS = snap && playerId != null ? snap.entities.find((e) => e.id === playerId) : null;
-    const env = { g, charArt, mapBook, art, L, hover: st.hover, scratch, zoneList, zoneKind: (id) => (zones[id] || {}).kind, flights: (meS && meS.flights) || [] };
+    if (mapPass) mapPass.begin();
+    const env = { g, charArt, mapBook, mapPass, art, L, hover: st.hover, scratch, zoneList, zoneKind: (id) => (zones[id] || {}).kind, flights: (meS && meS.flights) || [] };
     const regions = [];
     ctx.imageSmoothingEnabled = false;
     markPage('lr-window', st.mode === 'game' && !!L.touch && (st.open.size > 0 || !!chatUi.sheetOpen || !!chatUi.cardOpen || !!chatUi.state.full));   // wave 9 fixes: the bar hid talents nodes and Say phrases
@@ -1223,6 +1227,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     get regions() { return st.regions; },
     store, act, local, log,
     draw,
+    /** Map art: the screen-resolution map pass, on the game canvas, before the HUD layer goes over it (main.js). */
+    drawMapPass(ctx, layout) { if (mapPass && ctx) mapPass.draw(ctx, layout); },
+    mapPass,
     setMetrics({ cssPerHud, touch: t }) { st.metrics.cssPerHud = cssPerHud; if (t != null) st.metrics.touch = t; },
     layout: layoutNow,
     /** Touch / driver entry points (src/input/touch.js). */

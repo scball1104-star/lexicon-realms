@@ -198,6 +198,18 @@ Bram at 1x and 3x on LQ grass), `lineup_actions_3x.png` (attack strike and cast,
 `walk_strip_4x.png`, `walk_attack_check.gif`, `fx_contact.png`, `fx_contact_grass.png`.
 `python tools/art/zoom.py <class> <frame names...>` writes `out/_zoom.png` at 8x for a close look.
 
+### Map lettering font (map art, 2026-11-25): `assets/fonts/`
+
+`lr_map_serif.woff` and `lr_map_serif_italic.woff`: the serif for place names on the world map ONLY (Scott 2026-11-25,
+map art question 4; every other text stays the pixel font). Family "LR Map Serif": a Latin subset (Basic Latin,
+Latin-1, curly quotes, ellipsis) of **STIX General** Regular and Italic, renamed because the license reserves the name
+"STIX Fonts". License: **SIL Open Font License 1.1**, full text with the copyright lines in
+`assets/fonts/LICENSE_OFL_STIX.txt`. Nothing was downloaded: the TTFs came from the matplotlib package already on this
+PC (`site-packages/matplotlib/mpl-data/fonts/ttf/`), subset and renamed with fontTools. Loaded locally by
+`src/ui/minimap.js` (FontFace, no CDN); until it loads, the map letters in Georgia or the system serif.
+
+The map art itself (`src/ui/mapart.js`) is code, not an image file: it is baked from the zone data at run time.
+
 ---
 
 ## 2. Lexicon Quest assets worth reusing

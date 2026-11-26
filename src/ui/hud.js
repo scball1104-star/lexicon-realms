@@ -44,6 +44,19 @@ function drawCombatMark(ctx, x, y) {
   rows.forEach((r, j) => { for (let i = 0; i < 7; i++) if (r[i] === '1') { ctx.fillStyle = j >= 5 ? '#c88a3a' : '#e8e4f0'; ctx.fillRect(x + i, y + j, 1, 1); } });
 }
 
+/** The minimap's compass: a bronze lozenge (13 x 13 HUD px, centred on x) with an ink N, over the frame's corner. */
+const COMPASS_N = ['n...n', 'nn..n', 'n.n.n', 'n..nn', 'n...n'];
+function compassMark(ctx, x, y) {
+  for (let j = -6; j <= 6; j++) for (let i = -6; i <= 6; i++) {
+    const d = Math.abs(i) + Math.abs(j);
+    if (d > 6) continue;
+    const ni = i + 2, nj = j + 2;
+    const n = nj >= 0 && nj < 5 && ni >= 0 && ni < 5 && COMPASS_N[nj][ni] === 'n';
+    ctx.fillStyle = d === 6 ? '#07060d' : n ? '#1a1208' : d === 5 && j < 0 ? '#e0b468' : j >= 4 ? '#5e3f1c' : '#a87b3c';
+    ctx.fillRect(x + i, y + 6 + j, 1, 1);
+  }
+}
+
 /** Do two rects overlap? */
 const hit = (a, b) => !!a && !!b && a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
@@ -208,8 +221,15 @@ export function createHud(env) {
     g.window(ctx, r.x, r.y, r.w, r.h, 'thin');
     const inner = { x: r.x + 3, y: r.y + 3, w: r.w - 6, h: r.h - 6 };
     const ppt = 3;
-    const img = m && mapBook.image(m.zone, ppt);
-    if (img) {
+    // map art (BRIEF.md look A): under the Lantern skin the box is left clear and the vellum map is drawn there at
+    // screen resolution by the map pass (minimap.js createMapPass, run by main.js under this layer). Classic: today's.
+    const pass = env.mapPass && env.mapPass.enabled && g.skin && m && mapBook.zone(m.zone) ? env.mapPass : null;
+    const img = !pass && m && mapBook.image(m.zone, ppt);
+    if (pass) {
+      ctx.clearRect(inner.x, inner.y, inner.w, inner.h);
+      pass.mini(inner, m);
+      compassMark(ctx, r.x + r.w - 6, r.y - 2);
+    } else if (img) {
       const sx = Math.max(0, Math.min(img.width - inner.w, Math.round((m.x / 16) * ppt - inner.w / 2)));
       const sy = Math.max(0, Math.min(img.height - inner.h, Math.round((m.y / 16) * ppt - inner.h / 2)));
       const cw = Math.min(inner.w, img.width), chh = Math.min(inner.h, img.height);

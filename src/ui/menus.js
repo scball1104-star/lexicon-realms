@@ -4,7 +4,7 @@
 import { FLIGHT } from '../data/travel.js';   // big world: flight points on the world map
 import { menuRect, bagGrid } from './layout.js';
 import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, abilityTooltip, resourceLabel, liveStats } from './gamedata.js';
-import { drawMarkers } from './minimap.js';
+import { drawMarkers, worldView, serifWidth } from './minimap.js';
 import { drawAreas, drawTooltip, drawGoalArrow } from './hud.js';
 import { whereLabel } from './questnav.js';
 import { ACTIONS, effectiveBinds, keyLabel } from './keymap.js';
@@ -491,6 +491,8 @@ export function drawMap(ctx, env, m, st, regions, act) {
   const zone = mapBook.zone(cur);
   if (!zone) return;
   const area = { x: lg.x + lg.w + 6, y: lg.y, w: r.x + r.w - 10 - (lg.x + lg.w + 6), h: lg.h };
+  // map art (BRIEF.md look A): the Lantern skin's vellum map, zoomed on your area with a Whole world button
+  if (env.mapPass && env.mapPass.enabled && g.skin) { drawMapVellum(ctx, env, m, st, regions, { r, area, zone, cur, here, nav, sel, zones, pulse, goalZone }); return; }
   // a zone bigger than the window (the big realms) is drawn scaled down, so ppt can be below 1
   // the map fills the window: ppt can be fractional (scaled up or down from the nearest whole-pixel image)
   const ppt = Math.min(area.w / zone.w, area.h / zone.h);
@@ -611,6 +613,187 @@ export function drawMap(ctx, env, m, st, regions, act) {
   drawMarkers(g, ctx, markers, view, ppt, 0, 0);
   const meHere = markers.find((k) => k.kind === 'me');
   if (!routeText) g.text(ctx, g.clip(meHere ? 'White arrow: you.  Gold !: a quest.  Gold ?: hand it in.  Bright circle: the quest you picked.' : 'You are not in this zone.  Bright circle: the quest you picked.', r.x + r.w - 8 - area.x), area.x + area.w / 2, r.y + r.h - g.ls(18), 'gray', { align: 'center' });
+}
+
+const JOIN_ANGLE = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
+const measureCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+
+/** The world map under the Lantern skin (map art, BRIEF.md look A): the map box is left clear on this layer and the
+ *  map pass draws the vellum map there at screen resolution, with place names lettered in the serif; what is drawn
+ *  here afterwards (quest labels, the Whole world button, the route line, tooltips) sits on top. It opens zoomed on
+ *  your area at the minimap's scale (Scott 2026-11-25); "Whole world" shows all of it. Foes stay hidden. */
+function drawMapVellum(ctx, env, m, st, regions, o) {
+  const { g } = env;
+  const { r, area, zone, cur, here, nav, sel, zones, pulse, goalZone } = o;
+  const meM = m.minimap && m.minimap.zone === cur ? m.minimap : null;
+  const goalHere = nav && nav.goal && nav.goal.zone === cur ? nav.goal : null;
+  // centred on you (and following you), or on the selected quest's goal after "Show on map" (st.mapCenter 'goal')
+  if (!st.mapCenter || st.mapCenter === 'goal' || st.mapCenter.zone !== cur) {
+    const onGoal = goalHere && (st.mapCenter === 'goal' || !meM);
+    st.mapCenter = onGoal ? { zone: cur, x: goalHere.x, y: goalHere.y, me: false } : meM ? { zone: cur, x: meM.x / 16, y: meM.y / 16, me: true } : { zone: cur, x: zone.w / 2, y: zone.h / 2, me: false };
+  }
+  let v = worldView(zone, area, !!st.mapWhole, st.mapCenter);
+  if (!v.whole && meM && st.mapCenter.me) {
+    // you walked toward the edge with the map open: centre on you again
+    const hx = (meM.x / 16) * v.ppt - v.sx, hy = (meM.y / 16) * v.ppt - v.sy;
+    if (hx < area.w * 0.12 || hx > area.w * 0.88 || hy < area.h * 0.12 || hy > area.h * 0.88) {
+      st.mapCenter = { zone: cur, x: meM.x / 16, y: meM.y / 16, me: true };
+      v = worldView(zone, area, false, st.mapCenter);
+    }
+  }
+  st.mapView = { whole: v.whole, canZoom: v.canZoom, ppt: v.ppt };   // drivers and tests
+  const ppt = v.ppt;
+  // the map box: the whole area when zoomed, the fitted map when whole
+  const box = v.whole ? { x: area.x - v.sx, y: area.y - v.sy, w: v.w, h: v.h } : { x: area.x, y: area.y, w: area.w, h: area.h };
+  const sx = v.whole ? 0 : v.sx, sy = v.whole ? 0 : v.sy;
+  const at = (tx, ty) => [box.x + tx * ppt - sx, box.y + ty * ppt - sy];
+  const inBox = (x, y, pad = 0) => x >= box.x + pad && y >= box.y + pad && x < box.x + box.w - pad && y < box.y + box.h - pad;
+  g.rect(ctx, box.x - 2, box.y - 2, box.w + 4, box.h + 4, '#14101e');
+  ctx.clearRect(box.x, box.y, box.w, box.h);
+
+  // lettering (the pass draws it in the serif): region names in spaced capitals, places in italic, exits with an arrow
+  const placed = [];
+  const hits = (b) => placed.some((q) => q.x < b.x + b.w && b.x < q.x + q.w && q.y < b.y + b.h && b.y < q.y + q.h);
+  const labels = [];
+  // the selected quest's objective labels always show (drawn below): place names keep clear of where they will go
+  const reserved = [];
+  if (sel) for (const w of (sel.wheres || []).filter((q) => q.zone === cur)) {
+    const lw = g.textW(g.clip(whereLabel(w, sel), 160));
+    const [wx, wy] = at(w.x, w.y + (w.r || 2));
+    reserved.push({ x: Math.max(box.x + 2, Math.min(box.x + box.w - lw - 2, wx - lw / 2)) - 2, y: Math.max(box.y + 2, Math.min(box.y + box.h - g.ls(12), wy + 3)) - 1, w: lw + 4, h: g.ls(12) });
+  }
+  const clash = (b) => reserved.some((q) => q.x < b.x + b.w && b.x < q.x + q.w && q.y < b.y + b.h && b.y < q.y + q.h);
+  // flight points (lit when the hero has been to them) and dungeon doors: drawn by the pass, tooltips here
+  const flights = [];
+  for (const p of FLIGHT_POINTS.filter((q) => q.zone === cur)) {
+    const known = (env.flights || []).includes(p.id);
+    const [px, py] = at(p.x + 0.5, p.y + 0.5);
+    if (!inBox(px, py, 4)) continue;
+    flights.push({ x: p.x + 0.5, y: p.y + 0.5, known });
+    placed.push({ x: px - 7, y: py - 7, w: 14, h: 14 });
+    regions.push({ rect: { x: Math.round(px - 7), y: Math.round(py - 7), w: 14, h: 14 }, kind: 'map_flight', tip: { title: p.name, sub: known ? 'Flight point: you can fly here from any kitemaster.' : 'Flight point: talk to the kitemaster here to unlock it.' } });
+  }
+  const doors = [];
+  for (const d of zone.doors || []) {
+    const [px, py] = at(d.x + d.w / 2, d.y + d.h / 2);
+    if (!inBox(px, py, 4)) continue;
+    doors.push({ x: d.x + d.w / 2, y: d.y + d.h / 2 });
+    placed.push({ x: px - 6, y: py - 6, w: 12, h: 12 });
+    if (d.name) regions.push({ rect: { x: Math.round(px - 6), y: Math.round(py - 6), w: 12, h: 12 }, kind: 'map_door', tip: { title: d.name, ...(d.label ? { sub: d.label } : {}) } });
+  }
+
+  const big = (ar) => /^region_/.test(ar.id);
+  const sReg = v.whole ? 6.5 : 8.5, sPlace = v.whole ? 5.5 : 7, sJoin = v.whole ? 5.5 : 6.5;
+  for (const ar of [...(zone.areas || []).filter(big), ...(zone.areas || []).filter((a) => !big(a))]) {
+    if (!ar.name || ar.w * ar.h < 30) continue;
+    const isReg = big(ar), text = isReg ? ar.name.toUpperCase() : ar.name, size = isReg ? sReg : sPlace, style = isReg ? 'caps' : 'italic';
+    if (!isReg && v.whole && ar.w * ar.h < 200) continue;          // the whole world: only the larger places
+    const lw = serifWidth(text, size, style, measureCanvas);
+    const [cx, cy] = at(ar.x + ar.w / 2, ar.y + ar.h / 2);
+    const b = { x: Math.round(cx - lw / 2) - 2, y: Math.round(cy - size / 2) - 1, w: Math.ceil(lw) + 4, h: Math.ceil(size) + 3 };
+    if (!inBox(b.x, b.y) || !inBox(b.x + b.w, b.y + b.h, -1) || hits(b) || clash(b)) continue;
+    placed.push(b);
+    labels.push({ text, size, style, color: isReg ? '#7a2a1e' : '#3a2618', x: b.x + 2 - box.x, y: b.y + 1 - box.y });
+  }
+  const exitHere = nav && nav.exit && cur === here ? nav.exit : null;
+  for (const j of zone.joins || []) {
+    const z2 = zones.find((q) => q.id === j.to);
+    if (!z2) continue;
+    const text = `To ${z2.name}`, lw = serifWidth(text, sJoin, 'italic', measureCanvas);
+    const [jx, jy] = at(j.x + j.w / 2, j.y + j.h / 2);
+    if (!inBox(jx, jy, -2)) continue;
+    const ang = JOIN_ANGLE[j.dir] != null ? JOIN_ANGLE[j.dir] : 0;
+    const ax = Math.max(box.x + 6, Math.min(box.x + box.w - 6, jx)), ay = Math.max(box.y + 6, Math.min(box.y + box.h - 6, jy));
+    const lx = Math.max(box.x + 2, Math.min(box.x + box.w - lw - 2, ax - lw / 2 - Math.cos(ang) * (lw / 2 + 8)));
+    const ly = Math.max(box.y + 2, Math.min(box.y + box.h - sJoin - 3, ay - sJoin / 2 - Math.sin(ang) * 9));
+    const b = { x: Math.round(lx) - 2, y: Math.round(ly) - 1, w: Math.ceil(lw) + 4, h: Math.ceil(sJoin) + 3 };
+    const isExit = exitHere && j.to === exitHere.to;
+    if (!isExit && (hits(b) || clash(b))) continue;
+    placed.push(b);
+    labels.push({ text, size: sJoin, style: 'italic', color: isExit ? '#7a2a1e' : '#3a2618', x: b.x + 2 - box.x, y: b.y + 1 - box.y, arrow: ang, ax: ax - box.x, ay: ay - box.y });
+  }
+  // quest labels (the game's pixel font, on top of the map): the tracked quests, the selected quest's objectives
+  const named = new Set();
+  const labelAt = (w, label, color, alpha, force = false) => {
+    const lw = g.textW(label);
+    const [wx, wy] = at(w.x, w.y + (w.r || 2));
+    const lx = Math.max(box.x + 2, Math.min(box.x + box.w - lw - 2, wx - lw / 2)), lyy = Math.max(box.y + 2, Math.min(box.y + box.h - g.ls(12), wy + 3));
+    const qb = { x: lx - 2, y: lyy - 1, w: lw + 4, h: g.ls(12) };
+    if (!force && hits(qb)) return;
+    if (!inBox(wx, wy - (w.r || 2) * ppt, -8)) return;
+    placed.push(qb);
+    ctx.globalAlpha = alpha;
+    g.scrim(ctx, lx - 2, lyy - 1, lw + 4, g.ls(12), 190);
+    g.text(ctx, label, lx, lyy - 1, color);
+    ctx.globalAlpha = 1;
+  };
+  for (const q of m.tracked || []) {
+    if (sel && q.id === sel.id) continue;
+    for (const w of q.wheres || []) {
+      if (w.zone !== cur || named.has(q.id)) continue;
+      named.add(q.id);
+      labelAt(w, g.clip(q.done ? `Hand in: ${q.name}` : q.name, 130), 'gold', sel ? 0.5 : 1);
+    }
+  }
+  const selLabels = [];
+  if (sel) {
+    const seen = new Set();
+    const ws = (sel.wheres || []).filter((w) => w.zone === cur);
+    const gi = nav && nav.goal ? ws.findIndex((w) => w.x === nav.goal.x && w.y === nav.goal.y && w.zone === nav.goal.zone) : -1;
+    if (gi > 0) ws.unshift(ws.splice(gi, 1)[0]);
+    for (const w of ws) {
+      const label = g.clip(whereLabel(w, sel), 160);
+      if (seen.has(label)) continue;
+      seen.add(label);
+      labelAt(w, label, 'cream', 1, true);
+      selLabels.push(label);
+    }
+  }
+  st.mapLabels = selLabels;
+  let routeText = '';
+  if (nav && nav.goal && here && goalZone !== here && nav.line) {
+    const hereName = (zones.find((z) => z.id === here) || {}).name || here;
+    if (cur === here) routeText = nav.line;
+    else if (cur === goalZone) routeText = `You are in ${hereName}. ${nav.line}`;
+  }
+  st.mapRoute = routeText;
+  let exit = null;
+  if (exitHere) {
+    const [ex, ey] = at(exitHere.x, exitHere.y);
+    const ang = SIDE_ANGLE[exitHere.side] || 0;
+    const back = 12 + Math.round(pulse * 4);
+    exit = { x: Math.max(8, Math.min(box.w - 8, ex - box.x - Math.cos(ang) * back)), y: Math.max(8, Math.min(box.h - 8, ey - box.y - Math.sin(ang) * back)), ang };
+  }
+  const markers = m.minimap && m.minimap.zone === cur ? m.minimap.markers.filter((k) => k.kind !== 'foe') : [];
+  const areas = ((m.minimap && m.minimap.areas) || []).filter((a) => a.zone === cur);
+  // the box on the HUD layer (drawMap runs inside centred(): add its translation)
+  const tf = ctx.getTransform ? ctx.getTransform() : null;
+  const ox = tf ? tf.e : 0, oy = tf ? tf.f : 0;
+  env.mapPass.world({
+    key: `${cur}|${ppt}|${sx}|${sy}|${box.w}x${box.h}|${flights.filter((f) => f.known).length}|${labels.length}`,
+    x: box.x + ox, y: box.y + oy, w: box.w, h: box.h, zone: cur, ppt, sx: sx + 0, sy: sy + 0, tx0: v.tx0, ty0: v.ty0, tw: v.tw, th: v.th,
+    labels, flights, doors, markers, areas, look: { sel: sel ? sel.id : null, pulse }, exit,
+  });
+  // Whole world / Your area (only when the zone is bigger than the window at the minimap's scale)
+  if (v.canZoom) {
+    const label = v.whole ? 'Your area' : 'Whole world';
+    const bw = g.textW(label) + 14, bh = Math.max(g.ls(16), env.L.minHit || 0);
+    const bx = area.x + area.w - bw - 3, by = area.y + 3;
+    g.window(ctx, bx, by, bw, Math.min(bh, g.ls(18)), 'thin', 'slate', 0.95);
+    g.text(ctx, label, bx + bw / 2, by + Math.floor((Math.min(bh, g.ls(18)) - g.lh) / 2), 'cream', { align: 'center' });
+    regions.push({ rect: { x: bx, y: by, w: bw, h: bh }, kind: 'button', label: 'map_zoom', tip: { title: label, sub: v.whole ? 'Zoom in on where you are.' : 'Show the whole map.' },
+      on: () => { st.mapWhole = !v.whole; st.mapCenter = null; } });
+  }
+  if (routeText) {
+    const t = g.clip(routeText, area.w - 12);
+    const tw = g.textW(t);
+    const bx = area.x + Math.floor((area.w - tw) / 2);
+    g.window(ctx, bx - 6, r.y + r.h - g.ls(21), tw + 12, g.ls(16), 'thin', 'ember', 0.95);
+    g.text(ctx, t, bx, r.y + r.h - g.ls(19) + (g.big ? 1 : 0), 'cream');
+  } else {
+    const meHere = markers.find((k) => k.kind === 'me');
+    g.text(ctx, g.clip(meHere ? 'White arrow: you.  Gold !: a quest.  Gold ?: hand it in.  Bright circle: the quest you picked.' : 'You are not in this zone.  Bright circle: the quest you picked.', r.x + r.w - 8 - area.x), area.x + area.w / 2, r.y + r.h - g.ls(18), 'gray', { align: 'center' });
+  }
 }
 
 // ---------------------------------------------------------------- options / game menu
