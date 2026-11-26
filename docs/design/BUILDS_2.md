@@ -335,7 +335,7 @@ Signature skills:
 |---|---|---|
 | **Sand Kestrel** | a falcon companion: hits your target for `3 + 1.4 L` every 1.5 s, interrupts a cast once per 10 s; command Dive: stun 1 s (15 s) | the lone archer gets a partner that guards her from casters |
 | **Grapple Line** | fire a line to a point or foe within 12 tiles: pull yourself there, or pull a small foe to you. 14 s. Also crosses gaps and ledges marked as grapple points in zones | **the unique movement**: a skill that is also a way to explore |
-| **Storm Quiver** | toggle: every arrow deals storm damage and jumps to one more foe for 50%; each shot costs 5 more Focus | her arrows become a chain of lightning; packs melt |
+| **Storm Quiver** | toggle: her arrows fall from the sky as storm and **need no line of sight** (they arc over walls, trees and cover); each is storm damage (past armor) and jumps to one more foe for 50%; each shot costs 5 more Focus (reworked 2026-11-26, Scott approved) | the rule it breaks is sight: she shoots from behind a wall or over a ridge, and the pack cannot hide |
 
 Named builds:
 
@@ -385,7 +385,7 @@ Signature skills:
 |---|---|---|
 | **Inkwalk** | become a pool of shadow for 3 s: move 60% faster, untargetable, foes lose you; leaving it counts as attacking from Fade. 20 s | **the unique movement**: walk through a camp, open from behind |
 | **Mirrorshade** | an ink double copies your attacks at 40% for 10 s and takes threat. 45 s | twice the knives, a decoy, the burst build's cooldown |
-| **Black Fan** | throw five ink knives in a 60 degree cone, 7 tiles, each `0.5 W + 2 + L` and +1 mark. 20 Focus, 6 s | the single-target class gets a ranged pack attack |
+| **Black Fan** | throw five ink knives in a 60 degree cone, 7 tiles, each `0.5 W + 2 + L` and +1 mark, then **ride the farthest knife and land behind that foe**. 20 Focus, 6 s (reworked 2026-11-26, Scott approved) | the rule it breaks is position: the fan is how she crosses a pack and opens on its back line, not only a ranged hit |
 
 Named builds:
 
@@ -577,7 +577,7 @@ Each power names its visual, built in code on top of the Quaternius piece (6.6).
 
 | item | class | power | visual |
 |---|---|---|---|
-| Tolling Rod | Mender | Mend also bursts for 40% of the heal as light damage on foes within 3 tiles of the target | a bell-shaped ring of light on each Mend |
+| Tolling Rod | Mender | (built 2026-11-26, see below) Tolling Hammers sends 5 hammers instead of 3, reaching half again as far. The first idea here (Mend bursts as light) is retired | a bell-shaped ring of light on each hammer |
 | Bell of Low Tide | Mender | Chorus leaves a pool for 4 s that heals 5% per s | a glowing teal puddle |
 | Gatebreaker | Warden | Shield Bash throws a shockwave cone 4 tiles | shield edge glows orange; a visible ground ripple |
 | Ember Crown | Warden | Furnace Form lasts until you leave combat, at 50% strength after 15 s | a helm with a slow ember crown and drifting sparks |
@@ -589,6 +589,19 @@ Each power names its visual, built in code on top of the Quaternius piece (6.6).
 | Fan of Nine | Inkblade | Black Fan throws 9 knives and marks twice | ink droplets drip from both hands |
 
 Rare minor powers are smaller cousins ("Kindle crits leave a 2 s burn").
+
+**Built 2026-11-26 (Scott approved): the five skill legendaries.** One per class, each changes a signature skill through
+`modAbility` on the item's power (src/data/legendary_powers.js SKILL_POWERS and SKILL_LEGENDARIES; src/sim/data.js applies
+the patch while it is worn). Class-only. Each shares its dungeon's last-boss legendary roll (with its bad-luck step) and joins
+the random pool from rares and bosses. Generic item visuals for now; the looks wait for a brief and stills.
+
+| item | class | power | drops from |
+|---|---|---|---|
+| The Tolling Rod (rod, ilvl 12) | Mender | Tolling Hammers: 5 hammers, reach x1.5 | the Wethers' Barrow (the Reeve) |
+| The Errata Quill (quill, ilvl 12) | Scribe | Errata: Rewrite works on elites, for 6 s (others still 12 s) | the Wethers' Barrow (the Reeve) |
+| Cowl of the Unwritten Step (head, ilvl 16) | Inkblade | Unwritten Step: attacking no longer ends Inkwalk; it lasts 2 s and has no opener | Tarn Hollow (Hollowfang) |
+| Sabatons of the Second Fall (feet, ilvl 20) | Warden | Second Fall: Ember Leap holds 2 charges; the landing roots what it burns for 1.5 s | the Watchtower (the Sentinel of the Long Watch) |
+| The Far Tether (bow, ilvl 20) | Wayfinder | The Far Tether: Grapple Line pulls any foe but a boss to you, elites and heavy too, and roots it 1 s | the Watchtower (the Sentinel of the Long Watch) |
 
 ### 6.4 Inscriptions: letter glyphs and spelled words
 
