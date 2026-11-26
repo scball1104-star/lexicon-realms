@@ -26,12 +26,15 @@ export const EP_MOBS = {
     abilities: [{ id: 'mob_wolf_lunge', chance: 1, cooldown: 8 }], loot: { junk: 'ep_hound_pelt', table: [{ item: 'ep_hound_haunch', chance: 0.6, quest: 'ep_stew_for_the_watch' }] } }),
   ep_slag_golem: T({ name: 'Slag Golem', level: [4, 5], family: 'construct', kind: 'armored', behavior: 'aggressive', aggroRadius: 64, speed: 40, wander: 2, flee: null,
     abilities: [{ id: 'mob_slag_slam' }], loot: { junk: 'ep_slag_chunk', table: [{ item: 'ep_slag_heart', chance: 0.65, quest: 'ep_slag_hearts' }] } }),
-  ep_raider: T({ name: 'Ashen Crew Raider', level: [4, 5], family: 'spirit', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 56, wander: 3, flee: null, social: true,
+  // loot fixes 2026-11-26: the Crew are people in ash armor, so they are humanoid: they run at 15% health and call their
+  // crew (src/sim/ai.js fleeAt, mob_rules flee). The 3D body stays the golem (src/render3d/creatures.js reads the template).
+  ep_raider: T({ name: 'Ashen Crew Raider', level: [4, 5], family: 'humanoid', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 56, wander: 3, flee: null, social: true,
     abilities: [], loot: { junk: 'ep_crew_badge', table: [] } }),
-  ep_firethrower: T({ name: 'Ashen Crew Fire-Thrower', level: [5, 5], family: 'spirit', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 52, wander: 2, flee: null, social: true,
+  ep_firethrower: T({ name: 'Ashen Crew Fire-Thrower', level: [5, 5], family: 'humanoid', kind: 'caster', behavior: 'aggressive', aggroRadius: 96, speed: 52, wander: 2, flee: null, social: true,
     abilities: [{ id: 'mob_fire_flask' }], loot: { junk: 'ep_crew_badge', table: [] } }),
   // the Hold the Gate waves: raiders that come at the Gate (hidden until a hero on the quest steps up: src/sim/realm_mech.js)
-  ep_gate_raider: T({ name: 'Ashen Crew Raider', level: [5, 5], family: 'spirit', kind: 'normal', behavior: 'aggressive', aggroRadius: 200, speed: 58, wander: 1, flee: null, social: true,
+  // a wave raider never runs (flee 0): the gate quest counts its kills
+  ep_gate_raider: T({ name: 'Ashen Crew Raider', level: [5, 5], family: 'humanoid', kind: 'normal', behavior: 'aggressive', aggroRadius: 200, speed: 58, wander: 1, flee: 0, social: true,
     realmGate: 'wave', abilities: [], loot: { junk: 'ep_crew_badge', table: [] } }),
   ep_furnace_golem: T({ name: 'Furnace Golem', level: [5, 5], family: 'construct', kind: 'armored', traits: ['heavy'], behavior: 'aggressive', aggroRadius: 72, speed: 40, wander: 1, flee: null,
     abilities: [{ id: 'mob_slag_slam' }], loot: { junk: 'ep_slag_chunk', table: [] } }),
