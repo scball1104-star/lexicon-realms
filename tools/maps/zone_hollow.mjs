@@ -231,14 +231,14 @@ export function build(db) {
   // the Faceless Steward in the Court of Mirrors (6)
   spawns.push({ mob: 'nh_steward', level: 6, x: 506, y: 194, wander: 1, respawn: 180, group: 'nh_court' });
   const zone = k.zone({
-    id: 'hollow', name: 'The Nameless Hollow', music: 'high_moor', under: 'dirt',
+    id: 'hollow', name: 'The Nameless Hollow', music: 'title', under: 'dirt',
     lighting: { tint: 'none', dark: 0.45 },
     // the 3D view: a foggy night outdoors (zone.atmos), the walls drawn as the town's roofs (src/render3d/zone3d.js)
     canopy: 'roofs', style: 'hollow',
     grade: { desat: 0.3, tint: 'rgba(70,76,120,0.16)', mist: 0.42 },     // the 2D view: grey, violet, drifting fog
     atmos: { hemi: '#8a90b8', ground: '#3a3440', hemiK: 1.25, env: 0.12, fog: '#4a4c60', near: 4, far: 46, grade: [0.96, 0.98, 1.06], desat: 0.22, vig: 1.1 },
     levels: [1, 6], arrival: [100, 194],
-    regions: [{ id: 'nh_hub', name: 'The Blank Sign', kind: 'town', x: TOWN.x0 - 6, y: TOWN.y0 - 6, w: TOWN.x1 - TOWN.x0 + 13, h: TOWN.y1 - TOWN.y0 + 13, levels: [1, 2], music: 'high_moor', lighting: { tint: 'none', dark: 0.45 }, under: 'dirt' }],
+    regions: [{ id: 'nh_hub', name: 'The Blank Sign', kind: 'town', x: TOWN.x0 - 6, y: TOWN.y0 - 6, w: TOWN.x1 - TOWN.x0 + 13, h: TOWN.y1 - TOWN.y0 + 13, levels: [1, 2], music: 'title', lighting: { tint: 'none', dark: 0.45 }, under: 'dirt' }],
     areas, lanterns, npcs, spawns, nodes: [], signs: [], hooks: [], secrets: [],
     fog: FOG.map((f) => ({ ...f, route: f.route.map((p) => [...p]) })),
     // the Fading Road: a one-way walk out of the fog onto the world (the way back is the Lantern Kite)

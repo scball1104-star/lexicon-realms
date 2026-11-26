@@ -240,14 +240,14 @@ export function build(db) {
   const nodes = [[404, 146], [420, 140], [440, 146], [462, 144], [430, 170], [408, 168], [456, 170], [474, 150]]
     .map(([x, y], i) => ({ id: `rb_wick_${i + 1}`, item: 'rb_lamp_wick', x, y, respawn: 30, name: 'Dark Lamp Wick', sprite: 'x1_sack_stack' }));
   const zone = k.zone({
-    id: 'rootbound', name: 'The Rootbound', music: 'high_moor', under: 'moss',
+    id: 'rootbound', name: 'The Rootbound', music: 'willowmere', under: 'moss',
     lighting: { tint: 'none', dark: 0.5 },
     // the 3D view: underground (no sun, a cool dark fog with a long reach), the wall canopy drawn as roots, the slabs as
     // bookcases (src/render3d/zone3d.js, renderer3d.js)
     cavern: true, canopy: 'roots', style: 'library',
     levels: [1, 6], arrival: [288, 70],
     // the town camera over the Willow Library (renderer3d reads zone.regions like the one world's areas)
-    regions: [{ id: 'rb_library', name: 'The Willow Library', kind: 'town', x: T.x0 - 6, y: T.y0 - 6, w: T.x1 - T.x0 + 13, h: T.y1 - T.y0 + 13, levels: [1, 2], music: 'high_moor', lighting: { tint: 'none', dark: 0.5 }, under: 'moss' }],
+    regions: [{ id: 'rb_library', name: 'The Willow Library', kind: 'town', x: T.x0 - 6, y: T.y0 - 6, w: T.x1 - T.x0 + 13, h: T.y1 - T.y0 + 13, levels: [1, 2], music: 'willowmere', lighting: { tint: 'none', dark: 0.5 }, under: 'moss' }],
     areas, lanterns, npcs, spawns, nodes, signs: [], hooks: [], secrets: [],
     joins: [{ x: STAIR.x, y: STAIR.y, w: STAIR.w, h: STAIR.h, to: 'world', tx: WORLD_STAIR.arrive[0], ty: WORLD_STAIR.arrive[1], dir: 'down' }],
   });

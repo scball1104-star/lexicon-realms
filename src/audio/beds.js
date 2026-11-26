@@ -8,9 +8,9 @@
 // Music tracks on disk: willowmere, valley, the_downs, high_moor, title (and battle, see combat_music.js).
 // Ambience beds on disk: river_birds, wind_valley, moor_wind. Dungeons and caves get a low, dark draft.
 
-// Each of the five start realms gets its own field track (before: four of five shared high_moor). There are only four
-// field tracks plus the title theme, so the Hollow takes the title theme (the fog realm: the quiet, strange one).
-// DRAFT choice for Scott: swap any line here, nothing else changes.
+// Each of the five start realms has its own field track (locked). There are only four field tracks plus the title
+// theme, so the Hollow takes the title theme (the fog realm: the quiet, strange one). The Hollow's playback still
+// uses the synth place (src/audio/synth_places.js) in place of the title MP3, so the title screen keeps its own bed.
 export const REALM_MUSIC = {
   rootbound: 'willowmere',   // under the Great Willow: Willowmere's own theme
   valewyn: 'valley',         // the river and fen town

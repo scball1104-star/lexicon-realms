@@ -223,12 +223,12 @@ export function build(db) {
   const nodes = [[180, 90], [200, 80], [222, 94], [240, 106], [216, 124], [190, 114], [172, 112], [230, 82]]
     .map(([x, y], i) => ({ id: `sh_letter_${i + 1}`, item: 'sh_letter', x, y, respawn: 30, name: "Kesi's Letter", sprite: 'x1_sack_stack' }));
   const zone = k.zone({
-    id: 'saffron', name: 'Saffron Haven', music: 'willowmere', under: 'sand',
+    id: 'saffron', name: 'Saffron Haven', music: 'the_downs', under: 'sand',
     lighting: { tint: 'none', dark: 0 },
     // the 3D view: the deep dunes drawn as sand hills, the town's houses as saffron domes (src/render3d/zone3d.js)
     canopy: 'dunes', style: 'saffron',
     levels: [1, 6], arrival: [190, 194],
-    regions: [{ id: 'sh_town', name: 'Saffron Haven', kind: 'town', x: T.x0 - 8, y: T.y0 - 8, w: T.x1 - T.x0 + 17, h: T.y1 - T.y0 + 24, levels: [1, 2], music: 'willowmere', lighting: { tint: 'none', dark: 0 }, under: 'sand' }],
+    regions: [{ id: 'sh_town', name: 'Saffron Haven', kind: 'town', x: T.x0 - 8, y: T.y0 - 8, w: T.x1 - T.x0 + 17, h: T.y1 - T.y0 + 24, levels: [1, 2], music: 'the_downs', lighting: { tint: 'none', dark: 0 }, under: 'sand' }],
     areas, lanterns, npcs, spawns, nodes, signs: [], hooks: [], secrets: [],
     // the signature: the storm's shelter (src/data/realms2.js reads these)
     chimes: CHIMES.map(([x, y]) => [x, y]),

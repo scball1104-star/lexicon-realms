@@ -202,12 +202,12 @@ export function build(db) {
   [[418, 182], [434, 175], [452, 189], [424, 206], [444, 214], [460, 205]].forEach(([x, y], i) => nodes.push({ id: `vw_stranded_${i + 1}`, item: 'vw_safe_villager', x, y, respawn: 20, channel: 2, name: 'Stranded Villager', sprite: 'x1_sack_stack', tide: 'high' }));
   BELLS.forEach(([x, y], i) => nodes.push({ id: `vw_bell_${i + 1}`, item: 'vw_bell_note', x, y, respawn: 20, channel: 1.5, name: 'Drowned Bell', sprite: 'x1_sack_stack', tide: 'low' }));
   const zone = k.zone({
-    id: 'valewyn', name: 'Valewyn', music: 'high_moor', under: 'grass',
+    id: 'valewyn', name: 'Valewyn', music: 'valley', under: 'grass',
     lighting: { tint: 'none', dark: 0 },
     grade: { tint: 'rgba(60,170,180,0.07)', desat: 0.1 },
     style: 'lake', palette: { grass: '#4f6e52', tallgrass: '#46664a', sand: '#b8b49a', plaza: '#8a8e8a', x1_peat: '#3a3a2a', dirt: '#7a6e58' },
     levels: [1, 6], arrival: [300, 106],
-    regions: [{ id: 'vw_town', name: 'Valewyn', kind: 'town', x: T.x0 - 6, y: T.y0 - 6, w: T.x1 - T.x0 + 13, h: T.y1 - T.y0 + 9, levels: [1, 2], music: 'high_moor', lighting: { tint: 'none', dark: 0 }, under: 'grass' }],
+    regions: [{ id: 'vw_town', name: 'Valewyn', kind: 'town', x: T.x0 - 6, y: T.y0 - 6, w: T.x1 - T.x0 + 13, h: T.y1 - T.y0 + 9, levels: [1, 2], music: 'valley', lighting: { tint: 'none', dark: 0 }, under: 'grass' }],
     areas, lanterns, npcs, spawns, nodes, signs: [], hooks: [], secrets: [],
     // the tide (seconds): period, and the flats char; high = the water over the flats (src/sim/realm_mech.js)
     tide: { ch: 'f', period: 180, flats: flatsCount, slow: 0.5 },
