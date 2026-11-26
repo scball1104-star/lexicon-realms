@@ -24,7 +24,8 @@
 // x (1 + 0.1 (n - 1)), n = that party's heroes alive in its zone within the kill-share reach (at most 4), never less than
 // the heroes who entered its dungeon copy. n only grows during a fight; a boss keeps the n it was pulled with. The extra
 // damage is a hidden aura (`party_scale`, mods damageDone) so combat.js needs no change. The foe drops back to its own
-// numbers when the fight ends (evade, reset) and a respawn starts it fresh.
+// numbers when the fight ends (evade, reset) and a respawn starts it fresh. A boss uses content.party.bossScale instead
+// (by party size; solo and two unchanged, three x5.5 hp x1.35 damage, four x10 hp x1.6 damage; raid bosses keep the general scale).
 import { TICK_HZ } from './constants.js';
 import { distPx } from './geom.js';
 import { bagCount, bagRemove } from './loot.js';
@@ -69,18 +70,21 @@ export function createParty(D) {
     const keep = T(R.seatSec != null ? R.seatSec : 300);
     return Object.keys(copy.seats || {}).filter((id) => now() - copy.seats[id] <= keep);
   }
-  const hpMulOf = (n) => 1 + R.scale.hpPerHero * (n - 1);
-  const dmgMulOf = (n) => 1 + R.scale.dmgPerHero * (n - 1);
+  const BS = R.bossScale;
+  const raidZone = (m) => { const c = m.spawn && m.spawn.copy ? (state.copies || {})[m.spawn.copy] : null; const d = c && (D.content.dungeons || {})[String(c.base || '').split('#')[0]]; return !!(d && d.raid); };
+  const isBoss = (m) => !!(m && ((D.content.mobs || {})[m.template] || {}).boss) && !raidZone(m);
+  const hpMulOf = (n, m) => (BS && isBoss(m) && BS.hp[n] != null ? BS.hp[n] : 1 + R.scale.hpPerHero * (n - 1));
+  const dmgMulOf = (n, m) => (BS && isBoss(m) && BS.dmg[n] != null ? BS.dmg[n] : 1 + R.scale.dmgPerHero * (n - 1));
   function setScale(m, n) {
     const g = m.gscale;
     const old = g ? g.n : 1;
     if (n <= old) return;
     const base = g ? g.base : m.hpMax;
     const frac = m.hpMax > 0 ? m.hp / m.hpMax : 1;
-    m.hpMax = Math.round(base * hpMulOf(n));
+    m.hpMax = Math.round(base * hpMulOf(n, m));
     m.hp = Math.max(1, Math.min(m.hpMax, Math.round(frac * m.hpMax)));
     m.gscale = { n, base };
-    const def = { id: SCALE_AURA, name: 'Many foes, many heroes', icon: 'icon_fury', kind: 'buff', flags: ['hidden'], mods: [{ stat: 'damageDone', mul: dmgMulOf(n) }] };
+    const def = { id: SCALE_AURA, name: 'Many foes, many heroes', icon: 'icon_fury', kind: 'buff', flags: ['hidden'], mods: [{ stat: 'damageDone', mul: dmgMulOf(n, m) }] };
     const a = m.auras.find((x) => x.id === SCALE_AURA);
     if (a) a.def = def;
     else m.auras.push({ id: SCALE_AURA, src: m.id, ab: null, stacks: 1, startTick: now(), until: null, nextTick: null, absorb: 0, data: {}, def });
@@ -117,7 +121,7 @@ export function createParty(D) {
       if (t.boss && m.spawn && m.spawn.copy) { if (m.gscale) m.gscale.locked = true; else m.gscale = { n: 1, base: m.hpMax, locked: true }; }
     }
   }
-  function scaleOf(m) { const n = (m && m.gscale && m.gscale.n) || 1; return { n, hpMul: hpMulOf(n), dmgMul: dmgMulOf(n) }; }
+  function scaleOf(m) { const n = (m && m.gscale && m.gscale.n) || 1; return { n, hpMul: hpMulOf(n, m), dmgMul: dmgMulOf(n, m) }; }
 
   // ------------------------------------------------------------------------------------------------ death: release or wait
   function onPlayerDeath(e) {

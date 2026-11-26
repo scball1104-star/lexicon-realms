@@ -9,6 +9,10 @@ export const PARTY_RULES = {
   // of them is on its threat list. The count only grows during a fight. In a dungeon copy the count is at least the
   // heroes who entered the copy; a boss keeps the count it had when the fight began.
   scale: { hpPerHero: 0.6, dmgPerHero: 0.1, maxHeroes: 4, reachPx: 640 },
+  // a dungeon boss's own numbers by party size (Scott 2026-11-25: four heroes killed dungeon bosses in 13 to 40 s).
+  // Index = heroes; a solo boss is unchanged, a party of two keeps the general scale above. Raid bosses are left out: a
+  // raid (dungeons[id].raid) is already built for its full party.
+  bossScale: { hp: [1, 1, 1.6, 5.5, 10], dmg: [1, 1, 1.1, 1.35, 1.6] },
   // the rez: the Mender's Rekindle (free) and anyone's lantern-ash (one per use), both out of combat
   rez: { castSec: 10, hpPct: 0.35, resPct: 0.35, rangePx: 160, classes: ['mender'], spell: 'Rekindle', item: 'lantern_ash' },
   // death in a party: Release (wake at your lantern now) or Wait (stay where you fell up to waitSec for a rez)

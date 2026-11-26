@@ -116,6 +116,26 @@ export const tests = [
     },
   },
   {
+    name: 'group scaling: a boss fought by four heroes uses the boss scale (Scott 2026-11-25); solo and plain foes unchanged',
+    fn() {
+      const { w, P } = party(4, { level: 11 });
+      const DG = w.internals.dungeons;
+      const zid = DG.enter(P[0], 'barrow');
+      for (const p of P.slice(1)) eq(DG.enter(p, 'barrow'), zid);
+      for (const p of P) p.zone = zid;
+      w.step();
+      const boss = w.state.ents.find((e) => e.kind === 'mob' && e.zone === zid && e.template === 'barrow_bellwether');
+      const base = boss.hpMax;
+      w.internals.ai.engage(boss, P[0]);
+      w.step();
+      eq(boss.gscale.n, 4, 'four heroes entered');
+      eq(boss.hpMax, Math.round(base * R.bossScale.hp[4]), 'boss health by the boss scale');
+      assert(Math.abs(w.internals.stats.mod(boss, 'damageDone').mul - R.bossScale.dmg[4]) < 1e-9, 'boss damage by the boss scale');
+      eq(R.bossScale.hp[1], 1, 'a solo boss is unchanged');
+      eq(R.bossScale.hp[2], 1 + R.scale.hpPerHero, 'a party of two is unchanged');
+    },
+  },
+  {
     name: 'death in a party: wait (no wake after 3 s), Release wakes at the lantern; the 5 minute wait ends at the lantern; solo still wakes after 3 s',
     fn() {
       const { w, P } = party(2);
