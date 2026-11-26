@@ -1468,6 +1468,9 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   Caps (loot fixes 2026-11-26, src/sim/affixes.js): gear leech at most `GEAR_LEECH_CAP` (10%), only the strongest
   `GEAR_ONHIT_MAX` (1) chance-on-hit per blow, and all leech on one hit (talents plus gear) at most `LEECH_TOTAL_CAP` (30%).
   Tooltips (src/ui/menus.js statLine) say Embers' chance and real fire damage, and Leech's cap.
+- **Storm Quiver `arcShots`** (src/data/builds2_wayfinder.js, src/sim/combat.js `arcs`): a hero with `arcShots` on a shot
+  (or 'auto') casts it without line of sight, unless `bossFightNear(e)`: a living mob whose template has `boss`, in the
+  hero's zone, with `ai.mode === 'combat'`, within `content.bossRules.reachPx` (640 px). Then sight is needed again.
 - **Minor powers** (`content.rarity.rare.minor` and `.epic.minor` = `{ fromIlvl: 15, chance: 0.1, powers }`,
   src/data/legendary_powers.js MINOR_POWERS): `rollGear` may put `inst.minor = id` on a rare or epic; `resolveItem` adds the
   power's `text` and `minor`; worn ids on `e.minors`; `stats.mod` adds their mods and `combat.procs` their procs (ICD key

@@ -21,8 +21,9 @@ const itemFor = (cls) => SKILL_LEGENDARIES.find((r) => SKILL_POWERS[r[7]].cls ==
 const aura = (e, id) => e.auras.find((a) => a.id === id);
 
 /** A level 15 Builds 2 hero of `cls` wearing `wear` (item ids, real gear mode) and knowing `known`; foes from `mobs`. */
-function H(cls, { wear = [], known = [], mobs = [], x = 10, y = 15, level = 15 } = {}) {
+function H(cls, { wear = [], known = [], mobs = [], x = 10, y = 15, level = 15, extraMobs = null } = {}) {
   const content = { ...fixtureContent({ builds2: true, items: CONTENT.items }), classGear: CONTENT.classGear, armorTypes: CONTENT.armorTypes };
+  if (extraMobs) content.mobs = { ...content.mobs, ...extraMobs };
   const world = createWorld({ seed: 3, content });
   const pid = world.addPlayer({ name: 'Tester', cls, zone: 'arena', x, y, level, gearMode: 'design' });
   const p = world.get(pid), C = world.internals;
@@ -174,6 +175,31 @@ T('the balance harness uses the level 14 pick: the Tidehammer opens with Sunlanc
     assert((r.uses.mender_sunlance || 0) >= 1, `L${L} casts Sunlance`);
     assert(r.ttk >= 6 && r.ttk <= 15, `L${L} ttk ${r.ttk} s`);
   }
+});
+
+T('Storm Quiver in a boss fight: while a boss nearby is in combat the pillar blocks again; with the boss idle it arcs', () => {
+  const shot = 'wayfinder_quick_shot';
+  const extraMobs = { qa_boss_15: { id: 'qa_boss_15', name: 'Test Boss', level: 15, elite: true, boss: true, sprite: 'moss_scarab', faction: 'hostile', family: 'construct', behavior: 'passive', wander: 0 } };
+  const setup = () => {
+    const h = H('wayfinder', { known: ['wayfinder_storm_quiver', shot], mobs: [['dummy_15', 23, 10], ['qa_boss_15', 30, 18]], x: 17, y: 10, extraMobs });
+    castNow(h.world, h.pid, 'wayfinder_storm_quiver'); free(h.world, h.p);
+    assert(aura(h.p, 'wayfinder_storm_quiver'), 'the storm is on');
+    h.world.enqueue(h.pid, { t: 'target', id: h.m.id }); h.world.step();
+    return h;
+  };
+  // the boss idle: no boss fight, the arrow arcs over the pillar
+  const a = setup();
+  let ev = castDone(a.world, a.pid, shot, a.m.id); ev.push(...stepN(a.world, 40));
+  assert(!ofType(ev, 'cast_fail', (e) => e.reason === 'los').length && ev.some((e) => e.type === 'damage' && e.dst === a.m.id && e.amount > 0), 'outside a boss fight: it arcs');
+  // the boss in combat (same arena, within 40 tiles): line of sight again, at any foe
+  const b = setup();
+  const boss = b.foes[1];
+  boss.ai.mode = 'combat'; boss.ai.target = b.pid;
+  ev = castDone(b.world, b.pid, shot, b.m.id); ev.push(...stepN(b.world, 2));
+  assert(ofType(ev, 'cast_fail', (e) => e.reason === 'los').length > 0, 'in a boss fight: the pillar blocks');
+  assert(!ev.some((e) => e.type === 'damage' && e.dst === b.m.id && e.ability === shot), 'no arrow lands');
+  // the same rule twice gives the same answer (deterministic)
+  eq(b.C.combat.losOk(b.p, b.m), false);
 });
 
 export { tests };

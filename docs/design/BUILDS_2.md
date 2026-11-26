@@ -335,7 +335,7 @@ Signature skills:
 |---|---|---|
 | **Sand Kestrel** | a falcon companion: hits your target for `3 + 1.4 L` every 1.5 s, interrupts a cast once per 10 s; command Dive: stun 1 s (15 s) | the lone archer gets a partner that guards her from casters |
 | **Grapple Line** | fire a line to a point or foe within 12 tiles: pull yourself there, or pull a small foe to you. 14 s. Also crosses gaps and ledges marked as grapple points in zones | **the unique movement**: a skill that is also a way to explore |
-| **Storm Quiver** | toggle: her arrows fall from the sky as storm and **need no line of sight** (they arc over walls, trees and cover); each is storm damage (past armor) and jumps to one more foe for 50%; each shot costs 5 more Focus (reworked 2026-11-26, Scott approved) | the rule it breaks is sight: she shoots from behind a wall or over a ridge, and the pack cannot hide |
+| **Storm Quiver** | toggle: her arrows fall from the sky as storm and **need no line of sight** (they arc over walls, trees and cover), except in a boss fight: while a boss within 40 tiles is in combat, every arrow needs sight again (Scott 2026-11-26); each is storm damage (past armor) and jumps to one more foe for 50%; each shot costs 5 more Focus (reworked 2026-11-26, Scott approved) | the rule it breaks is sight: she shoots from behind a wall or over a ridge, and the pack cannot hide |
 
 Named builds:
 

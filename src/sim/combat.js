@@ -40,7 +40,21 @@ export function createCombat(C) {
   const sameZone = (a, b) => a && b && a.zone === b.zone;
   const losOk = (a, b) => hasLos(C.zoneOf(a), a, b);
   // Builds 2 Storm Quiver: a hero with `arcShots` on a skill (or 'auto') arcs it over walls and cover: no line of sight needed
-  const arcs = (e, id) => e.kind === 'player' && stats.mod(e, 'arcShots', { ability: id }).add > 0;
+  const arcs = (e, id) => e.kind === 'player' && stats.mod(e, 'arcShots', { ability: id }).add > 0 && !bossFightNear(e);
+  // ...but never in a boss fight (Scott 2026-11-26): while a living boss (template `boss`) in the hero's zone is in combat
+  // and within the boss fight reach (content.bossRules.reachPx, 40 tiles, the same reach that counts heroes into the fight),
+  // every arrow needs line of sight again, at the boss and at anything else. Keyed on the fight, not a room: a place is one
+  // zone with trash and several bosses, and world bosses have no room. Deterministic: a scan of the zone, no rng.
+  function bossFightNear(e) {
+    const reach = (((C.content.bossRules || {}).reachPx) || 640) * SUB;
+    const tpl = C.content.mobs || {};
+    for (const u of state.ents) {
+      if (u.kind !== 'mob' || u.dead || u.zone !== e.zone || !u.ai || u.ai.mode !== 'combat') continue;
+      if (!((u.mob && u.mob.boss) || (tpl[u.template] || {}).boss)) continue;
+      if (Math.hypot(u.x - e.x, u.y - e.y) <= reach) return true;
+    }
+    return false;
+  }
   // an ability filter that may be one id or a list of ids (Builds 2: Balance, Bell and Rod)
   const abMatch = (want, id) => (Array.isArray(want) ? want.includes(id) : want === id);
   /** The friendly hero (player) within 8 tiles of `src`, `src` included, with the lowest health share (Builds 2). */
