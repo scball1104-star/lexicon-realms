@@ -105,44 +105,62 @@ for (const [id, m] of Object.entries(EM_MOBS)) {
 
 // ---------------------------------------------------------------- the tier set (ilvl 32) and the Lot Tickets
 export const RAID_SLOTS = Object.freeze(['head', 'chest', 'legs', 'hands', 'feet']);
-const S = (id, name, cls, armor, pieces, bonus) => ({ id, name, cls, armor, tier: 'endmarket', pieces, bonus });
+// 2 pieces: a plain stat. 4 and 5 pieces change how a signature plays (modAbility / procs), in the spirit of
+// BUILDS_2 6.5's skill-changing 5-piece line, on the Endmarket tier (2 / 4 / 5; pieces from Lot Tickets).
+const S = (id, name, cls, armor, pieces, bonus, extra = {}) => ({ id, name, cls, armor, tier: 'endmarket', pieces, bonus, ...extra });
 export const RAID_SETS = {
   set_gatebreaker: S('set_gatebreaker', "Gatebreaker's Plate", 'warden', 'plate',
     { head: ['gatebreaker_helm', "Gatebreaker's Helm"], chest: ['gatebreaker_breastplate', "Gatebreaker's Breastplate"], legs: ['gatebreaker_greaves', "Gatebreaker's Greaves"],
       hands: ['gatebreaker_gauntlets', "Gatebreaker's Gauntlets"], feet: ['gatebreaker_sabatons', "Gatebreaker's Sabatons"] },
     { 2: { text: 'Damage taken -4%.', mods: [{ stat: 'damageTaken', mul: 0.96 }] },
-      4: { text: 'Gatewheel deals 20% more damage.', mods: [{ stat: 'damageDone', mul: 1.2, ability: 'warden_gatewheel' }] },
-      5: { text: 'Threat +20% and damage taken -3% more.', mods: [{ stat: 'threat', mul: 1.2 }, { stat: 'damageTaken', mul: 0.97 }] } }),
+      4: { text: 'Gatewheel bounces one more time.',
+        modAbility: [{ id: 'warden_gatewheel', path: 'bounce.count', add: 1 }] },
+      5: { text: 'When Gatewheel returns, you block every hit for 2 s.',
+        modAbility: [{ id: 'warden_gatewheel', path: 'onCast.#open.aura.onExpire', push: { type: 'aura', to: 'self',
+          aura: { id: 'set_gate_home', name: 'Shield Home', icon: 'icon_shield', kind: 'buff', duration: 2, mods: [{ stat: 'block', add: 1 }] } } }] } },
+    { track: 'bulwark', for: 'Shieldwheel, Gatewheel' }),
   set_fairbell: S('set_fairbell', 'Fairbell Vestments', 'mender', 'cloth',
     { head: ['fairbell_hood', 'Fairbell Hood'], chest: ['fairbell_robe', 'Fairbell Robe'], legs: ['fairbell_trousers', 'Fairbell Trousers'],
       hands: ['fairbell_gloves', 'Fairbell Gloves'], feet: ['fairbell_slippers', 'Fairbell Slippers'] },
     { 2: { text: 'Healing +6%.', mods: [{ stat: 'healingDone', mul: 1.06 }] },
-      4: { text: 'Tolling Hammers deal 15% more damage.', mods: [{ stat: 'damageDone', mul: 1.15, ability: 'mender_tolling_hammers' }] },
-      5: { text: 'Healing +8% more.', mods: [{ stat: 'healingDone', mul: 1.08 }] } }),
+      4: { text: 'Tolling Hammers spin 4.',
+        modAbility: [{ id: 'mender_tolling_hammers', path: 'effects.#hammers.object.hammers', set: 4 }] },
+      5: { text: 'Each hammer that hits heals the lowest ally for 20% of the damage.',
+        procs: [{ on: 'hit', ability: 'mender_tolling_hammers', effects: [{ type: 'heal', to: 'lowest_ally', pctOfDamage: 0.2, canCrit: false, noThreat: true, ability: 'set_fairbell_peal' }] }] } },
+    { track: 'bell', for: 'Tidehammer, Tolling Hammers' }),
   set_redeemer: S('set_redeemer', "Redeemer's Folio", 'scribe', 'cloth',
     { head: ['redeemer_hood', "Redeemer's Hood"], chest: ['redeemer_robe', "Redeemer's Robe"], legs: ['redeemer_wraps', "Redeemer's Wraps"],
       hands: ['redeemer_gloves', "Redeemer's Gloves"], feet: ['redeemer_slippers', "Redeemer's Slippers"] },
     { 2: { text: 'Damage +5%.', mods: [{ stat: 'damageDone', mul: 1.05 }] },
-      4: { text: 'Underline deals 25% more damage.', mods: [{ stat: 'damageDone', mul: 1.25, ability: 'scribe_underline' }] },
-      5: { text: 'Your hounds and other summons deal 20% more damage.', mods: [{ stat: 'summonDamageDone', mul: 1.2 }] } }),
+      4: { text: 'You may write a third Ink Hound.',
+        modAbility: [{ id: 'scribe_living_words', path: 'effects.#hound.object.max', set: 3 }] },
+      5: { text: 'Hounds apply your Underline to the foe they bite.',
+        modAbility: [{ id: 'scribe_living_words', path: 'effects.#hound.object.pet.copyAura', set: 'scribe_underline' }] } },
+    { track: 'quill', for: 'Author of Beasts, Living Words' }),
   set_night_drove: S('set_night_drove', 'Night Drove Harness', 'wayfinder', 'mail',
     { head: ['night_drove_coif', 'Night Drove Coif'], chest: ['night_drove_hauberk', 'Night Drove Hauberk'], legs: ['night_drove_chausses', 'Night Drove Chausses'],
       hands: ['night_drove_mitts', 'Night Drove Mitts'], feet: ['night_drove_boots', 'Night Drove Boots'] },
     { 2: { text: 'Damage +4%.', mods: [{ stat: 'damageDone', mul: 1.04 }] },
-      4: { text: 'Your Sand Kestrel and other summons deal 20% more damage.', mods: [{ stat: 'summonDamageDone', mul: 1.2 }] },
-      5: { text: 'Damage +5% more.', mods: [{ stat: 'damageDone', mul: 1.05 }] } }),
+      4: { text: 'The Sand Kestrel breaks a cast twice as often.',
+        modAbility: [{ id: 'wayfinder_sand_kestrel', path: 'effects.#bird.object.pet.interrupt.every', mul: 0.5 }] },
+      5: { text: 'Traps the Sand Kestrel flies over re-arm once.',
+        modAbility: [{ id: 'wayfinder_sand_kestrel', path: 'effects.#bird.object.pet.rearmTraps', set: true }] } },
+    { track: 'snare', for: 'Falconer, Sand Kestrel' }),
   set_struck_name: S('set_struck_name', 'Struck-Name Leathers', 'inkblade', 'leather',
     { head: ['struck_name_cap', 'Struck-Name Cap'], chest: ['struck_name_jerkin', 'Struck-Name Jerkin'], legs: ['struck_name_breeches', 'Struck-Name Breeches'],
       hands: ['struck_name_gloves', 'Struck-Name Gloves'], feet: ['struck_name_boots', 'Struck-Name Boots'] },
     { 2: { text: 'Critical strike +3%.', mods: [{ stat: 'crit', add: 0.03 }] },
-      4: { text: 'Spill deals 15% more damage.', mods: [{ stat: 'damageDone', mul: 1.15, ability: 'inkblade_spill' }] },
-      5: { text: 'Damage +5%.', mods: [{ stat: 'damageDone', mul: 1.05 }] } }),
+      4: { text: 'Inkwalk lasts 1 s longer.',
+        modAbility: [{ id: 'inkblade_inkwalk', path: 'effects.#walk.aura.duration', add: 1 }] },
+      5: { text: 'Never Seen no longer makes you take 10% more damage.',
+        mods: [{ stat: 'damageTaken', mul: 1 / 1.1, when: { talent: 'b2_inkblade_shade_never_seen' } }] } },
+    { track: 'shade', for: 'Night Letter, Inkwalk' }),
 };
 const SLOT_STATS = { chest: { main: 8, sta: 9 }, legs: { main: 7, sta: 8 }, head: { main: 7, sta: 7 }, hands: { main: 6, sta: 6 }, feet: { main: 6, sta: 6, speed: 2 } };
 export const RAID_ITEMS = {};
 for (const s of Object.values(RAID_SETS)) {
   for (const [slot, [id, name]] of Object.entries(s.pieces)) {
-    RAID_ITEMS[id] = makeGear(id, name, slot, s.armor, RAID_RULES.setIlvl, 'set', SLOT_STATS[slot], { dungeon: 'endmarket_gate', set: s.id, classes: [s.cls] });
+    RAID_ITEMS[id] = makeGear(id, name, slot, s.armor, RAID_RULES.setIlvl, 'set', SLOT_STATS[slot], { dungeon: 'endmarket_gate', set: s.id, classes: [s.cls], forTrack: s.track });
   }
 }
 const SLOT_WORD = { head: 'Head', chest: 'Chest', legs: 'Legs', hands: 'Hands', feet: 'Feet' };

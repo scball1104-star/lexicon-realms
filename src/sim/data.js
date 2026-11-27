@@ -73,7 +73,8 @@ export function createData(content) {
       for (const m of base.mods || []) c.mods.push({ ...m, src: 'b2_baseline' });
       for (const p of base.procs || []) c.procs.push({ ...p, src: 'b2_baseline' });
     }
-    // set bonuses (src/data/items.js SETS, from the Watchtower's bosses): every threshold met adds its mods and procs
+    // set bonuses (src/data/items.js SETS and raid RAID_SETS): every threshold met adds its mods, procs and
+    // skill patches (modAbility), the same engine legendary powers use
     for (const [sid, n] of Object.entries(e.sets || {})) {
       const s = (content.sets || {})[sid];
       if (!s) continue;
@@ -81,6 +82,7 @@ export function createData(content) {
         if (n < Number(need)) continue;
         for (const m of fx.mods || []) c.mods.push({ ...m, src: `${sid}_${need}` });
         for (const p of fx.procs || []) c.procs.push({ ...p, src: `${sid}_${need}` });
+        for (const p of fx.modAbility || []) (c.patches[p.id] = c.patches[p.id] || []).push(p);
       }
     }
     // legendary item powers that change a skill (BUILDS_2 6.3): `modAbility` on the worn item's power, class-gated by `cls`

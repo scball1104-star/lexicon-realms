@@ -1455,14 +1455,36 @@ export function createCombat(C) {
       ob.nextOwner = now() + T(pet.owner.every || 2);
       if (!owner.dead && owner.hp < owner.hpMax) runEffects(owner, pet.owner.effects, { caster: owner, target: owner, abId: def.id });
     }
+    // Endmarket Night Drove 5: traps the Sand Kestrel flies over re-arm once (spent traps left in tickObjects)
+    if (pet.rearmTraps) {
+      for (const tr of state.ents) {
+        if (tr.kind !== 'object' || tr.owner !== owner.id || tr.zone !== o.zone || !tr.obj || !tr.obj.spent) continue;
+        const td = tr.obj.def;
+        if (!td || !td.trigger) continue;
+        if (distPx(o, tr) > (td.trigger.radius || 24) + 16) continue;
+        tr.obj.spent = false;
+        tr.obj.kestrelRearm = true;
+        tr.obj.armAt = now() + T(td.armTime || 1);
+        emit({ type: 'b2_proc', id: owner.id, what: 'kestrel_rearm', object: tr.id });
+      }
+    }
     if (!t || now() < ob.nextAct) return;
     if (distPx(o, t) > (pet.range || 24) + 2) return;
     ob.nextAct = now() + T(pet.period || 2);
     o.target = t.id;
     for (const fx of pet.effects || []) {
-      if (fx.type !== 'damage') continue;
-      const raw = rawAmount(owner, t, fx, {});
-      dealDamage(o, t, raw, { ability: def.id, school: fx.school || 'physical', canCrit: false, melee: (pet.range || 24) <= 40, threatMult: 1 });
+      if (fx.type === 'damage') {
+        const raw = rawAmount(owner, t, fx, {});
+        dealDamage(o, t, raw, { ability: def.id, school: fx.school || 'physical', canCrit: false, melee: (pet.range || 24) <= 40, threatMult: 1 });
+      } else {
+        runEffects(owner, [fx], { caster: owner, target: t, abId: def.id });
+      }
+    }
+    // Endmarket Redeemer's Folio 5: a pet with copyAura applies the owner's (patched) version of that aura
+    if (pet.copyAura) {
+      const srcAb = data.ability(owner, pet.copyAura);
+      const afx = srcAb && (srcAb.effects || []).find((f) => f && f.type === 'aura' && f.aura);
+      if (afx) runEffects(owner, [afx], { caster: owner, target: t, abId: pet.copyAura });
     }
     // the Sand Kestrel: it breaks a cast once per `interrupt.every` s
     if (pet.interrupt && t.cast && !t.dead && now() >= (ob.nextInterrupt || 0)) { ob.nextInterrupt = now() + T(pet.interrupt.every); interrupt(t, pet.interrupt.lockout || 2, owner); }
@@ -1511,12 +1533,19 @@ export function createCombat(C) {
       if (def.script) { S().objectTick(o, owner); continue; }
       if (def.pet) { petTick(o, owner); continue; }
       if (def.trigger) {
+        if (ob.spent) continue;   // sprung, waiting for the Sand Kestrel to fly over (Night Drove 5)
         const r = def.trigger.radius;
         const hit = unitsNear(o.x, o.y, o.zone, r, (u) => isHostile(owner, u)).sort((a, b) => a.id - b.id)[0];
         if (hit) {
           runEffects(owner, def.effects, { caster: owner, target: hit, abId: ob.abId, at: { x: o.x, y: o.y }, objSrc: o });
           // Builds 2 Hunter's Ground: a trap re-arms once after it bursts
           if (def.trigger.once && (def.rearm || 0) > (ob.rearmed || 0)) { ob.rearmed = (ob.rearmed || 0) + 1; ob.armAt = now() + T(def.armTime || 1); emit({ type: 'b2_proc', id: owner.id, what: 'rearm', object: o.id }); continue; }
+          // Night Drove 5: leave a spent trap if the owner's Kestrel can re-arm it once
+          if (def.trigger.once && !ob.kestrelRearm) {
+            let can = false;
+            for (const x of state.ents) if (x.kind === 'object' && x.owner === owner.id && x.obj && x.obj.def && x.obj.def.pet && x.obj.def.pet.rearmTraps) { can = true; break; }
+            if (can) { ob.spent = true; emit({ type: 'b2_proc', id: owner.id, what: 'trap_spent', object: o.id }); continue; }
+          }
           if (def.trigger.once) { despawnObject(o, 'sprung'); continue; }
         }
       }

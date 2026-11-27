@@ -90,6 +90,8 @@ export function createStats(C) {
         }
         case 'selfAura': if (!findAura(e, v, e.id)) return false; break;
         case 'noScript': if (e.kind === 'player' && data.hasScript(e, v)) return false; break;
+        // a talent or a Builds 2 node the hero has ranks in (Endmarket set: Never Seen without its damage-taken cost)
+        case 'talent': if (!(((e.build && e.build.ranks) || {})[v] || (e.talents || {})[v])) return false; break;
         default: return false;
       }
     }
