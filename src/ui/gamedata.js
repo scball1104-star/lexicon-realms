@@ -363,6 +363,30 @@ export function rankText(text, r) {
 let ITEMS = {};
 /** main.js passes src/data/items.js here once it exists (setGameData covers classes, abilities, talents). */
 export function setItems(items) { ITEMS = items || {}; }
+// class sets (Watchtower SETS and Endmarket RAID_SETS): tooltips show worn progress
+let SETS = {};
+let WORN_SETS = {};
+export function setSets(sets) { SETS = sets || {}; }
+export function setInfo(id) { return (id && SETS[id]) || null; }
+export function itemSetId(ref) {
+  const i = itemInfo(ref);
+  if (!i) return null;
+  if (i.set) return i.set;
+  const raw = ITEMS[i.id] || ITEMS[i.item];
+  return (raw && raw.set) || null;
+}
+export function wornSetsFromEquip(equip) {
+  const counts = {};
+  for (const it of Object.values(equip || {})) {
+    const sid = itemSetId(it);
+    if (sid) counts[sid] = (counts[sid] || 0) + 1;
+  }
+  return counts;
+}
+export function setWornEquip(equip) { WORN_SETS = wornSetsFromEquip(equip); }
+export function setWornSets(counts) { WORN_SETS = counts || {}; }
+export function wornSetCount(id) { return WORN_SETS[id] || 0; }
+export function allSets() { return SETS; }
 // quests (src/data/quests.js) and npc names, for the quest log and the talk window
 let QUESTS = {}, NPCS = {};
 export function setQuests(quests, npcs) { QUESTS = quests || {}; NPCS = npcs || NPCS; }

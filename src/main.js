@@ -178,6 +178,7 @@ async function boot() {
   riftHash(); window.addEventListener('hashchange', riftHash);   // wave 10 drift: a friend's #rift= link
   ui.setGameData({ classes: content.classes, abilities: content.abilities, talents: content.talents });
   ui.setItems(content.items);
+  ui.setSets(content.sets);
   ui.setQuests(content.quests, content.npcs);
   ui.setAbilityContent(content.abilities, content.mobAbilities);
   if (ui.options.zoom && ZOOMS.includes(ui.options.zoom) && !q.get('zoom')) view.zoom = ui.options.zoom;

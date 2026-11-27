@@ -35,7 +35,7 @@ import { createProfUI } from './prof_ui.js';
 import { createGlyphUI } from './glyph_ui.js';
 import { createWordDoorUI } from './worddoor_ui.js';   // word doors (wave 8 glyphdoor)
 import { createRiddleUI } from './riddle_ui.js';   // wave 9 riddles
-import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
+import { setQuests, npcInfo, questInfo as questInfoById, setGameData, setItems, setSets, setWornEquip, abilityInfo, abilityTooltip, classInfo, classOrder, itemInfo, talentTree, talentState, canUnlearn, talentPointsAt, xpToNext, setAbilityContent, liveStats, resourceWord } from './gamedata.js';
 import { demoState, demoLog } from './demo.js';
 import { placeAt } from '../data/maps/compose.js';
 import { START_REALMS } from '../data/rootbound.js';   // big world: the welcome line of a hero who starts in a realm
@@ -450,7 +450,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     ctx.imageSmoothingEnabled = false;
     markPage('lr-window', st.mode === 'game' && !!L.touch && (st.open.size > 0 || !!chatUi.sheetOpen || !!chatUi.cardOpen || !!chatUi.state.full));   // wave 9 fixes: the bar hid talents nodes and Say phrases
     if (st.mode !== 'game' && st.mode !== 'watch' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
-    if (secondUi.on) { const m2 = playerId != null && snap ? buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones }) : null; if (m2) lastModel = m2; secondUi.draw(ctx, env, m2, L, regions, (id) => g.textScope(() => { if (id === 'map') drawMap(ctx, env, m2, st, regions, act); if (id === 'quests') ((g.skin && g.skin.drawQuestLog) || drawQuestLog)(ctx, env, m2, st, regions, act); if (id === 'bags') { ((g.skin && g.skin.drawCharacter) || drawCharacter)(ctx, env, m2, st, regions, act); drawBags(ctx, env, m2, st, regions, act); } })); }   // wave 9 second: the phone screen
+    if (secondUi.on) { const m2 = playerId != null && snap ? buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones }) : null; if (m2) { lastModel = m2; setWornEquip(m2.equip); } secondUi.draw(ctx, env, m2, L, regions, (id) => g.textScope(() => { if (id === 'map') drawMap(ctx, env, m2, st, regions, act); if (id === 'quests') ((g.skin && g.skin.drawQuestLog) || drawQuestLog)(ctx, env, m2, st, regions, act); if (id === 'bags') { ((g.skin && g.skin.drawCharacter) || drawCharacter)(ctx, env, m2, st, regions, act); drawBags(ctx, env, m2, st, regions, act); } })); }   // wave 9 second: the phone screen
     else if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t), env);
     else if (st.mode === 'create') looks.drawCreate(ctx, env, regions, t, centred, L);
@@ -459,6 +459,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       let m = buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones });
       if (demoExtra) m = applyDemo(m);
       lastModel = m;
+      setWornEquip(m.equip);
       st.openMenu = [...st.open].pop() || null;
       if (photoUi.on && photoUi.draw(ctx, L, regions, m)) { st.regions = regions; return; }   // wave 8 photo: the HUD steps aside
       talkUi.frame(st, snap, playerId, act);   // quest scenes: a move, a hit or walking off ends the talk
@@ -1297,6 +1298,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     /** The data hook: real content over the design text (see gamedata.js). */
     setGameData(d) { return setGameData({ ...d, hasIcon: (n) => !!g.frame(n) }); },
     setItems,
+    setSets,
     setQuests,
     rect: menuRect,
   };

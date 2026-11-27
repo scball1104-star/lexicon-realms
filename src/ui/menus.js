@@ -4,7 +4,7 @@
 import { FLIGHT } from '../data/travel.js';   // big world: flight points on the world map
 import { AFFIXES } from '../data/items.js';   // loot fixes 2026-11-26: the Embers line says what it really does
 import { menuRect, bagGrid } from './layout.js';
-import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, abilityTooltip, resourceLabel, liveStats } from './gamedata.js';
+import { itemInfo, itemSetId, setInfo, wornSetCount, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, abilityTooltip, resourceLabel, liveStats } from './gamedata.js';
 import { drawMarkers, worldView, serifWidth } from './minimap.js';
 import { drawAreas, drawTooltip, drawGoalArrow } from './hud.js';
 import { whereLabel } from './questnav.js';
@@ -81,6 +81,20 @@ export function itemTooltip(it, extra, worn) {
   if (i.text) body.push(i.text);
   if (i.q != null) body.push(`Quality ${Math.round(i.q * 100)} of 100${i.illum ? '. Illuminated: every line at its best, and one more' : ''}`);   // wave 10 dloot (only pieces dropped since the build carry q)
   if (i.kind === 'quest') body.push('Quest item.');
+  // class set progress (Watchtower 2/3, Endmarket 2/4/5): worn count and each threshold, live or grey
+  const sid = itemSetId(i);
+  const set = sid ? setInfo(sid) : null;
+  const setLines = [];
+  if (set) {
+    const total = Object.keys(set.pieces).length;
+    const n = wornSetCount(sid);
+    setLines.push({ text: `${set.name} (${n} of ${total})`, color: 'green' });
+    if (set.for) setLines.push({ text: `For: ${set.for}`, color: 'gray' });
+    else if (set.track) setLines.push({ text: `For: ${set.track}`, color: 'gray' });
+    for (const need of Object.keys(set.bonus || {}).map(Number).sort((a, b) => a - b)) {
+      setLines.push({ text: `(${need}) ${set.bonus[need].text}`, color: n >= need ? 'green' : 'gray' });
+    }
+  }
   // Inscriptions (src/sim/glyphs.js glyphView): the margins, their letters and a spelled word
   if (i.glyph) {
     const gl = i.glyph;
@@ -90,7 +104,7 @@ export function itemTooltip(it, extra, worn) {
   }
   return { title: i.name, titleColor: RARITY_COLOR[i.rarity] || RARITY_COLOR.common, right: i.level ? `Lv ${i.level}` : '', sub,
     body: body.join('. ') + (body.length ? '.' : ''), foot: [i.value ? `Sells for ${i.value} gold` : null, extra].filter(Boolean).join('  '), footColor: 'gray',
-    delta: worn !== undefined ? compareLines(i, worn) : null };
+    delta: worn !== undefined ? compareLines(i, worn) : null, setLines };
 }
 
 function itemSlot(ctx, env, r, it, emptyIcon) {

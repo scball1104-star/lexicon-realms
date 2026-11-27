@@ -546,7 +546,8 @@ cap 30: overflow XP fills Renown; see PROGRESSION.md).
 - **Renown.** Live at cap 30 (finish pass, 2026-11-26): overflow XP fills Renown levels at 19,200 XP; each level is a
   choice of +1% to one main stat (cap +10% total), a one-time Lantern Glow, or a 200 gold chest. Shown on the XP bar
   and the Character panel. SAVE_VERSION stays 2 (additive `renown` field).
-- **Not built:** the level 30 pick (3.2 says "written when those levels are built"; no design yet), 5-piece sets (6.8).
+- **Not built:** the level 30 pick (3.2 says "written when those levels are built"; no design yet).
+  5-piece sets (6.5, 6.8) are built on the Endmarket tier: see the Built note under 6.5.
 
 ---
 
@@ -644,7 +645,22 @@ One set per class per band (5 pieces), each pushing one named build, plus two cr
 | Lanternbearer's (any) | group play | +5% healing received for the party | | |
 | Wanderer's Road (any) | solo play | move speed +6% | kills heal 2% | |
 
-Bonuses past 3 pieces are phase 2 (5-piece sets need 30+ content).
+The table above is the mid-band plan (2 / 3 / 5). Those named mid-band 5-piece bonuses are not on the Watchtower's
+3-piece sets (2 and 3 piece stat bonuses, different names). Cap 30 (Endmarket wing 1) uses one 5-piece set per class
+with 2 / 4 / 5 thresholds, pieces from Lot Tickets (ilvl 32):
+
+**Built 2026-11-26 (Endmarket tier).** 2 pieces: a plain stat. 4 and 5 pieces change how a signature plays
+(`modAbility` / procs, the same engine as the skill legendaries).
+
+| set | for | 2 pieces | 4 pieces | 5 pieces |
+|---|---|---|---|---|
+| Gatebreaker's Plate | Warden, Shieldwheel | damage taken -4% | Gatewheel +1 bounce | Gatewheel returns and you block every hit for 2 s |
+| Fairbell Vestments | Mender, Tidehammer | healing +6% | Tolling Hammers spin 4 | each hammer hit heals the lowest ally for 20% of the damage |
+| Redeemer's Folio | Scribe, Author of Beasts | damage +5% | a third Ink Hound | hounds apply your Underline to the foe they bite |
+| Night Drove Harness | Wayfinder, Falconer | damage +4% | the Kestrel interrupts twice as often | traps the Kestrel flies over re-arm once |
+| Struck-Name Leathers | Inkblade, Night Letter | crit +3% | Inkwalk 1 s longer | Never Seen without its damage taken penalty |
+
+Tooltips show set name, "N of 5", the named build, and each bonus (live in green, not yet in grey).
 
 ### 6.6 Gear you can see (the 3D renderer)
 

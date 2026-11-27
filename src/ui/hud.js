@@ -76,10 +76,12 @@ export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360, flat
   const numLines = [];
   for (const ln of tip.lines || []) numLines.push(...g.wrap(ln, w - 14));
   const footLines = tip.foot ? g.wrap(tip.foot, w - 14) : [];
+  const setLines = [];
+  for (const d of tip.setLines || []) for (const ln of g.wrap(d.text, w - 14)) setLines.push({ text: ln, color: d.color });
   const deltaLines = [];
   for (const d of tip.delta || []) for (const ln of g.wrap(d.text, w - 14)) deltaLines.push({ text: ln, color: d.color });
   const lh = g.lh;   // 11, or 16 with Large text (gfx.js g.big, wave 6 uiskin)
-  const h = 8 + 16 + subLines.length * lh + (numLines.length ? 2 + numLines.length * lh : 0) + (bodyLines.length ? 2 + bodyLines.length * lh : 0) + (footLines.length ? 4 + footLines.length * lh : 0) + (deltaLines.length ? 3 + deltaLines.length * lh : 0) + 6;
+  const h = 8 + 16 + subLines.length * lh + (numLines.length ? 2 + numLines.length * lh : 0) + (bodyLines.length ? 2 + bodyLines.length * lh : 0) + (setLines.length ? 3 + setLines.length * lh : 0) + (footLines.length ? 4 + footLines.length * lh : 0) + (deltaLines.length ? 3 + deltaLines.length * lh : 0) + 6;
   if (measure) return { x, y, w, h };
   let tx = Math.round(x), ty = Math.round(y);
   if (!flat) {
@@ -98,6 +100,8 @@ export function drawTooltip(g, ctx, tip, x, y, { w = 214, W = 640, H = 360, flat
   for (const ln of numLines) { g.text(ctx, ln, tx + 7, yy, 'cream'); yy += lh; }
   if (bodyLines.length) yy += 2;
   for (const ln of bodyLines) { g.text(ctx, ln, tx + 7, yy, 'white'); yy += lh; }
+  if (setLines.length) yy += 3;
+  for (const d of setLines) { g.text(ctx, d.text, tx + 7, yy, d.color || 'green'); yy += lh; }
   if (footLines.length) yy += 4;
   for (const ln of footLines) { g.text(ctx, ln, tx + 7, yy, tip.footColor || 'green'); yy += lh; }
   if (deltaLines.length) yy += 3;

@@ -1306,8 +1306,12 @@ the doors `src/data/maps/doors.js`, the quests `src/data/dungeon_quests.js`, the
 - **Snapshot.** `snap.places = { zid: { id, base, kind, name, levels, label } }` for each place a hero stands in;
   `hud[pid].zone = { id, base, kind, name, levels, label? }` always; the `zone` event adds `kind, base, name, levels, label`
   when the target is a place.
-- **Sets.** `SETS[id] = { name, cls, track, armor, pieces: { head, legs, chest }, bonus: { 2: { text, mods }, 3: {...} } }`;
-  `stats.recalc` counts worn pieces into `e.sets`, `data.talentInfo` adds the bonus mods while they are worn.
+- **Sets.** `SETS[id] = { name, cls, track, armor, pieces: { head, legs, chest }, bonus: { 2: { text, mods }, 3: {...} } }`
+  (Watchtower, three pieces). The Endmarket tier `RAID_SETS` (merged into `content.sets`) is one five-piece set per
+  class, `bonus: { 2, 4, 5 }`, `tier: 'endmarket'`, `for` naming the build and signature. A bonus may carry `mods`,
+  `procs` and `modAbility` (the same patches as a legendary power; `data.talentInfo` applies all three).
+  `stats.recalc` counts worn pieces into `e.sets`. Item tooltips list the set name, `N of K` worn, and each threshold
+  (`src/ui/menus.js` `setLines`).
 - **Side quests.** `content.sideQuests` (the dungeon and cave quests) are offered after the chain and the bounties; the main
   chain (`questOrder`, 24) is unchanged. An `explore` objective in a place matches its copies.
 - **Tuning.** `BOSS_TUNE` (hpMult, dmgMult) and each place's `trash` / `adds` are set by `node qa/sim/dungeon_bot.mjs`
