@@ -12,6 +12,7 @@
 import { BAND_INNS, BAND_POINTS, BAND_ROUTES, BAND_TRAVEL_NPCS, BAND_TRAVEL_NPC_SPAWNS } from './band_travel.js';
 import { REALMS2_TRAVEL as R2 } from './start_realms2.js';   // wave 3: Emberpeak and Valewyn's inns, kites and rides
 import { R2_INNS, R2_FLIGHT_POINTS, R2_FLIGHT_ROUTES, R2_TRAVEL_NPCS, R2_TRAVEL_SPAWNS } from './realms2.js';   // wave 3 realms2: two more realms' inns and kites
+import { MR_INNS, MR_POINTS, MR_ROUTES, MR_TRAVEL_NPCS, MR_TRAVEL_NPC_SPAWNS } from './millrace.js';   // cap 35: the Wet Wheel and Ferrick's Mill
 
 export const STONE = Object.freeze({ item: 'lantern_stone', castSec: 10, cooldownSec: 30 * 60 });
 
@@ -31,6 +32,7 @@ export const INNS = Object.freeze({
   ...BAND_INNS,                  // Larch Cross and Highdrove (src/data/band_travel.js)
   ...R2.inns,
   ...R2_INNS,
+  ...MR_INNS,
 });
 export const DEFAULT_HOME = 'hob';
 
@@ -48,6 +50,7 @@ export const FLIGHT = Object.freeze({
     ...BAND_POINTS,
     ...R2.points,
     ...R2_FLIGHT_POINTS,
+    ...MR_POINTS,               // a point with its own minLevel (Ferrick's Mill: 30) flies there only for a hero that high
   }),
   // the routes between points, each a list of legs { zone, pts: [[x, y] tiles] } in flying order (reversed for the way
   // back). A route between two zones ends one leg at the pass and starts the next where the pass lands.
@@ -62,6 +65,7 @@ export const FLIGHT = Object.freeze({
     ...BAND_ROUTES.map((r) => Object.freeze(r)),
     ...R2.routes,
     ...R2_FLIGHT_ROUTES,
+    ...MR_ROUTES.map((r) => Object.freeze(r)),
   ]),
 });
 
@@ -82,6 +86,7 @@ export const TRAVEL_NPCS = Object.freeze({
   ...BAND_TRAVEL_NPCS,                  // Larch Cross and Highdrove (src/data/band_travel.js)
   ...R2.npcs,
   ...R2_TRAVEL_NPCS,
+  ...MR_TRAVEL_NPCS,
 });
 
 /** Where the travel npcs stand (spawns, CONTRACTS 7: zone, x, y tiles). */
@@ -95,6 +100,7 @@ export const TRAVEL_NPC_SPAWNS = Object.freeze([
   ...BAND_TRAVEL_NPC_SPAWNS,
   ...R2.spawns,
   ...R2_TRAVEL_SPAWNS,
+  ...MR_TRAVEL_NPC_SPAWNS,
 ]);
 
 /** Rides (wave 3): an ore cart or a ferry from one npc to one place, about half a minute, free, from level 1. */

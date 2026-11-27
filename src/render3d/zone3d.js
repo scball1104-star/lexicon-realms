@@ -26,6 +26,7 @@ import { regionInfo, underAt } from '../data/maps/compose.js';
 import { buildPlaceWalls, buildDoorMouths, cutMat, doorAt, dressPlace } from './dungeon3d.js';
 import { dungeonPlan, isPlaceZone } from '../render/dungeon_plan.js';
 import { buildRealm3d } from './realm3d.js';   // wave 3: the start realms' props, lava crossings and tide water
+import { buildMill3d } from './mill3d.js';     // cap 35: the Millrace's code-built wheel, board, ledgers, chain, undercroft door
 import { poolCells, waterPlan, surfaceUniforms, patchSurface, buildFalls, tickWaterKit } from './water_kit.js';   // wave 7 water kit
 import { createGroundKit } from './ground_kit.js';   // wave 5 ground kit: hills, cobbles, grass, square dressing (desktop only)
 import { barkPart, lodCell, unLodCell } from './lod_kit.js';   // wave 8: the horizon camera's level of detail (off for today's camera)
@@ -462,6 +463,12 @@ function styleKit(zone) {
     wallTint: '#d8c4b0', roofTint: '#5a463c', plaza: 'cobble', plazaTint: '#6e5e50',
     farWall: '#6a4e42', farRoof: '#3a322c',
   };
+  // cap 35: the Millrace (BRIEF_cap35_millrace.md): plaster washed khaki, dark wet brown roofs, a plank plaza
+  if (zone.style === 'mill') return {
+    house: (t, def) => ({ ...def, style: 'plaster' }),
+    wallTint: '#c8b898', roofTint: '#4a3a32', plaza: 'wood', plazaTint: null,   // the planks as the kit ships them (the approved still)
+    farWall: '#b0a080', farRoof: '#3a2e28',
+  };
   return null;
 }
 const EAVE = 0.12;   // roof overhang past the footprint (m per side): a sliver over the lane, no more
@@ -817,6 +824,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   group.add(apron);
   report(0.1);
   buildRealm3d(zone, group);       // wave 3 (src/render3d/realm3d.js): only a zone with realmProps, lava or tide
+  buildMill3d(zone, group);        // cap 35 (src/render3d/mill3d.js): only a zone with millProps (the Millrace)
   await step();
 
   // water: one plane over the zone; a per-tile mask (R deep water, G shallows, B ink) with noise-broken edges gives a

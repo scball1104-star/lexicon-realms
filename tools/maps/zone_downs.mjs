@@ -5,7 +5,8 @@
 // moor, the Drovers' Road south-east. "Rolling grass under a high sky, drystone walls, a few stands of hawthorn, gentle
 // ledges." New room goes to the fold pastures (north-east), a stream with the drovers' ford, and the Larchhill road.
 //
-// Closed hooks: the Drovers' Road (Ferrick's chain), the Larchhill gate. The Watchtower stands on the north skyline as
+// Ferrick's chain on the Drovers' Road is the Millrace's gate (cap 35 stage 1): a hero of level 30 passes it into the
+// Millrace (zone_millrace.mjs); the chain and its board stay. The Watchtower stands on the north skyline as
 // a far-off decal, so the next zone is promised before it is reached.
 import { Canvas, scatter, hash01, vnoise, dresser, carveSecret, dressSecret, secretEntry } from './kit.mjs';
 
@@ -270,20 +271,18 @@ export function build(db) {
     { id: 'valley_lane', x: 141, y: 19, text: 'EAST: WILLOWMERE VALLEY.' },
     { id: 'town_lane', x: 141, y: 40, text: 'EAST: WILLOWMERE, BY ORCHARD LANE.' },
     { id: 'moor_sign', x: 73, y: 2, text: 'NORTH: THE HIGH MOOR. FOLLOW THE CHIME POSTS.' },
-    { id: 'drovers_chain', x: 103, y: 90, text: 'ROAD CLOSED. THE WEIR BROKE AND NOBODY CAME. - F.', hook: 'x1_millrace' },
+    { id: 'drovers_chain', x: 103, y: 90, text: 'ROAD CLOSED. THE WEIR BROKE AND NOBODY CAME. - F.' },   // the weathered board stays (the Millrace is open past the chain)
     { id: 'larchhill_gate', x: 23, y: 92, text: 'LARCHHILL. MIND THE BEES. The gate is open again: the road runs south into the larches.' },
     { id: 'blank_slab', x: 40, y: 14, text: 'A pale slab, apart from the ring. No name on it at all.' },
     { id: 'barrow_door', x: 26, y: 8, text: "A turf mound with a low doorway under a blank stone. The Wethers' Barrow. From under it, very faintly, something is counting." },
   ];
-  const hooks = [
-    { id: 'x1_millrace', to: 'x1_millrace', x: 100, y: 90, text: "Ferrick's chain is across the Drovers' Road. The road beyond is closed." },
-  ];
+  const hooks = [];   // cap 35 stage 1: Ferrick's chain is the Millrace's gate now (the join below), not a closed hook
   // the barrow door (28, 8) is the Wethers' Barrow's door since the dungeons build (src/data/dungeons.js): no hook
   const joins = [
     { x: 143, y: 20, w: 1, h: 2, to: 'valley', tx: 1, ty: 18, dir: 'right' },
     { x: 143, y: 42, w: 1, h: 2, to: 'willowmere', tx: 1, ty: 16, dir: 'right' },
     { x: 74, y: 0, w: 4, h: 1, to: 'moor', tx: 78, ty: 97, dir: 'up' },
-    { x: 99, y: 95, w: 3, h: 1, to: 'x1_millrace', tx: 4, ty: 1, dir: 'down' },
+    { x: 99, y: 91, w: 3, h: 1, to: 'millrace', tx: 92, ty: 84, dir: 'up', minLevel: 30 },   // Ferrick's chain: the Millrace, level 30 (zone_millrace.mjs GATE.arrive)
     { x: 19, y: 95, w: 3, h: 1, to: 'larchhill', tx: 545, ty: 5, dir: 'down' },     // Larchhill (zone_larchhill.mjs GATE.arrive)
   ];
 

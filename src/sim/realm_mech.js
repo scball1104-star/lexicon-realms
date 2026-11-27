@@ -16,6 +16,9 @@
 // (ground char tide.ch) are under water: a hero on them wades (an aura, speed x (1 - slow)); the drowned (realmGate
 // 'tide') rise at level >= 0.6 and sink below 0.4 when not fighting; zone nodes marked tide 'high' (the stranded) can be
 // reached only while the water is up, nodes marked 'low' (the drowned bells) only while it is down.
+// The wade (cap 35, the Millrace): zone.wade { terrains, slow }. A hero standing on one of those terrains (the shallows,
+// always walkable there) wades: the same aura, speed x (1 - slow). A cell with a plank overlay (bridge_*: a catwalk)
+// is dry. Deep water is simply blocking collision ('~'), so it needs no rule here.
 //
 // Events: quest_hook { id, lines } to the heroes in the zone when the tide turns, the crossing they stand near changes,
 // or a wave comes; damage { ability: 'realm_lava' } for a burn.
@@ -57,7 +60,7 @@ const groundAt = (z, x, y) => (z.ground[y] ? z.ground[y][x] : null);
 
 export function createRealmMech(C) {
   const { state, content, emit } = C;
-  const zones = Object.values(content.zones).filter((z) => z && (z.lava || z.tide || z.gate));
+  const zones = Object.values(content.zones).filter((z) => z && (z.lava || z.tide || z.gate || z.wade));
   if (!zones.length) return { tick() {} };
   const now = () => state.tick;
   const mobDef = (m) => (content.mobs || {})[m.template] || {};
@@ -192,12 +195,42 @@ export function createRealmMech(C) {
     }
   }
 
+  // ---------------------------------------------------------------- the Millrace: wading the shallows
+  const wadeCells = new Map();      // zone id -> { chars: Set of ground chars that wade, decks: Set of 'x,y' plank cells }
+  function wadeOf(z) {
+    let w = wadeCells.get(z.id);
+    if (!w) {
+      const want = new Set(z.wade.terrains || ['shallow']);
+      const chars = new Set(Object.entries(z.legend || {}).filter(([, id]) => want.has(id)).map(([ch]) => ch));
+      const decks = new Set((z.overlays || []).filter((o) => /^bridge_/.test(o.t)).map((o) => `${o.x},${o.y}`));
+      w = { chars, decks };
+      wadeCells.set(z.id, w);
+    }
+    return w;
+  }
+  function tickWade(z) {
+    const t = now();
+    if (t % 10 !== 0) return;
+    const w = wadeOf(z);
+    for (const p of players(z.id)) {
+      const [x, y] = cellOf(p);
+      const wet = !p.flight && w.chars.has(groundAt(z, x, y)) && !w.decks.has(`${x},${y}`);
+      const cur = p.auras.find((u) => u.id === WADE_AURA);
+      if (wet) {
+        if (cur) cur.until = t + 15;
+        else p.auras.push({ id: WADE_AURA, src: p.id, ab: null, stacks: 1, startTick: t, until: t + 15, nextTick: null, absorb: 0, data: {},
+          def: { id: WADE_AURA, name: 'Wading', icon: 'icon_feather', kind: 'debuff', flags: [], mods: [{ stat: 'speed', mul: 1 - (z.wade.slow ?? 0.15) }] } });
+      } else if (cur) p.auras = p.auras.filter((u) => u !== cur);
+    }
+  }
+
   return {
     tick() {
       for (const z of zones) {
         if (z.lava) tickLava(z);
         if (z.gate) tickGate(z);
         if (z.tide) tickTide(z);
+        if (z.wade) tickWade(z);
       }
     },
   };

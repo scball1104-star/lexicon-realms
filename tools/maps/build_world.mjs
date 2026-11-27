@@ -69,12 +69,19 @@ function finish(z) {
   for (const s of z.nodes || []) snap(s, `node ${s.id}`);
   for (const s of z.lanterns || []) snap(s, `lantern ${s.id}`);
   for (const s of z.hooks || []) snap(s, `hook ${s.id}`);
+  for (const s of z.camps || []) snap(s, `camp ${s.id}`);    // cap 35: the Millrace's marked camp spots (no spawns yet)
   const [ax, ay] = z.arrival;
   if (!isWalk(ax, ay)) problems.push(`${z.id}: arrival ${ax},${ay} not walkable`);
   const seen = reach(z, ax, ay);
   const ok = (x, y) => seen[y * z.w + x] === 1;
-  for (const [k, list] of [['spawn', z.spawns], ['npc', z.npcs], ['node', z.nodes], ['lantern', z.lanterns], ['hook', z.hooks]]) {
+  for (const [k, list] of [['spawn', z.spawns], ['npc', z.npcs], ['node', z.nodes], ['lantern', z.lanterns], ['hook', z.hooks], ['camp', z.camps]]) {
     for (const p of list || []) if (!ok(p.x, p.y)) problems.push(`${z.id}: ${k} ${p.mob || p.npc || p.id} at ${p.x},${p.y} is not reachable from the arrival`);
+  }
+  // a door spot kept for a later cave (the Millrace's Weir Works): its cells and its out cell walkable and reachable
+  for (const [id, d] of Object.entries(z.spots || {})) {
+    if (!d || !Array.isArray(d.out)) continue;
+    for (let y = d.y; y < d.y + d.h; y++) for (let x = d.x; x < d.x + d.w; x++) if (!ok(x, y)) problems.push(`${z.id}: door spot ${id} cell ${x},${y} is not walkable and reachable`);
+    if (!ok(d.out[0], d.out[1])) problems.push(`${z.id}: door spot ${id} out ${d.out[0]},${d.out[1]} is not walkable and reachable`);
   }
   for (const a of z.areas || []) {
     let any = false;
@@ -246,7 +253,7 @@ for (const d of Object.values(DUNGEONS)) {
 const outdoor = [];
 // the start realms reached by a ride, not a walk (wave 3: Emberpeak's ore cart, Valewyn's ferry): no pass, no chain of joins
 const RIDE_REALMS = ['emberpeak', 'valewyn'];
-for (const id of ['rootbound', 'larchhill', 'drovers_reach', ...RIDE_REALMS, ...REALMS2_ZONES]) {
+for (const id of ['rootbound', 'larchhill', 'drovers_reach', 'millrace', ...RIDE_REALMS, ...REALMS2_ZONES]) {   // cap 35: + the Millrace
   if (!fs.existsSync(path.join(path.dirname(fileURLToPath(import.meta.url)), `zone_${id}.mjs`))) { problems.push(`outdoor ${id}: no zone_${id}.mjs`); continue; }
   const z = (await import(`./zone_${id}.mjs`)).build(db);
   z.source = `tools/maps/zone_${id}.mjs`;

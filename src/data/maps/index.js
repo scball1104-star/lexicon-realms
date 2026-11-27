@@ -3,7 +3,7 @@
 // ONE WORLD (Scott 2026-11-21): the four areas (willowmere, valley, downs, moor) are GENERATED one by one by
 // tools/maps/build_world.mjs from tools/maps/zone_*.mjs (never hand-edit them) and laid out on one map by compose.js
 // (layout.js says where each sits; wilds.js fills the gaps with the North Road, Gate Road South and forest). The sim
-// runs ZONES = { world }. A join to a zone that is not built (east_road, x1_millrace, x1_larchhill, x1_terrace) is the
+// runs ZONES = { world }. A join to a zone that is not built (east_road, x1_larchhill, x1_terrace) is the
 // map edge; a new area drops in by giving it a corner in layout.js and room in the wilds.
 import willowmere from './willowmere.js';
 import valley from './valley.js';
@@ -26,6 +26,7 @@ import endmarketStreets from './endmarket_streets.js';   // wave 10 draid: wing 
 import { applyRaid, fairGateDecor } from '../raid_endmarket.js';   // wave 10 draid: the raid (its foes register on import)
 import emberpeak from './emberpeak.js';                 // wave 3 start realms (lane realms1): src/data/start_realms2.js
 import valewyn from './valewyn.js';
+import millrace from './millrace.js';                 // cap 35 stage 1: the Millrace (tools/maps/zone_millrace.mjs)
 import { composeWorld } from './compose.js';
 import { withDoors } from './doors.js';
 import { withCopies, zoneBase, addZoneMaker } from './copies.js';   // wave 10 drift: + addZoneMaker
@@ -63,6 +64,7 @@ import { applyDepths } from '../depths.js';   // wave 10 dtiers: Depths
 import { RB_MOBS, RB_NPCS, RB_ITEMS, RB_QUESTS, RB_QUEST_ORDER, RB_RARE_RUNTIME, RB_RARE_SPAWN, RB_EXTRA_DROPS, START_REALMS } from '../rootbound.js';
 import { applyRealms2 } from '../start_realms2.js';
 import { R2, R2_OUTDOOR } from '../realms2.js';     // wave 3 realms2: Saffron Haven, the Nameless Hollow
+import { MR_NPCS } from '../millrace.js';             // cap 35 stage 1: the Millrace's townsfolk
 import { placeMoorBand, applyMoorBand } from '../moor_band.js';   // quests20: 25 more quests for levels 13 to 20 on the moor
 
 // The four areas as generated (their own local tiles): tools, tests and the quest data's authoring helpers read these.
@@ -88,6 +90,8 @@ OUTDOOR.larchhill = { ...withDoors(larchhill, DUNGEONS, PLACES), flavour: "Larch
 OUTDOOR.drovers_reach = { ...fairGateDecor(withDoors(droversReach, DUNGEONS, PLACES)), flavour: "The old drove roads, walled in stone and held by the chain." };
 OUTDOOR.emberpeak = { ...emberpeak, flavour: 'A forge town under a black mountain, and the Gate that holds it.' };   // wave 3 start realms (realms1)
 OUTDOOR.valewyn = { ...valewyn, flavour: 'A lake town half under water. The tide is coming in.' };
+// cap 35 stage 1: the Millrace, past Ferrick's chain on the Downs road (a level 30 gate); the Weir Works door comes later
+OUTDOOR.millrace = { ...withDoors(millrace, DUNGEONS, PLACES), flavour: 'A mill hamlet in flood, and a wheel that is still counting.' };
 Object.assign(OUTDOOR, R2_OUTDOOR);                   // wave 3 realms2: Saffron Haven, the Nameless Hollow
 export const ZONES = withCopies({ [WORLD_ID]: WORLD, ...OUTDOOR, ...PLACES });
 // wave 10 drift: a word rift's zone is made on first use (content.zones['rift_ember_22']); its door out is in front of the
@@ -164,7 +168,7 @@ export function buildContent() {
     // Builds 2 data (off for players: progression.builds2.enabled is false)
     builds2: { rules: BUILDS2_RULES, classes: BUILDS2, skillPicks: SKILL_PICKS, abilities: B2_ABILITIES },
     mobAbilities: { ...MOB_ABILITIES, ...WORLD_MOB_ABILITIES, ...R2.mobAbilities, ...DH_MOB_ABILITIES },
-    mobs, mobSprites: MOB_SPRITES, npcs: { ...NPCS, ...TRAVEL_NPCS, ...RB_NPCS, ...MOUNT_NPCS, ...R2.npcs },
+    mobs, mobSprites: MOB_SPRITES, npcs: { ...NPCS, ...TRAVEL_NPCS, ...RB_NPCS, ...MOUNT_NPCS, ...R2.npcs, ...MR_NPCS },
     items: { ...ITEMS, ...TRAVEL_ITEMS, ...RB_ITEMS, ...MOUNT_ITEMS, ...R2.items }, rarity: RARITY, affixes: AFFIXES, dropRules: DROP_RULES, weaponTypes: WEAPON_TYPES, armorTypes: ARMOR_TYPES, classGear: CLASS_GEAR,
     hitTable: HIT_CONTENT, resist: RESIST_CONTENT,        // the hit table and resistances (src/data/hittable.js, resist.js)
     // the chain (questOrder) plus the bounty boards' quests (BUILDS_2 5.6); boards: which npc posts which pools

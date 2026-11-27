@@ -29,13 +29,14 @@ export function createTravelUi({ font, content }) {
       case 'hearth_stop': return ev.reason === 'move' ? 'You moved. The Lantern Stone goes dark.' : ev.reason === 'combat' ? 'The fight breaks the Lantern Stone\'s light.' : null;
       case 'hearth': return `The Lantern Stone brings you home to ${ev.name}.`;
       case 'flight_point': return `New flight point: ${ev.name}.`;
-      case 'flight_fail': return FLIGHT_FAIL[ev.reason] || 'The kite will not fly there.';
+      case 'flight_fail': return ev.reason === 'dest_level' ? `The kites fly there only for heroes of level ${ev.need}.` : FLIGHT_FAIL[ev.reason] || 'The kite will not fly there.';
       case 'flight_start': return `The Lantern Kite takes you to ${ev.name}. (${ev.cost} gold)`;
       case 'flight_end': return rides[ev.to] ? `You arrive at ${ev.name}.` : `You land at ${ev.name}.`;
       case 'ride_start': return ev.vehicle === 'ferry' ? `The ferry pushes off for ${ev.name}.` : `The ore cart rattles off toward ${ev.name}.`;
       case 'ride_fail': return RIDE_FAIL[ev.reason] || null;
       case 'inventory_fail': return ev.item === 'lantern_stone' ? STONE_FAIL[ev.reason] || null : null;
-      case 'door_locked': return `The stair will not open for you. It waits for a hero of level ${ev.need}.`;   // cap 30: a level-gated door
+      case 'door_locked': return ev.door === 'millrace' ? `Ferrick's chain stays across the road. It comes down for a hero of level ${ev.need}.`   // cap 35: the Millrace's gate
+        : `The stair will not open for you. It waits for a hero of level ${ev.need}.`;   // cap 30: a level-gated door
       default: return null;
     }
   }

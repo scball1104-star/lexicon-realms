@@ -88,7 +88,7 @@ export function createTravel(C) {
       ev.flight = { point: pt.id, name: pt.name, minLevel: T.flight.minLevel, known: [...e.flights],
         to: Object.values(T.flight.points).filter((p) => p.id !== pt.id).map((p) => {
           const r = T.routes[`${pt.id}>${p.id}`];
-          return { id: p.id, name: p.name, known: e.flights.includes(p.id), cost: r ? r.cost : null, secs: r ? Math.round(r.ticks / 20) : null };
+          return { id: p.id, name: p.name, known: e.flights.includes(p.id), cost: r ? r.cost : null, secs: r ? Math.round(r.ticks / 20) : null, ...(p.minLevel ? { minLevel: p.minLevel } : {}) };
         }) };
     }
     const rd = rideOf(npc);
@@ -136,6 +136,8 @@ export function createTravel(C) {
       const to = T.flight.points[cmd.to];
       if (!to || to.id === from.id) return fail('unknown');
       if (!(e.flights || []).includes(to.id)) return fail('not_known');
+      // a point with its own level (cap 35: Ferrick's Mill at 30, the same gate as the chain on the road)
+      if (to.minLevel && (e.level || 1) < to.minLevel) return emit({ type: 'flight_fail', id: e.id, reason: 'dest_level', to: cmd.to, need: to.minLevel });
       const r = T.routes[`${from.id}>${to.id}`];
       if (!r) return fail('no_route');
       if ((e.gold || 0) < r.cost) return fail('gold');

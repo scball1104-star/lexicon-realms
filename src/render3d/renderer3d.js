@@ -50,6 +50,7 @@ import { BitmapFont } from '../core/font.js';
 import { createLoader, WINDOW_LIT } from './loader.js';
 import { buildZone, BLD_CUT, flushBuildingFade, LAMP_GLASS, SEE, setBuildingFade, tickWater } from './zone3d.js';
 import { tickRealm3d, makeVehicle } from './realm3d.js';   // wave 3: lava glow, tide water, ride vehicles
+import { tickMill3d } from './mill3d.js';                   // cap 35: the Millrace's wheel turns
 import { createActors } from './actors.js';
 import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
@@ -852,6 +853,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     cutBuildings(snap, view, photoClean ? null : me, photoClean ? null : tgA, rdt);
     tickWater(now); tickGround(now);
     if (shown) tickRealm3d(shown.group, snap.tick, now);
+    if (shown) tickMill3d(shown.group, now);
     animateLineup(now, dt);
     renderer.info.reset();
     const sky = applySky(snap, view, zone, target, area, rdt);

@@ -83,6 +83,9 @@ function distField(W, H, src, cap = 12) {
  *   grass  1 where grass clumps may grow (grass class, dry land, not under a building, prop, fence or the deep canopy)
  *   flat   0..1, how much hill a tile may take (0 on and near roads, squares, water, cliffs, props, towns, NPCs, doors)
  */
+// zone styles whose plaza is wooden planks (zone3d.js styleKit plaza 'wood', drawn as plank tiles): the cobble shader
+// keeps off them. Only the Millrace for now; Larchhill's style also asks for wood but ships with the cobbles it has today.
+const PLANK_PLAZA = new Set(['mill']);
 export function groundMasks(zone, terr, { tilesDb = null } = {}) {
   const W = zone.w, H = zone.h, N = W * H;
   const cls = new Uint8Array(N), plaza = new Uint8Array(N), grass = new Uint8Array(N), hard = new Uint8Array(N), busy = new Uint8Array(N);
@@ -90,7 +93,7 @@ export function groundMasks(zone, terr, { tilesDb = null } = {}) {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x, t = terr[y][x], c = KIT_CLASS[t] || 0;
     cls[i] = c;
-    if (t === 'plaza') plaza[i] = 1;
+    if (t === 'plaza' && !PLANK_PLAZA.has(zone.style)) plaza[i] = 1;   // cap 35: a plank plaza (the Millrace) is drawn as planks, not cobbles
     const lg = zone.legend[zone.ground[y][x]];
     const solidLine = lg && /fence|wall|drystone/.test(lg);
     if (c || WET.has(t) || HARD_ID.test(t) || (lg && HARD_ID.test(lg)) || solidLine) hard[i] = 1;

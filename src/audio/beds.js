@@ -34,6 +34,7 @@ export const ZONE_BEDS = {
   hollow: { id: 'moor_wind', volume: 0.55 },
   larchhill: { id: 'river_birds', volume: 0.85 },
   drovers_reach: { id: 'wind_valley', volume: 1 },
+  millrace: { id: 'river_birds', volume: 0.95 },      // cap 35: the mill hamlet in flood (water and birds)
 };
 // the roads between the world's regions (no region): a light wind
 export const ROAD_BED = { id: 'wind_valley', volume: 0.55 };
