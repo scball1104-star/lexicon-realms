@@ -116,7 +116,12 @@ export function createData(content) {
     if (!info.patches[id]) return base;
     if (!info.eff[id]) {
       const a = clone(base);
-      for (const p of info.patches[id]) applyPatch(a, p);
+      // `set` first (talents, then set bonuses, then legendary powers, so a legendary set wins over a set-bonus set:
+      // the Tolling Rod stays 5 hammers over Fairbell's 4). Then add / mul / push, so a set or talent add still
+      // applies after a legendary set (Struck-Name +1 s Inkwalk on the Cowl's set: 2 is 3 s).
+      const list = info.patches[id];
+      for (const p of list) if ('set' in p) applyPatch(a, p);
+      for (const p of list) if (!('set' in p)) applyPatch(a, p);
       info.eff[id] = a;
     }
     return info.eff[id];

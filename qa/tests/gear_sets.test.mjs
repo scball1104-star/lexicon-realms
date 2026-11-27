@@ -19,7 +19,7 @@ const dash = (s) => /[\u2014\u2013]/.test(s || '');
 const tests = [];
 const T = (name, fn) => tests.push({ name, fn });
 
-function H(cls, { wear = 0, known = [], ranks = {}, level = 30, x = 10, y = 15, mobs = [] } = {}) {
+function H(cls, { wear = 0, also = [], known = [], ranks = {}, level = 30, x = 10, y = 15, mobs = [] } = {}) {
   const content = {
     ...fixtureContent({ builds2: true, items: CONTENT.items }),
     classGear: CONTENT.classGear,
@@ -39,13 +39,24 @@ function H(cls, { wear = 0, known = [], ranks = {}, level = 30, x = 10, y = 15, 
   const set = BY_CLS[cls];
   p.gearMode = null;
   p.equip = {};
+  const taken = new Set();
+  for (const id of also) {
+    const d = CONTENT.items[id];
+    if (!d) throw new Error(`missing item ${id}`);
+    taken.add(d.slot);
+  }
   if (wear > 0) {
-    const slots = RAID_SLOTS.slice(0, wear);
+    const slots = RAID_SLOTS.filter((s) => !taken.has(s)).slice(0, wear);
+    if (slots.length < wear) throw new Error(`${cls}: only ${slots.length} free set slots, need ${wear}`);
     for (const slot of slots) {
       const id = set.pieces[slot][0];
       const d = CONTENT.items[id];
       p.equip[slot] = { item: id, inst: { ilvl: d.level, rarity: 'set', affixes: [] } };
     }
+  }
+  for (const id of also) {
+    const d = CONTENT.items[id];
+    p.equip[d.slot] = { item: id, inst: { ilvl: d.level, rarity: d.rarity, affixes: [] } };
   }
   C.data.forget(p.id);
   C.stats.recalc(p);
@@ -127,6 +138,17 @@ T('gear sets: Night Drove 4 halves the Kestrel interrupt; Struck-Name 4 lengthen
   eq(i0.C.data.ability(i0.p, 'inkblade_inkwalk').effects[0].aura.duration, 3, 'base 3 s');
   const i4 = H('inkblade', { wear: 4, known: ['inkblade_inkwalk'] });
   eq(i4.C.data.ability(i4.p, 'inkblade_inkwalk').effects[0].aura.duration, 4, 'Inkwalk 4 s');
+});
+
+T('gear sets: the Cowl sets Inkwalk to 2 s and Struck-Name 4 still adds 1 s (3 s together); the Tolling Rod stays 5 hammers over Fairbell 4', () => {
+  const cowl = H('inkblade', { also: ['unwritten_cowl'], known: ['inkblade_inkwalk'] });
+  eq(cowl.C.data.ability(cowl.p, 'inkblade_inkwalk').effects[0].aura.duration, 2, 'Cowl alone is 2 s');
+  const both = H('inkblade', { wear: 4, also: ['unwritten_cowl'], known: ['inkblade_inkwalk'] });
+  eq(both.C.data.ability(both.p, 'inkblade_inkwalk').effects[0].aura.duration, 3, 'Cowl set 2 plus Struck-Name add 1 is 3 s');
+  const rod = H('mender', { also: ['the_tolling_rod'], known: ['mender_tolling_hammers'] });
+  eq(rod.C.data.ability(rod.p, 'mender_tolling_hammers').effects[0].object.hammers, 5, 'Rod alone is 5');
+  const stacked = H('mender', { wear: 4, also: ['the_tolling_rod'], known: ['mender_tolling_hammers'] });
+  eq(stacked.C.data.ability(stacked.p, 'mender_tolling_hammers').effects[0].object.hammers, 5, 'Rod set 5 wins; Fairbell set 4 does not add');
 });
 
 T('gear sets: Struck-Name 5 cancels Never Seen\'s damage-taken cost only when the keystone is taken', () => {

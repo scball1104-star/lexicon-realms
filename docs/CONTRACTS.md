@@ -1310,6 +1310,8 @@ the doors `src/data/maps/doors.js`, the quests `src/data/dungeon_quests.js`, the
   (Watchtower, three pieces). The Endmarket tier `RAID_SETS` (merged into `content.sets`) is one five-piece set per
   class, `bonus: { 2, 4, 5 }`, `tier: 'endmarket'`, `for` naming the build and signature. A bonus may carry `mods`,
   `procs` and `modAbility` (the same patches as a legendary power; `data.talentInfo` applies all three).
+  Ability patches apply every `set` first (talents, set bonuses, then legendary powers, so a legendary set wins over a
+  set-bonus set), then every add / mul / push, so a set or talent add still applies after a legendary set.
   `stats.recalc` counts worn pieces into `e.sets`. Item tooltips list the set name, `N of K` worn, and each threshold
   (`src/ui/menus.js` `setLines`).
 - **Side quests.** `content.sideQuests` (the dungeon and cave quests) are offered after the chain and the bounties; the main
@@ -1483,7 +1485,7 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   after a kill's dungeon drops, a world rare or a boss that is not a place's own legendary roller rolls once per hero
   sharing the kill; own rng stream (`state.legendRng`). Event `legendary { id, item, source: 'rare' | 'boss', template, chance }`.
 - **Humanoids**: a foe template with `family: 'humanoid'` runs at `MOB_RULES.flee.humanoid` (15%) and calls its kind
-  (src/sim/ai.js fleeAt); no foe in today's data is humanoid (all are beasts, spirits, constructs, oozes or insects).
+  (src/sim/ai.js fleeAt). Packs that use it include the Long Hill and Drove people, the Hollow watch, and Scorch Riders.
   New bandit or cultist foes only need the family.
 - **Caves in 3D** (src/render3d/cave3d.js dressCave, called by dungeon3d.js dressPlace for `kind: 'cave'`): floor patches,
   gravel, stalagmites, glow fungus with additive light pools, puddles, by hashXY of the cell (no rng); cave walls take
