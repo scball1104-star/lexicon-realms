@@ -15,7 +15,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { duelWorld, addMob } from './_fixtures.mjs';
-import { BUILDS2 } from '../../src/data/builds2.js';
+import { BUILDS2, PICK_LEVELS } from '../../src/data/builds2.js';
 
 const SUB = 16, TILE = 256;
 const MAX_TICKS = 20 * 120;
@@ -41,7 +41,7 @@ export function makeHero(build, level, seed = 1, { x = 40, y = 15 } = {}) {
   const { world, p, C } = d;
   p.build.firstKill = true;
   p.build.leaning = build.id;
-  for (const lv of [1, 3, 6, 14, 25]) if (level >= lv && build.picks[lv]) { if (!C.b2.pick(p, { level: lv, ability: build.picks[lv] })) throw new Error(`${build.id} L${level}: pick ${build.picks[lv]} refused`); }
+  for (const lv of PICK_LEVELS) if (level >= lv && build.picks[lv]) { if (!C.b2.pick(p, { level: lv, ability: build.picks[lv] })) throw new Error(`${build.id} L${level}: pick ${build.picks[lv]} refused`); }
   for (const [lv, id] of Object.entries(build.buy || {})) if (level >= Number(lv)) { p.gold = (p.gold || 0) + 200; if (C.b2.buyBack(p, id)) throw new Error(`${build.id} L${level}: cannot buy ${id}`); }
   if (level >= 10 && build.signature) { if (!C.b2.pick(p, { level: 10, ability: build.signature })) throw new Error(`${build.id} L${level}: signature ${build.signature} refused`); }
   // cap 30: the second signature at 20, the next one in the build's order
@@ -62,6 +62,7 @@ function bot(world, p, t, foes, build) {
   if (knows('mender_warding_word') && !auraOn(p, 'mender_spoken_for') && hp < 0.9 && can('mender_warding_word', p)) return { ab: 'mender_warding_word', target: p };
   if (hp < 0.6 && knows('mender_inner_bell') && can('mender_inner_bell')) return { ab: 'mender_inner_bell' };
   if (hp < 0.6 && knows('mender_sanctuary_toll') && can('mender_sanctuary_toll')) return { ab: 'mender_sanctuary_toll' };
+  if (hp < 0.7 && knows('mender_well_of_names') && can('mender_well_of_names')) return { ab: 'mender_well_of_names' };
   if (hp < 0.4 && can('mender_mend', p)) return { ab: 'mender_mend', target: p };
   if (hp < 0.75 && knows('mender_steady_name') && !auraOn(p, 'mender_steady_name', p.id) && can('mender_steady_name', p)) return { ab: 'mender_steady_name', target: p };
   if (alive.filter((m) => dpx(m, p) <= 96).length >= 2 && can('mender_chorus')) return { ab: 'mender_chorus' };
@@ -178,6 +179,7 @@ function view2(world, p, foes) {
 export const BOTS2 = {
   warden(world, p, t, v, b) {
     const d = dpx(t, p), n = v.near(40).length, res = p.res.cur;
+    if (v.hp < 0.5 && v.can('warden_gate_oath')) return { ab: 'warden_gate_oath' };
     if (v.hp < 0.45 && v.can('warden_oath_of_iron')) return { ab: 'warden_oath_of_iron' };
     if (v.hp < 0.5 && v.can('warden_second_wind')) return { ab: 'warden_second_wind' };
     if (v.hp < 0.6 && v.can('warden_iron_hide')) return { ab: 'warden_iron_hide' };

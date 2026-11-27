@@ -26,9 +26,10 @@ import { SCRIBE, SCRIBE_ABILITIES } from './builds2_scribe.js';
 import { WAYFINDER, WAYFINDER_ABILITIES } from './builds2_wayfinder.js';
 import { INKBLADE, INKBLADE_ABILITIES } from './builds2_inkblade.js';
 import { CAP30_ABILITIES, joinCap30 } from './builds2_cap30.js';
+import { L30_ABILITIES, joinL30 } from './builds2_l30.js';
 
 export const BUILD_VERSION = 1;
-export const PICK_LEVELS = [1, 3, 6, 14, 25];   // 25: the cap 30 pick (src/data/builds2_cap30.js)
+export const PICK_LEVELS = [1, 3, 6, 14, 25, 30];   // 25: cap 30 (src/data/builds2_cap30.js); 30: src/data/builds2_l30.js
 export const SIGNATURE_LEVELS = [10, 20, 35];
 
 // ------------------------------------------------------------------------------------------------ rules
@@ -42,7 +43,7 @@ export const RULES = {
   freeRespecBelow: 10,          // a full respec is free at any lantern below level 10
   respec: { base: 10, perLevel: 5, cap: 250, firstFree: true },   // from 10: at a trainer, the first one free
   autoSpendUntil: 5,            // auto-spend (on by default) spends each new point on the suggested path to level 5
-  buyBack: { 1: 10, 3: 10, 6: 30, 14: 180, 25: 400 },   // 25: DRAFT price (cap 30 lane)   // gold to learn the skill you did not pick, at your trainer ("double gold")
+  buyBack: { 1: 10, 3: 10, 6: 30, 14: 180, 25: 400, 30: 400 },   // 25 and 30: DRAFT price (400 gold). Gold to learn the skill you did not pick, at your trainer ("double gold")
   signatureLevels: SIGNATURE_LEVELS,           // a signature pick (one of the class's three) at each
   lanternReach: 96,             // px: "at a lantern" for the free respec under 10 (2 x the lantern touch distance)
 };
@@ -153,7 +154,7 @@ const MENDER_PICK14_ABILITIES = {
 export const B2_ABILITIES = {
   ...MENDER_PICK14_ABILITIES,
   ...MENDER_SIGNATURE_ABILITIES,
-  ...WARDEN_ABILITIES, ...SCRIBE_ABILITIES, ...WAYFINDER_ABILITIES, ...INKBLADE_ABILITIES, ...CAP30_ABILITIES,
+  ...WARDEN_ABILITIES, ...SCRIBE_ABILITIES, ...WAYFINDER_ABILITIES, ...INKBLADE_ABILITIES, ...CAP30_ABILITIES, ...L30_ABILITIES,
   mender_blessing_stone: BLESS('mender_blessing_stone', 'Blessing of Stone', 'icon_protect', [{ stat: 'armor', mul: 1.2 }],
     'You and friends within 8 tiles: armor +20% for 10 minutes. One Blessing at a time.'),
   mender_blessing_flame: BLESS('mender_blessing_flame', 'Blessing of Flame', 'icon_fire', [{ stat: 'damageDone', mul: 1.08 }],
@@ -340,6 +341,8 @@ export const BUILDS2 = {
 };
 // Cap 30 (src/data/builds2_cap30.js): the level 25 pick for every class and ten more points per named build (21 to 30)
 joinCap30(BUILDS2, SKILL_PICKS);
+// Level 30 pick (src/data/builds2_l30.js): one more pick per class
+joinL30(BUILDS2, SKILL_PICKS);
 
 // ------------------------------------------------------------------------------------------------ save shape helpers
 /** A fresh v1 build record (lives in the character save at state.build, save v2). */

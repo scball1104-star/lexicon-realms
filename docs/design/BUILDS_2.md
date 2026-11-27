@@ -3,6 +3,7 @@
 Owner: game design. Written 2026-11-19. **Status: APPROVED and LIVE** (Scott 2026-11-19 "yes to all"; all five classes on
 in src/data/builds2*.js). 2026-11-26: the Mender's level 14 pick (Purify or Sunlance) is built, and legendary powers can
 now change a skill (`modAbility`, src/sim/data.js; first example The Tolling Rod, data only, in src/data/legendary_powers.js).
+2026-11-26: the level 30 pick is built for every class (`src/data/builds2_l30.js`).
 Play pass (parity audit, Flourishes, excels and struggles, co-op combos): `BUILDS_2_PLAY.md`. It adds; it changes no Mender number here.
 
 Scott's asks (2026-11-19, verbatim):
@@ -32,7 +33,7 @@ Numbers in the track tables are first-pass design numbers; none is sim-checked y
 - Every class gets **six talent tracks**: three that deepen a strength and three that patch a weakness. Each track has
   five tiers; tier 3 is a **fork** (take one of two, the "X vs Y" choice); tier 5 is a **keystone** that changes how
   you play and costs something.
-- **A talent point every level from level 1.** A **skill pick** at levels 1, 3, 6 and 14 (one of two), and a
+- **A talent point every level from level 1.** A **skill pick** at levels 1, 3, 6, 14, 25 and 30 (one of two), and a
   **signature skill** at 10, 20 and 35 (one of three, the "hammerdin" moments).
 - **Level cap 50**, shipped in phases: **20 first** (World 2 re-spread over 1 to 20), then 30, then 50. After the cap,
   XP keeps paying into **Renown**.
@@ -103,7 +104,7 @@ Nodes may grant a small skill (marked **+skill**); further ranks improve it.
 | creation | 2 core skills known (today's two level 1 skills, kept) |
 | levels 1, 3, 6, 14 | **skill pick**: choose 1 of 2. The other can be bought later at the trainer for double gold, so a pick sets your order, it never locks you out |
 | levels 10, 20, 35 | **signature pick**: choose 1 of the class's 3 signature skills. By 35 you have all three; the order is the build |
-| levels 25, 30, 45 | later picks (phase 3, written when those levels are built) |
+| levels 25, 30, 45 | later picks (25 and 30 are built; 45 is written when the cap 50 band is) |
 | skill bar | 6 slots, **7 at 10, 8 at 20** (open question 4: the phone HUD) |
 | swapping | which learned skills sit on the bar: free, any time out of combat |
 
@@ -173,6 +174,8 @@ Skill picks (2 core known: Strike, Shield Bash, Fact):
 | 3 | Taunt (Fact) or Hurl Hammer (new: throw a hammer 8 tiles, `0.8 W + 3 + 1.5 L`, slow 30%, 8 s) | hold vs reach |
 | 6 | War Cry (new: you and allies within 8 tiles +12% damage 12 s, 30 Resolve, 40 s) or Iron Hide (new: armor +40% 10 s, 30 Resolve, 40 s) | attack boost vs armor boost |
 | 14 | Oath of Iron (Fact) or Anvil Drop (new: 40 Resolve, `1.6 W + 6 + 4 L`, stun 1 s, 10 s) | defense vs burst |
+| 25 | Slag Brand or Hammerfall (BUILDS_2_PLAY 1.3, built) | fire vs steel |
+| 30 | Gate Oath (new: 20 Resolve, 45 s: damage taken -12% for 8 s, taunt every foe within 6 tiles) or Breaker Iron (new, passive: Strike and Anvil Drop +8% on a foe with no other foe within 3 tiles) | gate vs breaker |
 
 Signature skills (one at 10, one at 20, the last at 35):
 
@@ -223,6 +226,8 @@ Skill picks (core: Kindle, Mend, Fact):
 | 3 | Chorus (Fact) or Steady Name (Fact) | area vs single heal over time |
 | 6 | Blessing of Stone (new aura: you and allies armor +20%) or Blessing of Flame (new aura: damage +8%) | armor boost vs attack boost |
 | 14 | Purify (new: remove one harmful effect, heal `10 + 4 L + 0.4 SP`) or Sunlance (new: 3.0 s cast, `20 + 9 L + 1.2 SP` light) | support vs burst |
+| 25 | Sanctuary Toll or Inner Bell (BUILDS_2_PLAY 1.3, built) | group vs self |
+| 30 | Biting Word (new, passive: 20% of a Mend, Chorus or Purify heal also strikes your current foe as light) or Well of Names (new: 45 s, an 8 s pool that heals you and friends within 5 tiles every 2 s for `8 + 3 L + 0.3 SP`) | bite vs well |
 
 Signature skills:
 
@@ -278,6 +283,8 @@ Skill picks (core: Inkbolt, Scrawl, Fact):
 | 3 | Scatter Letters (Fact) or Bracket (Fact) | area vs single control |
 | 6 | Erase (new: remove a foe's buff and its armor -20% for 10 s) or Inkwell Pause (new: 3 s channel, restore 25% mana) | group utility vs self fuel |
 | 14 | Exclamation (new: 0.5 s cast, cone 4 tiles, `8 + 3 L + 0.5 SP` and knockback 3 tiles) or Paragraph (new: a 5-tile ink wall for 6 s that foes cannot cross) | push away vs wall off |
+| 25 | Run-On Sentence or Full Caps (BUILDS_2_PLAY 1.3, built) | over time vs burst |
+| 30 | Kennel Law (new, passive: Ink Hounds +18% damage and +15% health, Inkbolt +5%) or Heavy Quill (new, passive: Inkbolt and Scrawl +8%, and Inkbolt +15% again on a rooted, stunned or held foe) | hounds vs hand |
 
 Signature skills:
 
@@ -328,6 +335,8 @@ Skill picks (core: Quick Shot, Pinning Shot, Fact):
 | 3 | Aimed Shot (Fact) or Volley (Fact) | one target vs area |
 | 6 | Hunter's Mark (new: the target takes +10% from all, 15 s) or Sand Cloak (new: 25% of hits miss you for 8 s, 30 s) | attack boost vs defense boost |
 | 14 | Hush Arrow (new: interrupt and silence 2 s, 12 s) or Scatter Shot (new: cone, knock up to 3 foes back 3 tiles) | duel casters vs push a pack |
+| 25 | Tanglewire or Broadhead (BUILDS_2_PLAY 1.3, built) | snare vs damage |
+| 30 | Shared Hunt (new, passive: Sand Kestrel +15%, your shots +4%) or Drawn Cord (new, passive: Aimed Shot +10% and 0.2 s shorter) | kestrel vs bow |
 
 Signature skills:
 
@@ -378,6 +387,8 @@ Skill picks (core: Nick, Spill, Fact):
 | 3 | Bleed Line (Fact) or Ink in the Eyes (Fact) | over time vs control |
 | 6 | Shadow Mark (new: the target takes +10% from you for 15 s) or Ink Cloak (new: dodge +30% for 6 s, 30 s) | attack boost vs defense boost |
 | 14 | Quiet Wire (new: from Fade, silence 3 s and bleed) or Throwing Knife (new: 8 tiles, `0.6 W + 2 + L`, +1 mark, 6 s) | assassin vs ranged |
+| 25 | Gall Ink or Opened Vein (BUILDS_2_PLAY 1.3, built) | poison vs bleed |
+| 30 | Second Shade (new, passive: first attack from Fade or stealth +15%, Fade ready 4 s sooner after a fight) or Deep Wound (new, passive: Bleed Line ticks +15%, Spill +10%) | shade vs wound |
 
 Signature skills:
 
@@ -546,8 +557,13 @@ cap 30: overflow XP fills Renown; see PROGRESSION.md).
 - **Renown.** Live at cap 30 (finish pass, 2026-11-26): overflow XP fills Renown levels at 19,200 XP; each level is a
   choice of +1% to one main stat (cap +10% total), a one-time Lantern Glow, or a 200 gold chest. Shown on the XP bar
   and the Character panel. SAVE_VERSION stays 2 (additive `renown` field).
-- **Not built:** the level 30 pick (3.2 says "written when those levels are built"; no design yet).
-  5-piece sets (6.5, 6.8) are built on the Endmarket tier: see the Built note under 6.5.
+- **Level 30 pick.** The ten skills of `src/data/builds2_l30.js`, live. Eight are **passive** (known = on, never on the
+  bar): Biting Word, Breaker Iron, Kennel Law, Heavy Quill, Shared Hunt, Drawn Cord, Second Shade, Deep Wound. Two are
+  cast: Well of Names and Gate Oath. Buying back the other side: 400 gold (the same DRAFT price as 25). Each named build
+  suggests the side that matches its play. The talents strip keeps five slots: from 25 the level 30 pick joins and the
+  level 3 pick leaves it.
+- **5-piece sets.** 5-piece sets (6.5, 6.8) are built on the Endmarket tier: see the Built note under 6.5.
+- **Not built:** the level 45 pick.
 
 ---
 

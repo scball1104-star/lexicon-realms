@@ -28,7 +28,7 @@ function makeHero(w, build, level) {
   const pid = w.addPlayer({ name: 'Bot', cls: build.cls, level, gearMode: 'design' });
   const p = w.get(pid), C = w.internals;
   p.build.firstKill = true; p.build.leaning = build.id;
-  for (const lv of [1, 3, 6, 14, 25]) if (level >= lv && build.picks[lv]) C.b2.pick(p, { level: lv, ability: build.picks[lv] });
+  for (const lv of [1, 3, 6, 14, 25, 30]) if (level >= lv && build.picks[lv]) C.b2.pick(p, { level: lv, ability: build.picks[lv] });
   for (const [lv, id] of Object.entries(build.buy || {})) if (level >= Number(lv)) { p.gold = (p.gold || 0) + 200; C.b2.buyBack(p, id); }
   if (level >= 10 && build.signature) C.b2.pick(p, { level: 10, ability: build.signature });
   const sig2 = (build.signatures || []).find((id) => id !== build.signature);

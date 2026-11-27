@@ -26,11 +26,21 @@ export const b2Class = (cls) => (cls && BUILDS2[cls]) || null;
  * SIGNATURE_LEVELS[0]; `signature: true`). A signature slot is ready when every one of its skills is built.
  */
 // cap 30: the level 25 pick joins the strip from level 20, and the level 1 pick (long taken by then, its skill on the bar)
-// leaves it, so the strip keeps five slots and the approved geometry. `level` null: every slot (for lookups).
+// leaves it, so the strip keeps five slots and the approved geometry. The level 30 pick joins from 25, and the level 3
+// pick leaves it, still five slots. `level` null: every slot (for lookups).
 export const LATE_PICKS_FROM = 20;
+export const L30_PICKS_FROM = 25;
 export function pickSlots(cls, level = null) {
   const late = level != null && level >= LATE_PICKS_FROM;
-  const out = (SKILL_PICKS[cls] || []).filter((p) => level == null || (p.level >= 25 ? late : !(late && p.level === 1)));
+  const l30 = level != null && level >= L30_PICKS_FROM;
+  const out = (SKILL_PICKS[cls] || []).filter((p) => {
+    if (level == null) return true;
+    if (p.level === 30) return l30;
+    if (p.level === 25) return late;
+    if (p.level === 1) return !late;
+    if (p.level === 3) return !l30;
+    return true;
+  });
   const cd = b2Class(cls);
   const sigs = (cd && cd.signatures) || [];
   if (sigs.length) out.push({ level: RULES.signatureLevels[0], options: sigs.map((x) => x.id), axis: cd.signatureAxis || 'Signature skill', ready: sigs.every((x) => x.ready), signature: true });
