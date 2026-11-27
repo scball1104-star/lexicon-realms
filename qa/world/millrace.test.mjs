@@ -79,7 +79,10 @@ export const tests = [
       for (let y = d.y; y < d.y + d.h; y++) for (let x = d.x; x < d.x + d.w; x++) { assert(ok(x, y), `door cell ${x},${y}`); eq(Z.collision[y][x + 1], '#', `the mill wall behind ${x},${y}`); }
       assert(ok(d.out[0], d.out[1]), 'the door\'s out cell');
       assert(Z.millProps.some((p) => p.t === 'mr_undercroft' && p.x === d.x + 1 && p.y === d.y), 'the undercroft door is drawn in the mill wall');
-      assert(!PLACES.weir_works && !Z.joins.some((j) => j.door), 'the cave itself is not built in this lane');
+      // the cave lane built the cave (qa/world/weir_works.test.mjs): its door is the one join on this spot
+      assert(PLACES.weir_works && Z.joins.filter((j) => j.door).length === 1, 'the Weir Works is the zone`s one door');
+      const dj = Z.joins.find((j) => j.door === 'weir_works');
+      eq(JSON.stringify([dj.x, dj.y, dj.w, dj.h]), JSON.stringify([d.x, d.y, d.w, d.h]), 'its door is on the spot');
       const hub = Z.areas.find((a) => a.id === 'mr_mill');
       assert(d.x >= hub.x && d.x < hub.x + hub.w && d.y >= hub.y && d.y < hub.y + hub.h, 'the door spot is in the hub');
       // the foes are the foes and quests lane's (qa/world/millrace_quests.test.mjs checks each camp's pack and level)
@@ -246,7 +249,7 @@ export const tests = [
       // FNV-1a of every other zone's levels, its areas' and regions' levels, and the four world areas' levels, computed on
       // origin/main ca94df7 (before this lane). The brief: do not re-level Willowmere, the Downs, the Moor, the start
       // realms, Larchhill or Drovers' Reach.
-      const ids = Object.keys({ ...OUTDOOR, ...PLACES, world: 1 }).filter((i) => i !== 'millrace').sort();
+      const ids = Object.keys({ ...OUTDOOR, ...PLACES, world: 1 }).filter((i) => i !== 'millrace' && i !== 'weir_works').sort();   // + the Millrace's own cave (cap 35)
       const out = {};
       for (const id of ids) {
         const z = ZONES[id];

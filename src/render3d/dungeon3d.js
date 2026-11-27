@@ -438,6 +438,7 @@ function caveHole(w, seed) {
 export async function buildDoorMouths(P, B, zone, lamps) {
   const { solid } = cells(zone);
   for (const d of doorMouths(zone)) {
+    if (d.mouth === false) continue;     // cap 35: the zone draws its own door (the Millrace's undercroft, mill3d.js)
     const along = d.face === 's' || d.face === 'n' ? d.w : d.h;
     let f;
     if (d.face === 'w') f = { x: d.x + d.w, z: d.y + d.h / 2, ry: -Math.PI / 2 };

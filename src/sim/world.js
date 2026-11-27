@@ -184,6 +184,7 @@ function wrap(state, content0, rng, systems) {
   // ---- dungeons and caves (src/sim/dungeons.js): copies per party, bosses, their loot and the daily chest
   const DG = Object.values(content.zones).some((z) => z && (z.kind === 'dungeon' || z.kind === 'cave')) ? createDungeons({
     state, content, emit, rng, get: (id) => index.get(id) || null, add, remove, spawnMob: (spec) => spawnMob(spec), nextId: () => state.nextId++, tileToSub,
+    spawnNpc: (spec) => { const n = spawnNpc(spec); if (state.tick > 0) emit({ type: 'spawn', id: n.id, template: n.template, zone: n.zone, kind: 'npc' }); return n; },   // cap 35: a place's own people
     rollGear, bagAdd, onBag: (e) => { if (QS) QS.onBag(e); },
     grantXp: (e, amount, reason, extra) => (combatOn ? C.prog.grantXp(e, amount, reason, extra) : 0),
     killXp: (L) => (content.progression ? content.progression.killXp.base + content.progression.killXp.perLevel * L : 20 + 4 * L),

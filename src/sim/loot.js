@@ -221,6 +221,7 @@ export function rollKill(ctx, mob, player) {
   // cap 30 gear tier (src/data/gear_tier3.js): a named piece of the dropper's level band, now and then
   for (const nb of C.dropRules.named || []) {
     if (L < nb.from || L > nb.to || !nb.items.length) continue;
+    if (nb.zone && String(mob.zone || '').split('#')[0] !== nb.zone) continue;   // cap 35: a place's own band (the Weir Works), no roll elsewhere
     if (ctx.rng.chance(nb.chance)) out.items.push({ item: nb.items[ctx.rng.int(0, nb.items.length - 1)], qty: 1 });
   }
   return out;

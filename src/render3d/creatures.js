@@ -58,6 +58,7 @@ export function familyOf(template = '', sprite = '') {
   if (/^silt_hound/.test(template)) return { f: 'wolf', tint: '#5a5446', eyes: '#ffd27a' };
   if (/^name_washer/.test(template)) return { f: 'wraith', tint: '#4a5a5a', glow: '#b8f0e0' };
   if (/^weir_count/.test(template)) return { f: 'shade', tint: '#3e4842', glow: '#ffd27a' };
+  if (/^wheel_keeper/.test(template)) return { f: 'golem', tint: '#4a3a2a', glow: '#9fe0d0' };   // the Weir Works' boss
   // wave 3 realms2: Saffron Haven (sand scorpions, dust devils, dune hyenas, the Scorch Riders, Sahra the dune lion, Ravi)
   if (/sh_scorpion|glasstail/.test(k)) return { f: 'scarab', tint: /glasstail/.test(k) ? '#bcd8d0' : '#b07a3a' };
   if (/sh_dust_devil/.test(k)) return { f: 'wraith', tint: '#d8b47a', glow: '#ffe0a0' };

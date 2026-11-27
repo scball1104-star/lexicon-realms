@@ -4,8 +4,8 @@
 // (src/data/millrace.js, tools/maps/zone_millrace.mjs); the foes are src/data/millrace_foes.js.
 //
 // Ten zone quests from the brief's table (#1 to #9 and #12). #10 Down the Undershot and #11 The Wheel Still Turns are
-// the Weir Works cave lane's. #12 Pages to the East follows #9 for now (PAGES_EAST_AFTER below): when the cave lane adds
-// mr_wheel_still_turns it switches that one constant, and the stage reads in the brief's order.
+// the Weir Works cave lane's (src/data/weir_works.js). #12 Pages to the East follows #11 (PAGES_EAST_AFTER below), so the
+// stage reads in the brief's order.
 //
 // XP: the brief's formula (PROGRESSION 2.2, the one the bounty boards pay by: round10(0.94 x (160 + 90 L + 7 L^2)), 9,600
 // at 32) at each quest's level, times a size. The sizes are set so the stage's quest share lands on the brief's budget,
@@ -23,8 +23,8 @@ const r10 = (x) => Math.round(x / 10) * 10;
 export const mrQuestXp = (L, size = 1) => r10(0.94 * (160 + 90 * L + 7 * L * L) * size);
 /** What this lane leaves for the cave chain (#10 at 33 x 0.3 = 3,030, #11 at 35 x 0.75 = 8,380): the stage stays near 78,000. */
 export const MR_CAVE_XP_BUDGET = 11410;
-/** #12 follows this quest. The cave lane: switch it to 'mr_wheel_still_turns' once that quest exists. */
-export const PAGES_EAST_AFTER = 'mr_who_broke_the_weir';
+/** #12 follows this quest: #11 The Wheel Still Turns (the cave lane's, src/data/weir_works.js). */
+export const PAGES_EAST_AFTER = 'mr_wheel_still_turns';
 
 const at = whereIn('millrace');
 const AT = {
@@ -189,7 +189,7 @@ export const MR_QUESTS = {
       complete: "Ivo says four hundred and twelve notches. And a mark at the top that is not a notch. It is a seal. The weir did not break. Somebody broke it, to wash these names off the books before anybody read them.",
     } }),
   mr_pages_to_the_east: Q({ id: 'mr_pages_to_the_east', num: 412, name: 'Pages to the East', level: 35, size: 0.4, giver: 'mr_clerk', turnIn: 'mael',
-    requires: { quests: [PAGES_EAST_AFTER], cls: null, level: 34 }, chain: step(10),
+    requires: { quests: [PAGES_EAST_AFTER], cls: null, level: 34 }, chain: step(12),
     objectives: [{ kind: 'deliver', item: 'mr_east_pages', to: 'mael', where: [MAEL_AT], label: 'Take the wet pages to Elder Mael in Willowmere' }],
     giveOnAccept: [{ item: 'mr_east_pages', qty: 1 }],
     rewards: { choice: ['east_road_boots'] },

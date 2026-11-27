@@ -202,7 +202,7 @@ export function createQuests(Q) {
     if (q.bounty) {
       if (!p.bounties || p.bounties.day !== today()) p.bounties = { day: today(), done: [] };
       p.bounties.done.push(id);
-    } else p.questsDone.push(id);
+    } else { p.questsDone.push(id); ensureStoryNpcs(p); }
     const xp = Math.round((r.xp || 0) * questGapMult(p.level, q.level));
     if (xp > 0) {
       if (Q.grantXp) Q.grantXp(p, xp, 'quest', { quest: id });
@@ -292,7 +292,8 @@ export function createQuests(Q) {
     for (const id of active(p)) {
       const q = QUESTS[id];
       q.objectives.forEach((o, i) => {
-        if (o.kind === 'kill' && o.mob === mob.template && (!o.zone || o.zone === mob.zone) && (!o.region || regionOfMob(mob) === o.region)) setCount(p, id, i, p.quests[id].counts[i] + 1);
+        // a kill objective named for a place counts in any copy of it (cap 35: the Weir Works' drowned drovers)
+        if (o.kind === 'kill' && o.mob === mob.template && (!o.zone || o.zone === mob.zone || o.zone === zoneBase(mob.zone)) && (!o.region || regionOfMob(mob) === o.region)) setCount(p, id, i, p.quests[id].counts[i] + 1);
       });
       checkReady(p, id);
     }
@@ -450,8 +451,31 @@ export function createQuests(Q) {
    * escort at its start, as a fresh accept would (PLAYTEST_BOT bug 1). An escort id in the save that no longer names this
    * player's live escort is dropped first.
    */
+  /**
+   * Story npcs (cap 35: Ferrick back at the mill, src/data/weir_works.js WW_STORY_NPCS): content.storyNpcs =
+   * [{ npc, zone, x, y, dir, after }]. Once a hero in the world has handed in `after`, the npc stands at its spot (one,
+   * for everyone in the world; it is never in content.spawns, so a world nobody has done it in has none). Runs on a
+   * hand-in and when a hero joins or loads (ensureEscorts).
+   */
+  function ensureStoryNpcs(p) {
+    if (!Q.addEntity) return;
+    for (const s of C.storyNpcs || []) {
+      if (!done(p, s.after) || !C.zones[s.zone]) continue;
+      if ([...Q.ents()].some((e) => e.kind === 'npc' && e.template === s.npc && !e.dead)) continue;
+      const t = (C.npcs || {})[s.npc] || {};
+      const [x, y] = tileToSub(s.x, s.y);
+      const e = Q.addEntity({
+        id: Q.nextId(), kind: 'npc', zone: s.zone, x, y, dir: s.dir || 'down', moving: false, name: t.name || s.npc, level: t.level || 1, faction: 'friendly',
+        sprite: t.sprite || 'npc_farmer', template: s.npc, hp: t.hp || 100, hpMax: t.hp || 100, res: null, target: null, cast: null, auras: [], cd: {}, gcdUntil: 0, dead: false,
+        spawn: { zone: s.zone, x, y }, story: s.after,
+      });
+      emit({ type: 'spawn', id: e.id, template: e.template, zone: e.zone, kind: 'npc' });
+    }
+  }
+
   function ensureEscorts(p) {
     ensure(p);
+    ensureStoryNpcs(p);
     for (const id of active(p)) {
       const q = QUESTS[id];
       const s = p.quests[id];
@@ -631,5 +655,5 @@ export function createQuests(Q) {
   }
 
   return { accept, abandon, turnIn, interact, onKill, onBag: recountCollect, onMove, onDamaged, tick: step, spawnObjects,
-    marker, status, needsItem, tracker, offersAt, canAccept, inArea, areaAt, ensureEscorts, rewardsFor, whereOf, ambushSpots, bountiesToday };
+    marker, status, needsItem, tracker, offersAt, canAccept, inArea, areaAt, ensureEscorts, ensureStoryNpcs, rewardsFor, whereOf, ambushSpots, bountiesToday };
 }

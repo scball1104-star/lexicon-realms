@@ -125,6 +125,9 @@ const NPC_LOOKS = {
   wick: { base: 'male', hair: 'Hair_SimpleParted', hairColor: '#e0c080', out: 'Peasant', dye: { hue: 0.3, sat: 0.6, val: 1.0 }, scale: 0.66 },
   wynn: { base: 'female', hair: 'Hair_Buns', hairColor: '#8a5a30', out: 'Ranger', dye: { hue: 0.08, sat: 0.5, val: 0.75 } },   // mounts: the Stable Master
   odo: { base: 'male', hair: 'Hair_Long', beard: 'Hair_Beard', hairColor: '#9a9a9a', out: 'Ranger', dye: { hue: 0.1, sat: 0.4, val: 0.7 }, main: 'rod', cape: '#4a4a3a' },
+  // cap 35: Ferrick the miller (src/data/weir_works.js), a big bearded man in a flour-grey smock; wet through in the cave
+  mr_ferrick: { base: 'male', hair: 'Hair_Buzzed', beard: 'Hair_Beard', hairColor: '#6a5a48', out: 'Peasant', map: 'peasant2', dye: { hue: 0.1, sat: 0.2, val: 1.2 }, scale: 1.08 },
+  mr_ferrick_hurt: { base: 'male', hair: 'Hair_Buzzed', beard: 'Hair_Beard', hairColor: '#4a3e32', out: 'Peasant', map: 'peasant2', dye: { hue: 0.1, sat: 0.25, val: 0.95 }, scale: 1.08 },
 };
 export function npcSpec(template, sprite = '') {
   let lk = NPC_LOOKS[template];

@@ -170,7 +170,9 @@ function stoneSpot(zone, bx, by) {
 export function applyBossFights(C) {
   const mobs = { ...C.mobs };
   const wordDoors = { ...(C.wordDoors || {}) };
-  for (const [id, f] of Object.entries(BOSS_FIGHTS)) {
+  // cap 35: a place's own fight from its content lane (src/data/weir_works.js WW_FIGHTS) joins the thirteen here
+  const FIGHTS = { ...BOSS_FIGHTS, ...(C.bossFights || {}) };
+  for (const [id, f] of Object.entries(FIGHTS)) {
     const m = mobs[id];
     if (!m) continue;
     const fight = { ...(m.fight || {}) };
@@ -192,5 +194,5 @@ export function applyBossFights(C) {
       hint: f.unspoken.hint, hintAfter: BOSS_RULES.hintAfter,
       words: [{ word: f.unspoken.word, draft: true, clue: ['It waits for a name.', 'Not that name.'], opened: 'The stone takes the name. Something in the room wakes, Unspoken.' }] };
   }
-  return { ...C, mobs, wordDoors, mobAbilities: { ...C.mobAbilities, ...BOSS_RED, ...BOSS_CALLS }, bossFights: BOSS_FIGHTS, bossRules: BOSS_RULES, rollWords: ROLL_WORDS };
+  return { ...C, mobs, wordDoors, mobAbilities: { ...C.mobAbilities, ...BOSS_RED, ...BOSS_CALLS }, bossFights: FIGHTS, bossRules: BOSS_RULES, rollWords: ROLL_WORDS };
 }

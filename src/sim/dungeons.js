@@ -87,8 +87,14 @@ export function createDungeons(D) {
     for (const [L, v] of Object.entries(ms.byLevel || {})) if (level >= +L) out = v;
     return out;
   }
-  function spawnCopy(zid) {
+  function spawnCopy(zid, p = null) {
     const z = zones[zid];
+    // cap 35: a place's own people (zone.dungeon.npcs: Ferrick, hurt, in the Weir Works). `until`: not in a copy made for a
+    // hero who has already handed in that quest
+    for (const n of (z.dungeon && z.dungeon.npcs) || []) {
+      if (!D.spawnNpc || (n.until && p && (p.questsDone || []).includes(n.until))) continue;
+      D.spawnNpc({ npc: n.npc, zone: zid, x: n.x, y: n.y, dir: n.dir || 'down' });
+    }
     for (const s of z.spawns || []) {
       const m = D.spawnMob({ ...s, zone: zid, respawn: null, sprite: spriteFor(s.mob, s.level) || undefined });
       m.spawn.noRespawn = true;
@@ -127,7 +133,7 @@ export function createDungeons(D) {
     if (DP) DP.beforeEnter(base, p, zid);           // wave 10 dtiers: a different depth makes an empty copy fresh
     if (!copies()[zid]) {
       copies()[zid] = { base, key: copyKey(p), made: now(), emptySince: null, cleared: false };
-      spawnCopy(zid);
+      spawnCopy(zid, p);
       if (DP) DP.onCopy(zid, p);                  // wave 10 dtiers: the picked depth goes on every foe
       emit({ type: 'copy_new', zone: zid, place: base });
     }

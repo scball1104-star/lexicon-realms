@@ -27,6 +27,7 @@ import { applyRaid, fairGateDecor } from '../raid_endmarket.js';   // wave 10 dr
 import emberpeak from './emberpeak.js';                 // wave 3 start realms (lane realms1): src/data/start_realms2.js
 import valewyn from './valewyn.js';
 import millrace from './millrace.js';                 // cap 35 stage 1: the Millrace (tools/maps/zone_millrace.mjs)
+import weirWorks from './weir_works.js';              // cap 35 stage 1: the Weir Works, its cave (tools/maps/zone_weir_works.mjs)
 import { composeWorld } from './compose.js';
 import { withDoors } from './doors.js';
 import { withCopies, zoneBase, addZoneMaker } from './copies.js';   // wave 10 drift: + addZoneMaker
@@ -66,13 +67,14 @@ import { applyRealms2 } from '../start_realms2.js';
 import { R2, R2_OUTDOOR } from '../realms2.js';     // wave 3 realms2: Saffron Haven, the Nameless Hollow
 import { MR_NPCS } from '../millrace.js';             // cap 35 stage 1: the Millrace's townsfolk
 import { applyMillrace } from '../millrace_quests.js';   // cap 35 stage 1: the Millrace's foes (on import), quests, board, named drops
+import { applyWeirWorks } from '../weir_works.js';         // cap 35 stage 1: the Weir Works' boss (on import), drops, quests, Ferrick
 import { placeMoorBand, applyMoorBand } from '../moor_band.js';   // quests20: 25 more quests for levels 13 to 20 on the moor
 
 // The four areas as generated (their own local tiles): tools, tests and the quest data's authoring helpers read these.
 export const REGIONS = { willowmere, valley, downs, moor };
 // Dungeons and caves (2026-11-22, src/data/dungeons.js): each its own zone (kind 'dungeon' | 'cave'), entered by a door on
 // the world. A party's copy is the zone under the id `<place>#<key>` (copies.js): ZONES resolves it to the place's data.
-export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep, endmarket_gate: endmarketGate, endmarket_streets: endmarketStreets };   // wave 10 draid: + the Endmarket's two wings
+export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep, endmarket_gate: endmarketGate, endmarket_streets: endmarketStreets, weir_works: weirWorks };   // wave 10 draid: + the Endmarket's two wings
 // the loading card's one line of flavour (src/ui/loading.js reads zone.flavour)
 for (const [id, z] of Object.entries(PLACES)) if (DUNGEONS[id] && DUNGEONS[id].flavour) PLACES[id] = { ...z, flavour: DUNGEONS[id].flavour };
 // patrols you must time (src/data/patrols.js): a place's patrol pairs spawn with its other foes
@@ -91,7 +93,7 @@ OUTDOOR.larchhill = { ...withDoors(larchhill, DUNGEONS, PLACES), flavour: "Larch
 OUTDOOR.drovers_reach = { ...fairGateDecor(withDoors(droversReach, DUNGEONS, PLACES)), flavour: "The old drove roads, walled in stone and held by the chain." };
 OUTDOOR.emberpeak = { ...emberpeak, flavour: 'A forge town under a black mountain, and the Gate that holds it.' };   // wave 3 start realms (realms1)
 OUTDOOR.valewyn = { ...valewyn, flavour: 'A lake town half under water. The tide is coming in.' };
-// cap 35 stage 1: the Millrace, past Ferrick's chain on the Downs road (a level 30 gate); the Weir Works door comes later
+// cap 35 stage 1: the Millrace, past Ferrick's chain on the Downs road (a level 30 gate); the Weir Works' door in its mill
 OUTDOOR.millrace = { ...withDoors(millrace, DUNGEONS, PLACES), flavour: 'A mill hamlet in flood, and a wheel that is still counting.' };
 Object.assign(OUTDOOR, R2_OUTDOOR);                   // wave 3 realms2: Saffron Haven, the Nameless Hollow
 export const ZONES = withCopies({ [WORLD_ID]: WORLD, ...OUTDOOR, ...PLACES });
@@ -199,5 +201,5 @@ export function buildContent() {
   // the 20 to 30 band: Larchhill, the Larch Mine, Drovers' Reach (src/data/band_content.js); then the Moor band (moor_band.js)
   out.rift = { rules: RIFT_RULES, text: RIFT_TEXT, stone: { zone: WORLD_ID, ...RIFT_STONE }, weekWord, book: riftBook, place: riftPlace, parse: parseRiftId };   // wave 10 drift
   // cap 35 stage 1: the Millrace's foes, quests, mill board and named drops (src/data/millrace_quests.js)
-  return applyDepths(applyRaid(applyBossFights(applyMoorBand(applyMillrace(applyBand(out)), worldQuests))));   // wave 10 dtiers: Depths (content.depths)   // wave 10 dbosses (boss fights that need the party), then draid (the Endmarket raid)
+  return applyDepths(applyRaid(applyBossFights(applyMoorBand(applyWeirWorks(applyMillrace(applyBand(out))), worldQuests))));   // wave 10 dtiers: Depths (content.depths)   // wave 10 dbosses (boss fights that need the party), then draid (the Endmarket raid)
 }

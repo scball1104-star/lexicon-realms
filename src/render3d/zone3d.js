@@ -824,7 +824,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
   group.add(apron);
   report(0.1);
   buildRealm3d(zone, group);       // wave 3 (src/render3d/realm3d.js): only a zone with realmProps, lava or tide
-  buildMill3d(zone, group);        // cap 35 (src/render3d/mill3d.js): only a zone with millProps (the Millrace)
+  { const mh = buildMill3d(zone, group); if (mh) for (const l of mh.lights) lamps.push(l); }   // cap 35 (src/render3d/mill3d.js): only a zone with millProps (the Millrace, the Weir Works); their prop lights
   await step();
 
   // water: one plane over the zone; a per-tile mask (R deep water, G shallows, B ink) with noise-broken edges gives a

@@ -18,7 +18,7 @@ export const DEPTH_RULES = {
   groups: { margin: 1, bold: 4, page: 8 },
   // the optional candle, minutes per place (DRAFTS; tune from the friends' first runs). Each fall takes deathSec off.
   // Lit and beaten: the next depth AND the one after open, and a Candle Cache by the last boss.
-  candle: { barrow: 25, watchtower: 25, barrow_deep: 30, rootcellar: 10, smugglers_cut: 12, tarn_hollow: 12, larch_mine: 14 },
+  candle: { barrow: 25, watchtower: 25, barrow_deep: 30, rootcellar: 10, smugglers_cut: 12, tarn_hollow: 12, larch_mine: 14, weir_works: 16 },
   deathSec: 10,
   // the weekly chest: runs this week fill its slots (1 run, 4 runs, 8 runs); slot k pays at your k-th best depth.
   // It opens on the Monday after (Eastern) and you take one piece. Only one waits at a time.
@@ -77,7 +77,7 @@ export const DEPTH_WORDS = {
   cofferReady: 'Your coffer is ready', cofferSub: 'Your runs last week filled it. Pick one piece.', slotHead: ['Best run', '4th best', '8th best'],
   slotNeed: (n, have) => `${n} runs: ${have} so far`, slotEmpty: 'empty', take: 'Take this one', later: 'Later', depthsBtn: 'Depths',
   cleared: (d, next) => `Depth ${d} cleared. Depth ${next} is open.`, litDone: (a, b) => `Lit! Depths ${a} and ${b} are open.`, out: 'The candle went out.',
-  placeShort: { barrow: "Wethers' Barrow", watchtower: 'Watchtower', barrow_deep: 'Deep Halls', rootcellar: 'Rootcellar', smugglers_cut: "Smugglers' Cut", tarn_hollow: 'Tarn Hollow', larch_mine: 'Larch Mine' },
+  placeShort: { barrow: "Wethers' Barrow", watchtower: 'Watchtower', barrow_deep: 'Deep Halls', rootcellar: 'Rootcellar', smugglers_cut: "Smugglers' Cut", tarn_hollow: 'Tarn Hollow', larch_mine: 'Larch Mine', weir_works: 'Weir Works' },
   candleCache: 'Candle Cache', shareText: (n) => `${n}'s Depths this week in Lexicon Realms. Tap to see the board.`,
 };
 

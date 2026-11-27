@@ -218,9 +218,13 @@ export function createBossMech(X) {
     if (now() < bm.redNext || bm.marks.some((x) => x.kind === 'red') || K().cannotAct(m)) return;
     const t = m.ai && m.ai.target != null ? get(m.ai.target) : null;
     if (!t || t.dead || !H.includes(t)) return;
-    bm.redNext = now() + T(f.red.every * bm.everyMul);
+    // cap 35 (the Wheel-Keeper, src/data/weir_works.js): `faster` shortens the cadence under a health line; `soloHit` is the
+    // hit a lone hero takes instead (a time tax, never a one-shot). Neither is set on the thirteen: their slot is unchanged.
+    const fast = f.red.faster && m.hp / m.hpMax <= f.red.faster.below;
+    bm.redNext = now() + T((fast ? f.red.faster.every : f.red.every) * bm.everyMul);
     const a = ab.area, circle = a.shape === 'circle';
-    bm.marks.push({ kind: 'red', ability: ab.id, shape: a.shape, school: ab.school, hit: ab.mobHit,
+    const hit = f.red.soloHit != null && H.length <= 1 ? f.red.soloHit : ab.mobHit;
+    bm.marks.push({ kind: 'red', ability: ab.id, shape: a.shape, school: ab.school, hit,
       x: circle ? t.x : m.x, y: circle ? t.y : m.y, dir: Math.atan2(t.y - m.y, t.x - m.x), r: a.radius * SUB, w: (a.width || 16) * SUB, angle: a.angle || 90,
       t0: now(), t1: now() + T(ab.castTime) });
     emit({ type: 'boss_red', id: m.id, ability: ab.id, zone: m.zone });

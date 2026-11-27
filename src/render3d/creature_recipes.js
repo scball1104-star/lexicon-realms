@@ -322,6 +322,10 @@ Object.assign(R, {
   // name-washers: the drowned clerk's ghost, quill and ledger, washed pale
   name_washer: V(R.drowned_clerk, { seed: 327, size: 1.05, aura: 0.6, palette: { base: '#4a5a5a', robe: '#3a4a4a', hood: '#2e3c3c', glow: '#b8f0e0', eyes: '#e8fff8' } }),
   // the Weir-Count: the cairn counter, tall, a stone tally in each hand
+  // the Wheel-Keeper (the Weir Works' boss, src/data/weir_works.js): the sentinel's frame, wet wood and race iron, a
+  // water-green glow, a hammer for the spoke smash, chains from the wheel still on it
+  wheel_keeper: V(SENTINEL, { seed: 335, size: 1.9, aura: 1.4, weapon: 'hammer', parts: ['core', 'runes', 'chains'], proportions: { girth: 0.44, shoulders: 0.62 },
+    palette: { base: '#4a3a2a', belly: '#5a5446', accent: '#2e2c2a', metal: '#5e5a54', eyes: '#c8fff0', glow: '#9fe0d0', dark: '#120e0a' } }),
   weir_count: V(R.deep_cairn_counter, { seed: 329, size: 1.85, aura: 1.6, proportions: { height: 2.0, bulk: 1.3, armK: 1.25 },
     palette: { base: '#3e4842', robe: '#323c36', cloak: '#26302a', hood: '#323c36', glow: '#ffd27a', eyes: '#fff0c0' } }),
   // the mill board's named foes: grander than their families
@@ -351,6 +355,6 @@ export const ZONES = {
   larchhill: ['lh_hornet', 'lh_lynx', 'lh_grub', 'lh_courier', 'lh_cudgel', 'lh_bear', 'lh_courier_captain', 'rare_queen_bramblesting', 'rare_old_greybark', 'lm_damp_miner', 'lm_gaffer'],
   drovers: ['dr_ox', 'dr_kite', 'dr_hound', 'dr_ganger', 'dr_tallyman', 'dr_warder', 'dr_shade', 'dr_chainmaster', 'rare_old_ironhorn', 'rare_tallow_mag'],
   deep: ['deep_wether', 'drove_shade', 'cairn_ward', 'the_long_uncounted', 'deep_drove_herd', 'deep_cairn_counter', 'deep_barrow_king'],
-  millrace: ['weir_rat', 'drowned_drover', 'silt_hound', 'name_washer', 'weir_count', 'mr_old_gnaw', 'mr_long_drover'],   // cap 35 stage 1
+  millrace: ['weir_rat', 'drowned_drover', 'silt_hound', 'name_washer', 'weir_count', 'mr_old_gnaw', 'mr_long_drover', 'wheel_keeper'],   // cap 35 stage 1 (+ the Weir Works' boss)
   endmarket: ['fair_drover', 'fair_stallholder', 'fair_dog', 'em_hurdle', 'em_turnpike', 'em_old_shep', 'fair_lot_buyer', 'em_chain_ring', 'em_weighmaster', 'em_crier', 'em_catchpole'],   // wave 10 draid
 };

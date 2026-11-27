@@ -97,6 +97,19 @@ export const DUNGEONS = {
     chest: { gold: [60, 90], rarity: 'magic', ilvl: 28 },
     daily: { gold: [160, 230], glyphs: 4, rarity: 'rare', ilvl: 29, xpMinutes: 55 },
   },
+  // cap 35 stage 1 (2026-11-27, docs/handoff/briefs/BRIEF_cap35_millrace.md section 4.1): the Millrace's one-boss cave
+  // under Ferrick's Mill (tools/maps/zone_weir_works.mjs, its foes and words in src/data/weir_works.js). The door is the
+  // mill's undercroft (tools/maps/zone_millrace.mjs WEIR_WORKS_DOOR); the mill draws its own door there, so `mouth: false`
+  // keeps the cave arch off it. No gate beyond the zone's own level 30.
+  weir_works: {
+    id: 'weir_works', flavour: 'Under the mill the race still runs, and something down there is still counting.', name: 'The Weir Works', kind: 'cave', levels: [33, 35],
+    trash: { hp: 0.75, dmg: 0.55 },               // packs in a copy: lighter than the open world's (a solo hero, no second pull)
+    door: { zone: 'millrace', x: 77, y: 35, w: 1, h: 2, out: [77, 38], dir: 'up', mouth: false },   // the undercroft door in the mill's west wall
+    bosses: ['wheel_keeper'], last: 'wheel_keeper',
+    drops: { wheel_keeper: ['keepers_spoke_maul', 'race_iron_knives', 'undershot_longbow', 'sluice_gate_rod', 'wheelwrights_mantle', 'drowned_tally_charm'] },   // rares, ilvl 35
+    chest: { gold: [80, 120], rarity: 'magic', ilvl: 35 },
+    daily: { gold: [190, 260], glyphs: 4, rarity: 'rare', ilvl: 35, xpMinutes: 55 },   // no legendary in this stage (the brief)
+  },
 };
 // the 20 to 30 band's cave (src/data/band_dungeons.js: the Larch Mine, its door in Larchhill)
 Object.assign(DUNGEONS, BAND_DUNGEONS);

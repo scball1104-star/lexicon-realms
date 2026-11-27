@@ -23,8 +23,9 @@ export function withDoors(world, dungeons, places) {
       ...(d.door.needs ? { needs: d.door.needs } : {}),              // a required quest (the Fair Streets: Pay Going In)
       ...(d.door.notYet ? { notYet: d.door.notYet } : {}),
     };
+    const look = d.door.mouth === false ? { mouth: false } : {};     // cap 35: the zone draws its own door (the Weir Works' undercroft)
     joins.push({ x, y, w: d.door.w || 1, h: d.door.h || 1, to: d.id, tx: z.arrival[0], ty: z.arrival[1], dir: d.door.dir || 'up', region, door: d.id, ...gate });
-    doors.push({ id: d.id, to: d.id, name: d.name, kind: d.kind, levels: [...d.levels], label: (z.dungeon && z.dungeon.label) || '', x, y, w: d.door.w || 1, h: d.door.h || 1, out, region, ...gate });
+    doors.push({ id: d.id, to: d.id, name: d.name, kind: d.kind, levels: [...d.levels], label: (z.dungeon && z.dungeon.label) || '', x, y, w: d.door.w || 1, h: d.door.h || 1, out, region, ...gate, ...look });
   }
   return { ...world, joins, doors };
 }

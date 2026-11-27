@@ -853,7 +853,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     cutBuildings(snap, view, photoClean ? null : me, photoClean ? null : tgA, rdt);
     tickWater(now); tickGround(now);
     if (shown) tickRealm3d(shown.group, snap.tick, now);
-    if (shown) tickMill3d(shown.group, now);
+    if (shown) tickMill3d(shown.group, now, snap.entities.some((e) => e.template === 'wheel_keeper' && !e.dead && e.zone === state.zoneId && e.hpMax > 0 && e.hp <= e.hpMax * 0.5));   // the Weir Works: the wheel runs fast at half
     animateLineup(now, dt);
     renderer.info.reset();
     const sky = applySky(snap, view, zone, target, area, rdt);

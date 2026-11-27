@@ -3,12 +3,14 @@
 // disk and no new art: boxes, cylinders and tori with shared materials. The zone lists them as zone.millProps
 // (tools/maps/zone_millrace.mjs), each { t, x, y } in tiles; a prop's origin is its tile's centre on the ground.
 //
-//   buildMill3d(zone, group)      once per zone build (zone3d.js); a handle kept on group.userData.mill (null: none)
-//   tickMill3d(group, now)        every frame for the shown zone (renderer3d.js): the wheels turn
+//   buildMill3d(zone, group)      once per zone build (zone3d.js); a handle kept on group.userData.mill (null: none);
+//                                 its `lights` (props with a `lamp`) join the zone's lamps
+//   tickMill3d(group, now, fast)  every frame for the shown zone (renderer3d.js): the wheels turn; `fast` (the Weir
+//                                 Works: the Wheel-Keeper under half health) turns a `keeper` wheel about 2.5 times as fast
 //   millProp(p)                   one prop's group (tests and the cave lane's second wheel use it)
 //
-// Props: mr_wheel { r (degrees about the vertical), scale } the undershot wheel, its axle east to west by default so it
-// stands in a north to south race; mr_undercroft { h } a dark stone-framed door low in the mill's wall (the Weir Works
+// Props: mr_wheel { r (degrees about the vertical), scale, keeper? } the undershot wheel, its axle east to west by default so
+// it stands in a north to south race (r 90: the axle north to south, the face toward the north-up cave camera); mr_undercroft { h } a dark stone-framed door low in the mill's wall (the Weir Works
 // door spot); mr_board the bounty board; mr_chain_down { w } Ferrick's chain lying slack across a road between two
 // posts w tiles apart; mr_ledger a washed ledger and its loose pages.
 import * as THREE from '../vendor/three/three.module.min.js';
@@ -114,6 +116,7 @@ export function millProp(p) {
   root.position.set(p.x + 0.5, 0, p.y + 0.5);
   root.add(g);
   root.userData.spin = spin;
+  if (spin) spin.userData.keeper = !!p.keeper;
   return root;
 }
 export const MILL_IDS = Object.freeze(['mr_wheel', 'mr_undercroft', 'mr_board', 'mr_chain_down', 'mr_ledger']);
@@ -121,18 +124,28 @@ export const MILL_IDS = Object.freeze(['mr_wheel', 'mr_undercroft', 'mr_board', 
 export function buildMill3d(zone, group) {
   if (!zone || !Array.isArray(zone.millProps) || !zone.millProps.length) return null;
   const root = new THREE.Group(); root.name = 'mill';
-  const spins = [];
-  for (const p of zone.millProps) { const o = millProp(p); if (!o) continue; root.add(o); if (o.userData.spin) spins.push(o.userData.spin); }
+  const spins = [], lights = [];
+  for (const p of zone.millProps) {
+    const o = millProp(p); if (!o) continue; root.add(o); if (o.userData.spin) spins.push(o.userData.spin);
+    // a prop's own light (the Weir Works: a dark cave, so its wheels are lit from the floor in front): { k, color?, h?, dz? }
+    if (p.lamp) lights.push({ pos: new THREE.Vector3(p.x + 0.5, p.lamp.h || 3.0, p.y + 0.5 + (p.lamp.dz ?? 3)), color: p.lamp.color || '#ffb35c', k: p.lamp.k || 1 });
+  }
   group.add(root);
-  const h = { root, spins };
+  const h = { root, spins, lights, at: null, a: 0, ak: 0 };
   group.userData.mill = h;
   return h;
 }
 
-/** The wheels turn slowly with the race (about one turn in 14 s); `now` is the frame clock in ms. */
-export function tickMill3d(group, now) {
+/** The wheels turn slowly with the race (about one turn in 14 s); `now` is the frame clock in ms. A `keeper` wheel turns
+ *  2.5 times as fast while `fast` is on (the angle is kept, so the change of speed never jumps). */
+export const KEEPER_FAST = 2.5;
+export function tickMill3d(group, now, fast = false) {
   const h = group && group.userData && group.userData.mill;
   if (!h) return;
-  const a = -((now || 0) / 1000) * 0.45;
-  for (const s of h.spins) s.rotation.x = a;
+  const t = (now || 0) / 1000;
+  const dt = h.at == null ? t : Math.max(0, Math.min(0.25, t - h.at));
+  h.at = t;
+  h.a += dt * 0.45;
+  h.ak += dt * 0.45 * (fast ? KEEPER_FAST : 1);
+  for (const s of h.spins) s.rotation.x = -(s.userData.keeper ? h.ak : h.a);
 }

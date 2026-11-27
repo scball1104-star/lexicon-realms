@@ -111,7 +111,7 @@ export const tests = [
     name: 'millrace quests: ten, givers and turn-ins placed, every foe, item, area and npc they ask for exists and can be reached; XP by the formula; levels 30 to 35; no dashes',
     fn() {
       const C = content(), Z = C.zones.millrace, ok = reachable('millrace');
-      eq(MR_QUEST_ORDER.length, 10, 'ten zone quests (#1 to #9 and #12; the cave lane adds #10 and #11)');
+      eq(MR_QUEST_ORDER.length, 10, 'ten zone quests (#1 to #9 and #12; the cave lane`s #10 and #11 are in src/data/weir_works.js)');
       const npcAt = new Map();
       for (const s of C.spawns) if (s.npc) npcAt.set(s.npc, s.zone);
       assert(npcAt.get('mr_clerk') === 'millrace', 'the clerk stands in the Millrace');
@@ -201,9 +201,11 @@ export const tests = [
         for (const id of ids.slice(0, 3)) take(C.quests[id].rewards.xp, C.quests[id]);
         for (const id of [...posted].sort((a, b) => C.quests[a].level - C.quests[b].level)) take(C.quests[id].rewards.xp, C.quests[id]);
         for (const id of ids.slice(3, 7)) take(C.quests[id].rewards.xp, C.quests[id]);
-        take(3030);                                                  // the cave lane's #10 (33, size 0.3)
+        // the cave lane's two (src/data/weir_works.js) pay exactly the share this lane left them
+        eq(C.quests.mr_down_the_undershot.rewards.xp + C.quests.mr_wheel_still_turns.rewards.xp, MR_CAVE_XP_BUDGET, 'the cave chain pays its budget');
+        take(C.quests.mr_down_the_undershot.rewards.xp, C.quests.mr_down_the_undershot);       // #10 (33, size 0.3)
         for (const id of ['mr_the_upper_weir', 'mr_who_broke_the_weir']) take(C.quests[id].rewards.xp, C.quests[id]);
-        take(MR_CAVE_XP_BUDGET - 3030);                              // and #11 (35, size 0.75)
+        take(C.quests.mr_wheel_still_turns.rewards.xp, C.quests.mr_wheel_still_turns);          // #11 (35, size 0.75)
         take(C.quests.mr_pages_to_the_east.rewards.xp, null);       // #12 is picked up at 34, the min level
         eq(level, 35, `day ${day}: 35 at the last hand-in (${xp} over)`);
       }
@@ -304,7 +306,7 @@ export const tests = [
     },
   },
   {
-    name: 'millrace chain: the ten quests play through with quest commands (accept, explore, collect, kill, escort, talk, deliver, turn in), from Elder Mael and back to him',
+    name: 'millrace chain: the twelve quests (#1 to #9, the Weir Works` #10 and #11, #12) play through with quest commands (accept, explore, collect, kill, escort, talk, deliver, delve_enter, turn in), from Elder Mael and back to him',
     fn() {
       const C = contentMill();
       const w = createWorld({ seed: 21, content: C });
@@ -316,16 +318,27 @@ export const tests = [
       const goTo = (zone, tx, ty) => { e.zone = zone; e.x = tx * 256 + 128; e.y = (ty + 1) * 256 - 16; };
       const at = (t) => { const n = npc(t); assert(n, `npc ${t} spawned`); e.zone = n.zone; e.x = n.x + 8 * 16; e.y = n.y; return n; };
       const kill = (m) => { e.zone = m.zone; e.x = m.x + 8 * 16; e.y = m.y; m.tagger = id; w.internals.combat.kill(m, e); run(w, 1); };
-      for (const qid of MR_QUEST_ORDER) {
+      // the brief's order: #1 to #9, then the cave lane's #10 and #11 (src/data/weir_works.js), then #12
+      const CHAIN12 = [...MR_QUEST_ORDER.filter((x) => x !== 'mr_pages_to_the_east'), 'mr_down_the_undershot', 'mr_wheel_still_turns', 'mr_pages_to_the_east'];
+      eq(CHAIN12.length, 12, 'twelve');
+      let cave = null;
+      for (const qid of CHAIN12) {
         const q = C.quests[qid];
         w.setLevel(id, Math.min(35, Math.max(q.level, q.requires.level || 0)));
         const g = at(q.giver);
         w.enqueue(id, { t: 'quest_accept', quest: qid, npc: g.id });
         run(w, 2);
         assert(e.quests[qid], `${qid}: accepted (${w.quests.status(e, qid)})`);
+        // a quest in the Weir Works: in by the undercroft door with the real command (src/sim/delve.js), once
+        if (q.place === 'weir_works' && !(cave && e.zone === cave)) {
+          goTo('millrace', 77, 38); w.enqueue(id, { t: 'delve_enter', door: 'weir_works' }); run(w, 3);
+          assert(/^weir_works#/.test(e.zone), `${qid}: into a Weir Works copy (${e.zone})`);
+          cave = e.zone;
+        }
+        const here = q.place === 'weir_works' ? cave : 'millrace';
         q.objectives.forEach((o, i) => {
           const left = () => e.quests[qid] && e.quests[qid].counts[i] < (o.count || 1);
-          const find = (pred) => w.state.ents.find((x) => x.kind === 'mob' && !x.dead && x.zone === 'millrace' && pred(x));
+          const find = (pred) => w.state.ents.find((x) => x.kind === 'mob' && !x.dead && x.zone === here && pred(x));
           if (o.kind === 'kill') {
             for (let k = 0; k < 300 && left(); k++) { const m = find((x) => x.template === o.mob); if (m) kill(m); else run(w, 400); }
           } else if (o.kind === 'collect') {
@@ -342,7 +355,7 @@ export const tests = [
             let ok = false;
             for (let r = 0; r <= 12 && !ok; r++) for (let dy = -r; dy <= r && !ok; dy++) for (let dx = -r; dx <= r && !ok; dx++) {
               const x = cx + dx, y = cy + dy;
-              if (x >= a.x && y >= a.y && x < a.x + a.w && y < a.y + a.h && spotFree(C.zones[o.zone], x, y)) { goTo(o.zone, x, y); ok = true; }
+              if (x >= a.x && y >= a.y && x < a.x + a.w && y < a.y + a.h && spotFree(C.zones[o.zone], x, y)) { goTo(o.zone === q.place ? cave : o.zone, x, y); ok = true; }
             }
             assert(ok, `${qid}: a free cell in ${o.area}`);
             w.enqueue(id, { t: 'move', dx: 1, dy: 0 }); run(w, 2); w.enqueue(id, { t: 'stop' }); run(w, 2);
@@ -368,6 +381,7 @@ export const tests = [
         assert(e.questsDone.includes(qid), `${qid}: turned in`);
       }
       eq(e.zone, 'world', 'the last hand-in is in Willowmere');
+      assert(w.state.ents.some((x) => x.kind === 'npc' && x.template === 'mr_ferrick' && x.zone === 'millrace'), 'Ferrick is back at the mill');
     },
   },
 ];
