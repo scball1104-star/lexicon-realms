@@ -95,7 +95,7 @@ export const tests = [
       const { QS } = boardWorld(0);
       for (const day of [-3, 0, 1, 7, 20512]) {
         const t = QS.bountiesToday(day);
-        eq(t.length, 9, `day ${day}: 9 posted`);
+        eq(t.length, 3 * content().bounties.boards.length, `day ${day}: three a board posted (the three here and the Millrace's mill board)`);
         eq(JSON.stringify(t), JSON.stringify(QS.bountiesToday(day + 2)), `day ${day} = day ${day + 2}`);
         const next = QS.bountiesToday(day + 1);
         assert(t.every((id) => !next.includes(id)), `day ${day + 1} posts the other half`);

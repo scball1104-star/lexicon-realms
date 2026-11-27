@@ -52,6 +52,12 @@ export function familyOf(template = '', sprite = '') {
   if (/^dr_ox|rare_old_ironhorn/.test(template)) return { f: 'ram', tint: '#6a4a30' };
   if (/^dr_hound/.test(template)) return { f: 'wolf', tint: '#3a3530', eyes: '#ff7a2a' };
   if (/^dr_kite/.test(template)) return { f: 'crow', tint: '#6a4a2e' };
+  // the Millrace (cap 35 stage 1, src/data/millrace_foes.js): fallbacks if the creature-kit recipe is off
+  if (/^weir_rat|^mr_old_gnaw/.test(template)) return { f: 'wolf', tint: '#4a4232', eyes: '#ffcc55', size: 0.6 };
+  if (/^drowned_drover|^mr_long_drover/.test(template)) return { f: 'shade', tint: '#3e4a44', glow: '#c8e0a0', ghost: 0.8 };
+  if (/^silt_hound/.test(template)) return { f: 'wolf', tint: '#5a5446', eyes: '#ffd27a' };
+  if (/^name_washer/.test(template)) return { f: 'wraith', tint: '#4a5a5a', glow: '#b8f0e0' };
+  if (/^weir_count/.test(template)) return { f: 'shade', tint: '#3e4842', glow: '#ffd27a' };
   // wave 3 realms2: Saffron Haven (sand scorpions, dust devils, dune hyenas, the Scorch Riders, Sahra the dune lion, Ravi)
   if (/sh_scorpion|glasstail/.test(k)) return { f: 'scarab', tint: /glasstail/.test(k) ? '#bcd8d0' : '#b07a3a' };
   if (/sh_dust_devil/.test(k)) return { f: 'wraith', tint: '#d8b47a', glow: '#ffe0a0' };

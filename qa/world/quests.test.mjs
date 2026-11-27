@@ -100,7 +100,8 @@ export const tests = [
       const P = C.progression;
       const QS = questHarness(1).QS;
       for (const day of [0, 1]) {
-        const posted = QS.bountiesToday(day);
+        // the three boards of the 1 to 20 chain (the Millrace's mill board, levels 31 to 33, has its own walk: millrace_quests.test.mjs)
+        const posted = QS.bountiesToday(day).filter((x) => Object.values(BOARD_AFTER).includes(C.quests[x].bounty.board));
         eq(posted.length, 9, `day ${day}: 3 boards x 3 bounties`);
         let level = 1, xp = 0, reached = null;
         const gain = (n) => { xp += n; while (level < Math.min(P.maxLevel, 20) && xp >= P.xpToNext[level]) { xp -= P.xpToNext[level]; level++; } };

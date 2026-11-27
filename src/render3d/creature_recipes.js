@@ -305,6 +305,33 @@ const R = {
   em_catchpole: V(GHOST, { human: { out: 'Ranger', shoulders: true }, seed: 313, size: 1.55, ghost: 0.7, aura: 1.3, head: { kind: 'hood' }, weapon: 'halberd', parts: ['ghost', 'cloak', 'pauldrons', 'chains', 'wisps'], proportions: { height: 1.9 },
     palette: { base: '#3a2a28', robe: '#4a322c', hood: '#2a1a18', glow: '#ffc46a', eyes: '#ffe08a', metal: '#b08a3c' } }),
 };
+// ======== the Millrace (30 to 34, cap 35 stage 1; src/data/millrace_foes.js): live recipes reproportioned and retinted in
+// the silt palette (wet browns, grey-green water, lantern gold eyes). No new art. Every name a draft.
+Object.assign(R, {
+  // weir-rats: a small, low, long-tailed beast off the hound's frame
+  weir_rat: V(R.dr_hound, { seed: 321, size: 0.62, parts: ['ears:round', 'nose:dog', 'cheeks', 'tail:plain'],
+    proportions: { girth: 0.2, legLen: 0.3, legThick: 0.05, torso: 1.05, tail: 0.75, tailThick: 0.028, tailLift: 0.05, tailDroop: -0.15, neck: 0.16, neckRise: 0.3 },
+    head: { len: 0.3, snout: 0.75, snoutW: 0.6, earSize: 1.1, angry: 1.2 },
+    palette: { base: '#4a4232', belly: '#7a6e58', accent: '#2e2a20', eyes: '#ffcc55', dark: '#100c08' } }),
+  // drowned drovers: the Endmarket's unsold drover, soaked and weed-hung
+  drowned_drover: V(R.fair_drover, { seed: 323, ghost: 0.82, parts: ['ghost', 'cloak:ragged', 'scarf', 'weeds', 'wisps'],
+    palette: { base: '#3e4a44', robe: '#34403a', cloak: '#2a342e', hat: '#232a24', weed: '#3a6a44', glow: '#c8e0a0', eyes: '#eaffd0' } }),
+  // silt-hounds: the chain hound's body, silt-grey with a wet mane
+  silt_hound: V(R.dr_hound, { seed: 325, size: 1.2, parts: ['ears:swept', 'nose:dog', 'cheeks', 'tail:plain', 'mane:mist'], proportions: { girth: 0.25 },
+    palette: { base: '#5a5446', belly: '#7a7262', accent: '#3a362c', eyes: '#ffd27a', glow: '#d8c890' } }),
+  // name-washers: the drowned clerk's ghost, quill and ledger, washed pale
+  name_washer: V(R.drowned_clerk, { seed: 327, size: 1.05, aura: 0.6, palette: { base: '#4a5a5a', robe: '#3a4a4a', hood: '#2e3c3c', glow: '#b8f0e0', eyes: '#e8fff8' } }),
+  // the Weir-Count: the cairn counter, tall, a stone tally in each hand
+  weir_count: V(R.deep_cairn_counter, { seed: 329, size: 1.85, aura: 1.6, proportions: { height: 2.0, bulk: 1.3, armK: 1.25 },
+    palette: { base: '#3e4842', robe: '#323c36', cloak: '#26302a', hood: '#323c36', glow: '#ffd27a', eyes: '#fff0c0' } }),
+  // the mill board's named foes: grander than their families
+  mr_old_gnaw: V(R.dr_hound, { seed: 331, size: 0.95, aura: 0.8, parts: ['ears:round', 'nose:dog', 'cheeks', 'tail:plain', 'spines'],
+    proportions: { girth: 0.24, legLen: 0.3, legThick: 0.06, torso: 1.1, tail: 0.8, tailThick: 0.032, tailLift: 0.05, spineN: 8, spineLen: 0.1 },
+    head: { len: 0.32, snout: 0.75, snoutW: 0.62, earSize: 1.2, angry: 1.6 },
+    palette: { base: '#3a3428', belly: '#6a5e48', accent: '#d8c8a0', eyes: '#ff8a3a', glow: '#ffb060', dark: '#0c0a06' } }),
+  mr_long_drover: V(R.fair_drover, { seed: 333, size: 1.3, aura: 1.0, ghost: 0.82, proportions: { height: 1.95 }, parts: ['ghost', 'cloak:ragged', 'scarf', 'weeds', 'wisps'],
+    palette: { base: '#323e38', robe: '#2a3630', cloak: '#202a24', hat: '#1a201c', weed: '#2e5e3a', glow: '#ffd8a0', eyes: '#fff0c8' } }),
+});
 for (const [id, r] of Object.entries(R)) r.id = id;
 export const RECIPES = R;
 
@@ -324,5 +351,6 @@ export const ZONES = {
   larchhill: ['lh_hornet', 'lh_lynx', 'lh_grub', 'lh_courier', 'lh_cudgel', 'lh_bear', 'lh_courier_captain', 'rare_queen_bramblesting', 'rare_old_greybark', 'lm_damp_miner', 'lm_gaffer'],
   drovers: ['dr_ox', 'dr_kite', 'dr_hound', 'dr_ganger', 'dr_tallyman', 'dr_warder', 'dr_shade', 'dr_chainmaster', 'rare_old_ironhorn', 'rare_tallow_mag'],
   deep: ['deep_wether', 'drove_shade', 'cairn_ward', 'the_long_uncounted', 'deep_drove_herd', 'deep_cairn_counter', 'deep_barrow_king'],
+  millrace: ['weir_rat', 'drowned_drover', 'silt_hound', 'name_washer', 'weir_count', 'mr_old_gnaw', 'mr_long_drover'],   // cap 35 stage 1
   endmarket: ['fair_drover', 'fair_stallholder', 'fair_dog', 'em_hurdle', 'em_turnpike', 'em_old_shep', 'fair_lot_buyer', 'em_chain_ring', 'em_weighmaster', 'em_crier', 'em_catchpole'],   // wave 10 draid
 };

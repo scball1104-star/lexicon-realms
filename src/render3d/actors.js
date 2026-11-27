@@ -121,7 +121,8 @@ function objectLook(e) {
   if (/chicken/.test(sp)) { g.add(chicken()); g.userData.h = 0.7; g.userData.chicken = true; return g; }
   if (e.node && e.node.gather) return gatherLook(e);      // professions: an ore seam or a herb (gather3d.js)
   if (e.node) {
-    if (/hay/.test(sp)) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.7, 10), new THREE.MeshStandardMaterial({ color: '#7a5aa8', roughness: 1 })); b.rotation.z = Math.PI / 2; b.position.y = 0.4; b.castShadow = true; g.add(b); }
+    if (/^mr_ledger/.test(sp)) { /* the Millrace's washed ledgers: mill3d.js draws the ledger, the node is its glow */ }
+    else if (/hay/.test(sp)) { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.7, 10), new THREE.MeshStandardMaterial({ color: '#7a5aa8', roughness: 1 })); b.rotation.z = Math.PI / 2; b.position.y = 0.4; b.castShadow = true; g.add(b); }
     else if (/^chest_/.test(sp)) {
       // a secret cache (landscape pass, zone `secrets`): a small chest, dark wood with gold bands
       const wood = new THREE.MeshStandardMaterial({ color: '#5e3a1e', roughness: 0.85 }), gold = new THREE.MeshStandardMaterial({ color: '#e0b040', roughness: 0.35, metalness: 0.7 });

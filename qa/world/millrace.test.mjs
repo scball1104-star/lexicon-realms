@@ -70,7 +70,7 @@ export const tests = [
     },
   },
   {
-    name: 'millrace: the Weir Works door spot (mill undercroft) is walkable, reachable and in the hub; the camp spots are marked 8 to 12 tiles apart, levels 30 to 35, no foes yet',
+    name: 'millrace: the Weir Works door spot (mill undercroft) is walkable, reachable and in the hub; the camp spots are marked 8 to 12 tiles apart, levels 30 to 35',
     fn() {
       const Z = ZONES.millrace, seen = reach(Z, Z.arrival[0], Z.arrival[1]);
       const ok = (x, y) => Z.collision[y][x] === '.' && seen[y * Z.w + x] === 1;
@@ -82,7 +82,8 @@ export const tests = [
       assert(!PLACES.weir_works && !Z.joins.some((j) => j.door), 'the cave itself is not built in this lane');
       const hub = Z.areas.find((a) => a.id === 'mr_mill');
       assert(d.x >= hub.x && d.x < hub.x + hub.w && d.y >= hub.y && d.y < hub.y + hub.h, 'the door spot is in the hub');
-      eq(Z.spawns.length, 0, 'no foes placed by the zone lane');
+      // the foes are the foes and quests lane's (qa/world/millrace_quests.test.mjs checks each camp's pack and level)
+      assert(Z.spawns.length > 0 && Z.spawns.filter((s) => s.camp).every((s) => Z.camps.some((c) => c.id === s.camp)), 'foes stand on the camp spots');
       eq(Z.camps.length, CAMPS.length);
       for (const c of Z.camps) {
         assert(ok(c.x, c.y), `camp ${c.id} at ${c.x},${c.y} reachable`);

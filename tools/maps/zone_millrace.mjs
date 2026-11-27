@@ -13,7 +13,10 @@
 //
 // The wade rule (zone.wade, src/sim/realm_mech.js): shallow water is walkable and slows a hero by 15%; deep water blocks,
 // except on the catwalks (plank overlays, walkable) and the two lower fords (walkable shallows across the race).
-// Foes are another lane: the camp spots are marked (zone.camps, with a suggested level), no spawns are placed here.
+// Foes (cap 35 foes and quests lane, 2026-11-27): CAMP_FOES puts a pack of 2 or 3 on each camp spot at the spot's level
+// (the templates are src/data/millrace_foes.js), the Weir-Count alone on the elite spot, and the mill board's two named
+// foes on spots of their own; the washed ledgers are the Wet Pages quest's gather nodes; three small unbannered areas
+// along the race are Ferrick's chalk marks (an explore quest). Quests and the board: src/data/millrace_quests.js.
 // Built with the big-zone kit (bigzone_kit.mjs). Code-built props (the wheel, the board, the ledgers, the slack chain,
 // the undercroft door) are zone.millProps, drawn by src/render3d/mill3d.js. Deterministic. All names are drafts.
 import { bigZone } from './bigzone_kit.mjs';
@@ -32,7 +35,7 @@ export const HUB = {
   plaza: { x0: 78, y0: 40, x1: 108, y1: 55 }, lantern: [92, 48], board: [86, 42], kitemaster: [106, 47], land: [106, 48],
   inn: [91, 42], innkeeper: [92, 41], vendor: [102, 41], clerk: [83, 41], hand: [79, 45], child: [98, 50],
 };
-// camp spots (foes are another lane): 8 to 12 tiles apart, a suggested level each
+// camp spots: 8 to 12 tiles apart, a level each (CAMP_FOES below fills them)
 export const CAMPS = [
   { id: 'mr_camp_flood_nw', x: 14, y: 34, level: 31, area: 'mr_flood' },
   { id: 'mr_camp_flood_n', x: 24, y: 38, level: 31, area: 'mr_flood' },
@@ -50,6 +53,40 @@ export const CAMPS = [
   { id: 'mr_camp_weir_e', x: 76, y: 21, level: 34, area: 'mr_weir' },
   { id: 'mr_camp_verge', x: 104, y: 72, level: 30, area: 'mr_chain_road' },
   { id: 'mr_camp_verge_s', x: 106, y: 81, level: 30, area: 'mr_chain_road' },
+];
+// the foes on each camp spot (cap 35 foes and quests lane): [template, ...] at the camp's level, a pack of 2 or 3 (the
+// elite alone). Weir-rats on the verges and the north lanes, silt-hounds and name-washers in the deeper flood, drowned
+// drovers on the fords and up at the weir with name-washers among them, the Weir-Count at the broken dam.
+export const CAMP_FOES = {
+  mr_camp_verge: ['weir_rat', 'weir_rat'],
+  mr_camp_verge_s: ['weir_rat', 'weir_rat', 'weir_rat'],
+  mr_camp_flood_nw: ['weir_rat', 'weir_rat', 'weir_rat'],
+  mr_camp_flood_n: ['weir_rat', 'weir_rat'],
+  mr_camp_flood_ne: ['name_washer', 'weir_rat'],
+  mr_camp_flood_w: ['silt_hound', 'silt_hound'],
+  mr_camp_flood_c: ['name_washer', 'silt_hound'],
+  mr_camp_flood_e: ['weir_rat', 'weir_rat', 'weir_rat'],
+  mr_camp_flood_s: ['silt_hound', 'name_washer'],
+  mr_camp_flood_se: ['silt_hound', 'silt_hound'],
+  mr_camp_ford_n: ['drowned_drover', 'drowned_drover', 'drowned_drover'],
+  mr_camp_ford_s: ['drowned_drover', 'drowned_drover', 'drowned_drover'],
+  mr_camp_weir_w: ['drowned_drover', 'name_washer', 'drowned_drover'],
+  mr_camp_weir_c: ['drowned_drover', 'name_washer', 'drowned_drover'],
+  mr_camp_weir_e: ['name_washer', 'drowned_drover'],
+  mr_camp_weir_elite: ['weir_count'],
+};
+// where a pack's members stand round its spot (tiles; the build snaps each onto the nearest walkable cell)
+const PACK_AT = [[0, 0], [2, 1], [-1, 2]];
+// the mill board's named foes (src/data/millrace_quests.js MR_BOARD): one fixed spot each, 6+ tiles from every camp
+export const NAMED_FOES = [
+  { mob: 'mr_old_gnaw', level: 32, x: 8, y: 58 },        // the south-west lanes, past the cottages in the wet
+  { mob: 'mr_long_drover', level: 33, x: 66, y: 80 },    // the race bank below the south ford
+];
+// Ferrick's chalk marks along the race, mill to dam (explore steps; small areas with no banner)
+export const MARKS = [
+  { id: 'mr_mark_road', name: "Ferrick's Mark by the Weir Road", x: 84, y: 28, w: 5, h: 4 },
+  { id: 'mr_mark_bend', name: "Ferrick's Mark at the Bend", x: 71, y: 24, w: 4, h: 4 },
+  { id: 'mr_mark_dam', name: "Ferrick's Mark below the Dam", x: 57, y: 16, w: 7, h: 3 },
 ];
 
 // the race: out of the weir gap, past the mill wheel, south out of the zone
@@ -239,6 +276,18 @@ export function build(db) {
     { npc: 'mr_child', x: HUB.child[0], y: HUB.child[1], dir: 'down' },
     { npc: 'mr_vendor', x: HUB.vendor[0], y: HUB.vendor[1], dir: 'down' },
   ];
+  // ---- foes: a pack on each camp spot at its level, the elite alone; the board's named foes on their own spots
+  const spawns = [];
+  for (const c of CAMPS) {
+    const foes = CAMP_FOES[c.id];
+    if (!foes) throw new Error(`millrace: no foes for camp ${c.id}`);
+    const pack = foes.length > 1 ? foes.length : 0;
+    foes.forEach((mob, i) => spawns.push({ mob, level: c.level, x: c.x + PACK_AT[i][0], y: c.y + PACK_AT[i][1], wander: c.elite ? 0 : 1,
+      respawn: c.elite ? 300 : 120, group: c.id, camp: c.id, ...(pack ? { pack } : {}) }));
+  }
+  for (const n of NAMED_FOES) spawns.push({ mob: n.mob, level: n.level, x: n.x, y: n.y, wander: 2, respawn: 180, group: `bounty_${n.mob}` });
+  // the Wet Pages quest: the washed ledgers are its gather nodes (drawn by mill3d.js as mr_ledger props)
+  const nodes = ledgers.map(([x, y], i) => ({ id: `mr_ledger_${i + 1}`, item: 'mr_washed_ledger', x, y, respawn: 30, name: 'Washed Ledger', sprite: 'mr_ledger' }));
   const signs = [
     { id: 'mr_chain_board', x: 97, y: 80, text: "THE CHAIN ROAD. FERRICK'S MILL: NORTH. MIND THE WATER: THE SHALLOWS WILL HOLD YOU, THE DEEP WILL NOT." },
     { id: 'mr_mill_sign', x: 97, y: 58, text: "FERRICK'S MILL. WEST: THE FLOOD LANES, BY THE CATWALKS. NORTH: THE UPPER WEIR. SOUTH: THE CHAIN ROAD." },
@@ -250,7 +299,7 @@ export function build(db) {
     levels: [30, 35], arrival: [GATE.arrive[0], GATE.arrive[1]],
     wade: { terrains: ['shallow'], slow: 0.15 },
     regions: [{ id: 'mr_mill', name: "Ferrick's Mill", kind: 'town', x: 74, y: 28, w: 40, h: 34, levels: [30, 35], music: 'the_downs', lighting: { tint: 'none', dark: 0 }, under: 'grass' }],
-    areas, lanterns, npcs, spawns: [], nodes: [], signs, hooks: [], secrets: [],
+    areas: [...areas, ...MARKS.map((m) => ({ ...m, banner: false }))], lanterns, npcs, spawns, nodes, signs, hooks: [], secrets: [],
     camps: CAMPS.map((c) => ({ ...c })),
     spots: { weirWorksDoor: { ...WEIR_WORKS_DOOR, out: [...WEIR_WORKS_DOOR.out] }, bountyBoard: [...HUB.board], plaza: { ...HUB.plaza }, fords: [[60, 63, 74, 65], [54, 75, 70, 77]] },
     millProps,
