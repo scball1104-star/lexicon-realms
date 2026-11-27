@@ -1,0 +1,700 @@
+repo: /workspace/lr-legvis-mock
+HEAD: 57af905fcc480bfb37627704f620931e93323e1c
+branch: mock/legendary-visuals
+status:
+ M src/main.js
+ M src/render3d/actors.js
+ M src/render3d/fx3d.js
+ M src/render3d/gear.js
+ M src/render3d/renderer3d.js
+ M src/sim/scripts_b2.js
+ M src/sim/world.js
+?? src/render3d/legend_kit.js
+
+---- git diff ----
+diff --git a/src/main.js b/src/main.js
+index c8975f7..b3b2025 100644
+--- a/src/main.js
++++ b/src/main.js
+@@ -543,7 +543,8 @@ async function boot() {
+       level(L) { if (playerId != null) world.setLevel(playerId, L); },
+       gold(n) { const e = world.get(playerId); if (e) e.gold = (e.gold || 0) + n; },
+       /** a bag item for drivers (phone item-card check): an item id from content.items */
+-      item(id, qty = 1) { const e = world.get(playerId); if (e) return bagAdd(e, id, qty, null, content); return 0; },
++      item(id, qty = 1, who = null) { const e = world.get(who != null ? who : playerId); if (e) return bagAdd(e, id, qty, null, content); return 0; },
++      enqueue(id, cmd) { world.enqueue(id, cmd); },
+       /** glyph stones into the pouch (no drops are wired yet): glyphs('AOGS', 2) */
+       glyphs(letters = 'ASHVOW', qty = 1) { const e = world.get(playerId); let n = 0; if (e) for (const L of String(letters).toUpperCase()) if (content.items[`glyph_${L.toLowerCase()}`]) n += bagAdd(e, `glyph_${L.toLowerCase()}`, qty, null, content); return n; },
+       hp(n) { const e = world.get(playerId); if (e && !e.dead) e.hp = Math.max(1, Math.min(e.hpMax, n)); },
+diff --git a/src/render3d/actors.js b/src/render3d/actors.js
+index da0c904..7c0dc82 100644
+--- a/src/render3d/actors.js
++++ b/src/render3d/actors.js
+@@ -21,6 +21,7 @@ import { groundY } from './ground_plan.js';   // wave 5 ground kit: the visible
+ import { wordDoorLook, letterStoneLook } from './worddoor3d.js';   // wave 8 glyphdoor: word doors
+ import { riddleStoneLook } from './riddle3d.js';   // wave 9 riddles
+ import { createEmoteKit } from './emote_kit.js';   // wave 7 anim: jump, emotes, NPC work loops (approved 2026-11-24)
++import { lightHammer, emberLandRing, emberChains, inkPool, inkCut, questionMark } from './legend_kit.js';  // MOCK only
+ 
+ const PX = 16;
+ const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
+@@ -138,6 +139,12 @@ function objectLook(e) {
+     const s = new THREE.Sprite(NODE_GLOW); s.scale.setScalar(0.9); s.position.y = 0.9; g.add(s); g.userData.glow = s;
+     g.userData.h = 1.0; return g;
+   }
++  if (/peal/.test(sp) || e.objType === 'mender_tolling_hammers') {
++    const n = e.hammers || 5;
++    for (let i = 0; i < n; i++) g.add(lightHammer());
++    g.userData.tolling = true; g.userData.h = 1.2;
++    return g;
++  }
+   // traps, ground zones, ink doubles: a glowing disc of the sim radius (or a small trap)
+   const r = Math.max(0.35, (e.radius || 8) / PX);
+   const colr = /letters|ink/.test(sp) ? '#a77bff' : /semicolon/.test(sp) ? '#8fc8ff' : /peal/.test(sp) ? '#fff1a8' : /bramble|briar|snare/.test(sp) ? '#8fd060' : '#c0b8d0';
+@@ -371,7 +378,23 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
+         b.ch.applyPost();
+         for (const f of b.ch.fx) f(dt, b.ch, now);
+         const stealth = (e.auras || []).some((x) => /stealth|fade/.test(String(x.id)));
+-        if (stealth !== !!a.stealth) { a.stealth = stealth; for (const m of a.mats) { m.transparent = stealth; m.opacity = stealth ? 0.4 : 1; } }
++        const walk = (e.auras || []).some((x) => x.id === 'inkblade_inkwalk');
++        if (stealth !== !!a.stealth) { a.stealth = stealth; for (const m of a.mats) { m.transparent = stealth; m.opacity = stealth ? (walk ? 0.18 : 0.4) : 1; } }
++        if (walk) {
++          if (!a.inkPool) { a.inkPool = inkPool(0.85); a.root.add(a.inkPool); }
++          a.inkPool.visible = true;
++          a.inkPool.scale.setScalar(1 + 0.06 * Math.sin(now * 6));
++          const hitting = st.hints && st.hints.attackT0 != null && (now - st.hints.attackT0) < 0.28;
++          if (hitting) {
++            if (!a.inkCut || a.inkCutT !== st.hints.attackT0) {
++              if (a.inkCut) a.root.remove(a.inkCut);
++              a.inkCut = inkCut(); a.root.add(a.inkCut); a.inkCutT = st.hints.attackT0;
++              a.inkCut.rotation.y = a.yaw + 0.4;
++            }
++            const u = (now - st.hints.attackT0) / 0.28;
++            a.inkCut.position.y = 0.1 + u * 0.9; a.inkCut.visible = true;
++          } else if (a.inkCut) a.inkCut.visible = false;
++        } else if (a.inkPool) a.inkPool.visible = false;
+       } else if (b && b.type === 'creature') {
+         const h = st.hints || {};
+         st.attackT = h.attackT0; st.hurtT = h.hurtT0; st.deadT = e.dead ? (corpses.get(e.id) >= 0 ? corpses.get(e.id) : now - 1) : null;
+@@ -383,12 +406,56 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
+           a.glint.visible = !!wu;
+           if (wu) { const k = (e.windup.kind === 'heavy' ? 1.6 : 1) * (1 + 0.35 * Math.sin(now * 30)); a.glint.position.set(0, (a.height || 1.2) + 0.25, 0); a.glint.scale.setScalar(k); a.glint.rotation.y = now * 6; }
+         }
++        const pinned = (e.auras || []).some((x) => x.id === 'lg_second_fall_root');
++        if (pinned) {
++          if (!a.emberChain) { a.emberChain = emberChains(); a.root.add(a.emberChain); }
++          a.emberChain.visible = true;
++        } else if (a.emberChain) a.emberChain.visible = false;
++        const errata = (e.auras || []).some((x) => x.id === 'scribe_rewritten') && e.elite;
++        if (errata) {
++          if (!a.errataMark) {
++            const g = new THREE.Group();
++            const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: radial('rgba(220,30,40,0.0)', 'rgba(220,30,40,0.85)'), color: '#ff4a4a', blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
++            halo.scale.set(1.4, 2.0, 1); halo.position.y = (a.height || 1.2) * 0.55; g.add(halo);
++            const bar = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.03, 0.03), new THREE.MeshBasicMaterial({ color: '#c41828' }));
++            bar.position.y = (a.height || 1.2) + 0.38; g.add(bar);
++            const under = new THREE.Mesh(new THREE.BoxGeometry(1, 0.025, 0.025), new THREE.MeshBasicMaterial({ color: '#c41828' }));
++            under.position.y = (a.height || 1.2) + 0.22; g.add(under);
++            a.errataMark = g; a.errataUnder = under; a.root.add(g);
++          }
++          const aura = (e.auras || []).find((x) => x.id === 'scribe_rewritten');
++          const left = aura && aura.until != null ? Math.max(0.05, Math.min(1, (aura.until - snap.tick) / (20 * 6))) : 1;
++          a.errataUnder.scale.set(left, 1, 1);
++          a.errataMark.visible = true;
++        } else if (a.errataMark) a.errataMark.visible = false;
++        const lost = (snap.entities || []).some((p) => p.kind === 'player' && p.zone === e.zone && (p.auras || []).some((x) => x.id === 'inkblade_inkwalk'));
++        if (lost && e.kind === 'mob' && !e.dead) {
++          if (!a.qmark) { a.qmark = questionMark(); a.root.add(a.qmark); }
++          a.qmark.position.set(0, (a.height || 1.2) + 0.45, 0);
++          a.qmark.visible = true;
++        } else if (a.qmark) a.qmark.visible = false;
+         if (e.dead) {
+           const age = now - (corpses.get(e.id) ?? now);
+           const k = age > CORPSE_SECS - CORPSE_FADE ? Math.max(0, (CORPSE_SECS - age) / CORPSE_FADE) : 1;
+           for (const m of a.mats) { m.transparent = true; m.opacity = k * (m.userData.baseOpacity ?? 1); }
+         }
+       } else if (b && b.type === 'object') {
++        if (b.o.userData.tolling) {
++          const n = b.o.children.length;
++          const life = (e.duration || 3);
++          const until = e.until != null ? e.until : (snap.tick + 20 * life);
++          const born = until - 20 * life;
++          const k = Math.max(0, Math.min(1, (snap.tick - born) / (20 * life)));
++          const rad = ((e.from || 12) + ((e.reach || 72) - (e.from || 12)) * k) / PX;
++          const ang0 = (e.spin || 0) + 2 * Math.PI * (e.turn || 1) * ((snap.tick - born) / 20);
++          for (let i = 0; i < n; i++) {
++            const h = b.o.children[i];
++            const a = ang0 + (2 * Math.PI * i) / n;
++            h.position.set(Math.cos(a) * rad, 0.55 + 0.08 * Math.sin(now * 6 + i), Math.sin(a) * rad);
++            h.rotation.set(0.3, a + Math.PI / 2, 0.2 + Math.sin(now * 8 + i) * 0.15);
++            if (h.userData.halo) h.userData.halo.rotation.z = now * 2;
++          }
++        }
+         if (b.o.userData.wdUpdate) b.o.userData.wdUpdate(e, now);   // word doors: lit cuts, the slab sinking
+         if (b.o.userData.chicken) { b.o.children[0].position.y = moving ? Math.abs(Math.sin(now * 14)) * 0.05 : 0; }
+         if (b.o.userData.secretLid) {
+diff --git a/src/render3d/fx3d.js b/src/render3d/fx3d.js
+index 7d55b8d..93b1597 100644
+--- a/src/render3d/fx3d.js
++++ b/src/render3d/fx3d.js
+@@ -19,6 +19,7 @@ import { planEvent } from '../render/fxplan.js';
+ import { createFxKit } from './fx_kit.js';
+ import { RECIPES, ABILITY_FX, AURA_FX, SPRITE_FX, PROJ_FX } from './fx_recipes.js';
+ import { FEEL, createHitWeigher, tierOf, hitStopFor, flashOf, feelName, STOP_RATE } from './feel_recipes.js';
++import { emberLandRing, tetherRope, placeRope } from './legend_kit.js';  // MOCK only
+ 
+ const PX = 16;
+ const GAME_SCALE = 1.25;      // the game camera sits 13 to 20 m out: everything a quarter bigger than the approval stills
+@@ -72,6 +73,8 @@ export function createFx3d(scene, { abilities = null, low = false, feel = true,
+   const casting = new Map();    // src -> kit instance of the charge
+   const projs = [];             // { src, dst, ability, land: [specs], done }
+   const later = [];             // [t, fn] impacts waiting for a hero's blade
++  const landRings = [];         // MOCK: Ember Leap cracked rings { o, t0, life }
++  const tethers = [];           // MOCK: { mesh, src, dst, t0, life, pin }
+   let pid = null;
+   let lite = low;               // combat feel: Low quality or a phone (the renderer sets F.lite each frame)
+   const weigher = createHitWeigher();
+@@ -218,6 +221,21 @@ export function createFx3d(scene, { abilities = null, low = false, feel = true,
+     feed(events, now, playerId, at) {
+       pid = playerId;
+       for (const ev of events || []) {
++        if (ev.type === 'b2_proc' && ev.what === 'land' && ev.ability === 'warden_ember_leap') {
++          const f = at(ev.id, 'feet');
++          if (f) {
++            const o = emberLandRing(2.5, 0);
++            o.position.copy(f); o.position.y = f.y + 0.03; scene.add(o);
++            landRings.push({ o, t0: now, life: 6 });
++            K.play('hit_burst', { at: f, ground: f.y, school: 'fire' });
++          }
++        }
++        if (ev.type === 'leap' && ev.kind === 'grapple' && ev.src != null && ev.target != null) {
++          const mesh = tetherRope(); scene.add(mesh);
++          tethers.push({ mesh, src: ev.src, dst: ev.target, t0: now, life: ev.root ? 1.35 : 0.4, pin: !!ev.root });
++          const feet = at(ev.id, 'feet');
++          if (feet) K.play('hit_heavy', { at: feet, ground: feet.y, school: 'physical' });
++        }
+         // moments the plan does not draw: a miss or a dodge, loot, a foe starting a cast
+         if (ev.type === 'damage' && WORDS.has(ev.result) && at(ev.dst, 'chest')) K.play('miss_puff', { from: ev.src != null ? at(ev.src, 'chest') : null, to: at(ev.dst, 'chest'), ground: (at(ev.dst, 'feet') || { y: 0 }).y });
+         if (ev.type === 'loot' && ev.id === playerId) { const f = ev.from != null ? at(ev.from, 'feet') : at(ev.id, 'feet'); if (f) K.play('loot_sparkle', { at: f, ground: f.y }); }
+@@ -247,6 +265,19 @@ export function createFx3d(scene, { abilities = null, low = false, feel = true,
+       for (let i = later.length - 1; i >= 0; i--) if (now >= later[i][0]) { const f = later[i][1]; later.splice(i, 1); f(); }
+       for (let i = projs.length - 1; i >= 0; i--) if (projs[i].done) projs.splice(i, 1);
+       for (const [id, c] of casting) if (!c.I.used || c.I.gen !== c.gen) casting.delete(id);
++      for (let i = landRings.length - 1; i >= 0; i--) {
++        const r = landRings[i]; const k = (now - r.t0) / r.life;
++        if (k >= 1) { scene.remove(r.o); landRings.splice(i, 1); continue; }
++        r.o.traverse((m) => { if (m.material && m.material.opacity != null) m.material.opacity = Math.max(0, (m.material.userData.baseOp ?? m.material.opacity) * (1 - k * 0.7)); });
++      }
++      for (let i = tethers.length - 1; i >= 0; i--) {
++        const tth = tethers[i]; const age = now - tth.t0;
++        if (age >= tth.life) { scene.remove(tth.mesh); tethers.splice(i, 1); continue; }
++        const a = at(tth.src, 'hand') || at(tth.src, 'chest');
++        const pin = tth.pin && age > 0.35;
++        const b = pin ? (at(tth.dst, 'feet') || at(tth.dst, 'chest')) : (at(tth.dst, 'chest') || at(tth.dst, 'feet'));
++        placeRope(tth.mesh, a, b);
++      }
+       K.update(dt, now, camera);
+     },
+     setScale() {},
+diff --git a/src/render3d/gear.js b/src/render3d/gear.js
+index 9063bb7..c809021 100644
+--- a/src/render3d/gear.js
++++ b/src/render3d/gear.js
+@@ -10,6 +10,7 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
+ import { addCape, dyeMaterial } from './hero.js';
+ import { radial, woodTex, leatherTex, woolTex, seeded } from './textures.js';
+ import { LOOKS, HAIRS, HEIGHTS, appFor, lookWithApp } from '../data/appearance.js';   // wave 6: the customization kit
++import { tollingRod, errataQuill, farTetherBow, unwrittenCowl, emberSeam, LEGEND_GLOW } from './legend_kit.js';  // MOCK only
+ 
+ const RAR_GLOW = { magic: '#6f8cff', rare: '#ffb050', epic: '#a335ee', legendary: '#ff8a2a', set: '#3cdc6a' };
+ const RANK = { common: 0, magic: 1, rare: 2, epic: 2, legendary: 3, set: 3 };      // epic (purple, 2026-11-22): a rare's look, its own glow
+@@ -94,12 +95,14 @@ export function heroSpec(cls, look, equip = {}, items = null, app = null) {
+   const spec = {
+     kind: 'hero', cls: C, base: lk.base, hair: helm || hood ? null : lk.hair, beard: lk.beard || null, hairColor: lk.hairColor,
+     skinTint: SKIN[lk.skin], parts, dye, map, helm,
+-    cape, main: main ? { kind: main.weapon || weapons[0], rank: main.rank, rarity: main.rarity } : null,
+-    off: it.off ? { kind: it.off.weapon || weapons[1], rank: it.off.rank, rarity: it.off.rarity } : null,
++    cape, main: main ? { kind: main.weapon || weapons[0], rank: main.rank, rarity: main.rarity, id: main.id } : null,
++    off: it.off ? { kind: it.off.weapon || weapons[1], rank: it.off.rank, rarity: it.off.rarity, id: it.off.id } : null,
++    feetId: it.feet ? it.feet.id : null,
+     trinket: it.trinket && it.trinket.rank >= 2 ? RAR_GLOW[it.trinket.rarity] || RAR_GLOW.rare : null,
+     topRank, scale: 1,
+   };
+-  spec.sig = JSON.stringify([C, look | 0, parts, map, dye, helm, cape, spec.main, spec.off, spec.trinket]);
++  if (spec.helm && it.head) spec.helm.id = it.head.id;
++  spec.sig = JSON.stringify([C, look | 0, parts, map, dye, helm, cape, spec.main, spec.off, spec.feetId, spec.trinket]);
+   if (a) {     // the kit's finish (custom_kit.js) tones the skin, so no tint; height is the body's scale
+     Object.assign(spec, { skinTint: null, app: a, codeHair: spec.hair ? HAIRS[a.hair].code || null : null, scale: HEIGHTS[a.height] });
+     spec.sig = JSON.stringify([spec.sig, a]);
+@@ -372,7 +375,22 @@ export async function dress(L, ch, spec, layer) {
+   const mn = spec.main, off = spec.off;
+   if (mn) {
+     const gc = glowOf(mn);
+-    if (mn.kind === 'sword') {
++    if (mn.id === 'the_tolling_rod') {
++      const st = tollingRod({ glow: gc || LEGEND_GLOW }); const ss = wield(ch, st, 'L'); upright(ch, ss, 0.12);
++      out.lights.push({ obj: st.userData.flame, color: gc || '#ffc46b', k: 4, lantern: true });
++      const t = emberTrail(st.userData.flame, layer, { n: 18, color: '#ffe0a0', size: 0.04, rise: 0.2, spread: 0.08, life: 1.8, span: [-0.02, 0.02] }); ch.fx.push(t.step);
++      ch.fx.push((dt, c, now) => { const cl = st.userData.clapper; if (cl) cl.rotation.z = Math.sin(now * 2.1) * 0.28; });
++    } else if (mn.id === 'errata_quill') {
++      const q = errataQuill({ glow: gc || LEGEND_GLOW }); wield(ch, q, 'L', { pos: [-0.02, 0.08, 0.02], rot: [Math.PI / 2, 0, 0] });
++      const drip = emberTrail(q.userData.ink || q, layer, { n: 14, color: '#8a1020', inner: 'rgba(160,16,32,1)', mid: 'rgba(80,0,12,0.7)', size: 0.035, rise: -0.35, spread: 0.04, life: 1.4, span: [0, 0.02] });
++      ch.fx.push(drip.step);
++      ch.fx.push((dt, c, now) => { const k = q.userData.caret; if (k) k.rotation.z = Math.sin(now * 1.4) * 0.25; });
++    } else if (mn.id === 'far_tether_bow') {
++      const b = farTetherBow({ glow: gc || LEGEND_GLOW }); wield(ch, b, 'L', { pos: [0.0, 0.08, 0.03], rot: [0, 0, 0] });
++      const qv = quiver(); const qs = ch.socket('spine_03', { pos: [0.1, 0.05, -0.18], rot: [0.25, 0, -0.35] }); qs.add(qv);
++      if (gc) out.lights.push({ obj: b, color: gc, k: 1.5 });
++      ch.fx.push((dt, c, now) => { const hk = b.userData.hook; if (hk) hk.rotation.x = Math.sin(now * 2.6) * 0.35; });
++    } else if (mn.kind === 'sword') {
+       const sw = await propMesh(L, 'Sword_Bronze', mn.rank === 0 ? {} : mn.rank === 1 ? { dye: { hue: 0.55, sat: 0.1, val: 1.3 } } : { dye: { hue: 0.6, sat: 0.3, val: 0.55, metalGlow: [gc, 3.2] } });
+       if (mn.rank >= 2) sw.scale.setScalar(1.15);
+       wield(ch, sw, 'R'); out.blade = sw;
+@@ -410,17 +428,48 @@ export async function dress(L, ch, spec, layer) {
+       wield(ch, handBell({ glow: gc }), 'R', { pos: [0.03, 0.08, 0.03], rot: [0, 0, 0] });
+     }
+   }
+-  if (spec.helm) {
++  if (spec.helm && spec.helm.id === 'unwritten_cowl') {
++    // hood mesh already on the body; the cowl sits over it
++  }
++  if (spec.helm && spec.helm.id !== 'unwritten_cowl') {
+     const h = spec.helm;
+     const gc = h.rank >= 2 ? RAR_GLOW[h.rarity] || RAR_GLOW.rare : null;
+     const hm = helm(h.style, h.style === 'great' ? { color: '#3d3846', trim: '#c08a3a', glow: gc || '#ffb347' } : h.rank === 1 ? { color: '#c0c6ce' } : {});
+     const hs = ch.socket('Head', { pos: [0, 0.165, 0.01], scale: 0.9 }); hs.add(hm);
+   }
++  if ((spec.helm && spec.helm.id === 'unwritten_cowl') || (spec.feetId === 'unwritten_cowl')) {
++    /* no-op: cowl is a head piece, handled below */
++  }
++  if (spec.helm && spec.helm.id === 'unwritten_cowl') {
++    const gc = LEGEND_GLOW;
++    const cw = unwrittenCowl({ glow: gc });
++    const hs = ch.socket('Head', { pos: [0, 0.12, 0.0], scale: 1 }); hs.add(cw);
++    out.lights.push({ obj: cw, color: gc, k: 0.8 });
++    const hem = { getWorldPosition: (v) => { cw.getWorldPosition(v); v.y -= 0.18; return v; } };
++    // a dummy object at the hem for ink drips
++    const dripAnchor = new THREE.Object3D(); dripAnchor.position.set(0, -0.2, 0.08); cw.add(dripAnchor);
++    const t = emberTrail(dripAnchor, layer, { n: 16, color: '#1a1428', inner: 'rgba(20,16,28,0.9)', mid: 'rgba(10,8,16,0.4)', size: 0.04, rise: -0.4, spread: 0.06, life: 0.7, span: [0, 0.02] });
++    ch.fx.push(t.step);
++  }
+   if (spec.cape) {
+     const c = spec.cape;
+     const gc = c.rank >= 2 ? RAR_GLOW[c.rarity] || RAR_GLOW.rare : null;
+     addCape(ch, layer, { map: woolTex(c.color, gc || '#c9a24c', c.rank >= 1 ? gc || '#c9a24c' : null), len: c.rank >= 2 ? 1.15 : 1.08, bottom: c.rank >= 2 ? 0.7 : 0.62, emissive: gc });
+   }
++  if (spec.feetId === 'second_fall_sabatons') {
++    const gc = LEGEND_GLOW;
++    for (const [bone, side] of [['foot_l', -1], ['foot_r', 1]]) {
++      const seam = emberSeam({ side, glow: gc });
++      const sock = ch.socket(bone, { pos: [0, 0, 0] }); sock.add(seam);
++      const t = emberTrail(seam, layer, { n: 16, color: '#ff8a2a', size: 0.04, rise: 0.15, spread: 0.08, life: 1.0, span: [0, 0.05] });
++      ch.fx.push(t.step);
++      ch.fx.push((dt, c, now) => {
++        const pulse = 0.8 + 0.6 * (0.5 + 0.5 * Math.sin(now * 3.2));
++        seam.traverse((m) => { if (m.material && m.material.emissiveIntensity != null && m.material.emissive && m.material.emissive.r > 0) m.material.emissiveIntensity = pulse; });
++      });
++    }
++    out.lights.push({ obj: ch.o, color: gc, k: 1.2, y: 0.1 });
++  }
+   if (spec.trinket) {
+     const mote = new THREE.Sprite(new THREE.SpriteMaterial({ map: radial('rgba(255,255,255,1)', 'rgba(255,255,255,0.3)'), color: spec.trinket, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+     mote.scale.setScalar(0.18);
+diff --git a/src/render3d/renderer3d.js b/src/render3d/renderer3d.js
+index d553c15..27edffb 100644
+--- a/src/render3d/renderer3d.js
++++ b/src/render3d/renderer3d.js
+@@ -966,11 +966,22 @@ export function createRenderer3D(canvas, assets, opts = {}) {
+       if (!e || e.dead || e.kind === 'object' || id === me) continue;
+       const isTarget = id === view.targetId;
+       const onMe = e.kind === 'mob' && (e.aggro === me || e.target === me);
+-      if (!isTarget && !onMe && e.kind !== 'player') continue;
++      const rewritten = (e.auras || []).some((x) => x.id === 'scribe_rewritten');
++      if (!isTarget && !onMe && e.kind !== 'player' && !rewritten) continue;
+       const [x, y] = worldToHud(an.x, an.y - an.h - 6);
+       if (x < -40 || y < -20 || x > layout.hudW + 40 || y > layout.hudH + 20) continue;
+-      const col = e.faction === 'hostile' ? '#ff8a6a' : e.kind === 'player' ? '#8fe07a' : '#ffd75a';
+-      if (isTarget || e.kind === 'player') font.draw(octx, e.name || '', x, y - 9, { align: 'center', color: col, outline: '#14101e' });
++      const col = rewritten && e.elite ? '#ff4a4a' : e.faction === 'hostile' ? '#ff8a6a' : e.kind === 'player' ? '#8fe07a' : '#ffd75a';
++      const showName = isTarget || e.kind === 'player' || (rewritten && e.elite);
++      if (showName) font.draw(octx, e.name || '', x, y - 9, { align: 'center', color: col, outline: rewritten && e.elite ? '#5a0008' : '#14101e' });
++      if (rewritten && e.elite) {
++        const nm = e.name || '';
++        const tw = (font.measure ? font.measure(nm) : 0) || Math.max(24, nm.length * 6);
++        octx.strokeStyle = '#c41828'; octx.lineWidth = 2;
++        octx.beginPath(); octx.moveTo(x - tw / 2, y - 11); octx.lineTo(x + tw / 2, y - 11); octx.stroke();
++        const aura = (e.auras || []).find((x) => x.id === 'scribe_rewritten');
++        const left = aura && aura.until != null ? Math.max(0, Math.min(1, (aura.until - snap.tick) / (20 * 6))) : 1;
++        octx.fillStyle = '#c41828'; octx.fillRect(x - 14, y + 5, Math.round(28 * left), 2);
++      }
+       if (isTarget && e.rare) font.draw(octx, 'Rare', x, y - 18, { align: 'center', color: '#d4dce8', outline: '#14101e' });   // a rare named foe (src/data/rares.js)
+       if (e.hpMax > 0 && (e.kind === 'mob' || e.kind === 'player')) {
+         const w = 26, k = Math.max(0, Math.min(1, e.hp / e.hpMax));
+diff --git a/src/sim/scripts_b2.js b/src/sim/scripts_b2.js
+index 9054867..729a715 100644
+--- a/src/sim/scripts_b2.js
++++ b/src/sim/scripts_b2.js
+@@ -246,7 +246,7 @@ export function createB2Scripts(C) {
+           const d = Math.max(0, distPx(src, r) - 22);
+           if (small) { const [vx, vy] = unitTo(r, src, r.dir); K().setForced(r, vx, vy, d, 0.35); K().cancelCast(r, 'interrupt'); }
+           else { const [vx, vy] = unitTo(src, r, src.dir); K().setForced(src, vx, vy, d, 0.35); }
+-          emit({ type: 'leap', id: small ? r.id : src.id, kind: 'grapple', dx: 0, dy: 0 });
++          emit({ type: 'leap', id: small ? r.id : src.id, kind: 'grapple', dx: 0, dy: 0, src: src.id, target: r.id, root: !!(args && args.root) });
+           return;
+         }
+         case 'b2_rewrite': {
+diff --git a/src/sim/world.js b/src/sim/world.js
+index 05933f9..8a256b7 100644
+--- a/src/sim/world.js
++++ b/src/sim/world.js
+@@ -1196,6 +1196,10 @@ function wrap(state, content0, rng, systems) {
+     else if (e.kind === 'object' && e.mirror) { o.mirror = { id: e.mirror.id, place: e.mirror.place || null }; }
+     else if (e.kind === 'object' && e.obj) {
+       o.owner = e.owner; o.objType = e.obj.def.id; o.radius = e.obj.def.radius || (e.obj.def.trigger && e.obj.def.trigger.radius) || 0;
++      if (e.obj.def.script === 'b2_tolling_hammers') {
++        o.hammers = e.obj.def.hammers || 3; o.reach = e.obj.def.reach || 72; o.from = e.obj.def.from || 12;
++        o.turn = e.obj.def.turn || 1; o.until = e.obj.until; o.duration = e.obj.def.duration || 3; o.spin = e.obj.spin || 0;
++      }
+       o.armed = state.tick >= e.obj.armAt; o.until = e.obj.until;
+     }
+     return o;
+
+---- untracked: src/render3d/legend_kit.js ----
+diff --git a/src/render3d/legend_kit.js b/src/render3d/legend_kit.js
+new file mode 100644
+index 0000000..ca8efb7
+--- /dev/null
++++ b/src/render3d/legend_kit.js
+@@ -0,0 +1,332 @@
++// MOCK ONLY (throwaway worktree mock/legendary-visuals). In-engine looks for the legendary stills. Not for main.
++import * as THREE from '../vendor/three/three.module.min.js';
++import { radial, woodTex, leatherTex } from './textures.js';
++
++export const LEGEND_GLOW = '#ff8a2a';
++
++const bronze = () => new THREE.MeshStandardMaterial({ color: '#b07a3a', roughness: 0.35, metalness: 0.85 });
++const darkBronze = () => new THREE.MeshStandardMaterial({ color: '#6a4220', roughness: 0.4, metalness: 0.8 });
++const iron = () => new THREE.MeshStandardMaterial({ color: '#2a2522', roughness: 0.5, metalness: 0.7 });
++const wood = (c) => new THREE.MeshStandardMaterial({ color: '#ffffff', map: woodTex(c), roughness: 0.8 });
++const leather = (c) => new THREE.MeshStandardMaterial({ color: '#ffffff', map: leatherTex(c), roughness: 0.85 });
++const goldGlow = (col = '#ffc46b', k = 2.2) => new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: k, roughness: 0.3, metalness: 0.2 });
++
++const castAll = (g) => { g.traverse((m) => { if (m.isMesh) m.castShadow = true; }); return g; };
++
++/** Short bronze rod with an open bell and a lantern-flame clapper. */
++export function tollingRod({ glow = LEGEND_GLOW } = {}) {
++  const g = new THREE.Group();
++  const h = 0.95;
++  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, h, 8), darkBronze());
++  shaft.position.y = h / 2 - 0.72; g.add(shaft);
++  const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.05, 10), bronze());
++  collar.position.y = h - 0.72; g.add(collar);
++  const pts = [];
++  for (let i = 0; i <= 12; i++) {
++    const t = i / 12;
++    // open bell, wide mouth, clearly a bell even from a step back
++    pts.push(new THREE.Vector2(0.04 + 0.14 * t * t, 0.22 * (1 - t)));
++  }
++  const bell = new THREE.Mesh(new THREE.LatheGeometry(pts, 20), bronze());
++  bell.rotation.x = Math.PI; bell.position.y = h - 0.72 + 0.20; g.add(bell);
++  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.014, 8, 20), bronze());
++  lip.rotation.x = Math.PI / 2; lip.position.y = h - 0.72 + 0.02; g.add(lip);
++
++  const clapper = new THREE.Group();
++  clapper.position.set(0, h - 0.72 + 0.08, 0);
++  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.09, 5), iron());
++  chain.position.y = -0.05; clapper.add(chain);
++  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), goldGlow('#ffd27a', 3.2));
++  flame.scale.set(0.75, 1.25, 0.75); flame.position.y = -0.11; flame.castShadow = false; clapper.add(flame);
++  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
++    map: radial('rgba(255,236,190,0.95)', 'rgba(255,140,40,0.3)'),
++    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
++  }));
++  halo.scale.setScalar(0.28); halo.position.y = -0.11; clapper.add(halo);
++  g.add(clapper);
++  g.userData.clapper = clapper;
++  g.userData.flame = flame;
++  g.userData.halo = halo;
++  g.userData.legend = 'the_tolling_rod';
++  g.traverse((m) => { if (m.isMesh && m !== flame) m.castShadow = true; });
++  if (glow) {
++    bronze().dispose;
++    bell.material.emissive = new THREE.Color(glow);
++    bell.material.emissiveIntensity = 0.35;
++  }
++  return g;
++}
++
++/** Long white quill, red-ink nib, a caret hanging on a thread. */
++export function errataQuill({ glow = LEGEND_GLOW } = {}) {
++  const g = new THREE.Group();
++  const vane = new THREE.Shape();
++  vane.moveTo(0, 0);
++  vane.quadraticCurveTo(0.07, 0.28, 0.018, 0.62);
++  vane.quadraticCurveTo(-0.04, 0.32, 0, 0);
++  const mat = new THREE.MeshStandardMaterial({
++    color: '#f4eee4', roughness: 0.78, side: THREE.DoubleSide,
++    emissive: glow || '#000', emissiveIntensity: glow ? 0.22 : 0,
++  });
++  const f = new THREE.Mesh(new THREE.ShapeGeometry(vane, 10), mat);
++  f.position.y = 0.08; g.add(f);
++  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.006, 0.7, 5), new THREE.MeshStandardMaterial({ color: '#e8dfd0', roughness: 0.6 }));
++  spine.position.y = 0.36; g.add(spine);
++  const nib = new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.09, 5), new THREE.MeshStandardMaterial({ color: '#6a1020', metalness: 0.7, roughness: 0.25, emissive: '#4a0008', emissiveIntensity: 0.4 }));
++  nib.rotation.x = Math.PI; nib.position.y = 0.0; g.add(nib);
++  const ink = new THREE.Mesh(new THREE.SphereGeometry(0.007, 6, 6), new THREE.MeshBasicMaterial({ color: '#8a1020' }));
++  ink.position.y = -0.04; g.add(ink);
++  const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.16, 4), new THREE.MeshBasicMaterial({ color: '#4a2018' }));
++  thread.position.set(0.03, 0.14, 0.01); g.add(thread);
++  const caret = caretMark('#c41828');
++  caret.position.set(0.03, 0.05, 0.01); g.add(caret);
++  g.userData.nib = nib;
++  g.userData.ink = ink;
++  g.userData.caret = caret;
++  g.userData.legend = 'errata_quill';
++  return castAll(g);
++}
++
++function caretMark(col) {
++  const g = new THREE.Group();
++  const m = new THREE.MeshStandardMaterial({ color: col, roughness: 0.4, metalness: 0.2, emissive: col, emissiveIntensity: 0.25 });
++  const a = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.008), m);
++  a.rotation.z = 0.7; a.position.set(-0.012, 0, 0); g.add(a);
++  const b = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.008, 0.008), m);
++  b.rotation.z = -0.7; b.position.set(0.012, 0, 0); g.add(b);
++  return g;
++}
++
++/** Recurve bow with a braided rope string and an iron hook at the lower limb. */
++export function farTetherBow({ glow = LEGEND_GLOW, h = 1.32 } = {}) {
++  const g = new THREE.Group();
++  const half = h / 2;
++  const pts = [];
++  for (let i = 0; i <= 16; i++) {
++    const t = i / 16 * 2 - 1;
++    const y = t * half;
++    const a = Math.abs(t);
++    pts.push(new THREE.Vector3(0, y, 0.16 * (1 - a * a) - (a > 0.82 ? (a - 0.82) * 0.5 : 0)));
++  }
++  const curve = new THREE.CatmullRomCurve3(pts);
++  const limbMat = wood('#5a3a22');
++  if (glow) { limbMat.emissive = new THREE.Color(glow); limbMat.emissiveIntensity = 0.55; }
++  g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 32, 0.018, 6), limbMat));
++  const wrap = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.18, 8), leather('#2b1d14'));
++  wrap.position.z = 0.16; g.add(wrap);
++  const top = curve.getPointAt(1), bot = curve.getPointAt(0);
++  const d = bot.clone().sub(top);
++  const rope = new THREE.Mesh(
++    new THREE.CylinderGeometry(0.007, 0.007, d.length(), 7),
++    new THREE.MeshStandardMaterial({ color: '#6b4a32', roughness: 0.85, emissive: glow || '#000', emissiveIntensity: glow ? 0.2 : 0 }),
++  );
++  rope.position.copy(top).addScaledVector(d, 0.5);
++  // align the cylinder to the string
++  rope.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize());
++  g.add(rope);
++  const hookPivot = new THREE.Group();
++  hookPivot.position.copy(bot);
++  const hook = ironHook();
++  hook.position.set(0, -0.02, 0);
++  hookPivot.add(hook);
++  g.add(hookPivot);
++  g.userData.hook = hookPivot;
++  g.userData.legend = 'far_tether_bow';
++  return castAll(g);
++}
++
++function ironHook() {
++  const g = new THREE.Group();
++  const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.07, 6), iron());
++  shank.position.y = -0.02; g.add(shank);
++  const curve = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.008, 6, 10, Math.PI * 1.35), iron());
++  curve.rotation.x = Math.PI / 2; curve.rotation.z = 0.4; curve.position.set(0.02, -0.055, 0); g.add(curve);
++  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.03, 5), iron());
++  tip.rotation.z = 2.2; tip.position.set(0.045, -0.04, 0); g.add(tip);
++  return g;
++}
++
++/** Deep hood: ink-black interior, two faint grey eyes. Attaches at Head. */
++export function unwrittenCowl({ glow = LEGEND_GLOW } = {}) {
++  const g = new THREE.Group();
++  const cloth = new THREE.MeshStandardMaterial({ color: '#16141c', roughness: 0.9, side: THREE.DoubleSide, emissive: glow || '#000', emissiveIntensity: glow ? 0.12 : 0 });
++  const inner = new THREE.MeshStandardMaterial({ color: '#05040a', roughness: 1, side: THREE.DoubleSide });
++  const pts = [];
++  for (let i = 0; i <= 10; i++) {
++    const t = i / 10;
++    pts.push(new THREE.Vector2(0.16 + 0.06 * t, 0.02 - t * 0.28));
++  }
++  const shell = new THREE.Mesh(new THREE.LatheGeometry(pts, 20), cloth);
++  shell.position.y = 0.08; g.add(shell);
++  const cave = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.6), inner);
++  cave.position.set(0, 0.04, 0.04); cave.rotation.x = 0.35; g.add(cave);
++  const brim = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.018, 6, 18, Math.PI * 1.2), cloth);
++  brim.rotation.x = 1.15; brim.position.set(0, -0.08, 0.04); g.add(brim);
++  const eyeMat = new THREE.SpriteMaterial({
++    map: radial('rgba(200,200,210,0.95)', 'rgba(80,80,90,0.15)'),
++    color: '#c8c8d0', transparent: true, depthWrite: false, opacity: 0.7,
++  });
++  for (const sx of [-1, 1]) {
++    const e = new THREE.Sprite(eyeMat);
++    e.scale.set(0.045, 0.032, 1);
++    e.position.set(sx * 0.04, 0.02, 0.12);
++    g.add(e);
++  }
++  g.userData.hem = brim;
++  g.userData.legend = 'unwritten_cowl';
++  g.traverse((m) => { if (m.isMesh) m.castShadow = true; });
++  return g;
++}
++
++/** Ember seams for the Second Fall sabatons, parented to a foot socket. */
++export function emberSeam({ side = 1, glow = '#ff8a2a' } = {}) {
++  const g = new THREE.Group();
++  const mat = new THREE.MeshStandardMaterial({ color: '#3a2010', emissive: glow, emissiveIntensity: 1.4, roughness: 0.5, metalness: 0.4 });
++  const sole = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.012, 0.22), mat);
++  sole.position.set(0, -0.04, 0.04); g.add(sole);
++  for (const z of [-0.06, 0.0, 0.07]) {
++    const crack = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.02, 0.04), goldGlow('#ff6a20', 2.4));
++    crack.position.set(side * 0.03, -0.028, z); crack.rotation.z = side * 0.4; g.add(crack);
++  }
++  g.userData.seams = g.children.filter((c) => c.material && c.material.emissive);
++  g.userData.legend = 'second_fall_sabatons';
++  return g;
++}
++
++/** A small light-school hammer with a gold bell-ring halo, for Tolling Hammers. */
++export function lightHammer() {
++  const g = new THREE.Group();
++  const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.034, 0.62, 6), new THREE.MeshStandardMaterial({ color: '#c9a24c', roughness: 0.4, metalness: 0.7, emissive: '#ffd27a', emissiveIntensity: 0.8 }));
++  haft.position.y = 0.08; g.add(haft);
++  const head = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.24, 8), bronze());
++  head.rotation.z = Math.PI / 2; head.position.y = 0.36; g.add(head);
++  const capL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 8), goldGlow('#ffe08a', 1.6));
++  capL.rotation.z = Math.PI / 2; capL.position.set(-0.14, 0.36, 0); g.add(capL);
++  const capR = capL.clone(); capR.position.set(0.14, 0.36, 0); g.add(capR);
++  const halo = new THREE.Mesh(
++    new THREE.TorusGeometry(0.28, 0.02, 8, 22),
++    new THREE.MeshBasicMaterial({ color: '#ffe9a0', transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }),
++  );
++  halo.rotation.x = Math.PI / 2; halo.position.y = 0.22; g.add(halo);
++  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
++    map: radial('rgba(255,240,180,0.9)', 'rgba(255,160,40,0.2)'),
++    blending: THREE.AdditiveBlending, depthWrite: false, transparent: true,
++  }));
++  glow.scale.setScalar(0.95); glow.position.y = 0.22; g.add(glow);
++  g.userData.halo = halo;
++  g.traverse((m) => { if (m.isMesh && m !== halo) m.castShadow = false; });
++  return g;
++}
++
++/** Cracked cooling stone ring (Ember Leap landing). age 0 is fresh, 1 is cooled. */
++export function emberLandRing(radius = 2.5, age = 0) {
++  const g = new THREE.Group();
++  const k = 1 - age * 0.55;
++  const ring = new THREE.Mesh(
++    new THREE.RingGeometry(radius * 0.62, radius, 36),
++    new THREE.MeshStandardMaterial({
++      color: '#3a2416', emissive: '#ff6a20', emissiveIntensity: 1.1 * k,
++      roughness: 0.95, metalness: 0.05, transparent: true, opacity: 0.92 - age * 0.35, side: THREE.DoubleSide,
++    }),
++  );
++  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.04; g.add(ring);
++  const inner = new THREE.Mesh(
++    new THREE.CircleGeometry(radius * 0.55, 28),
++    new THREE.MeshBasicMaterial({
++      map: radial('rgba(255,140,40,0.55)', 'rgba(40,16,8,0.0)'),
++      color: '#ff8a2a', transparent: true, opacity: 0.7 * k, blending: THREE.AdditiveBlending, depthWrite: false,
++    }),
++  );
++  inner.rotation.x = -Math.PI / 2; inner.position.y = 0.05; g.add(inner);
++  const crackMat = new THREE.MeshBasicMaterial({ color: '#ff9a40', transparent: true, opacity: 0.8 * k, blending: THREE.AdditiveBlending, depthWrite: false });
++  for (let i = 0; i < 8; i++) {
++    const a = i / 8 * Math.PI * 2 + 0.2;
++    const crack = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.02, radius * 0.45), crackMat);
++    crack.position.set(Math.cos(a) * radius * 0.55, 0.06, Math.sin(a) * radius * 0.55);
++    crack.rotation.y = -a;
++    g.add(crack);
++  }
++  g.userData.age = age;
++  return g;
++}
++
++/** Small ember chain links at a rooted foe's feet. */
++export function emberChains() {
++  const g = new THREE.Group();
++  const mat = goldGlow('#ff7a30', 1.8);
++  for (let i = 0; i < 5; i++) {
++    const a = i / 5 * Math.PI * 2;
++    const link = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 10), mat);
++    link.position.set(Math.cos(a) * 0.28, 0.08, Math.sin(a) * 0.28);
++    link.rotation.set(0.6, a, 0.3);
++    g.add(link);
++  }
++  return g;
++}
++
++/** A dark ink pool under an Inkwalking Inkblade. */
++export function inkPool(r = 0.7) {
++  const g = new THREE.Group();
++  const disc = new THREE.Mesh(
++    new THREE.CircleGeometry(r, 28),
++    new THREE.MeshBasicMaterial({
++      map: radial('rgba(10,8,16,0.95)', 'rgba(10,8,16,0.0)'),
++      color: '#1a1428', transparent: true, opacity: 0.92, depthWrite: false,
++    }),
++  );
++  disc.rotation.x = -Math.PI / 2; disc.position.y = 0.04; g.add(disc);
++  const rim = new THREE.Mesh(
++    new THREE.RingGeometry(r * 0.72, r * 1.05, 28),
++    new THREE.MeshBasicMaterial({ color: '#2a2438', transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide }),
++  );
++  rim.rotation.x = -Math.PI / 2; rim.position.y = 0.05; g.add(rim);
++  return g;
++}
++
++/** A black blade cut rising from a pool. */
++export function inkCut() {
++  const g = new THREE.Group();
++  const mat = new THREE.MeshBasicMaterial({ color: '#0a0810', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
++  const blade = new THREE.Mesh(new THREE.PlaneGeometry(0.08, 0.7), mat);
++  blade.position.y = 0.35; g.add(blade);
++  const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.7), new THREE.MeshBasicMaterial({ color: '#5a4a80', transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
++  edge.position.y = 0.35; edge.position.x = 0.03; g.add(edge);
++  return g;
++}
++
++export function questionMark() {
++  const c = document.createElement('canvas'); c.width = c.height = 64;
++  const g = c.getContext('2d');
++  g.fillStyle = '#f2ede0'; g.font = 'bold 52px serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
++  g.strokeStyle = '#14101e'; g.lineWidth = 6;
++  g.strokeText('?', 32, 36); g.fillText('?', 32, 36);
++  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
++  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, depthWrite: false }));
++  s.scale.set(0.35, 0.35, 1);
++  return s;
++}
++
++/** A taut rope between two world points (updated each frame). */
++export function tetherRope() {
++  const geo = new THREE.CylinderGeometry(0.03, 0.03, 1, 6);
++  geo.translate(0, 0.5, 0);
++  const mat = new THREE.MeshStandardMaterial({ color: '#6b4a32', roughness: 0.85, metalness: 0.05 });
++  const mesh = new THREE.Mesh(geo, mat);
++  mesh.castShadow = true;
++  const core = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 5), new THREE.MeshBasicMaterial({ color: '#c4a070' }));
++  core.geometry.translate(0, 0.5, 0);
++  mesh.add(core);
++  mesh.userData.core = core;
++  return mesh;
++}
++
++export function placeRope(mesh, a, b) {
++  if (!a || !b) { mesh.visible = false; return; }
++  mesh.visible = true;
++  const d = b.clone().sub(a);
++  const len = d.length();
++  if (len < 0.05) { mesh.visible = false; return; }
++  mesh.position.copy(a);
++  mesh.scale.set(1, len, 1);
++  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
++}

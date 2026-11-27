@@ -1,0 +1,1518 @@
+repo: /workspace/lr-raid2-build
+HEAD: 94b3c0021b561b9b30630cd0651c0635210828ab
+branch: feat/raid-wing2
+status:
+ M docs/CONTRACTS.md
+ M qa/sim/party_bot.mjs
+ M qa/sim/raid.test.mjs
+ M qa/tests/dloot.test.mjs
+ M src/data/maps/doors.js
+ M src/data/maps/index.js
+ M src/data/raid_endmarket.js
+ M src/data/raid_places.js
+ M src/render3d/creature_recipes.js
+ M src/render3d/fair3d.js
+ M src/sim/delve.js
+ M src/sim/raid.js
+?? src/data/maps/endmarket_streets.js
+?? src/data/raid_endmarket_streets.js
+?? tools/maps/zone_endmarket_streets.mjs
+
+---- git diff ----
+diff --git a/docs/CONTRACTS.md b/docs/CONTRACTS.md
+index f997b7a..8c107ca 100644
+--- a/docs/CONTRACTS.md
++++ b/docs/CONTRACTS.md
+@@ -1357,6 +1357,37 @@ All words are DRAFTS for Scott.
+ - **Tuning.** `EM_TUNE` by `node qa/sim/party_bot.mjs` (the party bot: any place, any party; gate for four heroes: cleared,
+   no wipe, deaths <= 2, each boss 60 to 300 s), also run in the suite as `qa/sim/raid.test.mjs`.
+ 
++## The Endmarket raid, wing 2: the Fair Streets (wave 10 draid, wave B, 2026-11-26, BUILD; Scott: "Go with your recs"; BRIEF_raid_wing2.md)
++
++Data: `src/data/raid_places.js` (`endmarket_streets`, door in Drovers' Reach at 306,74, `minLevel: 30`, `needs: 'em_pay_going_in'`),
++`src/data/raid_endmarket_streets.js` (foes, Street Tickets ilvl 33 with `reqLevel: 30`, street weapons and trinkets, the
++Streets Still Selling quest), merged by `applyRaid`. Map `tools/maps/zone_endmarket_streets.mjs`. All words are DRAFTS
++for Scott. The auction block (`dg_fair_block`) stays reserved for wing 3. One Reach-side door only (no Drove Fold story door).
++
++- **Door.** `withDoors` now passes `needs` and `notYet` onto the join and the `doors` entry. `checkJoin` already waits on
++  `j.needs` (and speaks `j.notYet` through realms2). `delve.enter` also refuses a party whose leader has not done the
++  quest. The door is 306-308,74 (309,74 is rock) with out 307,76, beside the Fair Gate. Both doors use the Fair Gate art
++  (id starts `endmarket`).
++- **Tickets.** Street Tickets use `use: { kind: 'lot_ticket', ticket: 'street', slot: 'weapon'|'off'|'trinket' }`.
++  `RD.useTicket` gives the class street weapon, off-hand, or a trinket they lack. A Wayfinder's off ticket is a Street
++  trinket. An owned slot becomes another street piece they lack. Lockout is still per boss per week; both wings can loot
++  in the same week (the Purse is per place). The Street Purse is `RAID_RULES.purses.endmarket_streets` (gold 160-220, 4
++  glyphs, one ticket that may be a Lot Ticket slot or a Street Ticket).
++- **Boss rules.** The Weighmaster's `em_weigh_lot` (uninterruptible) applies Heavy to its target at the start and, when
++  the cast ends, checks the gold pan (the heavy hero) and the blue pan (at least one other). Both paid: a modest shared
++  hit. A missed pan: unpaid hit and a short knock for anyone not on a pan. Alone: the gold pan roots (`soloRootSec`),
++  neither pan is an avoidable unpaid hit. Event `raid_weigh { kind: 'start'|'paid'|'unpaid'|'solo' }`. The Crier's Sold!
++  tags a non-target with a color (oxblood, bone, teal) for 6 s (8 s alone, nearest stall, no jump); standing in the
++  matching stall pays it; a magic dispel or Purify clears it; a party fail bursts (a friend in the stall splits it) and
++  jumps the tag to another color with a shorter window. Event `raid_sold { kind: 'tag'|'paid'|'fail'|'cleared'|'jump' }`.
++  The Catchpole's Hook and Draw hooks the furthest non-target (slowed, not rooted) and a friend breaks `em_chain_ring`
++  to cut it; fail is a pull, a short stun and a modest hit. Alone: a brief root, then a Chain Ring beside them. Event
++  `raid_hook { kind: 'hooked'|'broken'|'fail'|'out' }`.
++- **Render.** `fairProp` honours `p.face` (`n`,`e`,`s`,`w`) and rotates lanterns with the prop. Recipes for the Lot Buyer,
++  the Weighmaster, the Crier, the Catchpole and the Chain Ring are in `creature_recipes.js`.
++- **Tuning.** `STREET_TUNE` by the same party bot and `qa/sim/raid.test.mjs` (Fair Streets four-hero and two-hero runs
++  are separate tests so each stays under the suite's time ceiling).
++
+ ## World life: rares, rest XP, story chains, Night at the Stones (2026-11-22, LIVE)
+ 
+ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js`, glued by `src/data/worldlife.js`
+diff --git a/qa/sim/party_bot.mjs b/qa/sim/party_bot.mjs
+index df20db7..525fc3f 100644
+--- a/qa/sim/party_bot.mjs
++++ b/qa/sim/party_bot.mjs
+@@ -2,7 +2,9 @@
+ // map data with the command API only, the way friends play it: the tank pulls one pack at a time and taunts what turns
+ // on a friend, the Mender heals whoever is lowest, the others hit the tank's target; everyone steps out of ground
+ // warnings, and the party rules of a raid boss are played as they are meant to be: the Turnpike's toll ring is shared
+-// (everyone walks into it), and whoever Old Shep pens is freed by the others breaking the hurdle. Between pulls the party
++// (everyone walks into it), whoever Old Shep pens is freed by the others breaking the hurdle, the Weighmaster's heavy
++// hero stands on the gold pan and the others on the blue, a Sold! tag walks to its stall, and a Catchpole hook is cut
++// by breaking the Chain Ring. Between pulls the party
+ // sits to full; a hero who dies releases once the fight ends and walks back from the inside lantern.
+ // For dbosses and later raid waves too: any place, any party.
+ //
+@@ -56,7 +58,7 @@ export function partyRun(place, { party = PARTY4, level = 30, seed = 1, maxMin =
+   for (const h of heroes) zid = w.internals.dungeons.enter(h, place);
+   const Z = C0.zones[zid];
+   heroes.forEach((h, i) => { h.zone = zid; h.x = (Z.arrival[0] + (i % 2)) * TILE + 128; h.y = (Z.arrival[1] + 1 - Math.floor(i / 2)) * TILE - SUB; });
+-  const R = { place, party: party.join('+'), level, cleared: false, minutes: 0, deaths: 0, wipes: 0, bosses: {}, low: 100, toll: { shared: 0, unpaid: 0, solo: 0 }, pens: 0, loot: {} };
++  const R = { place, party: party.join('+'), level, cleared: false, minutes: 0, deaths: 0, wipes: 0, bosses: {}, low: 100, toll: { shared: 0, unpaid: 0, solo: 0 }, pens: 0, weigh: { paid: 0, unpaid: 0, solo: 0 }, sold: { paid: 0, fail: 0, cleared: 0 }, hooks: 0, loot: {} };
+   const D = C0.dungeons[place];
+   const tank = heroes.find((h) => h.cls === 'warden') || heroes[0];
+   const healer = heroes.find((h) => h.cls === 'mender') || null;
+@@ -105,17 +107,32 @@ export function partyRun(place, { party = PARTY4, level = 30, seed = 1, maxMin =
+   const lastDead = new Set();
+   function act(h, fight) {
+     const s = st.get(h.id), cls = h.cls, b = NAMED_ALL[cls][0];
++    const isBreak = (m) => m && (m.template === 'em_hurdle' || m.template === 'em_chain_ring');
++    // Weigh the Lot: the heavy hero to the gold pan, everyone else to the blue, and keep hitting from there
++    const weigh = fight.find((m) => m.cast && m.cast.ability === 'em_weigh_lot');
++    if (weigh && C0.raid && C0.raid.weigh) {
++      const heavy = (h.auras || []).some((a) => a.id === 'em_heavy');
++      const xy = heavy ? C0.raid.weigh.gold : C0.raid.weigh.blue;
++      const px = xy[0] * TILE + 128, py = (xy[1] + 1) * TILE - SUB;
++      if (Math.hypot(h.x - px, h.y - py) / SUB > 22) { walkToward(h, px, py); return; }
++    }
++    // Sold!: walk the tagged hero to the matching stall
++    if (h.soldColor && C0.raid && C0.raid.sold && C0.raid.sold.stalls[h.soldColor]) {
++      const xy = C0.raid.sold.stalls[h.soldColor];
++      const px = xy[0] * TILE + 128, py = (xy[1] + 1) * TILE - SUB;
++      if (Math.hypot(h.x - px, h.y - py) / SUB > 22) { walkToward(h, px, py); return; }
++    }
+     // the toll ring: everyone stands in it (the shared rule), and keeps hitting from there
+     const toll = fight.find((m) => m.cast && m.cast.ability === 'em_pay_toll' && m.cast.at);
+     if (toll && Math.hypot(h.x - toll.cast.at.x, h.y - toll.cast.at.y) / SUB > 22) { walkToward(h, toll.cast.at.x, toll.cast.at.y); return; }
+-    const d = !toll && danger(h);
++    const d = !toll && !weigh && danger(h);
+     if (d) { dodge(h, d); return; }
+-    const hurdle = fight.find((m) => m.template === 'em_hurdle') || foesIn().find((m) => m.template === 'em_hurdle');
++    const hurdle = fight.find(isBreak) || foesIn().find(isBreak);
+     let tgt = s.tgt && !s.tgt.dead && (fight.includes(s.tgt) || s.tgt === hurdle) ? s.tgt : null;
+     if (h === tank) {
+-      const loose = fight.find((m) => m.template !== 'em_hurdle' && m.ai.target != null && m.ai.target !== tank.id && !(m.spawn && m.spawn.temporary && m.bossAdd == null && m.template === 'em_hurdle'));
++      const loose = fight.find((m) => !isBreak(m) && m.ai.target != null && m.ai.target !== tank.id && !(m.spawn && m.spawn.temporary && m.bossAdd == null && isBreak(m)));
+       if (loose && (tank.cd.warden_taunt || 0) <= w.tick && tank.known.includes('warden_taunt') && dpx(loose, tank) < 160 && !tank.cast) send(tank, { t: 'cast', ability: 'warden_taunt', target: loose.id });
+-      tgt = fight.find((m) => isBoss(m)) && !fight.some((m) => m.bossAdd) ? fight.find((m) => isBoss(m)) : (loose || fight.filter((m) => m.template !== 'em_hurdle').sort((a, c) => dpx(a, tank) - dpx(c, tank))[0]);
++      tgt = fight.find((m) => isBoss(m)) && !fight.some((m) => m.bossAdd) ? fight.find((m) => isBoss(m)) : (loose || fight.filter((m) => !isBreak(m)).sort((a, c) => dpx(a, tank) - dpx(c, tank))[0]);
+     } else if (hurdle && h !== healer && (h.auras || []).every((a) => a.id !== 'em_penned' || true)) tgt = hurdle;
+     else { const tt = tank.target != null ? w.get(tank.target) : null; tgt = tt && !tt.dead && tt.zone === zid ? tt : fight[0]; }
+     if (!tgt) return;
+@@ -147,8 +164,11 @@ export function partyRun(place, { party = PARTY4, level = 30, seed = 1, maxMin =
+       for (const e of ev) {
+         if (e.type === 'raid_toll') { if (e.heroes === 1) R.toll.solo++; else if (e.inside) R.toll.shared++; else R.toll.unpaid++; }
+         if (e.type === 'raid_pen' && e.kind === 'penned') R.pens++;
++        if (e.type === 'raid_weigh') { if (e.kind === 'paid') R.weigh.paid++; else if (e.kind === 'solo') R.weigh.solo++; else if (e.kind === 'unpaid') R.weigh.unpaid++; }
++        if (e.type === 'raid_sold') { if (e.kind === 'paid') R.sold.paid++; else if (e.kind === 'fail') R.sold.fail++; else if (e.kind === 'cleared') R.sold.cleared++; }
++        if (e.type === 'raid_hook' && e.kind === 'hooked') R.hooks++;
+         if (e.type === 'raid_loot') R.loot[e.kind] = (R.loot[e.kind] || 0) + 1;
+-        if (trace === 2 && (e.type === 'boss' || e.type === 'raid_toll' || e.type === 'raid_pen' || e.type === 'yell')) console.log(`  t${w.tick} ${JSON.stringify(e)}`);
++        if (trace === 2 && (e.type === 'boss' || e.type === 'raid_toll' || e.type === 'raid_pen' || e.type === 'raid_weigh' || e.type === 'raid_sold' || e.type === 'raid_hook' || e.type === 'yell')) console.log(`  t${w.tick} ${JSON.stringify(e)}`);
+       }
+       for (const m of Object.keys(bossStart)) { const e = w.state.ents.find((x) => x.zone === zid && x.template === m); if (e && e.dead && R.bosses[m] == null) R.bosses[m] = +((w.tick - bossStart[m]) / 20).toFixed(1); }
+       continue;
+diff --git a/qa/sim/raid.test.mjs b/qa/sim/raid.test.mjs
+index 708589d..a11e1fc 100644
+--- a/qa/sim/raid.test.mjs
++++ b/qa/sim/raid.test.mjs
+@@ -1,6 +1,7 @@
+-// The Endmarket raid, wave A (wave 10 draid): the frame (lockout, Lot Tickets, the Fair Purse, a lone hero gets gold
+-// only), the tier set, the door and the way in, the two bosses' party rules, and the party bot's gate (four heroes clear
+-// the Drove Gate with no wipe, at most 2 deaths, each boss 60 to 300 s; a party of two clears it too).
++// The Endmarket raid (wave 10 draid): the frame (lockout, Lot and Street Tickets, the Fair Purse and the Street Purse, a
++// lone hero gets gold only), the tier set, the doors and the way in, the bosses' party rules (both wings), and the party
++// bot's gate (four heroes clear a wing with no wipe, at most 2 deaths, each boss 60 to 300 s; a party of two clears it
++// too). Wing 2 bot runs are their own tests so each stays under the suite's time ceiling.
+ import { createWorld } from '../../src/sim/index.js';
+ import { buildContent } from '../../src/data/maps/index.js';
+ import { easternWeek } from '../../src/sim/raid.js';
+@@ -11,12 +12,12 @@ const content = () => CC || (CC = { ...buildContent(), nightSpawns: [] });
+ const assert = (c, m) => { if (!c) throw new Error(m); };
+ const DAY = 20418;           // Wednesday 2025-11-26 (any day works: the week is from the sim's day)
+ 
+-function party(n, { day = DAY, cls = ['warden', 'mender', 'wayfinder', 'inkblade'] } = {}) {
++function party(n, { day = DAY, cls = ['warden', 'mender', 'wayfinder', 'inkblade'], place = 'endmarket_gate' } = {}) {
+   const w = createWorld({ seed: 3, content: { ...content(), spawns: [] }, day });
+   const ps = [];
+   for (let i = 0; i < n; i++) { const id = w.addPlayer({ name: `H${i}`, cls: cls[i % cls.length], level: 30 }); w.setParty(id, 5); ps.push(w.get(id)); }
+   let zid = null;
+-  for (const p of ps) { zid = w.internals.dungeons.enter(p, 'endmarket_gate'); p.zone = zid; }
++  for (const p of ps) { zid = w.internals.dungeons.enter(p, place); p.zone = zid; }
+   for (const m of w.state.ents.filter((e) => e.zone === zid && e.kind === 'mob' && !(e.spawn && e.spawn.boss))) w.internals.remove(m);
+   return { w, ps, zid };
+ }
+@@ -28,7 +29,7 @@ function killBoss(w, ps, zid, tpl) {
+   ev.push(...w.step(2));
+   return ev;
+ }
+-const tickets = (p) => (p.bag || []).filter((x) => /^lot_ticket_/.test(x.item)).reduce((s, x) => s + x.qty, 0);
++const tickets = (p) => (p.bag || []).filter((x) => /^(lot|street)_ticket_/.test(x.item)).reduce((s, x) => s + x.qty, 0);
+ 
+ export const tests = [
+   {
+@@ -136,4 +137,147 @@ export const tests = [
+       assert(r2.cleared, `two: ${JSON.stringify(r2)}`);
+     },
+   },
++  {
++    name: 'raid wing 2 data: the Fair Streets place, its door beside the Fair Gate (level 30, needs Pay Going In), Street Tickets, the streets quest',
++    fn() {
++      const C = content();
++      const D = C.dungeons.endmarket_streets;
++      assert(D && D.raid && D.raid.wing === 2 && D.bosses.join() === 'em_weighmaster,em_crier,em_catchpole' && D.last === 'em_catchpole', 'place');
++      const door = (C.zones.drovers_reach.doors || []).find((d) => d.id === 'endmarket_streets');
++      assert(door && door.minLevel === 30 && door.needs === 'em_pay_going_in' && door.x === 306 && door.y === 74 && door.w === 3, 'door');
++      const join = (C.zones.drovers_reach.joins || []).find((j) => j.door === 'endmarket_streets' || j.to === 'endmarket_streets');
++      assert(join && join.needs === 'em_pay_going_in' && join.minLevel === 30, 'join needs');
++      // the door tiles and the out tile are walkable on Drovers' Reach (309,74 is rock, so the door is 306 w=3)
++      const Z = C.zones.drovers_reach;
++      for (const [x, y] of [[306, 74], [307, 74], [308, 74], [307, 76]]) assert(Z.collision[y][x] === '.', `walk ${x},${y}`);
++      assert(C.quests.em_streets_still_selling && C.quests.em_streets_still_selling.requires.quests[0] === 'em_pay_going_in', 'quest');
++      assert(C.sideQuests.includes('em_streets_still_selling'), 'side quests');
++      for (const sl of ['weapon', 'off', 'trinket']) {
++        const it = C.items[`street_ticket_${sl}`];
++        assert(it && it.use.kind === 'lot_ticket' && it.use.ticket === 'street' && it.reqLevel === 30, `ticket ${sl}`);
++      }
++      assert(C.items.weigh_bar && C.items.weigh_bar.level === 33 && C.items.weigh_bar.reqLevel === 30, 'weigh-bar');
++      assert(C.items.weighmasters_weight && C.items.weighmasters_weight.power, 'weight trinket');
++      assert(C.raid.places.includes('endmarket_streets') && C.raid.ticketSlots.em_catchpole, 'rules');
++      assert(C.mobs.em_weighmaster.boss && C.mobs.em_crier.boss && C.mobs.em_catchpole.boss && C.mobs.em_chain_ring, 'foes');
++    },
++  },
++  {
++    name: 'raid wing 2 lockout: Street Tickets and the Street Purse once a week; a lone hero gets gold only; both wings loot in one week',
++    fn() {
++      const a = party(2, { place: 'endmarket_streets' });
++      killBoss(a.w, a.ps, a.zid, 'em_weighmaster');
++      assert(a.ps.every((p) => tickets(p) === 1 && p.raid.killed.includes('em_weighmaster')), 'first kill: a ticket each');
++      const s = party(1, { place: 'endmarket_streets' });
++      const bag0 = s.ps[0].bag.length, gold0 = s.ps[0].gold || 0;
++      killBoss(s.w, s.ps, s.zid, 'em_catchpole');
++      const lone = s.ps[0];
++      assert(tickets(lone) === 0 && !(lone.raid && lone.raid.purse && lone.raid.purse.length), 'alone: no ticket, no Purse');
++      assert(lone.bag.length === bag0 && (lone.gold || 0) > gold0, 'alone: gold only');
++      const p = party(3, { place: 'endmarket_streets' });
++      killBoss(p.w, p.ps, p.zid, 'em_catchpole');
++      assert(p.ps.every((h) => tickets(h) === 2 && h.raid.purse.includes('endmarket_streets')), 'boss ticket + Street Purse ticket');
++      const gold = (p.ps[0].gold || 0);
++      // a Street Purse is 160-220, plus the boss gold: at least 160
++      assert(p.ps.every((h) => (h.gold || 0) >= 160), `street purse gold, sample ${gold}`);
++      // the same week, wing 1 still loots (per-boss, per-place purse)
++      const g = party(2, { place: 'endmarket_gate' });
++      for (const h of g.ps) h.raid = JSON.parse(JSON.stringify(p.ps[0].raid));
++      killBoss(g.w, g.ps, g.zid, 'em_old_shep');
++      assert(g.ps.every((h) => h.raid.killed.includes('em_catchpole') && h.raid.killed.includes('em_old_shep') && h.raid.purse.includes('endmarket_streets') && h.raid.purse.includes('endmarket_gate')), 'both wings in one week');
++    },
++  },
++  {
++    name: 'raid wing 2 tickets: a Street Ticket turns into the class weapon; an owned one becomes a piece they lack; a Wayfinder off ticket is a trinket',
++    fn() {
++      const { w, ps } = party(2);
++      const p = ps[0];
++      p.bag.push({ item: 'street_ticket_weapon', qty: 2, uid: 88001 });
++      w.enqueue(p.id, { t: 'use_item', item: 'street_ticket_weapon' }); w.step(1);
++      assert(p.bag.some((x) => x.item === 'weigh_bar' && x.inst && x.inst.rarity === 'epic'), 'weigh-bar');
++      w.enqueue(p.id, { t: 'use_item', item: 'street_ticket_weapon' }); w.step(1);
++      assert(p.bag.filter((x) => x.item === 'weigh_bar').length === 1 && p.bag.some((x) => x.item === 'scale_plate' || x.item === 'weighmasters_weight' || x.item === 'criers_tag' || x.item === 'catchpoles_hook'), 'owned weapon -> a lacking street piece');
++      const { w: w2, ps: ps2 } = party(1, { cls: ['wayfinder'] });
++      const y = ps2[0];
++      y.bag.push({ item: 'street_ticket_off', qty: 1, uid: 88003 });
++      w2.enqueue(y.id, { t: 'use_item', item: 'street_ticket_off' }); w2.step(1);
++      assert(y.bag.some((x) => ['weighmasters_weight', 'criers_tag', 'catchpoles_hook'].includes(x.item)), 'wayfinder off ticket -> a trinket');
++    },
++  },
++  {
++    name: 'raid wing 2 party rules: Weigh the Lot pans, Sold! to a stall (and Purify clears it), Hook and Draw broken by a friend',
++    fn() {
++      const { w, ps, zid } = party(2, { place: 'endmarket_streets' });
++      const wm = w.state.ents.find((e) => e.zone === zid && e.template === 'em_weighmaster');
++      const gold = w.internals.content.raid.weigh.gold, blue = w.internals.content.raid.weigh.blue;
++      const toTile = (e, xy) => { e.x = xy[0] * 256 + 128; e.y = (xy[1] + 1) * 256 - 16; };
++      for (const p of ps) { p.x = wm.x; p.y = wm.y + 400; }
++      // put both on the pans once Heavy is applied, and start a fight; wait for a paid weigh
++      w.enqueue(ps[0].id, { t: 'attack', id: wm.id });
++      let weigh = null;
++      for (let i = 0; i < 800 && !weigh; i++) {
++        const ev = w.step(1);
++        const start = ev.find((e) => e.type === 'raid_weigh' && e.kind === 'start');
++        if (start) {
++          const heavy = w.get(start.heavy) || ps[0];
++          const other = ps.find((p) => p.id !== heavy.id) || ps[1];
++          toTile(heavy, gold); toTile(other, blue);
++        }
++        weigh = ev.find((e) => e.type === 'raid_weigh' && (e.kind === 'paid' || e.kind === 'unpaid' || e.kind === 'solo'));
++        for (const p of ps) p.hp = p.hpMax;
++      }
++      assert(weigh && weigh.kind === 'paid' && weigh.gold && weigh.blue, `weigh ${JSON.stringify(weigh)}`);
++      // the Crier: walk the tagged hero to the stall
++      w.internals.remove(wm);
++      const cr = w.state.ents.find((e) => e.zone === zid && e.template === 'em_crier');
++      for (const p of ps) { p.x = cr.x; p.y = cr.y + 400; p.inCombat = false; }
++      w.enqueue(ps[0].id, { t: 'attack', id: cr.id });
++      let tag = null;
++      for (let i = 0; i < 800 && !tag; i++) { tag = w.step(1).find((e) => e.type === 'raid_sold' && e.kind === 'tag'); for (const p of ps) p.hp = p.hpMax; }
++      assert(tag, 'sold tag');
++      const tagged = w.get(tag.hero);
++      const stall = w.internals.content.raid.sold.stalls[tag.color];
++      toTile(tagged, stall);
++      let paid = null;
++      for (let i = 0; i < 20 && !paid; i++) paid = w.step(1).find((e) => e.type === 'raid_sold' && e.kind === 'paid');
++      assert(paid, 'sold paid by walking to the stall');
++      // Purify clears a later tag
++      tag = null;
++      for (let i = 0; i < 800 && !tag; i++) { tag = w.step(1).find((e) => e.type === 'raid_sold' && e.kind === 'tag'); for (const p of ps) p.hp = p.hpMax; }
++      assert(tag, 'second tag');
++      const tagged2 = w.get(tag.hero);
++      w.internals.combat.removeAura(tagged2, tagged2.auras.find((a) => a.id === 'em_sold_tag'), 'dispel');
++      let cleared = null;
++      for (let i = 0; i < 5 && !cleared; i++) cleared = w.step(1).find((e) => e.type === 'raid_sold' && e.kind === 'cleared');
++      assert(cleared, 'sold cleared by a dispel');
++      // the Catchpole: a friend breaks the Chain Ring
++      w.internals.remove(cr);
++      const cp = w.state.ents.find((e) => e.zone === zid && e.template === 'em_catchpole');
++      for (const p of ps) { p.x = cp.x; p.y = cp.y + 400; p.inCombat = false; }
++      w.enqueue(ps[0].id, { t: 'attack', id: cp.id });
++      let hooked = null;
++      for (let i = 0; i < 800 && !hooked; i++) { hooked = w.step(1).find((e) => e.type === 'raid_hook' && e.kind === 'hooked'); for (const p of ps) p.hp = p.hpMax; }
++      assert(hooked, 'hooked');
++      const h = w.get(hooked.hero), u = w.get(hooked.ring);
++      assert(u && u.template === 'em_chain_ring', 'chain ring');
++      w.internals.combat.kill(u, ps.find((p) => p.id !== h.id) || ps[0]);
++      let broken = null;
++      for (let i = 0; i < 5 && !broken; i++) broken = w.step(1).find((e) => e.type === 'raid_hook' && e.kind === 'broken');
++      assert(broken && !(h.auras || []).some((a) => a.id === 'em_hooked' || a.id === 'em_hook_root'), 'hook cut');
++    },
++  },
++  {
++    name: 'party bot: four heroes clear the Fair Streets (no wipe, deaths <= 2, bosses 60 to 300 s)',
++    fn() {
++      const r = partyRun('endmarket_streets', { seed: 1 });
++      assert(partyOk(r), `four: ${JSON.stringify(r)}`);
++    },
++  },
++  {
++    name: 'party bot: two heroes clear the Fair Streets too',
++    fn() {
++      const r2 = partyRun('endmarket_streets', { seed: 1, party: ['warden', 'mender'] });
++      assert(r2.cleared, `two: ${JSON.stringify(r2)}`);
++    },
++  },
+ ];
+diff --git a/qa/tests/dloot.test.mjs b/qa/tests/dloot.test.mjs
+index e492daf..1929682 100644
+--- a/qa/tests/dloot.test.mjs
++++ b/qa/tests/dloot.test.mjs
+@@ -1,167 +1,167 @@
+-// Delve loot (wave 10 dloot, Scott 2026-11-25; D:/LQOnline/wave10/dloot/BRIEF.md): saved items read exactly as before,
+-// boss drops from each hero's own seed (deterministic, order independent), smart loot, the per place Tally, Illuminated,
+-// the item budget, the Retold legendaries, Pass it on and the loot record a run summary reads.
+-import { assert, eq } from './_helpers.mjs';
+-import { buildContent } from '../../src/data/maps/index.js';
+-import { createWorld } from '../../src/sim/index.js';
+-import { resolveItem, rollGear } from '../../src/sim/loot.js';
+-import { createRng } from '../../src/sim/rng.js';
+-import { hashString } from '../../src/sim/hash.js';
+-import { createDloot, lootSummary } from '../../src/sim/dloot.js';
+-import { powerAt, scaleText } from '../../src/sim/dloot_q.js';
+-import { RETOLD, DLOOT_RULES } from '../../src/data/dloot.js';
+-
+-const C = buildContent();
+-const DL = createDloot(C);
+-const CLASSES = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
+-const hero = (cls, extra = {}) => ({ cls, equip: {}, bag: [], ...extra });
+-const BD = C.dungeons.barrow_deep, BW = C.dungeons.barrow;
+-const statPts = (entry, cls) => { const r = resolveItem(C, entry, cls); let n = 0; for (const [k, v] of Object.entries(r.stats || {})) if (['str', 'agi', 'int', 'sta', 'spi', 'crit', 'sp'].includes(k)) n += v; return n; };
+-function expected(pk) { let alive = 1, e = 0; for (let k = 0; k < 1000; k++) { e += alive; alive *= 1 - pk(k); if (alive < 1e-12) break; } return e; }
+-function tail(pk) { let alive = 1; for (let k = 0; k < 500; k++) { alive *= 1 - pk(k); if (alive < 0.05) return k + 1; } return 500; }
+-
+-export const tests = [
+-  { name: 'dloot: every weapon and armor piece a save can hold resolves exactly as before the build (hash taken on main 1e495f1)', fn() {
+-    const out = {};
+-    for (const d of Object.values(C.items)) {
+-      if ((d.kind !== 'weapon' && d.kind !== 'armor') || d.retold || d.skillPower || d.dungeon === 'endmarket_gate') continue;   // wave 10 integrate: the raid's tier set is new (draid), no save holds it; 2026-11-26: the skill legendaries are new too
+-      for (const cls of Object.keys(C.classGear)) out[`${d.id}|${cls}`] = resolveItem(C, { item: d.id, inst: { ilvl: d.level, rarity: d.rarity, affixes: [] } }, cls);
+-    }
+-    const rng = createRng(77);
+-    for (let k = 0; k < 200; k++) { const g = rollGear({ content: C, rng }, { ilvl: 1 + (k % 30), cls: 'mender' }); out[`rand${k}`] = resolveItem(C, g, 'mender'); }
+-    eq(Object.keys(out).length, 2290, 'pieces checked');
+-    eq(hashString(JSON.stringify(out)), 'a46107f2fc035186', 'the same numbers, names and text as before');
+-  } },
+-  { name: 'dloot: a boss drop comes from its own seed: the same seed gives the same drop, friends do not depend on the order', fn() {
+-    const s = DL.seedFor({ world: 9, zid: 'barrow_deep#7', made: 1200, hero: 7, tpl: BD.last, n: 0 });
+-    const a = DL.bossDrop({ seed: s, place: 'barrow_deep', tpl: BD.last, hero: hero('wayfinder'), tally: 3 });
+-    eq(JSON.stringify(a), JSON.stringify(DL.bossDrop({ seed: s, place: 'barrow_deep', tpl: BD.last, hero: hero('wayfinder'), tally: 3 })), 'same seed');
+-    assert(s !== DL.seedFor({ world: 9, zid: 'barrow_deep#7', made: 1200, hero: 8, tpl: BD.last, n: 0 }), 'another hero, another seed');
+-    const one = (h) => JSON.stringify(DL.bossDrop({ seed: DL.seedFor({ world: 1, zid: 'z', made: 5, hero: h, tpl: BW.last }), place: 'barrow', tpl: BW.last, hero: hero('mender') }));
+-    eq([7, 8, 9].map(one).join(), [9, 8, 7].map(one).reverse().join(), 'order independent');
+-  } },
+-  { name: 'dloot: smart loot: every boss piece fits the class; the weakest slot comes about twice as often; a held legendary is skipped', fn() {
+-    let n = 0;
+-    for (const place of Object.keys(C.dungeons)) for (const tpl of C.dungeons[place].bosses || []) for (const cls of CLASSES) for (let k = 0; k < 8; k++) {
+-      const d = DL.bossDrop({ seed: DL.seedFor({ world: 2, zid: place, made: k, hero: 1, tpl }), place, tpl, hero: hero(cls), tally: 30 });
+-      for (const it of d.items) { n++; assert(DL.fits(it.item, cls), `${cls}: ${it.item} at ${place}`); }
+-    }
+-    assert(n > 400, `${n} pieces`);
+-    const h = hero('warden', { equip: { off: { item: 'barrowking_buckler', inst: { ilvl: 28, rarity: 'magic', affixes: [] } } } });
+-    const r = createRng(5), cnt = {};
+-    for (let k = 0; k < 4000; k++) { const id = DL.pickSmart(r, BW.drops[BW.bosses[0]], h); cnt[C.items[id].slot] = (cnt[C.items[id].slot] || 0) + 1; }
+-    assert(cnt.head > (cnt.off || 0) * 1.5, JSON.stringify(cnt));
+-    const h2 = hero('warden', { bag: [{ item: 'reeves_tally_ring' }] });
+-    for (let k = 0; k < 300; k++) assert(DL.pickSmart(r, BW.legendary, h2) !== 'reeves_tally_ring', 'held legendary skipped');
+-  } },
+-  { name: 'dloot: the Tally: 10% + 2.5% a miss, sure on the 25th clear; mean 5.5 clears (was 7.8), 1 in 20 waits 12 (was 20)', fn() {
+-    eq(DL.tallyChance(0), 0.1); assert(Math.abs(DL.tallyChance(4) - 0.2) < 1e-9); eq(DL.tallyChance(24), 1);
+-    const was = (k) => Math.min(1, 0.1 + 0.005 * k);
+-    eq(+expected(DL.tallyChance).toFixed(2), 5.49); eq(+expected(was).toFixed(2), 7.79);
+-    eq(tail(DL.tallyChance), 12); eq(tail(was), 20);
+-  } },
+-  { name: 'dloot: Illuminated about 1 legendary in 8 (q 1, lines at their top, one more line); named pieces roll lines and quality', fn() {
+-    let L = 0, I = 0;
+-    for (let k = 0; k < 3000; k++) {
+-      const d = DL.bossDrop({ seed: DL.seedFor({ world: 3, zid: 'bd', made: k, hero: 1, tpl: 'x' }), place: 'barrow_deep', tpl: BD.last, hero: hero('scribe'), tally: 30 });
+-      for (const it of d.items) {
+-        assert(it.inst.q >= 0 && it.inst.q <= 1, 'quality');
+-        if (C.items[it.item].rarity !== 'legendary') continue;
+-        L++;
+-        if (it.inst.illum) { I++; eq(it.inst.q, 1); eq(it.inst.affixes.length, 3, 'one more line'); }
+-        else eq(it.inst.affixes.length, 2, 'two lines');
+-      }
+-    }
+-    assert(Math.abs(I / L - 0.125) < 0.03, `${I} of ${L}`);
+-  } },
+-  { name: 'dloot: a named epic with its rolled line stays at or under a random epic of its item level (the economy)', fn() {
+-    for (const [id, cls] of [['reeves_counting_coat', 'warden'], ['long_watch_greathelm', 'mender'], ['barrow_kings_mantle', 'inkblade']]) {
+-      const r = createRng(11); let named = 0, rnd = 0; const N = 300, d = C.items[id];
+-      for (let k = 0; k < N; k++) { named += statPts({ item: id, inst: DL.rollNamed(r, id, cls) }, cls); rnd += statPts(rollGear({ content: C, rng: r }, { ilvl: d.level, cls, rarity: 'epic' }), cls); }
+-      assert(named / N <= rnd / N + 1, `${id}: ${named / N} vs random ${rnd / N}`);
+-    }
+-  } },
+-  { name: 'dloot: the five Retold legendaries: one per class, item level 30, a real ability, the power rolls in its band and the text shows the number', fn() {
+-    eq(Object.keys(RETOLD).length, 5);
+-    for (const R of Object.values(RETOLD)) {
+-      const d = C.items[R.id];
+-      assert(d && d.rarity === 'legendary' && d.level === 30 && d.retold && d.classes[0] === R.cls, R.id);
+-      assert(BD.retold.includes(R.id), 'in the Deep Halls pool');
+-      const abil = JSON.stringify(R.power).match(/"ability":"([a-z_]+)"/g).map((x) => x.slice(11, -1)).filter((x) => !x.startsWith('lg_'));
+-      for (const a of abil) assert(C.abilities[a] && a.startsWith(R.cls), `${R.id}: ${a}`);
+-      const lo = powerAt(R.power, 0), hi = powerAt(R.power, 1);
+-      assert(!/\[/.test(lo.text) && lo.text !== hi.text, `${R.id}: text scaled`);
+-      const r = resolveItem(C, { item: R.id, inst: { ilvl: 30, rarity: 'legendary', affixes: [], q: 1 } }, R.cls);
+-      eq(r.text, hi.text, 'the tooltip shows the rolled power');
+-    }
+-    eq(scaleText('costs [15 to 25]% less', 1), 'costs 25% less');
+-    eq(powerAt(RETOLD.long_margin.power, 1).mods[1].add, 0.85);
+-    eq(powerAt(RETOLD.spreading_blot.power, 0).procs[0].effects[0].maxTargets, 1);
+-  } },
+-  { name: 'dloot: a worn Retold power works: The Long Margin gives Aimed Shot 3 more targets at its rolled share', fn() {
+-    const w = createWorld({ seed: 5, content: C });
+-    const id = w.addPlayer({ name: 'W', cls: 'wayfinder', level: 30 });
+-    const e = w.get(id);
+-    e.equip.two = { item: 'long_margin', inst: { ilvl: 30, rarity: 'legendary', affixes: [], q: 1 } };
+-    w.internals.stats.recalc(e);
+-    const S = w.internals.stats;
+-    eq(S.mod(e, 'cleave', { ability: 'wayfinder_aimed_shot' }).add, 3, 'three more');
+-    assert(Math.abs(S.mod(e, 'cleavePct', { ability: 'wayfinder_aimed_shot' }).add - 0.85) < 1e-9, 'its rolled share');
+-    eq(S.mod(e, 'cleave', { ability: 'wayfinder_quick_shot' }).add, 0, 'only Aimed Shot');
+-  } },
+-  { name: 'dloot: in a real copy each friend gets their own boss drop and a dloot event; the copy keeps the run loot (lootOf, lootSummaryOf)', fn() {
+-    const run = () => {
+-      const pend = [];
+-      const w = createWorld({ seed: 21, content: C, day: 100, systems: [{ tick() { for (const f of pend.splice(0)) f(); } }] });
+-      const ids = ['warden', 'mender'].map((cls, i) => w.addPlayer({ name: `F${i}`, cls, level: 12, party: 1, x: C.start.x + i, y: C.start.y }));
+-      w.step();
+-      const P = ids.map((i) => w.get(i)), DG = w.internals.dungeons;
+-      const zid = DG.enter(P[0], 'barrow'); DG.enter(P[1], 'barrow');
+-      for (const p of P) p.zone = zid;
+-      const boss = w.state.ents.find((m) => m.kind === 'mob' && m.zone === zid && m.template === BW.last);
+-      P.forEach((p, i) => { p.x = boss.x + i * 256; p.y = boss.y + 512; });
+-      boss.tagger = P[0].id;
+-      pend.push(() => w.internals.combat.kill(boss, P[0]));   // inside a step, so the events land in its list
+-      const ev = w.step();
+-      return { w, P, zid, DG, ev };
+-    };
+-    const a = run(), b = run();
+-    const dl = a.ev.filter((e) => e.type === 'dloot');
+-    eq(dl.length, 2, 'one dloot event per friend');
+-    assert(dl.every((e) => e.items.length >= 1 && e.sure === 25 && e.tally != null), 'pieces and the Tally');
+-    eq(JSON.stringify(dl), JSON.stringify(b.ev.filter((e) => e.type === 'dloot')), 'the same run gives the same drops');
+-    const L = a.DG.lootOf(a.zid);
+-    eq(Object.keys(L).length, 2, 'both heroes in the run loot');
+-    const sm = a.DG.lootSummaryOf(a.zid, a.P[0].id);
+-    assert(sm.best && sm.count >= 1, 'a summary');
+-    eq(JSON.stringify(lootSummary(C, [])), JSON.stringify({ best: null, count: 0, legendaries: 0, illuminated: 0 }));
+-    for (const p of a.P) assert(p.bag.some((s) => s.inst && s.inst.q != null && C.items[s.item].dungeon === 'barrow'), 'the rolled piece is in the bag');
+-    assert(a.P[0].bag.some((s) => s.inst && s.inst.passOn && s.inst.passOn.with.includes(a.P[1].id)), 'Pass it on marked for the friend');
+-  } },
+-  { name: 'dloot: Pass it on: a bind on pickup boss piece trades to a friend from the kill while the time lasts, never to anyone else', fn() {
+-    const w = createWorld({ seed: 11, content: C });
+-    const ids = [0, 1, 2].map((i) => w.addPlayer({ name: `H${i}`, cls: 'warden', party: 1, x: C.start.x + i, y: C.start.y, level: 12 }));
+-    w.step();
+-    const [a, b, c] = ids.map((i) => w.get(i));
+-    const piece = (uid, until, withIds) => ({ item: 'reeves_counting_coat', qty: 1, uid, inst: { ilvl: 12, rarity: 'epic', affixes: [], bind: 'pickup', passOn: { until, with: withIds } } });
+-    a.bag.push(piece(970, w.state.tick + 1000, [a.id, b.id]), piece(971, w.state.tick - 1, [a.id, b.id]));
+-    w.enqueue(a.id, { t: 'trade_open', id: b.id }); w.step();
+-    w.enqueue(a.id, { t: 'trade_offer', uid: 970 }); let ev = w.step();
+-    assert(!ev.some((e) => e.type === 'trade_fail'), 'a friend from the kill, in time');
+-    w.enqueue(a.id, { t: 'trade_offer', uid: 971 }); ev = w.step();
+-    assert(ev.some((e) => e.type === 'trade_fail' && e.reason === 'pickup'), 'time is up');
+-    w.enqueue(a.id, { t: 'trade_ready', ready: true }); w.enqueue(b.id, { t: 'trade_ready', ready: true }); w.step();
+-    const got = b.bag.find((s) => s.item === 'reeves_counting_coat');
+-    assert(got && !got.inst.passOn, 'passed once, it binds');
+-    w.enqueue(a.id, { t: 'trade_cancel' }); w.step();
+-    a.bag.push(piece(972, w.state.tick + 1000, [a.id, b.id]));
+-    w.enqueue(a.id, { t: 'trade_open', id: c.id }); w.step();
+-    w.enqueue(a.id, { t: 'trade_offer', uid: 972 }); ev = w.step();
+-    assert(ev.some((e) => e.type === 'trade_fail' && e.reason === 'pickup'), 'not to a hero who was not there');
+-  } },
+-  { name: 'dloot: the rules are the brief\'s numbers', fn() {
+-    eq(JSON.stringify(DLOOT_RULES.tally), JSON.stringify({ start: 0.1, step: 0.025, sure: 25 }));
+-    eq(DLOOT_RULES.illuminated.chance, 1 / 8); eq(DLOOT_RULES.passOn.ticks, 144000);
+-    eq(C.dropRules.dloot, DLOOT_RULES, 'on the content');
+-  } },
+-];
++// Delve loot (wave 10 dloot, Scott 2026-11-25; D:/LQOnline/wave10/dloot/BRIEF.md): saved items read exactly as before,
++// boss drops from each hero's own seed (deterministic, order independent), smart loot, the per place Tally, Illuminated,
++// the item budget, the Retold legendaries, Pass it on and the loot record a run summary reads.
++import { assert, eq } from './_helpers.mjs';
++import { buildContent } from '../../src/data/maps/index.js';
++import { createWorld } from '../../src/sim/index.js';
++import { resolveItem, rollGear } from '../../src/sim/loot.js';
++import { createRng } from '../../src/sim/rng.js';
++import { hashString } from '../../src/sim/hash.js';
++import { createDloot, lootSummary } from '../../src/sim/dloot.js';
++import { powerAt, scaleText } from '../../src/sim/dloot_q.js';
++import { RETOLD, DLOOT_RULES } from '../../src/data/dloot.js';
++
++const C = buildContent();
++const DL = createDloot(C);
++const CLASSES = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
++const hero = (cls, extra = {}) => ({ cls, equip: {}, bag: [], ...extra });
++const BD = C.dungeons.barrow_deep, BW = C.dungeons.barrow;
++const statPts = (entry, cls) => { const r = resolveItem(C, entry, cls); let n = 0; for (const [k, v] of Object.entries(r.stats || {})) if (['str', 'agi', 'int', 'sta', 'spi', 'crit', 'sp'].includes(k)) n += v; return n; };
++function expected(pk) { let alive = 1, e = 0; for (let k = 0; k < 1000; k++) { e += alive; alive *= 1 - pk(k); if (alive < 1e-12) break; } return e; }
++function tail(pk) { let alive = 1; for (let k = 0; k < 500; k++) { alive *= 1 - pk(k); if (alive < 0.05) return k + 1; } return 500; }
++
++export const tests = [
++  { name: 'dloot: every weapon and armor piece a save can hold resolves exactly as before the build (hash taken on main 1e495f1)', fn() {
++    const out = {};
++    for (const d of Object.values(C.items)) {
++      if ((d.kind !== 'weapon' && d.kind !== 'armor') || d.retold || d.skillPower || (d.dungeon && String(d.dungeon).startsWith('endmarket'))) continue;   // wave 10 integrate: the raid's set and Street gear are new (draid), no save holds them; 2026-11-26: the skill legendaries are new too
++      for (const cls of Object.keys(C.classGear)) out[`${d.id}|${cls}`] = resolveItem(C, { item: d.id, inst: { ilvl: d.level, rarity: d.rarity, affixes: [] } }, cls);
++    }
++    const rng = createRng(77);
++    for (let k = 0; k < 200; k++) { const g = rollGear({ content: C, rng }, { ilvl: 1 + (k % 30), cls: 'mender' }); out[`rand${k}`] = resolveItem(C, g, 'mender'); }
++    eq(Object.keys(out).length, 2290, 'pieces checked');
++    eq(hashString(JSON.stringify(out)), 'a46107f2fc035186', 'the same numbers, names and text as before');
++  } },
++  { name: 'dloot: a boss drop comes from its own seed: the same seed gives the same drop, friends do not depend on the order', fn() {
++    const s = DL.seedFor({ world: 9, zid: 'barrow_deep#7', made: 1200, hero: 7, tpl: BD.last, n: 0 });
++    const a = DL.bossDrop({ seed: s, place: 'barrow_deep', tpl: BD.last, hero: hero('wayfinder'), tally: 3 });
++    eq(JSON.stringify(a), JSON.stringify(DL.bossDrop({ seed: s, place: 'barrow_deep', tpl: BD.last, hero: hero('wayfinder'), tally: 3 })), 'same seed');
++    assert(s !== DL.seedFor({ world: 9, zid: 'barrow_deep#7', made: 1200, hero: 8, tpl: BD.last, n: 0 }), 'another hero, another seed');
++    const one = (h) => JSON.stringify(DL.bossDrop({ seed: DL.seedFor({ world: 1, zid: 'z', made: 5, hero: h, tpl: BW.last }), place: 'barrow', tpl: BW.last, hero: hero('mender') }));
++    eq([7, 8, 9].map(one).join(), [9, 8, 7].map(one).reverse().join(), 'order independent');
++  } },
++  { name: 'dloot: smart loot: every boss piece fits the class; the weakest slot comes about twice as often; a held legendary is skipped', fn() {
++    let n = 0;
++    for (const place of Object.keys(C.dungeons)) for (const tpl of C.dungeons[place].bosses || []) for (const cls of CLASSES) for (let k = 0; k < 8; k++) {
++      const d = DL.bossDrop({ seed: DL.seedFor({ world: 2, zid: place, made: k, hero: 1, tpl }), place, tpl, hero: hero(cls), tally: 30 });
++      for (const it of d.items) { n++; assert(DL.fits(it.item, cls), `${cls}: ${it.item} at ${place}`); }
++    }
++    assert(n > 400, `${n} pieces`);
++    const h = hero('warden', { equip: { off: { item: 'barrowking_buckler', inst: { ilvl: 28, rarity: 'magic', affixes: [] } } } });
++    const r = createRng(5), cnt = {};
++    for (let k = 0; k < 4000; k++) { const id = DL.pickSmart(r, BW.drops[BW.bosses[0]], h); cnt[C.items[id].slot] = (cnt[C.items[id].slot] || 0) + 1; }
++    assert(cnt.head > (cnt.off || 0) * 1.5, JSON.stringify(cnt));
++    const h2 = hero('warden', { bag: [{ item: 'reeves_tally_ring' }] });
++    for (let k = 0; k < 300; k++) assert(DL.pickSmart(r, BW.legendary, h2) !== 'reeves_tally_ring', 'held legendary skipped');
++  } },
++  { name: 'dloot: the Tally: 10% + 2.5% a miss, sure on the 25th clear; mean 5.5 clears (was 7.8), 1 in 20 waits 12 (was 20)', fn() {
++    eq(DL.tallyChance(0), 0.1); assert(Math.abs(DL.tallyChance(4) - 0.2) < 1e-9); eq(DL.tallyChance(24), 1);
++    const was = (k) => Math.min(1, 0.1 + 0.005 * k);
++    eq(+expected(DL.tallyChance).toFixed(2), 5.49); eq(+expected(was).toFixed(2), 7.79);
++    eq(tail(DL.tallyChance), 12); eq(tail(was), 20);
++  } },
++  { name: 'dloot: Illuminated about 1 legendary in 8 (q 1, lines at their top, one more line); named pieces roll lines and quality', fn() {
++    let L = 0, I = 0;
++    for (let k = 0; k < 3000; k++) {
++      const d = DL.bossDrop({ seed: DL.seedFor({ world: 3, zid: 'bd', made: k, hero: 1, tpl: 'x' }), place: 'barrow_deep', tpl: BD.last, hero: hero('scribe'), tally: 30 });
++      for (const it of d.items) {
++        assert(it.inst.q >= 0 && it.inst.q <= 1, 'quality');
++        if (C.items[it.item].rarity !== 'legendary') continue;
++        L++;
++        if (it.inst.illum) { I++; eq(it.inst.q, 1); eq(it.inst.affixes.length, 3, 'one more line'); }
++        else eq(it.inst.affixes.length, 2, 'two lines');
++      }
++    }
++    assert(Math.abs(I / L - 0.125) < 0.03, `${I} of ${L}`);
++  } },
++  { name: 'dloot: a named epic with its rolled line stays at or under a random epic of its item level (the economy)', fn() {
++    for (const [id, cls] of [['reeves_counting_coat', 'warden'], ['long_watch_greathelm', 'mender'], ['barrow_kings_mantle', 'inkblade']]) {
++      const r = createRng(11); let named = 0, rnd = 0; const N = 300, d = C.items[id];
++      for (let k = 0; k < N; k++) { named += statPts({ item: id, inst: DL.rollNamed(r, id, cls) }, cls); rnd += statPts(rollGear({ content: C, rng: r }, { ilvl: d.level, cls, rarity: 'epic' }), cls); }
++      assert(named / N <= rnd / N + 1, `${id}: ${named / N} vs random ${rnd / N}`);
++    }
++  } },
++  { name: 'dloot: the five Retold legendaries: one per class, item level 30, a real ability, the power rolls in its band and the text shows the number', fn() {
++    eq(Object.keys(RETOLD).length, 5);
++    for (const R of Object.values(RETOLD)) {
++      const d = C.items[R.id];
++      assert(d && d.rarity === 'legendary' && d.level === 30 && d.retold && d.classes[0] === R.cls, R.id);
++      assert(BD.retold.includes(R.id), 'in the Deep Halls pool');
++      const abil = JSON.stringify(R.power).match(/"ability":"([a-z_]+)"/g).map((x) => x.slice(11, -1)).filter((x) => !x.startsWith('lg_'));
++      for (const a of abil) assert(C.abilities[a] && a.startsWith(R.cls), `${R.id}: ${a}`);
++      const lo = powerAt(R.power, 0), hi = powerAt(R.power, 1);
++      assert(!/\[/.test(lo.text) && lo.text !== hi.text, `${R.id}: text scaled`);
++      const r = resolveItem(C, { item: R.id, inst: { ilvl: 30, rarity: 'legendary', affixes: [], q: 1 } }, R.cls);
++      eq(r.text, hi.text, 'the tooltip shows the rolled power');
++    }
++    eq(scaleText('costs [15 to 25]% less', 1), 'costs 25% less');
++    eq(powerAt(RETOLD.long_margin.power, 1).mods[1].add, 0.85);
++    eq(powerAt(RETOLD.spreading_blot.power, 0).procs[0].effects[0].maxTargets, 1);
++  } },
++  { name: 'dloot: a worn Retold power works: The Long Margin gives Aimed Shot 3 more targets at its rolled share', fn() {
++    const w = createWorld({ seed: 5, content: C });
++    const id = w.addPlayer({ name: 'W', cls: 'wayfinder', level: 30 });
++    const e = w.get(id);
++    e.equip.two = { item: 'long_margin', inst: { ilvl: 30, rarity: 'legendary', affixes: [], q: 1 } };
++    w.internals.stats.recalc(e);
++    const S = w.internals.stats;
++    eq(S.mod(e, 'cleave', { ability: 'wayfinder_aimed_shot' }).add, 3, 'three more');
++    assert(Math.abs(S.mod(e, 'cleavePct', { ability: 'wayfinder_aimed_shot' }).add - 0.85) < 1e-9, 'its rolled share');
++    eq(S.mod(e, 'cleave', { ability: 'wayfinder_quick_shot' }).add, 0, 'only Aimed Shot');
++  } },
++  { name: 'dloot: in a real copy each friend gets their own boss drop and a dloot event; the copy keeps the run loot (lootOf, lootSummaryOf)', fn() {
++    const run = () => {
++      const pend = [];
++      const w = createWorld({ seed: 21, content: C, day: 100, systems: [{ tick() { for (const f of pend.splice(0)) f(); } }] });
++      const ids = ['warden', 'mender'].map((cls, i) => w.addPlayer({ name: `F${i}`, cls, level: 12, party: 1, x: C.start.x + i, y: C.start.y }));
++      w.step();
++      const P = ids.map((i) => w.get(i)), DG = w.internals.dungeons;
++      const zid = DG.enter(P[0], 'barrow'); DG.enter(P[1], 'barrow');
++      for (const p of P) p.zone = zid;
++      const boss = w.state.ents.find((m) => m.kind === 'mob' && m.zone === zid && m.template === BW.last);
++      P.forEach((p, i) => { p.x = boss.x + i * 256; p.y = boss.y + 512; });
++      boss.tagger = P[0].id;
++      pend.push(() => w.internals.combat.kill(boss, P[0]));   // inside a step, so the events land in its list
++      const ev = w.step();
++      return { w, P, zid, DG, ev };
++    };
++    const a = run(), b = run();
++    const dl = a.ev.filter((e) => e.type === 'dloot');
++    eq(dl.length, 2, 'one dloot event per friend');
++    assert(dl.every((e) => e.items.length >= 1 && e.sure === 25 && e.tally != null), 'pieces and the Tally');
++    eq(JSON.stringify(dl), JSON.stringify(b.ev.filter((e) => e.type === 'dloot')), 'the same run gives the same drops');
++    const L = a.DG.lootOf(a.zid);
++    eq(Object.keys(L).length, 2, 'both heroes in the run loot');
++    const sm = a.DG.lootSummaryOf(a.zid, a.P[0].id);
++    assert(sm.best && sm.count >= 1, 'a summary');
++    eq(JSON.stringify(lootSummary(C, [])), JSON.stringify({ best: null, count: 0, legendaries: 0, illuminated: 0 }));
++    for (const p of a.P) assert(p.bag.some((s) => s.inst && s.inst.q != null && C.items[s.item].dungeon === 'barrow'), 'the rolled piece is in the bag');
++    assert(a.P[0].bag.some((s) => s.inst && s.inst.passOn && s.inst.passOn.with.includes(a.P[1].id)), 'Pass it on marked for the friend');
++  } },
++  { name: 'dloot: Pass it on: a bind on pickup boss piece trades to a friend from the kill while the time lasts, never to anyone else', fn() {
++    const w = createWorld({ seed: 11, content: C });
++    const ids = [0, 1, 2].map((i) => w.addPlayer({ name: `H${i}`, cls: 'warden', party: 1, x: C.start.x + i, y: C.start.y, level: 12 }));
++    w.step();
++    const [a, b, c] = ids.map((i) => w.get(i));
++    const piece = (uid, until, withIds) => ({ item: 'reeves_counting_coat', qty: 1, uid, inst: { ilvl: 12, rarity: 'epic', affixes: [], bind: 'pickup', passOn: { until, with: withIds } } });
++    a.bag.push(piece(970, w.state.tick + 1000, [a.id, b.id]), piece(971, w.state.tick - 1, [a.id, b.id]));
++    w.enqueue(a.id, { t: 'trade_open', id: b.id }); w.step();
++    w.enqueue(a.id, { t: 'trade_offer', uid: 970 }); let ev = w.step();
++    assert(!ev.some((e) => e.type === 'trade_fail'), 'a friend from the kill, in time');
++    w.enqueue(a.id, { t: 'trade_offer', uid: 971 }); ev = w.step();
++    assert(ev.some((e) => e.type === 'trade_fail' && e.reason === 'pickup'), 'time is up');
++    w.enqueue(a.id, { t: 'trade_ready', ready: true }); w.enqueue(b.id, { t: 'trade_ready', ready: true }); w.step();
++    const got = b.bag.find((s) => s.item === 'reeves_counting_coat');
++    assert(got && !got.inst.passOn, 'passed once, it binds');
++    w.enqueue(a.id, { t: 'trade_cancel' }); w.step();
++    a.bag.push(piece(972, w.state.tick + 1000, [a.id, b.id]));
++    w.enqueue(a.id, { t: 'trade_open', id: c.id }); w.step();
++    w.enqueue(a.id, { t: 'trade_offer', uid: 972 }); ev = w.step();
++    assert(ev.some((e) => e.type === 'trade_fail' && e.reason === 'pickup'), 'not to a hero who was not there');
++  } },
++  { name: 'dloot: the rules are the brief\'s numbers', fn() {
++    eq(JSON.stringify(DLOOT_RULES.tally), JSON.stringify({ start: 0.1, step: 0.025, sure: 25 }));
++    eq(DLOOT_RULES.illuminated.chance, 1 / 8); eq(DLOOT_RULES.passOn.ticks, 144000);
++    eq(C.dropRules.dloot, DLOOT_RULES, 'on the content');
++  } },
++];
+diff --git a/src/data/maps/doors.js b/src/data/maps/doors.js
+index 42b2aaf..9db15a7 100644
+--- a/src/data/maps/doors.js
++++ b/src/data/maps/doors.js
+@@ -18,7 +18,11 @@ export function withDoors(world, dungeons, places) {
+     const [x, y] = d.door.area ? toWorld(d.door.area, d.door.x, d.door.y) : [d.door.x, d.door.y];
+     const out = d.door.area ? toWorld(d.door.area, d.door.out[0], d.door.out[1]) : [...d.door.out];
+     const region = d.door.area || null;
+-    const gate = d.door.minLevel ? { minLevel: d.door.minLevel } : {};     // cap 30: a door only a hero of this level opens
++    const gate = {
++      ...(d.door.minLevel ? { minLevel: d.door.minLevel } : {}),     // cap 30: a door only a hero of this level opens
++      ...(d.door.needs ? { needs: d.door.needs } : {}),              // a required quest (the Fair Streets: Pay Going In)
++      ...(d.door.notYet ? { notYet: d.door.notYet } : {}),
++    };
+     joins.push({ x, y, w: d.door.w || 1, h: d.door.h || 1, to: d.id, tx: z.arrival[0], ty: z.arrival[1], dir: d.door.dir || 'up', region, door: d.id, ...gate });
+     doors.push({ id: d.id, to: d.id, name: d.name, kind: d.kind, levels: [...d.levels], label: (z.dungeon && z.dungeon.label) || '', x, y, w: d.door.w || 1, h: d.door.h || 1, out, region, ...gate });
+   }
+diff --git a/src/data/maps/index.js b/src/data/maps/index.js
+index a5747c5..ef0ad02 100644
+--- a/src/data/maps/index.js
++++ b/src/data/maps/index.js
+@@ -22,6 +22,7 @@ import larchhill from './larchhill.js';
+ import droversReach from './drovers_reach.js';
+ import larchMine from './larch_mine.js';
+ import endmarketGate from './endmarket_gate.js';   // wave 10 draid: the Endmarket raid, wing 1
++import endmarketStreets from './endmarket_streets.js';   // wave 10 draid: wing 2, the Fair Streets
+ import { applyRaid, fairGateDecor } from '../raid_endmarket.js';   // wave 10 draid: the raid (its foes register on import)
+ import emberpeak from './emberpeak.js';                 // wave 3 start realms (lane realms1): src/data/start_realms2.js
+ import valewyn from './valewyn.js';
+@@ -68,7 +69,7 @@ import { placeMoorBand, applyMoorBand } from '../moor_band.js';   // quests20: 2
+ export const REGIONS = { willowmere, valley, downs, moor };
+ // Dungeons and caves (2026-11-22, src/data/dungeons.js): each its own zone (kind 'dungeon' | 'cave'), entered by a door on
+ // the world. A party's copy is the zone under the id `<place>#<key>` (copies.js): ZONES resolves it to the place's data.
+-export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep, endmarket_gate: endmarketGate };   // wave 10 draid: + endmarket_gate
++export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep, endmarket_gate: endmarketGate, endmarket_streets: endmarketStreets };   // wave 10 draid: + the Endmarket's two wings
+ // the loading card's one line of flavour (src/ui/loading.js reads zone.flavour)
+ for (const [id, z] of Object.entries(PLACES)) if (DUNGEONS[id] && DUNGEONS[id].flavour) PLACES[id] = { ...z, flavour: DUNGEONS[id].flavour };
+ // patrols you must time (src/data/patrols.js): a place's patrol pairs spawn with its other foes
+diff --git a/src/data/raid_endmarket.js b/src/data/raid_endmarket.js
+index 2b68048..6ea38d5 100644
+--- a/src/data/raid_endmarket.js
++++ b/src/data/raid_endmarket.js
+@@ -1,7 +1,8 @@
+-// The Endmarket, the first raid (wave 10 draid, wave A; Scott 2026-11-25: "Go with your recommendations"; brief
+-// D:/LQOnline/wave10/draid/BRIEF.md). Wave A is the raid's frame and its first wing, the Drove Gate: the Turnpike and
+-// Old Shep. Every name and line here is a DRAFT for Scott. Plain data plus applyRaid(content), the last step of
+-// buildContent (src/data/maps/index.js). The rules live in src/sim/raid.js.
++// The Endmarket, the first raid (wave 10 draid; Scott 2026-11-25: "Go with your recommendations"; brief
++// D:/LQOnline/wave10/draid/BRIEF.md; wing 2 brief BRIEF_raid_wing2.md, Scott 2026-11-26). Wave A is the raid's frame
++// and its first wing, the Drove Gate: the Turnpike and Old Shep. Wave B (src/data/raid_endmarket_streets.js) is the
++// Fair Streets: the Weighmaster, the Crier and the Catchpole. Every name and line here is a DRAFT for Scott. Plain
++// data plus applyRaid(content), the last step of buildContent (src/data/maps/index.js). The rules live in src/sim/raid.js.
+ //
+ // The story: a hundred years ago the drove roads ended at the Endmarket, the great fair at the far end of the Old Drove.
+ // A buyer came who paid for names instead of beasts, and the fair's auctioneer, the Lot-Caller, sold them. The fair fell
+@@ -19,6 +20,7 @@
+ import { MOBS, MOB_SPRITES, mobStats } from './mobs.js';
+ import { makeGear } from './rares.js';
+ import { bandQuest, whereIn } from './band20.js';
++import { STREET_RULES, STREET_ABILITIES, STREET_MOBS, STREET_ITEMS, STREET_QUESTS, STREET_QUEST_ORDER } from './raid_endmarket_streets.js';
+ 
+ const T = (o) => o;
+ 
+@@ -28,7 +30,7 @@ export const RAID_RULES = Object.freeze({
+   minParty: 2,                        // a lone hero gets gold only (Scott 2026-11-25, the brief's recommendation)
+   // the lockout: loot once per hero per boss per Eastern calendar week (the week from the sim's day, src/sim/raid.js).
+   // Boss kills are not kept between sittings: a copy resets as every dungeon's does (DUNGEON_RULES.resetSec).
+-  places: Object.freeze(['endmarket_gate']),
++  places: Object.freeze(['endmarket_gate', 'endmarket_streets']),
+   // the Fair Purse: the first kill of a wing's last boss each week, per hero, in a party of 2 or more
+   purse: Object.freeze({ gold: [140, 190], glyphs: 4, tickets: 1 }),
+   // the slots a boss's Lot Ticket may be for (the first one the hero lacks, else any of them, by the copy's rng)
+@@ -159,7 +161,8 @@ const N = (o) => ({ faction: 'friendly', roles: ['quest'], vendor: null, trainer
+ export const RAID_NPCS = {
+   em_tally: N({ id: 'em_tally', name: 'Mother Tally', sprite: 'npc_old_woman', title: 'The Fair\'s Last Honest Clerk',
+     talk: ['Every lot has a ticket, and every ticket has a name. Bring me yours and I will see you are paid what you are owed.',
+-      'Four go in, love. Two at the least. The fair does not pay a lone bidder.', 'Once a week the Purse is full. Mondays, as it always was.'] }),
++      'Four go in, love. Two at the least. The fair does not pay a lone bidder.', 'Once a week the Purse is full. Mondays, as it always was.',
++      'The streets past the Fold still sell names. Pay Going In, then the door beside this gate will open to you.'] }),
+ };
+ const at = whereIn('drovers_reach');
+ const MAEL = { zone: 'world', x: 168 * 16 + 8, y: 144 * 16 + 8, r: 24 };
+@@ -208,6 +211,7 @@ export function fairGateDecor(z) {
+   add('market_stall_cloth', 293, 79); add('market_stall_fruit', 311, 80);
+   add('x1_haybale', 296, 81); add('x1_haybale', 310, 86); add('x1_trough', 293, 86); add('crates_barrels', 312, 83);
+   add('x1_sack_stack', 297, 79); add('barrel', 309, 79); add('signboard', 300, 88);
++  add('signboard', 311, 78);   // the Fair Streets door (306-308,74; out 307,76) has its own board, off the door tiles
+   return { ...z, decor, npcs: [...(z.npcs || []), { npc: 'em_tally', x: 306, y: 78, dir: 'left' }] };
+ }
+ 
+@@ -215,13 +219,19 @@ export function fairGateDecor(z) {
+ export function applyRaid(C) {
+   return {
+     ...C,
+-    mobs: { ...C.mobs, ...EM_MOBS },
+-    mobAbilities: { ...C.mobAbilities, ...EM_MOB_ABILITIES },
+-    items: { ...C.items, ...RAID_ITEMS },
++    mobs: { ...C.mobs, ...EM_MOBS, ...STREET_MOBS },
++    mobAbilities: { ...C.mobAbilities, ...EM_MOB_ABILITIES, ...STREET_ABILITIES },
++    items: { ...C.items, ...RAID_ITEMS, ...STREET_ITEMS },
+     sets: { ...C.sets, ...RAID_SETS },
+     npcs: { ...C.npcs, ...RAID_NPCS },
+-    quests: { ...C.quests, ...RAID_QUESTS },
+-    sideQuests: [...(C.sideQuests || []), ...RAID_QUEST_ORDER],
+-    raid: RAID_RULES,
++    quests: { ...C.quests, ...RAID_QUESTS, ...STREET_QUESTS },
++    sideQuests: [...(C.sideQuests || []), ...RAID_QUEST_ORDER, ...STREET_QUEST_ORDER],
++    raid: {
++      ...RAID_RULES,
++      ...STREET_RULES,
++      places: [...RAID_RULES.places],
++      ticketSlots: { ...RAID_RULES.ticketSlots, ...STREET_RULES.ticketSlots },
++      purses: { ...(RAID_RULES.purses || {}), ...(STREET_RULES.purses || {}) },
++    },
+   };
+ }
+diff --git a/src/data/raid_places.js b/src/data/raid_places.js
+index 01b55ad..9aec54c 100644
+--- a/src/data/raid_places.js
++++ b/src/data/raid_places.js
+@@ -1,7 +1,7 @@
+-// The Endmarket raid's places (wave 10 draid, wave A; src/data/raid_endmarket.js has the rest of the raid). Plain data in
+-// the src/data/dungeons.js shape, merged into DUNGEONS there (as band_dungeons.js is). Wave A is wing 1, the Drove Gate;
+-// wings 2 and 3 (the Fair Streets, the Tollhall) are waves B and C. Its door stands in Drovers' Reach (`door.zone`), at the
+-// north end of the Old Drove, and only a hero of level 30 opens it. `raid` marks a raid place for src/sim/raid.js.
++// The Endmarket raid's places (wave 10 draid; src/data/raid_endmarket.js and raid_endmarket_streets.js have the rest).
++// Plain data in the src/data/dungeons.js shape, merged into DUNGEONS there (as band_dungeons.js is). Wave A is wing 1,
++// the Drove Gate; wave B is wing 2, the Fair Streets (door beside the Fair Gate, after Pay Going In); wing 3 (the
++// Tollhall) is wave C. `raid` marks a raid place for src/sim/raid.js. Every name is a DRAFT for Scott.
+ export const RAID_PLACES = {
+   endmarket_gate: {
+     id: 'endmarket_gate', flavour: 'Where the Old Drove ends, the fair never closed. It is still selling.', name: 'The Endmarket: the Drove Gate', kind: 'dungeon', levels: [30, 30],
+@@ -13,4 +13,17 @@ export const RAID_PLACES = {
+     drops: {},
+     chest: { gold: [80, 120], rarity: 'rare', ilvl: 30 },
+   },
++  // wing 2: the Fair Streets. Door just east of the Fair Gate (306-308,74; 309 is rock, so not 307 or 308,74 w=3).
++  // `needs` is Pay Going In; withDoors passes it so checkJoin and the delve enter both wait on that quest.
++  endmarket_streets: {
++    id: 'endmarket_streets', flavour: 'Past the Fold the stalls still sell names. The fair is one long dusk.', name: 'The Endmarket: the Fair Streets', kind: 'dungeon', levels: [30, 30],
++    raid: { heroes: 4, wing: 2, wings: 3, label: 'Raid for 4, level 30' },
++    adds: { hp: 0.6, dmg: 0.6 },
++    trash: { hp: 1.0, dmg: 0.55 },
++    door: { zone: 'drovers_reach', x: 306, y: 74, w: 3, h: 1, out: [307, 76], dir: 'up', minLevel: 30, needs: 'em_pay_going_in',
++      notYet: 'The Fair Streets are not open to you yet. Pay Going In first, love.' },
++    bosses: ['em_weighmaster', 'em_crier', 'em_catchpole'], last: 'em_catchpole',
++    drops: {},
++    chest: { gold: [90, 130], rarity: 'rare', ilvl: 30 },
++  },
+ };
+diff --git a/src/render3d/creature_recipes.js b/src/render3d/creature_recipes.js
+index 50fa884..751df66 100644
+--- a/src/render3d/creature_recipes.js
++++ b/src/render3d/creature_recipes.js
+@@ -294,6 +294,16 @@ const R = {
+     palette: { base: '#6a5440', belly: '#7a6450', accent: '#3a2a1e', metal: '#3a3430', glow: '#ffc46a', eyes: '#ffe08a', plume: '#7a2622', shield: '#7a2622' } }),
+   em_old_shep: V(WOLF, { seed: 303, size: 1.75, ghost: 0.74, aura: 1.3, parts: ['ears:floppy', 'nose:dog', 'cheeks', 'tail:bushy', 'mane:alpha', 'bell', 'wisps'], head: { angry: 1.2 },
+     palette: { base: '#24242c', belly: '#ece8e0', mane: '#f2eee6', accent: '#ece8e0', eyes: '#d8f4ff', glow: '#a8dcff', bellC: '#b8a070' } }),
++  fair_lot_buyer: V(GHOST, { seed: 305, ghost: 0.74, head: { kind: 'hat' }, weapon: 'book', parts: ['ghost', 'claws', 'belt'],
++    palette: { base: '#4a3a32', robe: '#5a3c2c', hood: '#3a2a22', glow: '#ffc46a', eyes: '#ffe08a', hat: '#7a2622' } }),
++  em_chain_ring: V(GOLEM, { size: 0.7, seed: 307, flat: true, pattern: 'none', parts: ['chains'], proportions: { hunch: 0.08, armLen: 0.7 },
++    palette: { base: '#b08a3c', belly: '#8a6a30', accent: '#3a2a1e', metal: '#b08a3c', eyes: '#ffc46a', glow: '#ffc870', dark: '#2a1a10' } }),
++  em_weighmaster: V(SENTINEL, { size: 1.85, seed: 309, aura: 1.4, weapon: 'halberd', parts: ['core', 'runes', 'helm:plume', 'chains'], proportions: { weaponLen: 1.15, girth: 0.42 },
++    palette: { base: '#8a7040', belly: '#b08a3c', accent: '#3a2a1e', metal: '#b08a3c', glow: '#ffc870', eyes: '#ffe08a', plume: '#2e5a58' } }),
++  em_crier: V(GHOST, { human: { base: 'female' }, seed: 311, size: 1.35, ghost: 0.7, aura: 1.2, head: { kind: 'hat' }, weapon: 'bell', parts: ['ghost', 'apron', 'cuffs', 'wisps'],
++    palette: { base: '#7a2622', robe: '#5a3c2c', hood: '#3a2a22', glow: '#ffc46a', eyes: '#ffe8c0', hat: '#d6c8a2' } }),
++  em_catchpole: V(GHOST, { human: { out: 'Ranger', shoulders: true }, seed: 313, size: 1.55, ghost: 0.7, aura: 1.3, head: { kind: 'hood' }, weapon: 'halberd', parts: ['ghost', 'cloak', 'pauldrons', 'chains', 'wisps'], proportions: { height: 1.9 },
++    palette: { base: '#3a2a28', robe: '#4a322c', hood: '#2a1a18', glow: '#ffc46a', eyes: '#ffe08a', metal: '#b08a3c' } }),
+ };
+ for (const [id, r] of Object.entries(R)) r.id = id;
+ export const RECIPES = R;
+@@ -314,5 +324,5 @@ export const ZONES = {
+   larchhill: ['lh_hornet', 'lh_lynx', 'lh_grub', 'lh_courier', 'lh_cudgel', 'lh_bear', 'lh_courier_captain', 'rare_queen_bramblesting', 'rare_old_greybark', 'lm_damp_miner', 'lm_gaffer'],
+   drovers: ['dr_ox', 'dr_kite', 'dr_hound', 'dr_ganger', 'dr_tallyman', 'dr_warder', 'dr_shade', 'dr_chainmaster', 'rare_old_ironhorn', 'rare_tallow_mag'],
+   deep: ['deep_wether', 'drove_shade', 'cairn_ward', 'the_long_uncounted', 'deep_drove_herd', 'deep_cairn_counter', 'deep_barrow_king'],
+-  endmarket: ['fair_drover', 'fair_stallholder', 'fair_dog', 'em_hurdle', 'em_turnpike', 'em_old_shep'],   // wave 10 draid
++  endmarket: ['fair_drover', 'fair_stallholder', 'fair_dog', 'em_hurdle', 'em_turnpike', 'em_old_shep', 'fair_lot_buyer', 'em_chain_ring', 'em_weighmaster', 'em_crier', 'em_catchpole'],   // wave 10 draid
+ };
+diff --git a/src/render3d/fair3d.js b/src/render3d/fair3d.js
+index a1787d8..b1d2c92 100644
+--- a/src/render3d/fair3d.js
++++ b/src/render3d/fair3d.js
+@@ -188,8 +188,29 @@ const PROPS = {
+ };
+ 
+ export const FAIR_IDS = Object.freeze(Object.keys(PROPS));
+-/** A dg_fair_* prop, or null for an id this module does not know. */
+-export function fairProp(p) { const f = PROPS[p.id || p.t]; return f ? f(p) : null; }
++// Face yaw in the dungeon frame (y up, +z = south / +tile y). Default props face south; face 'e' turns the front to +x.
++const FACE_YAW = { s: 0, e: Math.PI / 2, n: Math.PI, w: -Math.PI / 2 };
++/** A dg_fair_* prop, or null for an id this module does not know. `p.face` ('n','e','s','w') turns it around the tile. */
++export function fairProp(p) {
++  const f = PROPS[p.id || p.t];
++  if (!f) return null;
++  const out = f(p);
++  const yaw = FACE_YAW[p.face];
++  if (yaw && out && out.g) {
++    const cx = p.x + 0.5, cz = p.y + 0.5;
++    out.g.position.set(cx, 0, cz);
++    out.g.rotation.y = yaw;
++    if (out.lights && out.lights.length) {
++      out.g.updateMatrixWorld(true);
++      out.lights = out.lights.map((l) => {
++        const local = l.pos.clone().sub(new THREE.Vector3(cx, 0, cz));
++        local.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
++        return { ...l, pos: local.add(new THREE.Vector3(cx, 0, cz)) };
++      });
++    }
++  }
++  return out;
++}
+ 
+ /** The Fair Gate on the world (local frame like dungeon3d stoneDoor: the opening along x, facing +z). */
+ export function fairGate(w) {
+diff --git a/src/sim/delve.js b/src/sim/delve.js
+index 5376478..7ac7c67 100644
+--- a/src/sim/delve.js
++++ b/src/sim/delve.js
+@@ -225,8 +225,9 @@ export function createDelve(D) {
+     if (!place || !z) return fail(e, cmd, 'not_at_door');
+     if (e.inCombat) return fail(e, cmd, 'combat');
+     const tiles = R.gatherTiles ?? 6;
+-    const go = members(e).filter((p) => !p.dead && !p.inCombat && p.zone === e.zone && doorAt(p, tiles) === d && !(d.minLevel && (p.sync ? p.sync.from : p.level) < d.minLevel));
+-    if (!go.includes(e)) { emit({ type: 'door_locked', id: e.id, door: d.id, need: d.minLevel }); return false; }
++    const gated = (p) => (d.minLevel && (p.sync ? p.sync.from : p.level) < d.minLevel) || (d.needs && !(p.questsDone || []).includes(d.needs));
++    const go = members(e).filter((p) => !p.dead && !p.inCombat && p.zone === e.zone && doorAt(p, tiles) === d && !gated(p));
++    if (!go.includes(e)) { emit({ type: 'door_locked', id: e.id, door: d.id, need: d.minLevel || d.needs, reason: (d.needs && !(e.questsDone || []).includes(d.needs)) ? 'quest' : 'level' }); return false; }
+     // resume: only boss ids of this place, never its last boss, only into a copy made now
+     const resume = Array.isArray(cmd.resume) ? cmd.resume.filter((b, i, a) => typeof b === 'string' && (place.bosses || []).includes(b) && b !== place.last && a.indexOf(b) === i) : [];
+     let zid = null, resumed = false;
+diff --git a/src/sim/raid.js b/src/sim/raid.js
+index d71cccf..7cbd3a0 100644
+--- a/src/sim/raid.js
++++ b/src/sim/raid.js
+@@ -1,11 +1,12 @@
+-// The raid's rules (wave 10 draid, wave A, 2026-11-25; Scott: "Go with your recommendations"; the data is
+-// src/data/raid_endmarket.js and src/data/raid_places.js, content.raid). Pure: no clock, no Math.random (the world rng).
++// The raid's rules (wave 10 draid, 2026-11-25; Scott: "Go with your recommendations"; wing 2 2026-11-26; the data is
++// src/data/raid_endmarket.js, src/data/raid_endmarket_streets.js and src/data/raid_places.js, content.raid). Pure: no
++// clock, no Math.random (the world rng).
+ //
+ //   const RD = createRaid(D)   D = { state, content, emit, rng, get, add, remove, spawnMob, bagAdd, onBag, combat, ai }
+ //   RD.isRaid(zid)             is this zone a raid place (or a copy of one)
+-//   RD.onKill(mob, p, drop)    per hero who shares the kill: the lockout, a Lot Ticket, the Fair Purse (after DG.onKill)
+-//   RD.useTicket(e, def, u)    a Lot Ticket turned into the hero's class set piece -> null, or the reason it failed
+-//   RD.tick()                  once per world step: the bosses' party rules (the Turnpike's toll, Old Shep's pen)
++//   RD.onKill(mob, p, drop)    per hero who shares the kill: the lockout, a Lot or Street Ticket, the Purse
++//   RD.useTicket(e, def, u)    a Lot Ticket or a Street Ticket turned into gear -> null, or the reason it failed
++//   RD.tick()                  once per world step: the bosses' party rules (toll, pen, Weigh the Lot, Sold!, Hook)
+ //   RD.weekOf(day)             the Eastern Monday week of a sim day
+ //
+ // The lockout. Loot once per hero, per boss, per Eastern calendar week: the week is worked out from the sim's day
+@@ -53,13 +54,25 @@ export function createRaid(D) {
+     if (Object.values(p.equip || {}).some((x) => x && (typeof x === 'string' ? x : x.item) === id)) return true;
+     return (p.bag || []).some((x) => x && x.item === id);
+   }
+-  const holdsTicket = (p, slot) => (p.bag || []).some((x) => x && x.item === `lot_ticket_${slot}`);
+-  function slotFor(p, slots) {
++  const ticketId = (slot) => String(slot).startsWith('street_') ? `street_ticket_${slot.slice(7)}` : `lot_ticket_${slot}`;
++  const holdsTicket = (p, slot) => (p.bag || []).some((x) => x && x.item === ticketId(slot));
++  function streetIds(cls, kind) {
++    const G = RR.streetGear || {};
++    if (kind === 'trinket' || (kind === 'off' && cls === 'wayfinder')) return [...(G.trinket || [])];
++    const one = G[kind] && G[kind][cls];
++    return one ? [one] : [];
++  }
++  function ownsSlot(p, slot) {
++    if (String(slot).startsWith('street_')) return streetIds(p.cls, slot.slice(7)).some((id) => owns(p, id)) || holdsTicket(p, slot);
+     const set = setFor(p.cls);
+-    const lacking = slots.filter((s) => !(set && set.pieces[s] && owns(p, set.pieces[s][0])) && !holdsTicket(p, s));
++    return !!(set && set.pieces[slot] && owns(p, set.pieces[slot][0])) || holdsTicket(p, slot);
++  }
++  function slotFor(p, slots) {
++    const lacking = slots.filter((s) => !ownsSlot(p, s));
+     const pool = lacking.length ? lacking : slots;
+     return pool[rng.int(0, pool.length - 1)];
+   }
++  const tilePx = (xy) => ({ x: xy[0] * 256 + 128, y: (xy[1] + 1) * 256 - 16 });
+   const keepOnlyQuest = (drop) => { drop.items = drop.items.filter((it) => { const d = items()[it.item]; return d && d.kind === 'quest'; }); };
+ 
+   function onKill(mob, p, drop) {
+@@ -72,12 +85,12 @@ export function createRaid(D) {
+     if (r.killed.includes(tpl)) { keepOnlyQuest(drop); emit({ type: 'raid_loot', id: p.id, place: place.id, boss: tpl, kind: 'locked', week: r.week }); return; }
+     r.killed.push(tpl);
+     const slot = slotFor(p, (RR.ticketSlots || {})[tpl] || ['head', 'chest', 'legs', 'hands', 'feet']);
+-    drop.items.push({ item: `lot_ticket_${slot}`, qty: 1 });
++    drop.items.push({ item: ticketId(slot), qty: 1 });
+     emit({ type: 'raid_loot', id: p.id, place: place.id, boss: tpl, kind: 'ticket', slot, week: r.week });
+     if (tpl !== place.last || r.purse.includes(place.id)) return;
+-    // the Fair Purse: the first kill of the wing's last boss this week
++    // the Fair Purse or the Street Purse: the first kill of the wing's last boss this week (per place, so both can drop)
+     r.purse.push(place.id);
+-    const pu = RR.purse || { gold: [100, 150], glyphs: 3, tickets: 1 };
++    const pu = (RR.purses && RR.purses[place.id]) || RR.purse || { gold: [100, 150], glyphs: 3, tickets: 1 };
+     const gold = rng.int(pu.gold[0], Math.max(pu.gold[0], pu.gold[1]));
+     drop.gold = (drop.gold || 0) + gold;
+     const glyphs = [];
+@@ -87,12 +100,36 @@ export function createRaid(D) {
+       if (items()[id]) { drop.items.push({ item: id, qty: 1 }); glyphs.push(id); }
+     }
+     const tickets = [];
+-    for (let i = 0; i < (pu.tickets || 0); i++) { const s = slotFor(p, ['head', 'chest', 'legs', 'hands', 'feet']); drop.items.push({ item: `lot_ticket_${s}`, qty: 1 }); tickets.push(s); }
++    const purseSlots = place.id === 'endmarket_streets'
++      ? ['head', 'chest', 'legs', 'hands', 'feet', 'street_weapon', 'street_off', 'street_trinket']
++      : ['head', 'chest', 'legs', 'hands', 'feet'];
++    for (let i = 0; i < (pu.tickets || 0); i++) { const s = slotFor(p, purseSlots); drop.items.push({ item: ticketId(s), qty: 1 }); tickets.push(s); }
+     emit({ type: 'raid_purse', id: p.id, place: place.id, gold, glyphs, tickets, week: r.week });
+   }
+ 
++  /** A Street Ticket: the class weapon, off-hand or a trinket they lack (a Wayfinder's off ticket is a trinket). */
++  function useStreetTicket(e, def, u) {
++    const kind = u.slot;
++    let ids = streetIds(e.cls, kind);
++    if (!ids.length) return 'no_item';
++    let id = ids.find((i) => !owns(e, i)) || ids[0];
++    if (owns(e, id)) {
++      const G = RR.streetGear || {};
++      const all = [...new Set([...Object.values(G.weapon || {}), ...Object.values(G.off || {}), ...(G.trinket || [])])];
++      const lack = all.find((i) => items()[i] && (!items()[i].classes || items()[i].classes.includes(e.cls)) && !owns(e, i));
++      if (lack) id = lack;
++    }
++    const it = items()[id];
++    if (!it) return 'no_item';
++    const inst = { ilvl: it.level, rarity: it.rarity || 'epic', affixes: [], armorType: it.armorType || null, weaponType: it.weaponType || null };
++    if (D.bagAdd(e, id, 1, inst, content) < 1) return 'bag_full';
++    emit({ type: 'raid_ticket', id: e.id, ticket: def.id, item: id, slot: kind, kind: 'street' });
++    emit({ type: 'loot', id: e.id, from: e.id, gold: 0, items: [{ item: id, qty: 1, inst }] });
++    return null;
++  }
+   /** A Lot Ticket: the hero's class piece for its slot (a slot they already own a piece of becomes one they lack). */
+   function useTicket(e, def, u) {
++    if ((u && u.ticket === 'street') || String(def.id || '').startsWith('street_ticket_')) return useStreetTicket(e, def, u);
+     const set = setFor(e.cls);
+     if (!set) return 'no_set';
+     let slot = u.slot;
+@@ -164,7 +201,167 @@ export function createRaid(D) {
+     emit({ type: 'yell', id: m.id, text: 'Come by! Come by!' });
+     emit({ type: 'raid_pen', id: m.id, zone: m.zone, kind: 'penned', hero: h.id, hurdle: u.id });
+   }
+-  const RULES = { em_turnpike: toll, em_old_shep: herd };
++
++  function knockFrom(h, fromX, fromY, tiles) {
++    const z = zones[h.zone];
++    if (!z) return;
++    const dx = h.x - fromX, dy = h.y - fromY, len = Math.hypot(dx, dy) || 1;
++    const nx = h.x + (dx / len) * tiles * 256, ny = h.y + (dy / len) * tiles * 256;
++    const tx = Math.floor(nx / 256), ty = Math.floor((ny - 1) / 256);
++    if (z.collision[ty] && z.collision[ty][tx] === '.') { h.x = nx; h.y = ny; }
++  }
++  function pullToward(h, m, sub) {
++    const z = zones[h.zone];
++    if (!z) return;
++    const dx = m.x - h.x, dy = m.y - h.y, len = Math.hypot(dx, dy) || 1;
++    const nx = h.x + (dx / len) * sub, ny = h.y + (dy / len) * sub;
++    const tx = Math.floor(nx / 256), ty = Math.floor((ny - 1) / 256);
++    if (z.collision[ty] && z.collision[ty][tx] === '.') { h.x = nx; h.y = ny; }
++  }
++  function weigh(m, b) {
++    const R = RR.weigh;
++    if (!R) return;
++    if (m.cast && m.cast.ability === 'em_weigh_lot') {
++      if (!b.weigh) {
++        const heroes = heroesIn(m.zone, true);
++        const heavy = heroes.find((h) => h.id === m.ai.target) || heroes[0];
++        if (heavy) K().applyAura(m, heavy, { id: 'em_heavy', name: 'Heavy', icon: 'stun', kind: 'debuff', duration: (R.castSec || 3) + 0.5 }, {});
++        b.weigh = { end: m.cast.endTick, heavy: heavy ? heavy.id : null };
++        emit({ type: 'raid_weigh', id: m.id, zone: m.zone, kind: 'start', heavy: heavy ? heavy.id : null });
++      }
++      return;
++    }
++    if (!b.weigh || now() < b.weigh.end) return;
++    const gold = tilePx(R.gold), blue = tilePx(R.blue);
++    const on = (h, p) => distPx(h, p.x, p.y) <= R.radiusPx;
++    const heroes = heroesIn(m.zone, true);
++    const heavy = D.get(b.weigh.heavy);
++    b.weigh = null;
++    if (!heroes.length) return;
++    const goldPaid = !!(heavy && !heavy.dead && heavy.zone === m.zone && on(heavy, gold));
++    const bluePaid = heroes.some((h) => (!heavy || h.id !== heavy.id) && on(h, blue));
++    const mid = tilePx([Math.round((R.gold[0] + R.blue[0]) / 2), Math.round((R.gold[1] + R.blue[1]) / 2)]);
++    if (heroes.length === 1) {
++      const h = heroes[0];
++      if (goldPaid || on(h, gold)) K().applyAura(m, h, { id: 'em_weigh_paid', name: 'Weighed', icon: 'stun', kind: 'debuff', duration: R.soloRootSec, flags: ['root'] }, {});
++      else { K().dealDamage(m, h, K().rawAmount(m, h, { mobHit: R.paidSwings }, {}) * (1 + R.unpaidMult), { ability: 'em_weigh_lot', school: 'physical' }); knockFrom(h, mid.x, mid.y, 1.5); }
++      emit({ type: 'raid_weigh', id: m.id, zone: m.zone, kind: goldPaid || on(h, gold) ? 'solo' : 'unpaid', heroes: 1, gold: goldPaid || on(h, gold), blue: false });
++      return;
++    }
++    if (goldPaid && bluePaid) {
++      const inside = heroes.filter((h) => on(h, gold) || on(h, blue));
++      const total = heroes.reduce((s, h) => s + K().rawAmount(m, h, { mobHit: R.paidSwings }, {}), 0);
++      for (const h of inside) K().dealDamage(m, h, total / inside.length, { ability: 'em_weigh_lot', school: 'physical' });
++      emit({ type: 'raid_weigh', id: m.id, zone: m.zone, kind: 'paid', heroes: heroes.length, gold: true, blue: true, inside: inside.length });
++    } else {
++      for (const h of heroes) {
++        if (on(h, gold) || on(h, blue)) continue;
++        K().dealDamage(m, h, K().rawAmount(m, h, { mobHit: R.paidSwings }, {}) * (1 + R.unpaidMult), { ability: 'em_weigh_lot', school: 'physical' });
++        knockFrom(h, mid.x, mid.y, 1.5);
++      }
++      emit({ type: 'raid_weigh', id: m.id, zone: m.zone, kind: 'unpaid', heroes: heroes.length, gold: goldPaid, blue: bluePaid });
++    }
++  }
++  function onStall(h, color, R) {
++    const p = tilePx(R.stalls[color]);
++    return distPx(h, p.x, p.y) <= (R.radiusPx || 40);
++  }
++  function startSold(m, b, R, opts) {
++    const heroes = heroesIn(m.zone, true);
++    if (!heroes.length) return;
++    const pool = heroes.length > 1 ? heroes.filter((h) => h.id !== m.ai.target) : heroes;
++    const h = (opts.hero && D.get(opts.hero) && !D.get(opts.hero).dead) ? D.get(opts.hero) : pool.slice().sort((a, c) => a.id - c.id)[0];
++    if (!h) return;
++    let color = opts.color;
++    if (!color) {
++      if (heroes.length === 1) color = R.colors.slice().sort((a, c) => distPx(h, tilePx(R.stalls[a]).x, tilePx(R.stalls[a]).y) - distPx(h, tilePx(R.stalls[c]).x, tilePx(R.stalls[c]).y))[0];
++      else color = R.colors[rng.int(0, R.colors.length - 1)];
++    }
++    const win = heroes.length === 1 ? R.soloWindowSec : (opts.jump ? R.jumpSec : R.windowSec);
++    K().applyAura(m, h, { id: 'em_sold_tag', name: 'Sold!', icon: 'icon_scroll', kind: 'debuff', duration: win, dispel: 'magic' }, {});
++    h.soldColor = color;
++    b.sold = { hero: h.id, color, until: now() + T(win), jumped: !!opts.jump || !!(opts.jumped) };
++    emit({ type: 'yell', id: m.id, text: `Sold! ${color}!` });
++    emit({ type: 'raid_sold', id: m.id, zone: m.zone, kind: opts.jump ? 'jump' : 'tag', hero: h.id, color });
++  }
++  function sold(m, b) {
++    const R = RR.sold;
++    if (!R) return;
++    if (b.sold) {
++      const h = D.get(b.sold.hero);
++      const has = !!(h && !h.dead && h.zone === m.zone && (h.auras || []).some((a) => a.id === 'em_sold_tag'));
++      if (!has) { emit({ type: 'raid_sold', id: m.id, zone: m.zone, kind: 'cleared', hero: b.sold.hero, color: b.sold.color }); b.sold = null; return; }
++      if (onStall(h, b.sold.color, R)) {
++        for (const a of [...(h.auras || [])]) if (a.id === 'em_sold_tag') K().removeAura(h, a, 'cancel');
++        delete h.soldColor;
++        emit({ type: 'raid_sold', id: m.id, zone: m.zone, kind: 'paid', hero: h.id, color: b.sold.color });
++        b.sold = null;
++        return;
++      }
++      if (now() < b.sold.until) return;
++      const friends = heroesIn(m.zone, true).filter((x) => x.id !== h.id && onStall(x, b.sold.color, R));
++      const portion = K().rawAmount(m, h, { mobHit: R.burstSwings }, {});
++      const split = friends.length ? [h, ...friends] : [h];
++      for (const t of split) K().dealDamage(m, t, portion / split.length, { ability: 'em_sold', school: 'shadow' });
++      for (const a of [...(h.auras || [])]) if (a.id === 'em_sold_tag') K().removeAura(h, a, 'expire');
++      const color = b.sold.color, jumped = b.sold.jumped, hero = h.id;
++      delete h.soldColor;
++      b.sold = null;
++      emit({ type: 'raid_sold', id: m.id, zone: m.zone, kind: 'fail', hero, color, split: split.length });
++      if (heroesIn(m.zone, true).length > 1 && !jumped) {
++        const next = R.colors.find((c) => c !== color) || R.colors[0];
++        startSold(m, b, R, { hero, color: next, jump: true, jumped: true });
++      }
++      return;
++    }
++    if (now() < b.nextSold) return;
++    b.nextSold = now() + T(R.every);
++    startSold(m, b, R, {});
++  }
++  function hookClear(m, b, kind) {
++    const h = b.hook && D.get(b.hook.hero), u = b.hook && D.get(b.hook.ring);
++    if (h) for (const a of [...(h.auras || [])]) if (a.id === 'em_hooked' || a.id === 'em_hook_root') K().removeAura(h, a, 'cancel');
++    if (u && !u.dead) { D.remove(u); emit({ type: 'despawn', id: u.id, template: u.template, zone: u.zone, kind: 'mob' }); }
++    emit({ type: 'raid_hook', id: m.id, zone: m.zone, kind, hero: b.hook && b.hook.hero, ring: b.hook && b.hook.ring });
++    b.hook = null;
++  }
++  function hook(m, b) {
++    const R = RR.hook;
++    if (!R) return;
++    if (b.hook) {
++      const h = D.get(b.hook.hero), u = D.get(b.hook.ring);
++      const broken = !u || u.dead;
++      const gone = !h || h.dead || h.zone !== m.zone;
++      if (broken || gone) { hookClear(m, b, broken && !gone ? 'broken' : 'out'); return; }
++      if (now() >= b.hook.until) {
++        K().dealDamage(m, h, K().rawAmount(m, h, { mobHit: R.failSwings }, {}), { ability: 'em_hook_draw', school: 'physical' });
++        K().applyAura(m, h, { id: 'em_hook_stun', name: 'Hooked', icon: 'stun', kind: 'debuff', duration: R.stunSec, flags: ['stun'] }, {});
++        pullToward(h, m, 2 * 256);
++        hookClear(m, b, 'fail');
++        return;
++      }
++      if (heroesIn(m.zone, true).length > 1) pullToward(h, m, (R.pullSpeed || 28) * 16 / TICK_HZ);
++      return;
++    }
++    if (now() < b.nextHook) return;
++    b.nextHook = now() + T(R.every);
++    const heroes = heroesIn(m.zone, true).filter((h) => distPx(h, m.x, m.y) <= 30 * 16);
++    if (!heroes.length) return;
++    const pool = heroes.length > 1 ? heroes.filter((h) => h.id !== m.ai.target) : heroes;
++    const h = pool.slice().sort((a, c) => distPx(c, m.x, m.y) - distPx(a, m.x, m.y) || a.id - c.id)[0];
++    const solo = heroes.length === 1;
++    if (solo) K().applyAura(m, h, { id: 'em_hook_root', name: 'Hooked', icon: 'stun', kind: 'debuff', duration: R.soloRootSec, flags: ['root'] }, {});
++    else K().applyAura(m, h, { id: 'em_hooked', name: 'Hook and Draw', icon: 'icon_slow', kind: 'debuff', duration: R.windowSec, flags: ['slow'], mods: [{ stat: 'speed', add: -0.4 }] }, {});
++    const [hx, hy] = [Math.floor(h.x / 256), Math.floor((h.y - 1) / 256)];
++    const [bx, by] = [Math.floor(m.x / 256), Math.floor((m.y - 1) / 256)];
++    const [tx, ty] = freeNear(m.zone, solo ? hx : bx, solo ? hy : by);
++    const u = D.spawnMob({ zone: m.zone, mob: 'em_chain_ring', level: m.level, x: tx, y: ty, wander: 0, temporary: true });
++    b.hook = { hero: h.id, ring: u.id, at: now(), until: now() + T(R.windowSec) };
++    emit({ type: 'yell', id: m.id, text: 'The hook finds you!' });
++    emit({ type: 'raid_hook', id: m.id, zone: m.zone, kind: 'hooked', hero: h.id, ring: u.id });
++  }
++  const RULES = { em_turnpike: toll, em_old_shep: herd, em_weighmaster: weigh, em_crier: sold, em_catchpole: hook };
++
+ 
+   function tick() {
+     const cs = state.copies;
+@@ -176,10 +373,14 @@ export function createRaid(D) {
+       if (m.kind !== 'mob' || !RULES[m.template] || !isRaid(m.zone)) continue;
+       const fighting = !m.dead && m.ai && m.ai.mode === 'combat';
+       if (!fighting) {
+-        if (m.ai && m.ai.raid) { const b = m.ai.raid; if (b.pen) { b.until = 0; herdClear(m, b); } m.ai.raid = null; }
++        if (m.ai && m.ai.raid) { raidClear(m, m.ai.raid); m.ai.raid = null; }
+         continue;
+       }
+-      const b = m.ai.raid || (m.ai.raid = { t0: now(), toll: null, pen: null, nextHerd: now() + T((RR.herd || {}).first || 10) });
++      const b = m.ai.raid || (m.ai.raid = {
++        t0: now(), toll: null, pen: null, nextHerd: now() + T((RR.herd || {}).first || 10),
++        weigh: null, sold: null, nextSold: now() + T((RR.sold || {}).first || 10),
++        hook: null, nextHook: now() + T((RR.hook || {}).first || 12),
++      });
+       RULES[m.template](m, b);
+     }
+   }
+@@ -189,6 +390,20 @@ export function createRaid(D) {
+     if (u && !u.dead) { D.remove(u); emit({ type: 'despawn', id: u.id, template: u.template, zone: u.zone, kind: 'mob' }); }
+     b.pen = null;
+   }
++  function raidClear(m, b) {
++    if (b.pen) herdClear(m, b);
++    if (b.hook) hookClear(m, b, 'out');
++    if (b.sold) {
++      const h = D.get(b.sold.hero);
++      if (h) { for (const a of [...(h.auras || [])]) if (a.id === 'em_sold_tag') K().removeAura(h, a, 'cancel'); delete h.soldColor; }
++      b.sold = null;
++    }
++    if (b.weigh) {
++      const h = D.get(b.weigh.heavy);
++      if (h) for (const a of [...(h.auras || [])]) if (a.id === 'em_heavy' || a.id === 'em_weigh_paid') K().removeAura(h, a, 'cancel');
++      b.weigh = null;
++    }
++  }
+ 
+   return { isRaid, placeOf, onKill, useTicket, tick, weekOf, raidOf, setFor };
+ }
+
+---- untracked: src/data/maps/endmarket_streets.js ----
+diff --git a/src/data/maps/endmarket_streets.js b/src/data/maps/endmarket_streets.js
+new file mode 100644
+index 0000000..c7e6ee0
+--- /dev/null
++++ b/src/data/maps/endmarket_streets.js
+@@ -0,0 +1,3 @@
++// GENERATED by tools/maps/build_world.mjs from tools/maps/zone_endmarket_streets.mjs (tools/maps/dungeon_kit.mjs). Do not hand-edit: change the generator and re-run.
++// Zone shape: docs/CONTRACTS.md section 6 (kind 'dungeon': "Dungeons and caves").
++export default {"id":"endmarket_streets","name":"The Endmarket: the Fair Streets","kind":"dungeon","w":80,"h":164,"music":"the_downs","lighting":{"tint":"none","dark":0.4},"under":"plaza","legend":{".":"plaza","#":"x1_crag_top","~":"x1_tarn"},"ground":["################################################################################","################################################################################","################################################################################","################################################################################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################........#...................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","#######################################...######################################","################################################################################","################################################################################","################################################################################"],"overlays":[],"decor":[{"t":"lamp_post","x":34,"y":154,"state":1},{"t":"dg_torch","x":28,"y":147,"face":"s"},{"t":"dg_torch","x":34,"y":147,"face":"s"},{"t":"dg_torch","x":46,"y":147,"face":"s"},{"t":"dg_torch","x":52,"y":147,"face":"s"},{"t":"dg_fair_arch","x":40,"y":148},{"t":"dg_fair_lots","x":32,"y":156},{"t":"dg_fair_lots","x":48,"y":156,"r":0.7},{"t":"dg_brazier","x":27,"y":149},{"t":"dg_brazier","x":52,"y":149},{"t":"dg_brazier","x":27,"y":158},{"t":"dg_brazier","x":52,"y":158},{"t":"dg_fair_bunting","x":26,"y":116,"len":28},{"t":"dg_fair_awning","x":31,"y":118,"face":"e","r":0.2},{"t":"dg_fair_awning","x":49,"y":118,"face":"w","r":0.7},{"t":"dg_fair_awning","x":31,"y":126,"face":"e","r":0.2},{"t":"dg_fair_awning","x":49,"y":126,"face":"w","r":0.7},{"t":"dg_fair_awning","x":31,"y":134,"face":"e","r":0.2},{"t":"dg_fair_awning","x":49,"y":134,"face":"w","r":0.7},{"t":"dg_fair_lots","x":33,"y":122,"r":0.4},{"t":"dg_fair_lots","x":47,"y":130,"r":0.8},{"t":"dg_brazier","x":25,"y":115},{"t":"dg_brazier","x":54,"y":115},{"t":"dg_brazier","x":25,"y":142},{"t":"dg_brazier","x":54,"y":142},{"t":"dg_torch","x":28,"y":113,"face":"s"},{"t":"dg_torch","x":32,"y":113,"face":"s"},{"t":"dg_torch","x":48,"y":113,"face":"s"},{"t":"dg_torch","x":52,"y":113,"face":"s"},{"t":"dg_torch","x":18,"y":79,"face":"s"},{"t":"dg_torch","x":26,"y":79,"face":"s"},{"t":"dg_torch","x":54,"y":79,"face":"s"},{"t":"dg_torch","x":62,"y":79,"face":"s"},{"t":"dg_fair_scales","x":40,"y":90},{"t":"dg_fair_weights","x":48,"y":88},{"t":"dg_fair_lots","x":22,"y":86,"r":0.3},{"t":"dg_fair_bunting","x":18,"y":82,"len":44},{"t":"dg_brazier","x":17,"y":81},{"t":"dg_brazier","x":62,"y":81},{"t":"dg_brazier","x":17,"y":106},{"t":"dg_brazier","x":62,"y":106},{"t":"dg_coins","x":36,"y":100},{"t":"dg_urn","x":54,"y":102},{"t":"dg_torch","x":18,"y":45,"face":"s"},{"t":"dg_torch","x":28,"y":45,"face":"s"},{"t":"dg_torch","x":52,"y":45,"face":"s"},{"t":"dg_torch","x":62,"y":45,"face":"s"},{"t":"dg_fair_benches","x":30,"y":54},{"t":"dg_fair_benches","x":50,"y":54,"r":0.6},{"t":"dg_fair_awning","x":22,"y":50,"face":"e","r":0.15},{"t":"dg_fair_lots","x":40,"y":48,"r":0.5},{"t":"dg_fair_awning","x":58,"y":50,"face":"w","r":0.85},{"t":"dg_fair_bunting","x":18,"y":48,"len":44},{"t":"dg_brazier","x":17,"y":47},{"t":"dg_brazier","x":62,"y":47},{"t":"dg_brazier","x":17,"y":72},{"t":"dg_brazier","x":62,"y":72},{"t":"dg_banner","x":32,"y":45,"face":"s"},{"t":"dg_banner","x":48,"y":45,"face":"s"},{"t":"dg_torch","x":30,"y":23,"face":"s"},{"t":"dg_torch","x":32,"y":23,"face":"s"},{"t":"dg_torch","x":48,"y":23,"face":"s"},{"t":"dg_torch","x":50,"y":23,"face":"s"},{"t":"dg_chain","x":30,"y":30},{"t":"dg_chain","x":48,"y":30},{"t":"dg_brazier","x":29,"y":25},{"t":"dg_brazier","x":50,"y":25},{"t":"dg_brazier","x":29,"y":40},{"t":"dg_brazier","x":50,"y":40},{"t":"dg_bones","x":32,"y":36},{"t":"dg_torch","x":28,"y":3,"face":"s"},{"t":"dg_torch","x":34,"y":3,"face":"s"},{"t":"dg_torch","x":46,"y":3,"face":"s"},{"t":"dg_torch","x":52,"y":3,"face":"s"},{"t":"dg_fair_arch","x":40,"y":10},{"t":"dg_banner","x":36,"y":3,"face":"s"},{"t":"dg_banner","x":44,"y":3,"face":"s"},{"t":"dg_brazier","x":27,"y":5},{"t":"dg_brazier","x":52,"y":5},{"t":"dg_brazier","x":27,"y":18},{"t":"dg_brazier","x":52,"y":18},{"t":"dg_skulls","x":30,"y":12},{"t":"dg_rubble","x":50,"y":14}],"overhead":[],"collision":["################################################################################","################################################################################","################################################################################","################################################################################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","############################........................############################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","################................................................################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","########################................................########################","####################################........####################################","####################################........####################################","####################################........####################################","####################################........####################################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################........#...................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","##########################............................##########################","#######################################...######################################","################################################################################","################################################################################","################################################################################"],"joins":[{"x":39,"y":160,"w":3,"h":1,"to":"drovers_reach","tx":307,"ty":76,"dir":"down"}],"arrival":[40,157],"levels":[30,30],"areas":[{"id":"em_tollhall_doors","name":"The Tollhall Doors","x":26,"y":4,"w":28,"h":16,"levels":[30,30]},{"id":"em_bailiff_lane","name":"Bailiff's Lane","x":28,"y":24,"w":24,"h":18,"levels":[30,30]},{"id":"em_crier_ring","name":"The Crier's Ring","x":16,"y":46,"w":48,"h":28,"levels":[30,30]},{"id":"em_weigh_yard","name":"The Weigh Yard","x":16,"y":80,"w":48,"h":28,"levels":[30,30]},{"id":"em_fair_streets","name":"The Fair Streets","x":24,"y":114,"w":32,"h":30,"levels":[30,30]},{"id":"em_street_gate","name":"The Street Gate","x":26,"y":148,"w":28,"h":12,"levels":[30,30]}],"lanterns":[{"id":"em_streets_lantern","name":"The Street Gate","x":34,"y":155,"post":[34,154]}],"spawns":[{"mob":"fair_drover","level":30,"x":32,"y":154,"wander":0,"group":"em_sgate_a","pack":2},{"mob":"fair_drover","level":30,"x":33,"y":155,"wander":0,"group":"em_sgate_a","pack":2},{"mob":"fair_lot_buyer","level":30,"x":32,"y":132,"wander":0,"group":"em_street_a","pack":2},{"mob":"fair_drover","level":30,"x":33,"y":133,"wander":0,"group":"em_street_a","pack":2},{"mob":"fair_stallholder","level":30,"x":48,"y":122,"wander":0,"group":"em_street_b","pack":2},{"mob":"fair_dog","level":30,"x":49,"y":123,"wander":0,"group":"em_street_b","pack":2},{"mob":"fair_lot_buyer","level":30,"x":28,"y":100,"wander":0,"group":"em_weigh_a","pack":2},{"mob":"fair_lot_buyer","level":30,"x":29,"y":101,"wander":0,"group":"em_weigh_a","pack":2},{"mob":"em_weighmaster","level":30,"x":40,"y":96,"wander":0,"group":"boss_em_weighmaster","boss":true},{"mob":"fair_stallholder","level":30,"x":28,"y":62,"wander":0,"group":"em_ring_a","pack":2},{"mob":"fair_drover","level":30,"x":29,"y":63,"wander":0,"group":"em_ring_a","pack":2},{"mob":"em_crier","level":30,"x":40,"y":52,"wander":0,"group":"boss_em_crier","boss":true},{"mob":"fair_dog","level":30,"x":34,"y":34,"wander":0,"group":"em_lane_a","pack":2},{"mob":"fair_dog","level":30,"x":35,"y":35,"wander":0,"group":"em_lane_a","pack":2},{"mob":"em_catchpole","level":30,"x":40,"y":33,"wander":0,"group":"boss_em_catchpole","boss":true}],"npcs":[],"nodes":[],"signs":[{"id":"em_streets_board","x":46,"y":156,"text":"THE FAIR STREETS. Lots still taken. Names still sold."},{"id":"em_tollhall_board","x":46,"y":8,"text":"THE TOLLHALL. NAMES CALLED WITHIN."}],"hooks":[],"secrets":[],"dungeon":{"id":"endmarket_streets","kind":"dungeon","name":"The Endmarket: the Fair Streets","levels":[30,30],"label":"Raid for 4, level 30","chests":[{"id":"em_midway_cache","x":20,"y":70,"name":"The Midway Cashbox"}],"raid":{"heroes":4,"wing":2,"wings":3,"label":"Raid for 4, level 30"}},"source":"tools/maps/zone_endmarket_streets.mjs"};
+
+---- untracked: src/data/raid_endmarket_streets.js ----
+diff --git a/src/data/raid_endmarket_streets.js b/src/data/raid_endmarket_streets.js
+new file mode 100644
+index 0000000..e276347
+--- /dev/null
++++ b/src/data/raid_endmarket_streets.js
+@@ -0,0 +1,189 @@
++// The Endmarket, wing 2: the Fair Streets (wave 10 draid, wave B; brief BRIEF_raid_wing2.md, Scott 2026-11-26:
++// "Go with your recs"). Past the Drove Fold the stalls still sell names. The Weighmaster, the Crier and the Catchpole
++// stand between the Fair Streets and the Tollhall doors. Every name and line here is a DRAFT for Scott. Plain data,
++// merged by applyRaid in src/data/raid_endmarket.js. The rules live in src/sim/raid.js. Text is original. No em dashes.
++//
++//   STREET_RULES        weigh, Sold!, Hook and Draw, Street Tickets, the Street Purse (merged into content.raid)
++//   STREET_ABILITIES    Weigh the Lot, the Weigh Beam, the Bidding Bell, Pound the Lane, Claim the Lot
++//   STREET_MOBS         Lot Buyers, the three bosses, the Chain Ring
++//   STREET_ITEMS        Street Tickets (ilvl 33, reqLevel 30 so a cap-30 hero can wear them) and the street weapons
++//                       and trinkets
++//   STREET_QUESTS       The Streets Still Selling (Mother Tally, after Pay Going In)
++import { MOBS, MOB_SPRITES, mobStats } from './mobs.js';
++import { makeGear } from './rares.js';
++import { bandQuest, whereIn } from './band20.js';
++
++const T = (o) => o;
++
++// Pan and stall tiles match tools/maps/zone_endmarket_streets.mjs (the Weighmaster's scales at 40,90; the Crier's
++// three stalls on the ring). src/sim/raid.js reads them from content.raid.
++export const STREET_RULES = Object.freeze({
++  places: Object.freeze(['endmarket_streets']),
++  // the Street Purse: the first kill of this wing's last boss each week, per hero, in a party of 2 or more
++  purses: Object.freeze({ endmarket_streets: Object.freeze({ gold: [160, 220], glyphs: 4, tickets: 1 }) }),
++  // a Street Ticket key (street_weapon, street_off, street_trinket) or a Lot Ticket armor slot
++  ticketSlots: Object.freeze({
++    em_weighmaster: Object.freeze(['head', 'hands', 'street_trinket']),
++    em_crier: Object.freeze(['legs', 'feet', 'street_off']),
++    em_catchpole: Object.freeze(['chest', 'hands', 'street_weapon']),
++  }),
++  streetIlvl: 33,
++  streetGear: Object.freeze({
++    weapon: Object.freeze({ warden: 'weigh_bar', mender: 'street_rod', scribe: 'tag_quill', wayfinder: 'midway_bow', inkblade: 'lot_knife' }),
++    off: Object.freeze({ warden: 'scale_plate', mender: 'hawker_hand_bell', scribe: 'midway_folio', inkblade: 'tag_knife' }),
++    trinket: Object.freeze(['weighmasters_weight', 'criers_tag', 'catchpoles_hook']),
++  }),
++  // Weigh the Lot (the Weighmaster): a 3 s uninterruptible weigh; the heavy hero stands on the gold (east) pan, at
++  // least one other on the blue (west) pan. Both paid: a modest shared hit. A missed pan: an unpaid hit and a short
++  // knock. Alone: the gold pan roots (the weigh is paid in time); neither pan is an avoidable unpaid hit.
++  weigh: Object.freeze({ every: 18, first: 8, castSec: 3, radiusPx: 40, paidSwings: 1.2, unpaidMult: 0.8, soloRootSec: 3,
++    gold: Object.freeze([46, 91]), blue: Object.freeze([34, 91]) }),
++  // Sold! (the Crier): a coloured tag on a non-target; 6 s (8 s alone) to the matching stall. Purify or a magic dispel
++  // drops it. A friend already in the stall splits a late burst. A party fail jumps the tag to another colour with a
++  // shorter window. Alone: the nearest stall, no jump.
++  sold: Object.freeze({ every: 20, first: 10, windowSec: 6, soloWindowSec: 8, jumpSec: 4, burstSwings: 2.2,
++    colors: Object.freeze(['oxblood', 'bone', 'teal']),
++    stalls: Object.freeze({ oxblood: Object.freeze([22, 50]), bone: Object.freeze([40, 48]), teal: Object.freeze([58, 50]) }) }),
++  // Hook and Draw (the Catchpole): the furthest non-target is hooked and slowed, not rooted. A friend breaks the
++  // Chain Ring to cut the hook. Fail: a pull, a short stun, a modest hit. Alone: a brief root, then a Chain Ring
++  // beside them (they break their own; no drag through packs).
++  hook: Object.freeze({ every: 22, first: 12, windowSec: 6, pullSpeed: 28, stunSec: 1.5, failSwings: 1.6, soloRootSec: 2, ringHp: 0.42 }),
++});
++
++export const STREET_ABILITIES = {
++  // the telegraph only: src/sim/raid.js applies Heavy at the start and weighs the pans when the cast ends
++  em_weigh_lot: { id: 'em_weigh_lot', name: 'Weigh the Lot', school: 'physical', castTime: 3.0, telegraph: 'circle', cooldown: 18, gcd: true, target: 'ground', uninterruptible: true,
++    range: { min: 0, max: 96 }, area: { shape: 'circle', radius: 40, at: 'ground', share: true }, effects: [] },
++  em_weigh_beam: { id: 'em_weigh_beam', name: 'Weigh Beam', school: 'physical', castTime: 1.3, telegraph: 'cone', cooldown: 9, gcd: true, target: 'enemy',
++    range: { min: 0, max: 40 }, area: { shape: 'cone', radius: 56, angle: 110, at: 'self' }, effects: [{ type: 'damage', to: 'enemies', mobHit: 2.0, canCrit: false }] },
++  em_bidding_bell: { id: 'em_bidding_bell', name: 'Bidding Bell', school: 'shadow', castTime: 1.5, telegraph: 'circle', cooldown: 14, gcd: true, target: 'enemy',
++    range: { min: 0, max: 80 }, area: { shape: 'circle', radius: 48, at: 'self' },
++    effects: [
++      { type: 'damage', to: 'enemies', mobHit: 1.4, canCrit: false, school: 'shadow' },
++      { type: 'aura', to: 'enemies', aura: { id: 'em_bidding', name: 'The Bidding Bell', icon: 'icon_silence', kind: 'debuff', duration: 2, flags: ['silence'], dispel: 'magic' } },
++    ] },
++  em_pound_lane: { id: 'em_pound_lane', name: 'Pound the Lane', school: 'physical', castTime: 1.2, telegraph: 'line', cooldown: 13, gcd: true, target: 'enemy',
++    range: { min: 0, max: 112 }, area: { shape: 'line', width: 24, radius: 112, at: 'self' },
++    effects: [{ type: 'move', kind: 'charge', distance: 112, speed: 260 }, { type: 'damage', to: 'enemies', mobHit: 1.8, canCrit: false }] },
++  // a Lot Buyer's claim: interruptible; a short slow if it lands (the bot can kick it, and a miss is not a wipe)
++  em_claim_lot: { id: 'em_claim_lot', name: 'Claim the Lot', school: 'shadow', castTime: 2.0, cooldown: 10, gcd: true, target: 'enemy',
++    range: { min: 0, max: 96 },
++    effects: [
++      { type: 'damage', mobHit: 1.3, canCrit: false, school: 'shadow' },
++      { type: 'aura', aura: { id: 'em_claimed', name: 'Claimed', icon: 'icon_slow', kind: 'debuff', duration: 4, flags: ['slow'], dispel: 'magic', mods: [{ stat: 'speed', add: -0.3 }] } },
++    ] },
++};
++
++export const STREET_MOBS = {
++  fair_lot_buyer: T({ name: 'Lot Buyer', level: [30, 30], family: 'spirit', kind: 'normal', behavior: 'aggressive', aggroRadius: 80, speed: 58, wander: 1, flee: null,
++    abilities: [{ id: 'em_claim_lot' }], loot: { junk: 'grave_dust', table: [] } }),
++  em_chain_ring: T({ name: 'Chain Ring', level: [30, 30], family: 'construct', kind: 'weak', behavior: 'passive', aggroRadius: 0, speed: 0, wander: 0, flee: null,
++    abilities: [], loot: { junk: null, table: [] } }),
++  em_weighmaster: T({ name: 'The Weighmaster', level: [30, 30], family: 'construct', kind: ['elite', 'armored'], elite: true, boss: true, behavior: 'elite', aggroRadius: 96, speed: 42, wander: 0, leash: 400, flee: null, attackSpeed: 2.6,
++    card: 'THE WEIGHMASTER. The fair\'s great scales still weigh every lot that comes down the street.', deathLine: 'The beam settles, and the pans hang still.',
++    abilities: [{ id: 'em_weigh_lot', cooldown: 17 }, { id: 'em_weigh_beam' }],
++    fight: { phases: [{ at: 0.5, yell: 'Another lot on the pan!', summon: { mob: 'fair_lot_buyer', level: 30, count: 2 } }],
++      frenzy: { after: 300, yell: 'The beam will not come back to rest.', mods: [{ stat: 'damageDone', mul: 1.5 }, { stat: 'attackSpeed', mul: 1.25 }] } },
++    loot: { junk: 'grave_dust', table: [], gear: 'elite' } }),
++  em_crier: T({ name: 'The Crier', level: [30, 30], family: 'spirit', kind: ['elite'], elite: true, boss: true, behavior: 'elite', aggroRadius: 96, speed: 56, wander: 0, leash: 400, flee: null, attackSpeed: 2.2,
++    card: 'THE CRIER. He still calls the lots. A name on a tag is a name for sale.', deathLine: 'The last call hangs in the dusk, and no one answers it.',
++    abilities: [{ id: 'em_bidding_bell', cooldown: 14 }],
++    fight: { phases: [{ at: 0.4, yell: 'Sold, going, gone! The stalls still want their share.', summon: { mob: 'fair_stallholder', level: 30, count: 2 } }],
++      frenzy: { after: 300, yell: 'EVERY NAME IS SOLD!', mods: [{ stat: 'damageDone', mul: 1.5 }, { stat: 'attackSpeed', mul: 1.3 }] } },
++    loot: { junk: 'grave_dust', table: [], gear: 'elite' } }),
++  em_catchpole: T({ name: 'The Catchpole', level: [30, 30], family: 'spirit', kind: ['elite'], elite: true, boss: true, behavior: 'elite', aggroRadius: 96, speed: 62, wander: 0, leash: 400, flee: null, attackSpeed: 2.0,
++    card: 'THE CATCHPOLE. The fair\'s bailiff. His hook still finds the one who tries to leave the lane unpaid.',
++    deathLine: 'The hook goes slack. Far up the lane, the Tollhall doors do not open. Not yet.',
++    abilities: [{ id: 'em_pound_lane', cooldown: 13 }],
++    fight: { phases: [{ at: 0.4, yell: 'The dogs of the lane still run for the bailiff.', summon: { mob: 'fair_dog', level: 30, count: 2 } }],
++      frenzy: { after: 300, yell: 'No one leaves the lane.', mods: [{ stat: 'damageDone', mul: 1.5 }, { stat: 'attackSpeed', mul: 1.3 }] } },
++    loot: { junk: 'grave_dust', table: [], gear: 'elite' } }),
++};
++const STREET_SPRITES = {
++  fair_lot_buyer: { sprite: 'barrow_shade', lq: 'borrowed_shadow' },
++  em_chain_ring: { sprite: 'tower_sentinel', lq: 'glass_sentinel' },
++  em_weighmaster: { sprite: 'tower_sentinel', lq: 'glass_sentinel' },
++  em_crier: { sprite: 'barrow_tallywife', lq: 'borrowed_shadow' },
++  em_catchpole: { sprite: 'barrow_reeve', lq: 'borrowed_shadow' },
++};
++export const STREET_TUNE = {
++  em_weighmaster: { hpMult: 3.0, dmgMult: 0.38 },
++  em_crier: { hpMult: 3.1, dmgMult: 0.36 },
++  em_catchpole: { hpMult: 3.3, dmgMult: 0.36 },
++  em_chain_ring: { hpMult: 0.42, dmgMult: 0 },
++};
++for (const [id, m] of Object.entries(STREET_MOBS)) {
++  MOB_SPRITES[id] = STREET_SPRITES[id];
++  MOBS[id] = m;
++  m.id = id; m.sprite = STREET_SPRITES[id].sprite; m.spriteLq = STREET_SPRITES[id].lq; m.faction = 'hostile'; m.school = 'physical';
++  m.elite = !!m.elite; m.leash = m.leash || 640;
++  if (STREET_TUNE[id]) { Object.assign(m, STREET_TUNE[id]); m.leash = Math.max(m.leash, 480); }
++  m.xp = null;
++  const st = mobStats(id, m.level[0]);
++  Object.assign(m, { hp: st.hp, damage: id === 'em_chain_ring' ? [0, 0] : st.damage, attackSpeed: m.attackSpeed || st.attackSpeed, armor: st.armor });
++  m.loot.gold = id === 'em_chain_ring' ? [0, 0] : st.gold;
++  m.respawn = m.elite ? 360 : 90;
++}
++
++// Street Tickets and the street weapons / trinkets (ilvl 33). reqLevel is 30: reqLevel(33) would be 31, past the cap.
++const I = 33;
++const RQ = { reqLevel: 30, dungeon: 'endmarket_streets' };
++export const STREET_ITEMS = {};
++const g = (id, name, slot, typ, stats, extra = {}) => {
++  STREET_ITEMS[id] = makeGear(id, name, slot, typ, I, 'epic', stats, { ...RQ, bind: 'boe', ...extra });
++};
++g('weigh_bar', 'Weigh-Bar', 'main', 'sword', { main: 10, sta: 9 }, { classes: ['warden'] });
++g('scale_plate', 'Scale-Plate', 'off', 'shield', { main: 7, sta: 8 }, { classes: ['warden'] });
++g('street_rod', 'Street Rod', 'main', 'rod', { main: 10, sta: 9, spi: 4 }, { classes: ['mender'] });
++g('hawker_hand_bell', "Hawker's Hand Bell", 'off', 'bell', { main: 7, sta: 8, spi: 3 }, { classes: ['mender'] });
++g('tag_quill', 'Tag Quill', 'main', 'quill', { main: 10, sta: 9, crit: 3 }, { classes: ['scribe'] });
++g('midway_folio', 'Midway Folio', 'off', 'book', { main: 7, sta: 8, crit: 2 }, { classes: ['scribe'] });
++g('midway_bow', 'Midway Bow', 'two', 'bow', { main: 12, sta: 11, haste: 3 }, { classes: ['wayfinder'] });
++g('lot_knife', 'Lot-Knife', 'main', 'dagger', { main: 10, sta: 9, crit: 3 }, { classes: ['inkblade'] });
++g('tag_knife', 'Tag-Knife', 'off', 'dagger', { main: 6, sta: 6, crit: 2 }, { classes: ['inkblade'] });
++STREET_ITEMS.weighmasters_weight = makeGear('weighmasters_weight', "The Weighmaster's Weight", 'trinket', null, I, 'epic', { main: 8, sta: 8 }, {
++  ...RQ, bind: 'boe',
++  text: 'A blow against you may raise a small ward, the way a pan takes a weight and holds it.',
++  power: { id: 'em_weight', text: 'A blow against you may raise a small ward.',
++    procs: [{ on: 'damageTaken', icd: 20, effects: [{ type: 'aura', to: 'self', aura: { id: 'em_weight_ward', name: 'Weighed', icon: 'mender_warding_word', kind: 'buff', duration: 4, absorb: { pctMaxHp: 0.06 } } }] }] },
++});
++STREET_ITEMS.criers_tag = makeGear('criers_tag', "A Crier's Tag", 'trinket', null, I, 'epic', { main: 8, sta: 6, crit: 3 }, {
++  ...RQ, bind: 'boe',
++  text: 'A tag from the Crier\'s stall. A hard dispel or Purify was meant to wake a short burst (a draft, for the balance pass).',
++});
++STREET_ITEMS.catchpoles_hook = makeGear('catchpoles_hook', "The Catchpole's Hook", 'trinket', null, I, 'epic', { main: 8, sta: 8 }, {
++  ...RQ, bind: 'boe',
++  text: 'The first spell or shot on a foe more than 8 tiles away was meant to pull you 2 tiles closer, once every 30 s (a draft, for the balance pass).',
++});
++const TICKET_WORD = { weapon: 'Weapon', off: 'Off Hand', trinket: 'Trinket' };
++const TICKET_TEXT = {
++  weapon: "Use it to claim your class's Street weapon (ilvl 33).",
++  off: "Use it to claim your class's Street off-hand (ilvl 33). A Wayfinder's off ticket is a Street trinket.",
++  trinket: 'Use it to claim a Street trinket you do not yet hold (ilvl 33).',
++};
++for (const slot of ['weapon', 'off', 'trinket']) {
++  const id = `street_ticket_${slot}`;
++  STREET_ITEMS[id] = Object.freeze({ id, name: `Street Ticket: ${TICKET_WORD[slot]}`, rarity: 'epic', kind: 'consumable', slot: null, stack: 5, value: 0, level: 30, reqLevel: 30,
++    icon: 'icon_scroll', classes: null, bagSlots: 0, stats: {},
++    text: `A fair ticket from the streets past the Fold. ${TICKET_TEXT[slot]}`,
++    use: { kind: 'lot_ticket', ticket: 'street', slot } });
++}
++
++const at = whereIn('drovers_reach');
++const Q = (o) => bandQuest('drovers_reach', o);
++export const STREET_QUESTS = {
++  em_streets_still_selling: Q({ id: 'em_streets_still_selling', num: 343, name: 'The Streets Still Selling', level: 30, giver: 'em_tally', turnIn: 'em_tally', elite: true,
++    requires: { quests: ['em_pay_going_in'], cls: null, level: 30 }, chain: { id: 'endmarket', step: 4 },
++    objectives: [
++      { kind: 'kill', mob: 'em_weighmaster', count: 1, where: [at(307, 75, 3)], label: 'The Weighmaster (the Endmarket, the Fair Streets)' },
++      { kind: 'kill', mob: 'em_crier', count: 1, where: [at(307, 75, 3)], label: 'The Crier (the Endmarket, the Fair Streets)' },
++      { kind: 'kill', mob: 'em_catchpole', count: 1, where: [at(307, 75, 3)], label: 'The Catchpole (the Endmarket, the Fair Streets)' },
++    ],
++    rewards: { xp: 9000, gold: 180, items: ['street_ticket_weapon'] },
++    text: {
++      offer: 'Past the Fold the stalls are still selling, love. The Weighmaster takes the weight of a lot, the Crier calls the name, and the Catchpole\'s hook finds whoever walks out unpaid. The door is the one beside this gate. Four go in. Two at the least. Come back when the hook has gone slack.',
++      progress: 'The Fair Streets, through the door beside the Fair Gate. Weigh the lot together. Walk a Sold! tag to its stall. Cut the Catchpole\'s hook.',
++      complete: 'The Lot-Caller is still calling. Not today. The Tollhall doors did not open. Your Street Tickets are good with me, same as the Lot ones.',
++    } }),
++};
++export const STREET_QUEST_ORDER = Object.keys(STREET_QUESTS);
+
+---- untracked: tools/maps/zone_endmarket_streets.mjs ----
+diff --git a/tools/maps/zone_endmarket_streets.mjs b/tools/maps/zone_endmarket_streets.mjs
+new file mode 100644
+index 0000000..50db721
+--- /dev/null
++++ b/tools/maps/zone_endmarket_streets.mjs
+@@ -0,0 +1,97 @@
++// The Endmarket, wing 2: the Fair Streets (wave 10 draid, wave B; a raid for 4 at level 30). Through the door beside
++// the Fair Gate in Drovers' Reach: the Street Gate, the stall street, the Weigh Yard, the Crier's Ring, Bailiff's Lane
++// and the shut Tollhall doors. Halls 8 wide, rock elsewhere; dressed with the dungeon kit's dg_* pieces and the fair's
++// own dg_fair_* pieces (src/render3d/fair3d.js). The auction block (dg_fair_block) is reserved for wing 3. Generated
++// into src/data/maps/endmarket_streets.js. Every name is a DRAFT for Scott.
++import { carveDungeon, pack, boss } from './dungeon_kit.mjs';
++import { DUNGEONS } from '../../src/data/dungeons.js';
++
++export function build() {
++  const D = DUNGEONS.endmarket_streets;
++  const W = 80, H = 164;
++  const rooms = [
++    { id: 'em_tollhall_doors', name: 'The Tollhall Doors', x: 26, y: 4, w: 28, h: 16 },
++    { id: 'em_bailiff_lane', name: "Bailiff's Lane", x: 28, y: 24, w: 24, h: 18 },
++    { id: 'em_crier_ring', name: "The Crier's Ring", x: 16, y: 46, w: 48, h: 28 },
++    { id: 'em_weigh_yard', name: 'The Weigh Yard', x: 16, y: 80, w: 48, h: 28 },
++    { id: 'em_fair_streets', name: 'The Fair Streets', x: 24, y: 114, w: 32, h: 30 },
++    { id: 'em_street_gate', name: 'The Street Gate', x: 26, y: 148, w: 28, h: 12 },
++  ];
++  const halls = [
++    { pts: [[40, 148], [40, 143]], width: 8 },             // the Street Gate -> the Fair Streets
++    { pts: [[40, 114], [40, 107]], width: 8 },             // the Fair Streets -> the Weigh Yard
++    { pts: [[40, 80], [40, 73]], width: 8 },               // the Weigh Yard -> the Crier's Ring
++    { pts: [[40, 46], [40, 41]], width: 8 },               // the Crier's Ring -> Bailiff's Lane
++    { pts: [[40, 24], [40, 19]], width: 8 },               // Bailiff's Lane -> the Tollhall Doors
++  ];
++  const spawns = [
++    ...pack('em_sgate_a', [['fair_drover', 30], ['fair_drover', 30]], 32, 154),
++    ...pack('em_street_a', [['fair_lot_buyer', 30], ['fair_drover', 30]], 32, 132),
++    ...pack('em_street_b', [['fair_stallholder', 30], ['fair_dog', 30]], 48, 122),
++    ...pack('em_weigh_a', [['fair_lot_buyer', 30], ['fair_lot_buyer', 30]], 28, 100),
++    boss('em_weighmaster', 30, 40, 96),
++    ...pack('em_ring_a', [['fair_stallholder', 30], ['fair_drover', 30]], 28, 62),
++    boss('em_crier', 30, 40, 52),
++    ...pack('em_lane_a', [['fair_dog', 30], ['fair_dog', 30]], 34, 34),
++    boss('em_catchpole', 30, 40, 33),
++  ];
++  const z = carveDungeon({
++    id: 'endmarket_streets', name: D.name, kind: 'dungeon', w: W, h: H, levels: D.levels, music: 'the_downs',
++    rooms, halls, entry: { x: 39, y: 160, w: 3 }, exitOut: D.door.out, arrival: [40, 157],
++    lantern: { id: 'em_streets_lantern', name: 'The Street Gate', x: 34, y: 155 },
++    spawns, floor: 'plaza',
++    chests: [{ id: 'em_midway_cache', x: 20, y: 70, name: 'The Midway Cashbox' }],
++    signs: [
++      { id: 'em_streets_board', x: 46, y: 156, text: 'THE FAIR STREETS. Lots still taken. Names still sold.' },
++      { id: 'em_tollhall_board', x: 46, y: 8, text: 'THE TOLLHALL. NAMES CALLED WITHIN.' },
++    ],
++  });
++  z.joins = z.joins.map((j) => ({ ...j, to: D.door.zone }));
++  z.dungeon.label = D.raid.label;
++  z.dungeon.raid = { ...D.raid };
++  z.lighting = { ...z.lighting, dark: 0.4 };
++  const dec = [];
++  const put = (t, x, y, o = {}) => dec.push({ t, x, y, ...o });
++  // the Street Gate
++  for (const x of [28, 34, 46, 52]) put('dg_torch', x, 147, { face: 's' });
++  put('dg_fair_arch', 40, 148);
++  put('dg_fair_lots', 32, 156); put('dg_fair_lots', 48, 156, { r: 0.7 });
++  for (const [x, y] of [[27, 149], [52, 149], [27, 158], [52, 158]]) put('dg_brazier', x, y);
++  // the Fair Streets (stalls face the walk at x=40; face is applied in fair3d.js)
++  put('dg_fair_bunting', 26, 116, { len: 28 });
++  for (const y of [118, 126, 134]) {
++    put('dg_fair_awning', 31, y, { face: 'e', r: 0.2 });
++    put('dg_fair_awning', 49, y, { face: 'w', r: 0.7 });
++  }
++  put('dg_fair_lots', 33, 122, { r: 0.4 }); put('dg_fair_lots', 47, 130, { r: 0.8 });
++  for (const [x, y] of [[25, 115], [54, 115], [25, 142], [54, 142]]) put('dg_brazier', x, y);
++  for (const x of [28, 32, 48, 52]) put('dg_torch', x, 113, { face: 's' });
++  // the Weigh Yard (the great scales: pans at 34,91 blue and 46,91 gold, matching STREET_RULES.weigh)
++  for (const x of [18, 26, 54, 62]) put('dg_torch', x, 79, { face: 's' });
++  put('dg_fair_scales', 40, 90); put('dg_fair_weights', 48, 88);
++  put('dg_fair_lots', 22, 86, { r: 0.3 });
++  put('dg_fair_bunting', 18, 82, { len: 44 });
++  for (const [x, y] of [[17, 81], [62, 81], [17, 106], [62, 106]]) put('dg_brazier', x, y);
++  put('dg_coins', 36, 100); put('dg_urn', 54, 102);
++  // the Crier's Ring (stalls at the Sold! tiles: oxblood 22,50, bone 40,48, teal 58,50)
++  for (const x of [18, 28, 52, 62]) put('dg_torch', x, 45, { face: 's' });
++  put('dg_fair_benches', 30, 54); put('dg_fair_benches', 50, 54, { r: 0.6 });
++  put('dg_fair_awning', 22, 50, { face: 'e', r: 0.15 });
++  put('dg_fair_lots', 40, 48, { r: 0.5 });
++  put('dg_fair_awning', 58, 50, { face: 'w', r: 0.85 });
++  put('dg_fair_bunting', 18, 48, { len: 44 });
++  for (const [x, y] of [[17, 47], [62, 47], [17, 72], [62, 72]]) put('dg_brazier', x, y);
++  put('dg_banner', 32, 45, { face: 's' }); put('dg_banner', 48, 45, { face: 's' });
++  // Bailiff's Lane and the shut Tollhall doors (no auction block: reserved for wing 3)
++  for (const x of [30, 32, 48, 50]) put('dg_torch', x, 23, { face: 's' });
++  put('dg_chain', 30, 30); put('dg_chain', 48, 30);
++  for (const [x, y] of [[29, 25], [50, 25], [29, 40], [50, 40]]) put('dg_brazier', x, y);
++  put('dg_bones', 32, 36);
++  for (const x of [28, 34, 46, 52]) put('dg_torch', x, 3, { face: 's' });
++  put('dg_fair_arch', 40, 10);
++  put('dg_banner', 36, 3, { face: 's' }); put('dg_banner', 44, 3, { face: 's' });
++  for (const [x, y] of [[27, 5], [52, 5], [27, 18], [52, 18]]) put('dg_brazier', x, y);
++  put('dg_skulls', 30, 12); put('dg_rubble', 50, 14);
++  z.decor.push(...dec);
++  return z;
++}
