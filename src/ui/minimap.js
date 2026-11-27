@@ -474,7 +474,9 @@ function areasAt(ctx, areas, zone, ox, oy, D, u, minR, look, bx, by, bw, bh) {
     const cx = ox + a.x * D, cy = oy + a.y * D, r = Math.max(minR * D, (a.r || 2) * D);
     if (cx + r < bx || cy + r < by || cx - r > bx + bw || cy - r > by + bh) continue;
     const al = dim ? 0.45 : 1;
+    // each draw clips to the map box itself (not only the caller's clip): an iPhone drew these rings across the HUD
     ctx.save();
+    ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = sel ? 'rgba(255,220,90,0.3)' : dim ? 'rgba(249,215,122,0.1)' : 'rgba(249,215,122,0.22)';
     ctx.fill();
@@ -488,6 +490,7 @@ function areasAt(ctx, areas, zone, ox, oy, D, u, minR, look, bx, by, bw, bh) {
     ctx.stroke();
     ctx.restore();
     ctx.save();
+    ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
     ctx.globalAlpha = al;
     ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.lineWidth = Math.max(1.5, u * 1.1); ctx.strokeStyle = 'rgba(52,36,24,0.7)'; ctx.stroke();
