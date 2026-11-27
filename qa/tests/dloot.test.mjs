@@ -24,7 +24,7 @@ export const tests = [
   { name: 'dloot: every weapon and armor piece a save can hold resolves exactly as before the build (hash taken on main 1e495f1)', fn() {
     const out = {};
     for (const d of Object.values(C.items)) {
-      if ((d.kind !== 'weapon' && d.kind !== 'armor') || d.retold || d.skillPower || d.dungeon === 'endmarket_gate') continue;   // wave 10 integrate: the raid's tier set is new (draid), no save holds it; 2026-11-26: the skill legendaries are new too
+      if ((d.kind !== 'weapon' && d.kind !== 'armor') || d.retold || d.skillPower || (d.dungeon && String(d.dungeon).startsWith('endmarket'))) continue;   // wave 10 integrate: the raid's set and Street gear are new (draid), no save holds them; 2026-11-26: the skill legendaries are new too
       for (const cls of Object.keys(C.classGear)) out[`${d.id}|${cls}`] = resolveItem(C, { item: d.id, inst: { ilvl: d.level, rarity: d.rarity, affixes: [] } }, cls);
     }
     const rng = createRng(77);

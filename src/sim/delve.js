@@ -225,8 +225,9 @@ export function createDelve(D) {
     if (!place || !z) return fail(e, cmd, 'not_at_door');
     if (e.inCombat) return fail(e, cmd, 'combat');
     const tiles = R.gatherTiles ?? 6;
-    const go = members(e).filter((p) => !p.dead && !p.inCombat && p.zone === e.zone && doorAt(p, tiles) === d && !(d.minLevel && (p.sync ? p.sync.from : p.level) < d.minLevel));
-    if (!go.includes(e)) { emit({ type: 'door_locked', id: e.id, door: d.id, need: d.minLevel }); return false; }
+    const gated = (p) => (d.minLevel && (p.sync ? p.sync.from : p.level) < d.minLevel) || (d.needs && !(p.questsDone || []).includes(d.needs));
+    const go = members(e).filter((p) => !p.dead && !p.inCombat && p.zone === e.zone && doorAt(p, tiles) === d && !gated(p));
+    if (!go.includes(e)) { emit({ type: 'door_locked', id: e.id, door: d.id, need: d.minLevel || d.needs, reason: (d.needs && !(e.questsDone || []).includes(d.needs)) ? 'quest' : 'level' }); return false; }
     // resume: only boss ids of this place, never its last boss, only into a copy made now
     const resume = Array.isArray(cmd.resume) ? cmd.resume.filter((b, i, a) => typeof b === 'string' && (place.bosses || []).includes(b) && b !== place.last && a.indexOf(b) === i) : [];
     let zid = null, resumed = false;

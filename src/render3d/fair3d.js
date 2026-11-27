@@ -188,8 +188,29 @@ const PROPS = {
 };
 
 export const FAIR_IDS = Object.freeze(Object.keys(PROPS));
-/** A dg_fair_* prop, or null for an id this module does not know. */
-export function fairProp(p) { const f = PROPS[p.id || p.t]; return f ? f(p) : null; }
+// Face yaw in the dungeon frame (y up, +z = south / +tile y). Default props face south; face 'e' turns the front to +x.
+const FACE_YAW = { s: 0, e: Math.PI / 2, n: Math.PI, w: -Math.PI / 2 };
+/** A dg_fair_* prop, or null for an id this module does not know. `p.face` ('n','e','s','w') turns it around the tile. */
+export function fairProp(p) {
+  const f = PROPS[p.id || p.t];
+  if (!f) return null;
+  const out = f(p);
+  const yaw = FACE_YAW[p.face];
+  if (yaw && out && out.g) {
+    const cx = p.x + 0.5, cz = p.y + 0.5;
+    out.g.position.set(cx, 0, cz);
+    out.g.rotation.y = yaw;
+    if (out.lights && out.lights.length) {
+      out.g.updateMatrixWorld(true);
+      out.lights = out.lights.map((l) => {
+        const local = l.pos.clone().sub(new THREE.Vector3(cx, 0, cz));
+        local.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+        return { ...l, pos: local.add(new THREE.Vector3(cx, 0, cz)) };
+      });
+    }
+  }
+  return out;
+}
 
 /** The Fair Gate on the world (local frame like dungeon3d stoneDoor: the opening along x, facing +z). */
 export function fairGate(w) {

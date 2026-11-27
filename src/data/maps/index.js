@@ -22,6 +22,7 @@ import larchhill from './larchhill.js';
 import droversReach from './drovers_reach.js';
 import larchMine from './larch_mine.js';
 import endmarketGate from './endmarket_gate.js';   // wave 10 draid: the Endmarket raid, wing 1
+import endmarketStreets from './endmarket_streets.js';   // wave 10 draid: wing 2, the Fair Streets
 import { applyRaid, fairGateDecor } from '../raid_endmarket.js';   // wave 10 draid: the raid (its foes register on import)
 import emberpeak from './emberpeak.js';                 // wave 3 start realms (lane realms1): src/data/start_realms2.js
 import valewyn from './valewyn.js';
@@ -68,7 +69,7 @@ import { placeMoorBand, applyMoorBand } from '../moor_band.js';   // quests20: 2
 export const REGIONS = { willowmere, valley, downs, moor };
 // Dungeons and caves (2026-11-22, src/data/dungeons.js): each its own zone (kind 'dungeon' | 'cave'), entered by a door on
 // the world. A party's copy is the zone under the id `<place>#<key>` (copies.js): ZONES resolves it to the place's data.
-export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep, endmarket_gate: endmarketGate };   // wave 10 draid: + endmarket_gate
+export const PLACES = { barrow, watchtower, rootcellar, smugglers_cut: smugglersCut, tarn_hollow: tarnHollow, larch_mine: larchMine, barrow_deep: barrowDeep, endmarket_gate: endmarketGate, endmarket_streets: endmarketStreets };   // wave 10 draid: + the Endmarket's two wings
 // the loading card's one line of flavour (src/ui/loading.js reads zone.flavour)
 for (const [id, z] of Object.entries(PLACES)) if (DUNGEONS[id] && DUNGEONS[id].flavour) PLACES[id] = { ...z, flavour: DUNGEONS[id].flavour };
 // patrols you must time (src/data/patrols.js): a place's patrol pairs spawn with its other foes

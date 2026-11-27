@@ -1,7 +1,8 @@
-// The Endmarket, the first raid (wave 10 draid, wave A; Scott 2026-11-25: "Go with your recommendations"; brief
-// D:/LQOnline/wave10/draid/BRIEF.md). Wave A is the raid's frame and its first wing, the Drove Gate: the Turnpike and
-// Old Shep. Every name and line here is a DRAFT for Scott. Plain data plus applyRaid(content), the last step of
-// buildContent (src/data/maps/index.js). The rules live in src/sim/raid.js.
+// The Endmarket, the first raid (wave 10 draid; Scott 2026-11-25: "Go with your recommendations"; brief
+// D:/LQOnline/wave10/draid/BRIEF.md; wing 2 brief BRIEF_raid_wing2.md, Scott 2026-11-26). Wave A is the raid's frame
+// and its first wing, the Drove Gate: the Turnpike and Old Shep. Wave B (src/data/raid_endmarket_streets.js) is the
+// Fair Streets: the Weighmaster, the Crier and the Catchpole. Every name and line here is a DRAFT for Scott. Plain
+// data plus applyRaid(content), the last step of buildContent (src/data/maps/index.js). The rules live in src/sim/raid.js.
 //
 // The story: a hundred years ago the drove roads ended at the Endmarket, the great fair at the far end of the Old Drove.
 // A buyer came who paid for names instead of beasts, and the fair's auctioneer, the Lot-Caller, sold them. The fair fell
@@ -19,6 +20,7 @@
 import { MOBS, MOB_SPRITES, mobStats } from './mobs.js';
 import { makeGear } from './rares.js';
 import { bandQuest, whereIn } from './band20.js';
+import { STREET_RULES, STREET_ABILITIES, STREET_MOBS, STREET_ITEMS, STREET_QUESTS, STREET_QUEST_ORDER } from './raid_endmarket_streets.js';
 
 const T = (o) => o;
 
@@ -28,7 +30,7 @@ export const RAID_RULES = Object.freeze({
   minParty: 2,                        // a lone hero gets gold only (Scott 2026-11-25, the brief's recommendation)
   // the lockout: loot once per hero per boss per Eastern calendar week (the week from the sim's day, src/sim/raid.js).
   // Boss kills are not kept between sittings: a copy resets as every dungeon's does (DUNGEON_RULES.resetSec).
-  places: Object.freeze(['endmarket_gate']),
+  places: Object.freeze(['endmarket_gate', 'endmarket_streets']),
   // the Fair Purse: the first kill of a wing's last boss each week, per hero, in a party of 2 or more
   purse: Object.freeze({ gold: [140, 190], glyphs: 4, tickets: 1 }),
   // the slots a boss's Lot Ticket may be for (the first one the hero lacks, else any of them, by the copy's rng)
@@ -177,7 +179,8 @@ const N = (o) => ({ faction: 'friendly', roles: ['quest'], vendor: null, trainer
 export const RAID_NPCS = {
   em_tally: N({ id: 'em_tally', name: 'Mother Tally', sprite: 'npc_old_woman', title: 'The Fair\'s Last Honest Clerk',
     talk: ['Every lot has a ticket, and every ticket has a name. Bring me yours and I will see you are paid what you are owed.',
-      'Four go in, love. Two at the least. The fair does not pay a lone bidder.', 'Once a week the Purse is full. Mondays, as it always was.'] }),
+      'Four go in, love. Two at the least. The fair does not pay a lone bidder.', 'Once a week the Purse is full. Mondays, as it always was.',
+      'The streets past the Fold still sell names. Pay Going In, then the door beside this gate will open to you.'] }),
 };
 const at = whereIn('drovers_reach');
 const MAEL = { zone: 'world', x: 168 * 16 + 8, y: 144 * 16 + 8, r: 24 };
@@ -226,6 +229,7 @@ export function fairGateDecor(z) {
   add('market_stall_cloth', 293, 79); add('market_stall_fruit', 311, 80);
   add('x1_haybale', 296, 81); add('x1_haybale', 310, 86); add('x1_trough', 293, 86); add('crates_barrels', 312, 83);
   add('x1_sack_stack', 297, 79); add('barrel', 309, 79); add('signboard', 300, 88);
+  add('signboard', 311, 78);   // the Fair Streets door (306-308,74; out 307,76) has its own board, off the door tiles
   return { ...z, decor, npcs: [...(z.npcs || []), { npc: 'em_tally', x: 306, y: 78, dir: 'left' }] };
 }
 
@@ -233,13 +237,19 @@ export function fairGateDecor(z) {
 export function applyRaid(C) {
   return {
     ...C,
-    mobs: { ...C.mobs, ...EM_MOBS },
-    mobAbilities: { ...C.mobAbilities, ...EM_MOB_ABILITIES },
-    items: { ...C.items, ...RAID_ITEMS },
+    mobs: { ...C.mobs, ...EM_MOBS, ...STREET_MOBS },
+    mobAbilities: { ...C.mobAbilities, ...EM_MOB_ABILITIES, ...STREET_ABILITIES },
+    items: { ...C.items, ...RAID_ITEMS, ...STREET_ITEMS },
     sets: { ...C.sets, ...RAID_SETS },
     npcs: { ...C.npcs, ...RAID_NPCS },
-    quests: { ...C.quests, ...RAID_QUESTS },
-    sideQuests: [...(C.sideQuests || []), ...RAID_QUEST_ORDER],
-    raid: RAID_RULES,
+    quests: { ...C.quests, ...RAID_QUESTS, ...STREET_QUESTS },
+    sideQuests: [...(C.sideQuests || []), ...RAID_QUEST_ORDER, ...STREET_QUEST_ORDER],
+    raid: {
+      ...RAID_RULES,
+      ...STREET_RULES,
+      places: [...RAID_RULES.places],
+      ticketSlots: { ...RAID_RULES.ticketSlots, ...STREET_RULES.ticketSlots },
+      purses: { ...(RAID_RULES.purses || {}), ...(STREET_RULES.purses || {}) },
+    },
   };
 }

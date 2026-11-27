@@ -1363,6 +1363,37 @@ All words are DRAFTS for Scott.
 - **Tuning.** `EM_TUNE` by `node qa/sim/party_bot.mjs` (the party bot: any place, any party; gate for four heroes: cleared,
   no wipe, deaths <= 2, each boss 60 to 300 s), also run in the suite as `qa/sim/raid.test.mjs`.
 
+## The Endmarket raid, wing 2: the Fair Streets (wave 10 draid, wave B, 2026-11-26, BUILD; Scott: "Go with your recs"; BRIEF_raid_wing2.md)
+
+Data: `src/data/raid_places.js` (`endmarket_streets`, door in Drovers' Reach at 306,74, `minLevel: 30`, `needs: 'em_pay_going_in'`),
+`src/data/raid_endmarket_streets.js` (foes, Street Tickets ilvl 33 with `reqLevel: 30`, street weapons and trinkets, the
+Streets Still Selling quest), merged by `applyRaid`. Map `tools/maps/zone_endmarket_streets.mjs`. All words are DRAFTS
+for Scott. The auction block (`dg_fair_block`) stays reserved for wing 3. One Reach-side door only (no Drove Fold story door).
+
+- **Door.** `withDoors` now passes `needs` and `notYet` onto the join and the `doors` entry. `checkJoin` already waits on
+  `j.needs` (and speaks `j.notYet` through realms2). `delve.enter` also refuses a party whose leader has not done the
+  quest. The door is 306-308,74 (309,74 is rock) with out 307,76, beside the Fair Gate. Both doors use the Fair Gate art
+  (id starts `endmarket`).
+- **Tickets.** Street Tickets use `use: { kind: 'lot_ticket', ticket: 'street', slot: 'weapon'|'off'|'trinket' }`.
+  `RD.useTicket` gives the class street weapon, off-hand, or a trinket they lack. A Wayfinder's off ticket is a Street
+  trinket. An owned slot becomes another street piece they lack. Lockout is still per boss per week; both wings can loot
+  in the same week (the Purse is per place). The Street Purse is `RAID_RULES.purses.endmarket_streets` (gold 160-220, 4
+  glyphs, one ticket that may be a Lot Ticket slot or a Street Ticket).
+- **Boss rules.** The Weighmaster's `em_weigh_lot` (uninterruptible) applies Heavy to its target at the start and, when
+  the cast ends, checks the gold pan (the heavy hero) and the blue pan (at least one other). Both paid: a modest shared
+  hit. A missed pan: unpaid hit and a short knock for anyone not on a pan. Alone: the gold pan roots (`soloRootSec`),
+  neither pan is an avoidable unpaid hit. Event `raid_weigh { kind: 'start'|'paid'|'unpaid'|'solo' }`. The Crier's Sold!
+  tags a non-target with a color (oxblood, bone, teal) for 6 s (8 s alone, nearest stall, no jump); standing in the
+  matching stall pays it; a magic dispel or Purify clears it; a party fail bursts (a friend in the stall splits it) and
+  jumps the tag to another color with a shorter window. Event `raid_sold { kind: 'tag'|'paid'|'fail'|'cleared'|'jump' }`.
+  The Catchpole's Hook and Draw hooks the furthest non-target (slowed, not rooted) and a friend breaks `em_chain_ring`
+  to cut it; fail is a pull, a short stun and a modest hit. Alone: a brief root, then a Chain Ring beside them. Event
+  `raid_hook { kind: 'hooked'|'broken'|'fail'|'out' }`.
+- **Render.** `fairProp` honours `p.face` (`n`,`e`,`s`,`w`) and rotates lanterns with the prop. Recipes for the Lot Buyer,
+  the Weighmaster, the Crier, the Catchpole and the Chain Ring are in `creature_recipes.js`.
+- **Tuning.** `STREET_TUNE` by the same party bot and `qa/sim/raid.test.mjs` (Fair Streets four-hero and two-hero runs
+  are separate tests so each stays under the suite's time ceiling).
+
 ## World life: rares, rest XP, story chains, Night at the Stones (2026-11-22, LIVE)
 
 Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js`, glued by `src/data/worldlife.js`

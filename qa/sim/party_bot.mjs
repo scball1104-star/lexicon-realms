@@ -2,7 +2,9 @@
 // map data with the command API only, the way friends play it: the tank pulls one pack at a time and taunts what turns
 // on a friend, the Mender heals whoever is lowest, the others hit the tank's target; everyone steps out of ground
 // warnings, and the party rules of a raid boss are played as they are meant to be: the Turnpike's toll ring is shared
-// (everyone walks into it), and whoever Old Shep pens is freed by the others breaking the hurdle. Between pulls the party
+// (everyone walks into it), whoever Old Shep pens is freed by the others breaking the hurdle, the Weighmaster's heavy
+// hero stands on the gold pan and the others on the blue, a Sold! tag walks to its stall, and a Catchpole hook is cut
+// by breaking the Chain Ring. Between pulls the party
 // sits to full; a hero who dies releases once the fight ends and walks back from the inside lantern.
 // For dbosses and later raid waves too: any place, any party.
 //
@@ -56,7 +58,7 @@ export function partyRun(place, { party = PARTY4, level = 30, seed = 1, maxMin =
   for (const h of heroes) zid = w.internals.dungeons.enter(h, place);
   const Z = C0.zones[zid];
   heroes.forEach((h, i) => { h.zone = zid; h.x = (Z.arrival[0] + (i % 2)) * TILE + 128; h.y = (Z.arrival[1] + 1 - Math.floor(i / 2)) * TILE - SUB; });
-  const R = { place, party: party.join('+'), level, cleared: false, minutes: 0, deaths: 0, wipes: 0, bosses: {}, low: 100, toll: { shared: 0, unpaid: 0, solo: 0 }, pens: 0, loot: {} };
+  const R = { place, party: party.join('+'), level, cleared: false, minutes: 0, deaths: 0, wipes: 0, bosses: {}, low: 100, toll: { shared: 0, unpaid: 0, solo: 0 }, pens: 0, weigh: { paid: 0, unpaid: 0, solo: 0 }, sold: { paid: 0, fail: 0, cleared: 0 }, hooks: 0, loot: {} };
   const D = C0.dungeons[place];
   const tank = heroes.find((h) => h.cls === 'warden') || heroes[0];
   const healer = heroes.find((h) => h.cls === 'mender') || null;
@@ -105,17 +107,32 @@ export function partyRun(place, { party = PARTY4, level = 30, seed = 1, maxMin =
   const lastDead = new Set();
   function act(h, fight) {
     const s = st.get(h.id), cls = h.cls, b = NAMED_ALL[cls][0];
+    const isBreak = (m) => m && (m.template === 'em_hurdle' || m.template === 'em_chain_ring');
+    // Weigh the Lot: the heavy hero to the gold pan, everyone else to the blue, and keep hitting from there
+    const weigh = fight.find((m) => m.cast && m.cast.ability === 'em_weigh_lot');
+    if (weigh && C0.raid && C0.raid.weigh) {
+      const heavy = (h.auras || []).some((a) => a.id === 'em_heavy');
+      const xy = heavy ? C0.raid.weigh.gold : C0.raid.weigh.blue;
+      const px = xy[0] * TILE + 128, py = (xy[1] + 1) * TILE - SUB;
+      if (Math.hypot(h.x - px, h.y - py) / SUB > 22) { walkToward(h, px, py); return; }
+    }
+    // Sold!: walk the tagged hero to the matching stall
+    if (h.soldColor && C0.raid && C0.raid.sold && C0.raid.sold.stalls[h.soldColor]) {
+      const xy = C0.raid.sold.stalls[h.soldColor];
+      const px = xy[0] * TILE + 128, py = (xy[1] + 1) * TILE - SUB;
+      if (Math.hypot(h.x - px, h.y - py) / SUB > 22) { walkToward(h, px, py); return; }
+    }
     // the toll ring: everyone stands in it (the shared rule), and keeps hitting from there
     const toll = fight.find((m) => m.cast && m.cast.ability === 'em_pay_toll' && m.cast.at);
     if (toll && Math.hypot(h.x - toll.cast.at.x, h.y - toll.cast.at.y) / SUB > 22) { walkToward(h, toll.cast.at.x, toll.cast.at.y); return; }
-    const d = !toll && danger(h);
+    const d = !toll && !weigh && danger(h);
     if (d) { dodge(h, d); return; }
-    const hurdle = fight.find((m) => m.template === 'em_hurdle') || foesIn().find((m) => m.template === 'em_hurdle');
+    const hurdle = fight.find(isBreak) || foesIn().find(isBreak);
     let tgt = s.tgt && !s.tgt.dead && (fight.includes(s.tgt) || s.tgt === hurdle) ? s.tgt : null;
     if (h === tank) {
-      const loose = fight.find((m) => m.template !== 'em_hurdle' && m.ai.target != null && m.ai.target !== tank.id && !(m.spawn && m.spawn.temporary && m.bossAdd == null && m.template === 'em_hurdle'));
+      const loose = fight.find((m) => !isBreak(m) && m.ai.target != null && m.ai.target !== tank.id && !(m.spawn && m.spawn.temporary && m.bossAdd == null && isBreak(m)));
       if (loose && (tank.cd.warden_taunt || 0) <= w.tick && tank.known.includes('warden_taunt') && dpx(loose, tank) < 160 && !tank.cast) send(tank, { t: 'cast', ability: 'warden_taunt', target: loose.id });
-      tgt = fight.find((m) => isBoss(m)) && !fight.some((m) => m.bossAdd) ? fight.find((m) => isBoss(m)) : (loose || fight.filter((m) => m.template !== 'em_hurdle').sort((a, c) => dpx(a, tank) - dpx(c, tank))[0]);
+      tgt = fight.find((m) => isBoss(m)) && !fight.some((m) => m.bossAdd) ? fight.find((m) => isBoss(m)) : (loose || fight.filter((m) => !isBreak(m)).sort((a, c) => dpx(a, tank) - dpx(c, tank))[0]);
     } else if (hurdle && h !== healer && (h.auras || []).every((a) => a.id !== 'em_penned' || true)) tgt = hurdle;
     else { const tt = tank.target != null ? w.get(tank.target) : null; tgt = tt && !tt.dead && tt.zone === zid ? tt : fight[0]; }
     if (!tgt) return;
@@ -147,8 +164,11 @@ export function partyRun(place, { party = PARTY4, level = 30, seed = 1, maxMin =
       for (const e of ev) {
         if (e.type === 'raid_toll') { if (e.heroes === 1) R.toll.solo++; else if (e.inside) R.toll.shared++; else R.toll.unpaid++; }
         if (e.type === 'raid_pen' && e.kind === 'penned') R.pens++;
+        if (e.type === 'raid_weigh') { if (e.kind === 'paid') R.weigh.paid++; else if (e.kind === 'solo') R.weigh.solo++; else if (e.kind === 'unpaid') R.weigh.unpaid++; }
+        if (e.type === 'raid_sold') { if (e.kind === 'paid') R.sold.paid++; else if (e.kind === 'fail') R.sold.fail++; else if (e.kind === 'cleared') R.sold.cleared++; }
+        if (e.type === 'raid_hook' && e.kind === 'hooked') R.hooks++;
         if (e.type === 'raid_loot') R.loot[e.kind] = (R.loot[e.kind] || 0) + 1;
-        if (trace === 2 && (e.type === 'boss' || e.type === 'raid_toll' || e.type === 'raid_pen' || e.type === 'yell')) console.log(`  t${w.tick} ${JSON.stringify(e)}`);
+        if (trace === 2 && (e.type === 'boss' || e.type === 'raid_toll' || e.type === 'raid_pen' || e.type === 'raid_weigh' || e.type === 'raid_sold' || e.type === 'raid_hook' || e.type === 'yell')) console.log(`  t${w.tick} ${JSON.stringify(e)}`);
       }
       for (const m of Object.keys(bossStart)) { const e = w.state.ents.find((x) => x.zone === zid && x.template === m); if (e && e.dead && R.bosses[m] == null) R.bosses[m] = +((w.tick - bossStart[m]) / 20).toFixed(1); }
       continue;
