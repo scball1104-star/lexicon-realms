@@ -11,7 +11,7 @@
 //   RF.ensure(base)            the rift's place record (content.dungeons) and the seal's word door (content.wordDoors)
 //
 // Commands
-//   rift_open { word, link? }  at the Rift Stone: open the rift of `word` at the hero's own level (minLevel to 30); party
+//   rift_open { word, link? }  at the Rift Stone: open the rift of `word` at the hero's own level (minLevel to maxLevel, 35); party
 //                              heroes beside the stone go in with them, on one tick (as dflow's Go in together).
 //                              Allowed words: this Eastern week's word, the hero's learned words, or (link: true, a friend's
 //                              #rift= link) any word in the game's own book. A rift's level is the opener's own level.
@@ -78,7 +78,7 @@ export function createRifts(D) {
     if (D.DG.isPlace(e.zone)) return fail(e, 'inside');
     if (!atStone(e, R.stoneTiles)) return fail(e, 'not_here');
     if (e.inCombat) return fail(e, 'combat');
-    const L = Math.min(30, ownLevel(e));
+    const L = Math.min(R.maxLevel || 30, ownLevel(e));
     if (L < R.minLevel) return fail(e, 'level');
     const w = typeof cmd.word === 'string' ? cmd.word.toUpperCase().replace(/[^A-Z]/g, '') : '';
     const ok = w.length >= 3 && w.length <= 8 && bookOf().has(w) && (w === week() || wordsOf(e).includes(w) || cmd.link === true);
@@ -167,7 +167,7 @@ export function createRifts(D) {
     if (e.dead || !atStone(e, R.stoneTiles)) return null;
     const wk = week();
     const words = wordsOf(e).filter((w) => w !== wk && bookOf().has(w)).reverse();
-    return { stone: { week: wk, words, level: Math.min(30, ownLevel(e)), min: R.minLevel, ok: ownLevel(e) >= R.minLevel && !e.inCombat } };
+    return { stone: { week: wk, words, level: Math.min(R.maxLevel || 30, ownLevel(e)), min: R.minLevel, ok: ownLevel(e) >= R.minLevel && !e.inCombat } };
   }
 
   return { handles: (t) => CMDS.has(t), command: (e, cmd) => (cmd.t === 'rift_open' ? open(e, cmd) : false), tick, observe, hudOf, wordsOf, ensure, isRift };

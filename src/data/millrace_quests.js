@@ -92,7 +92,7 @@ function Q(o) {
 const step = (n) => ({ id: 'millrace', step: n });
 export const MR_QUESTS = {
   mr_chain_comes_down: Q({ id: 'mr_chain_comes_down', num: 401, name: 'The Chain Comes Down', level: 30, size: 0.35, giver: 'mael', turnIn: 'mr_clerk',
-    requires: { quests: [], cls: null, level: 29 }, chain: step(1),
+    requires: { quests: [], cls: null, level: 30 }, chain: step(1),   // the chain opens at 30, so the breadcrumb does too
     objectives: [{ kind: 'explore', zone: 'millrace', area: 'mr_chain_road', where: [AT.chainRoad], label: "Step over Ferrick's chain onto the Chain Road" }],
     text: {
       offer: "Ferrick shut the south-east road years ago and never came back to open it. His chain is lying in the mud now. Somebody took it down, or it gave up. Walk past it. There is a mill down there, and a clerk who still keeps a book. Tell him Willowmere sent you.",

@@ -56,7 +56,7 @@ export const tests = [
       // the level sets foe levels, never the floor
       eq(buildRift('EMBER', { level: 14 }).collision.join(''), buildRift('EMBER', { level: 28 }).collision.join(''), 'level does not move the floor');
       eq(riftWord(' e m-b!er '), 'EMBER'); eq(riftWord('ab'), null); eq(riftWord('abcdefghi'), null);
-      eq(riftId('EMBER', 22), 'rift_ember_22'); eq(parseRiftId('rift_ember_22').word, 'EMBER'); eq(parseRiftId('rift_ember_31'), null);
+      eq(riftId('EMBER', 22), 'rift_ember_22'); eq(parseRiftId('rift_ember_22').word, 'EMBER'); eq(parseRiftId('rift_ember_35').level, 35); eq(parseRiftId('rift_ember_36'), null);   // cap 35: rifts follow the level cap
       eq(readRiftLink('#x=1&' + riftLink('Ember', 22)).word, 'EMBER');
     },
   },
@@ -127,7 +127,7 @@ export const tests = [
       assert(a && a.rift && a.rift.word === 'EMBER' && a.kind, 'made through a copy id');
       assert(C.zones.rift_ember_22 === a, 'kept');
       assert('rift_quill_14' in C.zones, 'has');
-      eq(C.zones.rift_ember_31, undefined); eq(C.zones.rift_x_22, undefined);
+      eq(C.zones.rift_ember_36, undefined); eq(C.zones.rift_x_22, undefined);
       cleanup();
     },
   },

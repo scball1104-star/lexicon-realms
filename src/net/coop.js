@@ -15,6 +15,7 @@
 import { ICE_DEFAULT, signalFor, hostRoom, joinRoom, makeOffer, makeAnswer, encodeCode, decodeCode, newRoomCode, cleanRoomCode, validRoomCode } from './transport.js';
 import { createHostSession, createGuestSession, MAX_PLAYERS } from './session.js';
 import { createNetUI } from './netui.js';
+import { gateSafeSpot } from '../sim/gates.js';   // cap 35: a guest never arrives past a level gate
 import { emoteFromChat } from '../sim/emotes.js';   // wave 7 anim: /wave /cheer /sit /dance /jump in party chat
 import { readInvite, createDropFlow } from './dropin.js';   // wave 8: drop-in with one link (invite links, watching)
 import { createTalk } from './talk_coop.js';   // wave 8 talk: whispers, mute, remove, lock, watchers read only (docs/NET.md "Talk")
@@ -89,6 +90,8 @@ export function createCoop({ world, ui, content, specFor, saveState, heroId, bar
     // a friend arrives beside the host (they came to play together); their quests, bags and lantern are their own
     const h = world.get(hostId);
     if (h) { spec.zone = h.zone; spec.x = Math.floor(h.x / SUB_TILE) + 1; spec.y = Math.floor((h.y - 1) / SUB_TILE); }
+    // cap 35: a host past a level gate the friend cannot pass (Ferrick's chain): the friend arrives on the gate's far side
+    if (h) { const at = gateSafeSpot(content.zones, spec.zone, spec.x, spec.y, spec.level || 1); if (at.zone !== spec.zone) Object.assign(spec, at); }
     return spec;
   }
   function hostGame(c) {

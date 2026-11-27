@@ -17,6 +17,7 @@
 import { SUB, TILE, INTERACT_RANGE_PX } from './constants.js';
 import { standTile } from './collision.js';
 import { distPx } from './geom.js';
+import { zoneGate, heroLevel } from './gates.js';   // cap 35: an inn behind a level gate keeps a lower hero's home elsewhere
 
 const tileToSub = (tx, ty) => [tx * TILE + TILE / 2, (ty + 1) * TILE - SUB];
 export const FLIGHT_AURA = 'lr_flight';
@@ -102,6 +103,7 @@ export function createTravel(C) {
       const inn = innOf(npc);
       if (!inn) return emit({ type: 'home_fail', id: e.id, reason: 'not_inn' });
       if (!near(e, npc)) return emit({ type: 'home_fail', id: e.id, reason: 'range' });
+      { const need = zoneGate(content.zones, inn.zone); if (heroLevel(e) < need) return emit({ type: 'home_fail', id: e.id, reason: 'level', need }); }
       e.home = { zone: inn.zone, x: inn.x, y: inn.y, inn: inn.id, name: inn.name };
       emit({ type: 'home', id: e.id, inn: inn.id, name: inn.name });
       return;

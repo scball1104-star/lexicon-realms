@@ -14,6 +14,8 @@ import { WW_QUESTS, WW_QUEST_ORDER, WW_NAMED_BAND, WW_NAMED_ROWS, WW_NPCS, WW_ST
 import { MR_QUESTS, MR_CAVE_XP_BUDGET, PAGES_EAST_AFTER, mrQuestXp } from '../../src/data/millrace_quests.js';
 import { WEIR_WORKS_DOOR, HUB } from '../../tools/maps/zone_millrace.mjs';
 import { ROOMS, POOLS, FERRICK_AT, KEEPER_AT, RATS_FROM, ARRIVAL } from '../../tools/maps/zone_weir_works.mjs';
+import { zoneGate, gateSafeSpot } from '../../src/sim/gates.js';
+import { buildRift, parseRiftId, RIFT_RULES } from '../../src/data/rift.js';
 
 const HZ = 20, TILE = 256, SUB = 16;
 const noDash = (t) => !/[\u2013\u2014]/.test(t);
@@ -330,6 +332,125 @@ export const tests = [
       const b = enterCave(w2, { extra: { questsDone: ['mr_down_the_undershot', 'mr_wheel_still_turns'] } });
       eq(w2.state.ents.filter((e) => e.kind === 'npc' && e.template === 'mr_ferrick' && e.zone === 'millrace').length, 1, 'at the mill after a load');
       eq(w2.state.ents.filter((e) => e.kind === 'npc' && e.zone === b.p.zone).length, 0, 'not hurt in the cave any more');
+    },
+  },
+  // ---------------------------------------------------------------- review fixes (2026-11-27)
+  {
+    name: 'gates: the Millrace and the Weir Works need level 30; a party call never carries a lower hero past the chain (no offer, the Come refused); a level 30 friend comes',
+    fn() {
+      const C = contentW();
+      eq(zoneGate(C.zones, 'millrace'), 30, 'the chain'); eq(zoneGate(C.zones, 'weir_works'), 30, 'the undercroft door'); eq(zoneGate(C.zones, 'world'), 0);
+      eq(C.dungeons.weir_works.door.minLevel, 30);
+      assert(C.zones.millrace.joins.find((j) => j.door === 'weir_works').minLevel === 30, 'the door join is gated');
+      const w = createWorld({ seed: 12, content: C });
+      const a = w.addPlayer({ name: 'Hi', cls: 'warden', level: 35, zone: 'millrace', x: WEIR_WORKS_DOOR.out[0], y: WEIR_WORKS_DOOR.out[1], party: 1 });
+      const lo = w.addPlayer({ name: 'Lo', cls: 'mender', level: 5, zone: 'world', x: 100, y: 185, party: 1 });
+      const ok = w.addPlayer({ name: 'Ok', cls: 'scribe', level: 30, zone: 'world', x: 102, y: 185, party: 1 });
+      w.enqueue(a, { t: 'delve_call', door: 'weir_works' });
+      const ev = w.step();
+      assert(ev.some((x) => x.type === 'door_locked' && x.id === lo && x.reason === 'call' && x.need === 30), 'the low hero is told why');
+      assert(!ev.some((x) => x.type === 'delve_call' && x.id === lo && x.kind === 'offer') && !w.get(lo).delveCall, 'no offer to the low hero');
+      assert(ev.some((x) => x.type === 'delve_call' && x.id === ok && x.kind === 'offer'), 'an offer to the level 30 friend');
+      // an offer from before (or a forged one) is still refused at the Come
+      w.get(lo).delveCall = { from: a, door: 'weir_works', until: w.state.tick + 1000 };
+      w.enqueue(lo, { t: 'delve_come', yes: true });
+      assert(w.step().some((x) => x.type === 'delve_fail' && x.id === lo && x.reason === 'level'), 'the Come is refused');
+      w.enqueue(ok, { t: 'delve_come', yes: true });
+      run(w, 20 * 6);
+      eq(w.get(lo).zone, 'world', 'the low hero stays on the Downs side');
+      eq(w.get(ok).zone, 'millrace', 'the level 30 friend stands at the door');
+    },
+  },
+  {
+    name: 'gates: the Wet Wheel keeps no home for a hero below 30; a co-op guest below a gate arrives on the Downs side of the chain',
+    fn() {
+      const C = contentW();
+      const w = createWorld({ seed: 13, content: C });
+      const inn = w.state.ents.find((e) => e.kind === 'npc' && e.template === 'mr_innkeeper');
+      const at = [Math.floor(inn.x / TILE), Math.floor((inn.y - 1) / TILE) + 1];
+      const lo = w.addPlayer({ name: 'Lo', cls: 'mender', level: 20, zone: 'millrace', x: at[0], y: at[1] });
+      w.enqueue(lo, { t: 'set_home', npc: inn.id });
+      assert(w.step().some((x) => x.type === 'home_fail' && x.id === lo && x.reason === 'level' && x.need === 30), 'refused below 30');
+      const hi = w.addPlayer({ name: 'Hi', cls: 'mender', level: 30, zone: 'millrace', x: at[0], y: at[1] });
+      w.enqueue(hi, { t: 'set_home', npc: inn.id });
+      assert(w.step().some((x) => x.type === 'home' && x.id === hi), 'a level 30 hero makes it home');
+      // src/net/coop.js spawnGuest's rule (gateSafeSpot): the far side of the chain, the world tile the Millrace's pass lands on
+      const back = C.zones.millrace.joins.find((j) => j.to === 'world');
+      eq(JSON.stringify(gateSafeSpot(C.zones, 'millrace', 93, 47, 12)), JSON.stringify({ zone: 'world', x: back.tx, y: back.ty }), 'a level 12 guest of a host in the Millrace');
+      eq(JSON.stringify(gateSafeSpot(C.zones, 'weir_works#4', 27, 64, 12)), JSON.stringify({ zone: 'world', x: back.tx, y: back.ty }), 'and of a host in the cave');
+      eq(JSON.stringify(gateSafeSpot(C.zones, 'millrace', 93, 47, 31)), JSON.stringify({ zone: 'millrace', x: 93, y: 47 }), 'a level 31 guest beside the host');
+      eq(gateSafeSpot(C.zones, 'world', 100, 185, 1).zone, 'world', 'no gate, no move');
+    },
+  },
+  {
+    name: 'Ferrick in co-op: a party copy has him while ANY member still needs #11; none when all have it; he leaves a live copy once its heroes hand it in',
+    fn() {
+      const C = contentW();
+      const w = createWorld({ seed: 14, content: C });
+      const a = w.addPlayer({ name: 'Done', cls: 'warden', level: 35, zone: 'millrace', x: WEIR_WORKS_DOOR.out[0], y: WEIR_WORKS_DOOR.out[1], party: 3, questsDone: ['mr_down_the_undershot', 'mr_wheel_still_turns'] });
+      w.addPlayer({ name: 'Needs', cls: 'mender', level: 35, zone: 'millrace', x: WEIR_WORKS_DOOR.out[0] + 1, y: WEIR_WORKS_DOOR.out[1], party: 3, questsDone: ['mr_down_the_undershot'] });
+      w.enqueue(a, { t: 'delve_enter', door: 'weir_works' }); run(w, 3);
+      const zid = w.get(a).zone;
+      assert(/^weir_works#party3/.test(zid), `the party copy (${zid})`);
+      eq(w.state.ents.filter((e) => e.kind === 'npc' && e.zone === zid && e.template === 'mr_ferrick_hurt').length, 1, 'there for the friend who needs him');
+      const w2 = createWorld({ seed: 15, content: C });
+      const done = ['mr_down_the_undershot', 'mr_wheel_still_turns'];
+      const b = w2.addPlayer({ name: 'A', cls: 'warden', level: 35, zone: 'millrace', x: WEIR_WORKS_DOOR.out[0], y: WEIR_WORKS_DOOR.out[1], party: 4, questsDone: done });
+      w2.addPlayer({ name: 'B', cls: 'mender', level: 35, zone: 'millrace', x: WEIR_WORKS_DOOR.out[0] + 1, y: WEIR_WORKS_DOOR.out[1], party: 4, questsDone: done });
+      w2.enqueue(b, { t: 'delve_enter', door: 'weir_works' }); run(w2, 3);
+      eq(w2.state.ents.filter((e) => e.kind === 'npc' && e.zone === w2.get(b).zone).length, 0, 'not when every member has it');
+      // a live copy: the lone hero hands #11 in; the hurt Ferrick leaves that copy
+      const w3 = createWorld({ seed: 16, content: C });
+      const { id, p } = enterCave(w3, { extra: { questsDone: ['mr_down_the_undershot', 'mr_who_broke_the_weir'] } });
+      const cz = p.zone;
+      eq(w3.state.ents.filter((e) => e.kind === 'npc' && e.zone === cz && e.template === 'mr_ferrick_hurt').length, 1, 'there before');
+      p.quests.mr_wheel_still_turns = { state: 'ready', counts: [4, 1], at: 0 };
+      const clerk = w3.state.ents.find((e) => e.kind === 'npc' && e.template === 'mr_clerk');
+      p.zone = clerk.zone; p.x = clerk.x + 8 * SUB; p.y = clerk.y; p.bag = []; p.pendingLoot = [];
+      w3.enqueue(id, { t: 'quest_turnin', quest: 'mr_wheel_still_turns', npc: clerk.id, choice: 0 }); run(w3, 2);
+      assert(p.questsDone.includes('mr_wheel_still_turns'), 'handed in');
+      eq(w3.state.ents.filter((e) => e.kind === 'npc' && e.zone === cz && e.template === 'mr_ferrick_hurt').length, 0, 'gone from the live copy');
+    },
+  },
+  {
+    name: 'The Wheel Still Turns in any order: foes killed before it was taken count when it is taken in that copy; taken first, kills count as they come',
+    fn() {
+      const C = contentW();
+      const pend = [];
+      const w = createWorld({ seed: 17, content: C, systems: [{ tick() { for (const f of pend.splice(0)) f(); } }] });
+      const pre = ['mr_chain_comes_down', 'mr_wet_pages', 'mr_ferricks_marks', 'mr_the_upper_weir', 'mr_who_broke_the_weir', 'mr_down_the_undershot'];
+      const { id, p } = enterCave(w, { extra: { questsDone: pre } });
+      const zid = p.zone;
+      const slay = (ww, q, list, m) => { m.tagger = q.id; list.push(() => ww.internals.combat.dealDamage(q, m, m.hp + 99999, { ability: 'test', school: 'physical', canCrit: false })); ww.step(); q.hp = q.hpMax; };
+      for (const m of mobsIn(w, zid, 'drowned_drover')) slay(w, p, pend, m);
+      slay(w, p, pend, mobsIn(w, zid, 'wheel_keeper')[0]);
+      eq(w.state.copies[zid].slain.drowned_drover, 6, 'the copy counted six drovers'); eq(w.state.copies[zid].slain.wheel_keeper, 1);
+      const f = w.state.ents.find((e) => e.kind === 'npc' && e.zone === zid && e.template === 'mr_ferrick_hurt');
+      p.x = f.x + 8 * SUB; p.y = f.y;
+      w.enqueue(id, { t: 'quest_accept', quest: 'mr_wheel_still_turns', npc: f.id }); run(w, 2);
+      eq(w.quests.status(p, 'mr_wheel_still_turns'), 'ready', 'taken after the clear: ready at once');
+      eq(p.quests.mr_wheel_still_turns.counts.join(','), '4,1');
+      // the other order, in a fresh world
+      const pend2 = [];
+      const w2 = createWorld({ seed: 18, content: C, systems: [{ tick() { for (const g of pend2.splice(0)) g(); } }] });
+      const b = enterCave(w2, { extra: { questsDone: pre } });
+      const f2 = w2.state.ents.find((e) => e.kind === 'npc' && e.zone === b.p.zone && e.template === 'mr_ferrick_hurt');
+      b.p.x = f2.x + 8 * SUB; b.p.y = f2.y;
+      w2.enqueue(b.id, { t: 'quest_accept', quest: 'mr_wheel_still_turns', npc: f2.id }); run(w2, 2);
+      eq(w2.quests.status(b.p, 'mr_wheel_still_turns'), 'active', 'taken first');
+      for (const m of [...mobsIn(w2, b.p.zone, 'drowned_drover').slice(0, 4), mobsIn(w2, b.p.zone, 'wheel_keeper')[0]]) slay(w2, b.p, pend2, m);
+      eq(w2.quests.status(b.p, 'mr_wheel_still_turns'), 'ready', 'kills after: ready');
+    },
+  },
+  {
+    name: 'rifts follow the cap: a level 35 hero opens a level 35 rift (was held at 30)',
+    fn() {
+      eq(RIFT_RULES.maxLevel, 35);
+      const z = buildRift('EMBER', { level: 35 });
+      eq(z.rift.level, 35); eq(z.levels.join(','), '35,35');
+      assert(z.spawns.every((s) => s.level <= 35), 'no foe past 35');
+      eq(parseRiftId('rift_ember_35').level, 35); eq(parseRiftId('rift_ember_36'), null);
+      eq(buildRift('EMBER', { level: 40 }).rift.level, 35, 'clamped at the cap');
     },
   },
 ];

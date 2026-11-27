@@ -25,7 +25,7 @@ export function createTravelUi({ font, content }) {
     if (ev.id !== me) return null;
     switch (ev.type) {
       case 'home': return `${cap(ev.name)} is now your home. Your Lantern Stone will bring you here.`;
-      case 'home_fail': return HOME_FAIL[ev.reason] || null;
+      case 'home_fail': return ev.reason === 'level' ? `The innkeeper will not write your name in the book. Rooms here are for travellers of level ${ev.need} and up.` : HOME_FAIL[ev.reason] || null;   // cap 35: a gated inn (DRAFT)
       case 'hearth_stop': return ev.reason === 'move' ? 'You moved. The Lantern Stone goes dark.' : ev.reason === 'combat' ? 'The fight breaks the Lantern Stone\'s light.' : null;
       case 'hearth': return `The Lantern Stone brings you home to ${ev.name}.`;
       case 'flight_point': return `New flight point: ${ev.name}.`;
@@ -35,7 +35,9 @@ export function createTravelUi({ font, content }) {
       case 'ride_start': return ev.vehicle === 'ferry' ? `The ferry pushes off for ${ev.name}.` : `The ore cart rattles off toward ${ev.name}.`;
       case 'ride_fail': return RIDE_FAIL[ev.reason] || null;
       case 'inventory_fail': return ev.item === 'lantern_stone' ? STONE_FAIL[ev.reason] || null : null;
-      case 'door_locked': return ev.door === 'millrace' ? `Ferrick's chain stays across the road. It comes down for a hero of level ${ev.need}.`   // cap 35: the Millrace's gate
+      case 'door_locked': return ev.reason === 'call' ? `Your party is at ${ev.place || 'a door'}, but the way there is shut to you until level ${ev.need}.`   // cap 35: a call past a gate (DRAFT)
+        : ev.door === 'weir_works' ? `The undercroft door is barred from inside. It opens for a hero of level ${ev.need}.`   // cap 35: the Weir Works (DRAFT)
+        : ev.door === 'millrace' ? `Ferrick's chain stays across the road. It comes down for a hero of level ${ev.need}.`   // cap 35: the Millrace's gate
         : `The stair will not open for you. It waits for a hero of level ${ev.need}.`;   // cap 30: a level-gated door
       default: return null;
     }

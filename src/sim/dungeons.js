@@ -87,13 +87,20 @@ export function createDungeons(D) {
     for (const [L, v] of Object.entries(ms.byLevel || {})) if (level >= +L) out = v;
     return out;
   }
+  /** The heroes a copy is for: the hero's party (online now), or the hero alone. */
+  function copyParty(p) {
+    if (!p) return [];
+    return p.party != null ? state.ents.filter((x) => x.kind === 'player' && x.party === p.party) : [p];
+  }
   function spawnCopy(zid, p = null) {
     const z = zones[zid];
-    // cap 35: a place's own people (zone.dungeon.npcs: Ferrick, hurt, in the Weir Works). `until`: not in a copy made for a
-    // hero who has already handed in that quest
+    // cap 35: a place's own people (zone.dungeon.npcs: Ferrick, hurt, in the Weir Works). `until`: left out only when EVERY
+    // hero of the copy's party has handed in that quest (a friend who still needs him finds him)
+    const party = copyParty(p);
     for (const n of (z.dungeon && z.dungeon.npcs) || []) {
-      if (!D.spawnNpc || (n.until && p && (p.questsDone || []).includes(n.until))) continue;
-      D.spawnNpc({ npc: n.npc, zone: zid, x: n.x, y: n.y, dir: n.dir || 'down' });
+      if (!D.spawnNpc || (n.until && party.length && party.every((m) => (m.questsDone || []).includes(n.until)))) continue;
+      const e = D.spawnNpc({ npc: n.npc, zone: zid, x: n.x, y: n.y, dir: n.dir || 'down' });
+      if (e && n.until) e.until = n.until;
     }
     for (const s of z.spawns || []) {
       const m = D.spawnMob({ ...s, zone: zid, respawn: null, sprite: spriteFor(s.mob, s.level) || undefined });
@@ -217,6 +224,8 @@ export function createDungeons(D) {
     const place = placeOf(mob.zone);
     if (!place || !isPlace(mob.zone) || !p || p.kind !== 'player') return;
     if (DP) DP.onKill(mob, p, drop);               // wave 10 dtiers: depth gold, blots, the depth clear and its rewards
+    // cap 35: every kill in a copy is counted by template (src/sim/quests.js credits a place's kill objectives taken later)
+    { const c = copies()[mob.zone]; if (c && !mob.slainCounted) { mob.slainCounted = true; const s = (c.slain = c.slain || {}); s[mob.template] = (s[mob.template] || 0) + 1; } }   // once per foe (this runs for each hero who shares a kill)
     const tpl = mob.template;
     const mt = (content.mobs || {})[tpl] || {};
     if (mt.fight || mt.boss || mt.rare) {

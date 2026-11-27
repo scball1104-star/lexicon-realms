@@ -31,7 +31,8 @@ export const RIFT_VERSION = 1;
 export const RIFT_HOOKS = { scale: null };       // wave 10 dtiers fills this (Depths); see the header
 
 export const RIFT_RULES = Object.freeze({
-  minLevel: 10,              // a hero opens a rift at level 10 or more; the rift is at the opener's own level (up to 30)
+  minLevel: 10,              // a hero opens a rift at level 10 or more; the rift is at the opener's own level (up to maxLevel)
+  maxLevel: 35,              // cap 35 stage 1: rifts follow the level cap (was 30); the loot comes from the nearest place with an epic pool
   stoneTiles: 3,             // stand this close to the Rift Stone (Lantern Square's post in Willowmere) to open one
   gatherTiles: 6,            // party heroes this close to the stone go in together
   heldTiles: 3,              // a held room's packs wait until a hero is this close to the room's middle
@@ -91,7 +92,7 @@ export function parseRiftId(id) {
   const m = /^rift_([a-z]{3,8})_(\d{1,2})$/.exec(String(id || ''));
   if (!m) return null;
   const level = +m[2];
-  return level >= 1 && level <= 30 ? { word: m[1].toUpperCase(), level } : null;
+  return level >= 1 && level <= RIFT_RULES.maxLevel ? { word: m[1].toUpperCase(), level } : null;
 }
 export const isRiftId = (id) => !!parseRiftId(String(id || '').split('#')[0]);
 
@@ -113,7 +114,7 @@ const GX = 4, GY = 4, CW = 18, CH = 15, PADX = 2, PADY = 2;
 export function buildRift(text, opts = {}) {
   const WORD = riftWord(text);
   if (!WORD) throw new Error(`not a rift word: ${text}`);
-  const level = Math.max(1, Math.min(30, (opts.level | 0) || 20));
+  const level = Math.max(1, Math.min(RIFT_RULES.maxLevel, (opts.level | 0) || 20));
   const rng = createRng(hashSeed(`rift${RIFT_VERSION}:${WORD}`));
   const lookId = rng.pick(LOOK_IDS);
   const look = RIFT_LOOKS[lookId];
@@ -222,7 +223,7 @@ export function buildRift(text, opts = {}) {
     }
     return s;
   };
-  const lvl = () => Math.min(30, level + (rng.chance(0.3) ? 1 : 0));
+  const lvl = () => Math.min(RIFT_RULES.maxLevel, level + (rng.chance(0.3) ? 1 : 0));
   const spawns = [];
   const packOf = (gid, r, held) => {
     const n = rng.int(2, 3), [x, y] = spot(r, 2), out = [];
@@ -245,7 +246,7 @@ export function buildRift(text, opts = {}) {
   // the guardian: one of the look's bosses, its fight as it is (wave 10 dbosses), in the middle of a 16 x 13 room
   const gmob = rng.pick(look.guardians);
   const [hx, hy] = ctr(heart);
-  spawns.push({ mob: gmob, level: Math.min(30, level + 1), x: hx, y: hy, wander: 0, group: `boss_${gmob}`, boss: true });
+  spawns.push({ mob: gmob, level: Math.min(RIFT_RULES.maxLevel, level + 1), x: hx, y: hy, wander: 0, group: `boss_${gmob}`, boss: true });
   const heartChest = { id: `${id}_heart`, x: heart.x + heart.w - 3, y: heart.y + 1, name: RIFT_TEXT.heartChest };
 
   // the scattered word: one found letter per letter of the word in the rooms on the way and the side rooms, never past the
@@ -262,7 +263,7 @@ export function buildRift(text, opts = {}) {
   for (let y = seal.y; y < seal.y + seal.h; y++) for (let x = seal.x; x < seal.x + 2; x++) wordDoor.cells.push([x, y]);
 
   const name = RIFT_TEXT.name(WORD);
-  const levels = [level, Math.min(30, level + 1)];
+  const levels = [level, Math.min(RIFT_RULES.maxLevel, level + 1)];
   const label = RIFT_TEXT.label(level);
   const out = opts.out || [0, 0];
   return {

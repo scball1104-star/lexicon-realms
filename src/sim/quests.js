@@ -164,8 +164,36 @@ export function createQuests(Q) {
       if (o.kind === 'explore' && p.zone === o.zone && inArea(p, o.zone, o.area)) setCount(p, id, i, 1);
       if (o.kind === 'escort') startEscort(p, id, i, o);
     });
+    creditCopyKills(p, id);
     checkReady(p, id);
     return true;
+  }
+  /**
+   * Cap 35 (review fix): a quest of a place taken inside a copy of it counts the kills already made in that copy (the copy
+   * keeps a tally, src/sim/dungeons.js `slain`), so a foe that never respawns, killed before the quest was taken, never
+   * leaves it stuck (The Wheel Still Turns: the drovers and the Keeper, in any order).
+   */
+  function creditCopyKills(p, id) {
+    const q = QUESTS[id], base = zoneBase(p.zone);
+    const c = base !== p.zone && Q.state.copies ? Q.state.copies[p.zone] : null;
+    if (!c || !c.slain) return;
+    q.objectives.forEach((o, i) => {
+      if (o.kind !== 'kill' || !(o.zone === base || (!o.zone && q.place === base))) return;
+      const n = c.slain[o.mob] || 0;
+      if (n > p.quests[id].counts[i]) setCount(p, id, i, n);
+    });
+  }
+  /** Cap 35: a copy's own npc with `until` (the hurt Ferrick) leaves a live copy once every hero it is for has that quest done. */
+  function dropCopyNpcs(qid) {
+    for (const e of [...Q.ents()]) {
+      if (e.kind !== 'npc' || e.until !== qid || !Q.state.copies) continue;
+      const c = Q.state.copies[e.zone];
+      if (!c) continue;
+      const key = String(c.key);
+      const heroes = [...Q.ents()].filter((x) => x.kind === 'player' && (key.startsWith('party') ? `party${x.party}` === key : String(x.id) === key));
+      if (!heroes.length || !heroes.every((h) => done(h, qid))) continue;
+      if (Q.removeEntity) { Q.removeEntity(e); emit({ type: 'despawn', id: e.id, template: e.template, zone: e.zone, kind: 'npc' }); }
+    }
   }
 
   function abandon(p, id) {
@@ -202,7 +230,7 @@ export function createQuests(Q) {
     if (q.bounty) {
       if (!p.bounties || p.bounties.day !== today()) p.bounties = { day: today(), done: [] };
       p.bounties.done.push(id);
-    } else { p.questsDone.push(id); ensureStoryNpcs(p); }
+    } else { p.questsDone.push(id); ensureStoryNpcs(p); dropCopyNpcs(id); }
     const xp = Math.round((r.xp || 0) * questGapMult(p.level, q.level));
     if (xp > 0) {
       if (Q.grantXp) Q.grantXp(p, xp, 'quest', { quest: id });

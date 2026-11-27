@@ -245,6 +245,7 @@ export function createRenderer(canvas, assets, { zones, abilities = null }) {
       for (const b of lv.braziers) if (b.x > cam.x - 16 && b.x < cam.x + W + 16 && b.y > cam.y - 16 && b.y < cam.y + H + 24) list.push({ sortY: b.y, obj: { draw: (gg, c) => drawBrazier(gg, b, c) } });
     }
     if (zone && zone.doors) for (const d of doorMouths(zone)) {
+      if (d.mouth === false) continue;     // cap 35: the zone draws its own door (the Millrace's undercroft), as dungeon3d.js
       const dx = d.x * 16, dy = d.y * 16;
       if (dx < cam.x - 48 || dx > cam.x + W + 48 || dy < cam.y - 48 || dy > cam.y + H + 48) continue;
       list.push({ sortY: dy + (d.face === 'n' ? -16 : -1), obj: { draw: (gg, c) => drawDoorMouth(gg, d, c) } });

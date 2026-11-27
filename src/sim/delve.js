@@ -31,6 +31,7 @@
 import { TICK_HZ } from './constants.js';
 import { zoneBase } from './dungeons.js';
 import { itemName } from './loot.js';
+import { zoneGate, heroLevel } from './gates.js';   // cap 35: a call never carries a hero past a level gate
 
 const T = (sec) => Math.round((sec || 0) * TICK_HZ);
 const TILE = 256;
@@ -67,6 +68,11 @@ export function createDelve(D) {
   const DG = () => D.DG;
   const zones = content.zones;
   const fail = (e, cmd, reason) => { emit({ type: 'delve_fail', id: e.id, cmd: cmd.t, reason }); return false; };
+  // cap 35 (review fix): the level a hero needs to stand at a door: the door's own gate and the gate of the zone it stands in
+  // (the Weir Works' door is in the Millrace, behind Ferrick's chain). A call and the Come refuse a hero under it.
+  const gateOf = (f) => (f ? Math.max(f.door.minLevel || 0, zoneGate(zones, f.zone)) : 0);
+  const tooLow = (p, f) => heroLevel(p) < gateOf(f);
+  const sayLow = (p, f) => emit({ type: 'door_locked', id: p.id, door: f.door.id, need: gateOf(f), reason: 'call', place: f.door.name });
   const members = (e) => (e.party != null ? state.ents.filter((p) => p.kind === 'player' && p.party === e.party) : [e]);
   const tileOf = (e) => [Math.floor(e.x / TILE), Math.floor((e.y - 1) / TILE)];
 
@@ -196,9 +202,11 @@ export function createDelve(D) {
     if (!d || (cmd.door && cmd.door !== d.id)) return fail(e, cmd, 'not_at_door');
     if (e.party == null) return fail(e, cmd, 'no_party');
     let n = 0;
+    const fd = findDoor(d.id);
     for (const f of members(e)) {
       if (f === e || f.dead || f.inCombat || DG().isPlace(f.zone)) continue;
       if (doorAt(f, R.gatherTiles ?? 6) === d) continue;            // already here
+      if (tooLow(f, fd)) { sayLow(f, fd); continue; }               // cap 35: never past a gate they cannot walk through
       f.delveCall = { from: e.id, door: d.id, until: now() + T(R.callSec ?? 60) };
       emit({ type: 'delve_call', id: f.id, kind: 'offer', from: e.id, door: d.id, place: d.name });
       n++;
@@ -212,6 +220,7 @@ export function createDelve(D) {
     if (!cmd.yes) { delete e.delveCall; emit({ type: 'delve_call', id: e.id, kind: 'no', door: c.door }); return true; }
     if (e.dead || e.inCombat) return fail(e, cmd, 'combat');
     if (DG().isPlace(e.zone)) return fail(e, cmd, 'inside');
+    { const f = findDoor(c.door); if (tooLow(e, f)) { delete e.delveCall; sayLow(e, f); return fail(e, cmd, 'level'); } }
     delete e.delveCall;
     e.mx = 0; e.my = 0; e.sitting = 0;
     e.delveCome = { door: c.door, startTick: now(), endTick: now() + T(R.comeSec ?? 5) };
@@ -277,6 +286,7 @@ export function createDelve(D) {
       delete e.delveCome;
       const f = findDoor(cc.door);
       if (!f) continue;
+      if (tooLow(e, f)) { sayLow(e, f); emit({ type: 'delve_come', id: e.id, kind: 'stop', door: cc.door, reason: 'level' }); continue; }
       const [ox, oy] = f.door.out;
       moveTo(e, f.zone, ox, oy + 1, 'up');
       emit({ type: 'delve_come', id: e.id, kind: 'done', door: cc.door });
