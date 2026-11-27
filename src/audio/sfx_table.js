@@ -35,6 +35,11 @@ export const AURA_SOUNDS = [
   { match: 'root', id: 'debuff' }, { match: 'snare', id: 'debuff' }, { match: 'pinned', id: 'debuff' },
 ];
 
+// the skill legendaries (2026-11-27): The Tolling Rod lays a lower, longer bell toll over Tolling Hammers' cast
+// (oath_ring pitched down). ctx.wears(id, item) says a hero wears a legendary (audio.js reads it from the snapshot)
+export const LEGEND_CAST = { mender_tolling_hammers: { item: 'the_tolling_rod', id: 'oath_ring', pitch: 0.6, volume: 0.9 } };
+const legendCast = (ev, ctx) => { const L = LEGEND_CAST[ev.ability]; return L && ctx.wears && ctx.wears(ev.src, L.item) ? L : null; };
+
 // cast_fail reasons that are just key mashing (no buzzer)
 const QUIET_FAIL = new Set(['gcd', 'busy']);
 const GOOD_RARITY = new Set(['magic', 'rare', 'epic', 'legendary', 'set']);   // wave 10 dloot: epic (purple) gets the jingle too
@@ -83,6 +88,7 @@ function friendSounds(ev, ctx, f, sfx, jingle) {
       break;
     case 'cast_start': {
       if (ev.src !== f) break;
+      { const L = legendCast(ev, ctx); if (L) fx(L.id, { volume: L.volume * 0.8, pitch: L.pitch }); }
       if (CAST_START[ev.ability]) { fx(CAST_START[ev.ability], { volume: 0.8 }); break; }
       const p = prefixOf(ev.ability);
       if (p === 'scribe' && ev.castTicks > 0) fx('page_flutter', { volume: 0.6 });
@@ -153,6 +159,7 @@ export function soundsFor(ev, ctx = {}) {
     }
     case 'cast_start': {
       if (ev.src !== me) break;
+      { const L = legendCast(ev, ctx); if (L) sfx(L.id, { volume: L.volume, pitch: L.pitch }); }
       if (CAST_START[ev.ability]) { sfx(CAST_START[ev.ability]); break; }
       if (prefixOf(ev.ability) === 'scribe' && ev.castTicks > 0) sfx('page_flutter', { volume: 0.7 });
       else if (prefixOf(ev.ability) === 'mender' && ev.castTicks > 0) sfx('buff', { volume: 0.45 });

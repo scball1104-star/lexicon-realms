@@ -171,6 +171,8 @@ export function createAudio(opts = {}) {
       family = mobFamily;
       const isPlayer = (id) => ents.has(id);
       const clsOf = (id) => { const e = ents.get(id); return e ? e.cls : null; };
+      // a hero wears this item (the skill legendaries' sounds, sfx_table.js LEGEND_CAST)
+      const wears = (id, item) => { const e = ents.get(id); return !!(e && e.equip && Object.values(e.equip).some((x) => x && (x === item || x.item === item))); };
       return bus.on('*', (ev) => {
         try {
           const me = playerId();
@@ -184,7 +186,7 @@ export function createAudio(opts = {}) {
           // the synth's sounds first: a door's rattle or a chest can stand in for the table's sound (replace)
           const replaced = syn ? syn.event(ev, { me, isPlayer: ents.size ? isPlayer : null, family }) : false;
           if (replaced) return;
-          for (const s of soundsFor(ev, { me, cls: cls(), zone: myZone, isPlayer: ents.size ? isPlayer : null, clsOf })) {
+          for (const s of soundsFor(ev, { me, cls: cls(), zone: myZone, isPlayer: ents.size ? isPlayer : null, clsOf, wears })) {
             let vol = s.volume != null ? s.volume : 1, pan = 0;
             if (s.from != null) {
               const f = ents.get(s.from);
@@ -205,7 +207,8 @@ export function createAudio(opts = {}) {
               if (t - (lastKey.get(s.key) || -1e9) < (s.gap || KEY_GAP_MS)) continue;
               lastKey.set(s.key, t);
             }
-            api.sfx(s.id, pan ? { volume: vol, pan } : (s.volume != null || s.from != null ? { volume: vol } : undefined));
+            const o = pan ? { volume: vol, pan } : (s.volume != null || s.from != null ? { volume: vol } : undefined);
+            api.sfx(s.id, s.pitch ? { ...(o || {}), pitch: s.pitch } : o);
           }
         } catch (e) { console.warn('[audio] event', e); }
       });

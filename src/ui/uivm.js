@@ -188,7 +188,8 @@ function fromSimHud(vm, snap, ctx) {
     if (!s || !s.ability || s.known === false) return { slot: i + 1, ability: null, key };
     const a = abilityInfo(s.ability) || {};
     return { slot: i + 1, ability: s.ability, name: s.name || a.name, icon: a.icon || s.icon, key, cdLeft: s.cdLeft || 0, cdTotal: s.cdTotal || 0,
-      usable: s.usable !== false, inRange: s.inRange !== false || !vm.target, gcdLeft: s.offGcd ? 0 : h.gcdLeft || 0, gcdTotal: h.gcdTotal || 1, cost: s.cost || 0, charges: s.charges };
+      usable: s.usable !== false, inRange: s.inRange !== false || !vm.target, gcdLeft: s.offGcd ? 0 : h.gcdLeft || 0, gcdTotal: h.gcdTotal || 1, cost: s.cost || 0, charges: s.charges,
+      ...(s.chargesMax ? { chargesMax: s.chargesMax } : {}) };
   });
   const c = h.cast;
   // your own rez cast (src/sim/party.js) uses the cast bar too

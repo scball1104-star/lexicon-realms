@@ -21,6 +21,7 @@ import { groundY } from './ground_plan.js';   // wave 5 ground kit: the visible 
 import { wordDoorLook, letterStoneLook } from './worddoor3d.js';   // wave 8 glyphdoor: word doors
 import { riddleStoneLook } from './riddle3d.js';   // wave 9 riddles
 import { createEmoteKit } from './emote_kit.js';   // wave 7 anim: jump, emotes, NPC work loops (approved 2026-11-24)
+import { tollingHammersLook, wearsLegend } from './legend_kit.js';   // the skill legendaries (2026-11-27): Tolling Hammers
 
 const PX = 16;
 const CORPSE_SECS = 4, CORPSE_FADE = 1.5;
@@ -110,10 +111,11 @@ function lanternChest() {
   g.userData.lights = [{ obj: glass, color: '#ffc46b', k: 2.2, lantern: true }];
   return g;
 }
-function objectLook(e) {
+function objectLook(e, low = false) {
   const g = new THREE.Group();
   const sp = String(e.sprite || '');
   if (e.chest) return lanternChest();
+  if (e.spiral) return tollingHammersLook(e.spiral, { low });   // Tolling Hammers: the hammers themselves (legend_kit.js)
   if (e.wdoor) return wordDoorLook(e);                  // word doors: the slab (worddoor3d.js)
   if (e.wstone) return letterStoneLook(e);              // and a found letter
   if (e.rstone) return riddleStoneLook(e);              // wave 9 riddles: a riddle stone (riddle3d.js)
@@ -164,18 +166,18 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
       if (e.kind === 'player') ch.anim = createAnimKit(THREE, ch, { cls: spec.cls });   // before anything moves the bones
       else if (emotes.npcKit(e)) ch.npcKit = createAnimKit(THREE, ch, { cls: 'warden' });   // wave 7 anim: work loops, a look round
       const local = new THREE.Group();   // per-body world-space extras (cape, trails)
-      const dressed = await dress(L, ch, spec, local);
+      const dressed = await dress(L, ch, spec, local, { low: !!quality.low });
       await finishApp(L, ch, spec);      // no app: nothing (today's look)
       ch.o.scale.multiplyScalar(spec.scale || 1);
       ch.o.traverse((m) => { if (m.isMesh) m.castShadow = !!quality.shadows; });
-      return { type: 'hero', ch, spec, local, lights: dressed.lights, anim: makeAnimator(ch), height: 1.82 * (spec.scale || 1), sig: spec.sig };
+      return { type: 'hero', ch, spec, local, lights: dressed.lights, gearMats: dressed.gearMats || [], anim: makeAnimator(ch), height: 1.82 * (spec.scale || 1), sig: spec.sig };
     }
     if (e.kind === 'mob') {
       const c = await createCreature(L, e.template, e.sprite, { elite: e.elite || !!e.rare, rank: e.rank });   // a rare stands a size up, as an elite does
       if (!quality.shadows) c.o.traverse((m) => { if (m.isMesh) m.castShadow = false; });
       return { type: 'creature', c, lights: c.lights, height: c.height, sig: 'mob' };
     }
-    const o = objectLook(e);
+    const o = objectLook(e, !!quality.low);
     return { type: 'object', o, lights: o.userData.lights || [], height: o.userData.h || 0.6, sig: 'obj' };
   }
 
@@ -199,6 +201,7 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
     if (b.type === 'hero') b.ch.mixer.stopAllAction();
     // free what this body owns: cloned materials (heroes, beasts), and the code-built geometry of creatures and
     // capes; geometry shared with the loaded glTF files stays
+    if (b.type === 'object' && b.o.userData.dispose) b.o.userData.dispose();   // Tolling Hammers' own parts (legend_kit.js)
     if (b.type === 'hero') { for (const m of b.ch.mats) m.dispose(); if (b.local) b.local.traverse((m) => { if (m.isMesh || m.isPoints) { m.geometry.dispose(); m.material.dispose(); } }); }
     if (b.type === 'creature') { for (const m of b.c.mats) m.dispose(); if (b.c.release) b.c.release(); if (!/^(wolf|ram|shade|human)$/.test(b.c.family)) b.c.o.traverse((m) => { if (m.isMesh && !m.geometry.userData.shared) m.geometry.dispose(); }); }
   }
@@ -370,9 +373,19 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
         if (rider.pose(a, now) == null && b.ch.o.rotation.x) b.ch.o.rotation.x = 0;   // mounts: seat, legs, reins, the bounce
         if (b.ch.cape) b.ch.cape.state.flare = moving ? 0.55 : 0.15;
         b.ch.applyPost();
+        // Inkwalk (its aura id has no "stealth" in it) fades her like Fade does; with the Cowl of the Unwritten Step she
+        // is all but gone into the shadow pool (legend3d.js draws the pool), the hood and blades with her
+        const ink = (e.auras || []).some((x) => x.id === 'inkblade_inkwalk');
+        const deep = ink && !!b.spec.legend && b.spec.legend.includes('unwritten_cowl');
+        b.ch.live = { speed: a.speed || 0, res: e.res, ink: deep };      // the legendaries' idle tells read it (legend_kit.js)
         for (const f of b.ch.fx) f(dt, b.ch, now);
-        const stealth = (e.auras || []).some((x) => /stealth|fade/.test(String(x.id)));
-        if (stealth !== !!a.stealth) { a.stealth = stealth; for (const m of a.mats) { m.transparent = stealth; m.opacity = stealth ? 0.4 : 1; } }
+        const stealth = ink || (e.auras || []).some((x) => /stealth|fade/.test(String(x.id)));
+        const op = !stealth ? 1 : deep ? 0.14 : 0.4;
+        if (op !== (a.stealthOp ?? 1)) {
+          a.stealth = stealth; a.stealthOp = op;
+          for (const m of a.mats) { m.transparent = op < 1; m.opacity = op; }
+          for (const m of b.gearMats || []) { if (m.userData.baseOp == null) m.userData.baseOp = m.opacity; m.transparent = op < 1 || m.userData.baseOp < 1; m.opacity = m.userData.baseOp * (deep ? op : 1); }
+        }
       } else if (b && b.type === 'creature') {
         const h = st.hints || {};
         st.attackT = h.attackT0; st.hurtT = h.hurtT0; st.deadT = e.dead ? (corpses.get(e.id) >= 0 ? corpses.get(e.id) : now - 1) : null;
@@ -390,6 +403,10 @@ export function createActors(scene, L, { items = null, quality = {}, compile = n
           for (const m of a.mats) { m.transparent = true; m.opacity = k * (m.userData.baseOpacity ?? 1); }
         }
       } else if (b && b.type === 'object') {
+        if (b.o.userData.spiralUpdate && e.spiral) {   // Tolling Hammers: the Rod's halos, trail and edge when its owner wears it
+          const own = snap.entities.find((x) => x.id === e.owner);
+          b.o.userData.spiralUpdate(e.spiral, e.until, snap.tick + alpha, now, fdt, wearsLegend(own, 'the_tolling_rod'), a.root);
+        }
         if (b.o.userData.wdUpdate) b.o.userData.wdUpdate(e, now);   // word doors: lit cuts, the slab sinking
         if (b.o.userData.chicken) { b.o.children[0].position.y = moving ? Math.abs(Math.sin(now * 14)) * 0.05 : 0; }
         if (b.o.userData.secretLid) {

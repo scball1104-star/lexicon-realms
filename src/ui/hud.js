@@ -333,6 +333,13 @@ export function createHud(env) {
     }
     // the count sits top right, clear of the cooldown seconds in the middle and the key label top left
     // the count sits in the bottom-right corner on a dark tab, clear of the cooldown seconds in the middle
+    // charges (Ember Leap with the Sabatons of the Second Fall, Briar Trap, Light Foot): one pip each along the bottom,
+    // lit while that charge is ready
+    if (s.chargesMax > 1) {
+      const n = s.chargesMax, pw = touch ? 6 : 4, gap = 2, px0 = r.x + 3, py = r.y + r.h - (touch ? 8 : 6);
+      g.rect(ctx, px0 - 1, py - 1, n * (pw + gap) - gap + 2, (touch ? 4 : 3) + 2, 'rgba(12,10,22,0.85)');
+      for (let k = 0; k < n; k++) g.rect(ctx, px0 + k * (pw + gap), py, pw, touch ? 4 : 3, k < (s.charges || 0) ? '#ffd23a' : '#4a4560');
+    }
     if (s.item) { const t = String(s.count || 0), tw = 6 * t.length + 3; g.rect(ctx, r.x + r.w - 2 - tw, r.y + r.h - 12, tw, 10, 'rgba(12,10,22,0.85)'); g.num(ctx, t, r.x + r.w - 3, r.y + r.h - 12, s.count ? 'white' : 'red', false, 'right'); }
     if (!touch) slotKey(ctx, r, keyLabel);
     regions.push({ rect: r, kind: 'slot', slot: s.slot, ability: s.ability, item: s.item || null });

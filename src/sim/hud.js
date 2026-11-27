@@ -64,7 +64,7 @@ export function createHud(C) {
       const ct = ab.channel ? ab.channel.duration : K().castTimeOf(e, ab, t);
       return { slot: i + 1, ability: id, name: ab.name, icon: ab.icon, known: (e.known || []).includes(id), cdLeft: r2(cdLeft), cdTotal,
         charges, cost: cost ? cost.amount : 0, costKind: cost ? cost.kind : null, usable: enough && cdLeft <= 0, inRange,
-        castTime: r2(ct), offGcd: ab.gcd === false };
+        castTime: r2(ct), offGcd: ab.gcd === false, ...(ab.charges ? { chargesMax: ab.charges } : {}) };
     });
   }
 

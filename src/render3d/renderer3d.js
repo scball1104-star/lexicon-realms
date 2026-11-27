@@ -54,6 +54,7 @@ import { tickMill3d } from './mill3d.js';                   // cap 35: the Millr
 import { createActors } from './actors.js';
 import { createCreature } from './creatures.js';
 import { createFx3d } from './fx3d.js';
+import { createLegend3d } from './legend3d.js';   // the skill legendaries' skill tells (2026-11-27)
 import { createDloot3d } from './dloot3d.js';   // wave 10 dloot: light columns at drops
 import { regionInfo } from '../data/maps/compose.js';
 import { zoneBase } from '../data/maps/copies.js';
@@ -207,6 +208,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   // effects: the FX kit (fx3d.js); who/mats let it pick a hero's blow and tint a struck body (body.mats)
   const feelOn = q.get('feel') !== '0';   // combat feel pass (wave 6): ?feel=0 keeps the look from before it
   const fx3 = createFx3d(scene, { abilities, low, feel: feelOn, who: (id) => { const a = actors.get(id); return a && a.e ? { kind: a.kind, cls: a.e.cls, height: a.height } : null; }, mats: (id) => { const a = actors.get(id); return a ? a.mats : null; } });
+  const legend3 = createLegend3d(scene, { low });   // Ember Leap rings and chains, the Far Tether's rope, Inkwalk's pool and "?", Errata's outline
   const font = assets.has && assets.has('font') ? new BitmapFont(assets.json('font'), assets.img('font'), { id: 'r3d' }) : null;
   const fontFrom = (j, im) => (j && im ? new BitmapFont(j, im, { id: 'num' }) : null);
   let numFont = null;
@@ -872,6 +874,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     } else targetRing.visible = false;
     const at = (id, w) => actors.at(id, w);
     fx3.update(dt, now, at, camera);
+    legend3.update(snap, alpha, { viewerId: view.followId != null ? view.followId : state.playerId, zone: view.zone }, actors, now, dt, at, (id) => fx3.hints(id));
+    dev.legend = legend3.counts;
     assignLights(sky, target, me ? me.root.position : null);
     drawTelegraphs(snap);
     dev.bossMarks = bossMarks.draw(snap.bossMarks, state.zoneId, PX, now);   // wave 10 dbosses
@@ -973,11 +977,21 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       if (!e || e.dead || e.kind === 'object' || id === me) continue;
       const isTarget = id === view.targetId;
       const onMe = e.kind === 'mob' && (e.aggro === me || e.target === me);
-      if (!isTarget && !onMe && e.kind !== 'player') continue;
+      // Errata (the Errata Quill): a rewritten elite always shows its plate, the name struck through in red ink
+      const errata = e.kind === 'mob' && e.elite ? (e.auras || []).find((x) => x.id === 'scribe_rewritten') : null;
+      if (!isTarget && !onMe && e.kind !== 'player' && !errata) continue;
       const [x, y] = worldToHud(an.x, an.y - an.h - 6);
       if (x < -40 || y < -20 || x > layout.hudW + 40 || y > layout.hudH + 20) continue;
-      const col = e.faction === 'hostile' ? '#ff8a6a' : e.kind === 'player' ? '#8fe07a' : '#ffd75a';
-      if (isTarget || e.kind === 'player') font.draw(octx, e.name || '', x, y - 9, { align: 'center', color: col, outline: '#14101e' });
+      const col = errata ? '#ff5a4a' : e.faction === 'hostile' ? '#ff8a6a' : e.kind === 'player' ? '#8fe07a' : '#ffd75a';
+      if (isTarget || e.kind === 'player' || errata) font.draw(octx, e.name || '', x, y - 9, { align: 'center', color: col, outline: '#14101e' });
+      if (errata) {
+        const tw = Math.max(16, font.measure(e.name || '')), lh = font.lineHeight || 8;
+        const sy = Math.round(y - 9 + lh / 2) - 1;
+        octx.fillStyle = '#d81e28'; octx.fillRect(Math.round(x - tw / 2 - 2), sy - 1, tw + 4, 1); octx.fillRect(Math.round(x - tw / 2 - 2), sy + 1, tw + 4, 1);
+        const left = errata.until != null && errata.startTick != null ? Math.max(0, Math.min(1, (errata.until - snap.tick) / Math.max(1, errata.until - errata.startTick))) : 1;
+        octx.fillStyle = '#14101e'; octx.fillRect(x - 14, y + 4, 28, 3);
+        octx.fillStyle = '#e0242e'; octx.fillRect(x - 13, y + 5, Math.round(26 * left), 1);
+      }
       if (isTarget && e.rare) font.draw(octx, 'Rare', x, y - 18, { align: 'center', color: '#d4dce8', outline: '#14101e' });   // a rare named foe (src/data/rares.js)
       if (e.hpMax > 0 && (e.kind === 'mob' || e.kind === 'player')) {
         const w = 26, k = Math.max(0, Math.min(1, e.hp / e.hpMax));
@@ -1027,6 +1041,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const now = dev.clock != null ? dev.clock : lastNow || 0;
       fx2.feed(events, now);
       fx3.feed(events, now, state.playerId, (id, w) => actors.at(id, w));
+      legend3.feed(events, now, (id, w) => actors.at(id, w), (id) => { const a = actors.get(id); return a ? a.e : null; });
     },
     setPlayer(id) { state.playerId = id; fx2.setPlayer(id); if (fallback) fallback.setPlayer(id); },
     get layout() { return fallback ? fallback.layout : layout; },

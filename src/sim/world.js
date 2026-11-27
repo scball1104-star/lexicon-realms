@@ -1198,6 +1198,8 @@ function wrap(state, content0, rng, systems) {
     else if (e.kind === 'object' && e.obj) {
       o.owner = e.owner; o.objType = e.obj.def.id; o.radius = e.obj.def.radius || (e.obj.def.trigger && e.obj.def.trigger.radius) || 0;
       o.armed = state.tick >= e.obj.armAt; o.until = e.obj.until;
+      // Tolling Hammers (scripts_b2.js objectTick): the spiral's numbers, so the 3D view draws each hammer where it hits
+      if (e.obj.def.script === 'b2_tolling_hammers') { const d = e.obj.def; o.spiral = { n: d.hammers || 3, from: d.from || 12, reach: d.reach || 72, turn: d.turn || 1, life: d.duration || 3, spin: e.obj.spin ?? ((e.owner * 0.37) % (Math.PI * 2)) }; }
     }
     return o;
   }

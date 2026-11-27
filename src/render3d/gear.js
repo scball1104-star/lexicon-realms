@@ -10,6 +10,7 @@ import { mergeGeometries } from '../vendor/three/addons/utils/BufferGeometryUtil
 import { addCape, dyeMaterial } from './hero.js';
 import { radial, woodTex, leatherTex, woolTex, seeded } from './textures.js';
 import { LOOKS, HAIRS, HEIGHTS, appFor, lookWithApp } from '../data/appearance.js';   // wave 6: the customization kit
+import { legendsWorn, dressLegend, LEGEND_ITEMS } from './legend_kit.js';   // the five skill legendaries' looks (2026-11-27)
 
 const RAR_GLOW = { magic: '#6f8cff', rare: '#ffb050', epic: '#a335ee', legendary: '#ff8a2a', set: '#3cdc6a' };
 const RANK = { common: 0, magic: 1, rare: 2, epic: 2, legendary: 3, set: 3 };      // epic (purple, 2026-11-22): a rare's look, its own glow
@@ -77,7 +78,11 @@ export function heroSpec(cls, look, equip = {}, items = null, app = null) {
     else hood = true;
   } else if (lk.helmed) helm = { style: 'nasal', rank: 0, rarity: 'common' };
   if (lk.hood && !helm) hood = true;
-  if (hood) parts.head = sx === 'Male' ? 'Male_Ranger_Head_Hood' : 'Female_Ranger_Head_Hood';
+  // the skill legendaries (legend_kit.js): the Cowl is its own code-built hood, so no Ranger hood under it
+  const legend = legendsWorn(equip);
+  const cowl = legend.includes('unwritten_cowl') && it.head && it.head.id === 'unwritten_cowl';
+  if (cowl) { helm = null; hood = true; }
+  if (hood && !cowl) parts.head = sx === 'Male' ? 'Male_Ranger_Head_Hood' : 'Female_Ranger_Head_Hood';
   const dye = {}, map = {};
   const per = { body: chest, arms: it.hands || chest, legs: it.legs, feet: it.feet, head: it.head, shoulders: chest };
   for (const s of Object.keys(parts)) {
@@ -100,6 +105,7 @@ export function heroSpec(cls, look, equip = {}, items = null, app = null) {
     topRank, scale: 1,
   };
   spec.sig = JSON.stringify([C, look | 0, parts, map, dye, helm, cape, spec.main, spec.off, spec.trinket]);
+  if (legend.length) { spec.legend = legend; spec.sig = JSON.stringify([spec.sig, legend]); }   // only then: every other spec stays as it was
   if (a) {     // the kit's finish (custom_kit.js) tones the skin, so no tint; height is the body's scale
     Object.assign(spec, { skinTint: null, app: a, codeHair: spec.hair ? HAIRS[a.hair].code || null : null, scale: HEIGHTS[a.height] });
     spec.sig = JSON.stringify([spec.sig, a]);
@@ -368,12 +374,24 @@ export function upright(ch, sock, tilt = 0) {
   });
 }
 
-/** Weapons, helm, cape and rare effects onto an assembled body. Returns the light requests and the swing blade. */
-export async function dress(L, ch, spec, layer) {
-  const out = { lights: [], blade: null };
+/** Weapons, helm, cape and rare effects onto an assembled body. Returns the light requests and the swing blade.
+ *  opts.low (Low quality): a worn skill legendary is a flat orange tint, its idle tell still (legend_kit.js). */
+export async function dress(L, ch, spec, layer, { low = false } = {}) {
+  const out = { lights: [], blade: null, gearMats: [], legendTells: {} };
   const glowOf = (w) => (w && w.rank >= 2 ? RAR_GLOW[w.rarity] || RAR_GLOW.rare : null);
   const mn = spec.main, off = spec.off;
-  if (mn) {
+  const legendHand = (spec.legend || []).some((id) => LEGEND_ITEMS[id].slot === 'main' || LEGEND_ITEMS[id].slot === 'two');
+  if (spec.legend) {
+    const lg = dressLegend(ch, spec, layer, { low, wield, upright });
+    out.lights.push(...lg.lights); out.gearMats = lg.gearMats; out.legendTells = lg.tells;
+    if ((spec.legend || []).includes('far_tether_bow')) { const qv = quiver(); const qs = ch.socket('spine_03', { pos: [0.1, 0.05, -0.18], rot: [0.25, 0, -0.35] }); qs.add(qv); }
+    if ((spec.legend || []).includes('errata_quill')) {
+      const ring = glyphRing({ col: RAR_GLOW.legendary }); const rs = ch.socket('hand_l', { pos: [0, 0.14, 0.05] }); rs.add(ring);
+      ch.fx.push((dt, c, t) => { ring.rotation.y = t * 0.9; });
+      out.glyphs = ring;
+    }
+  }
+  if (mn && !legendHand) {
     const gc = glowOf(mn);
     if (mn.kind === 'sword') {
       const sw = await propMesh(L, 'Sword_Bronze', mn.rank === 0 ? {} : mn.rank === 1 ? { dye: { hue: 0.55, sat: 0.1, val: 1.3 } } : { dye: { hue: 0.6, sat: 0.3, val: 0.55, metalGlow: [gc, 3.2] } });
