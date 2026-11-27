@@ -67,7 +67,7 @@ export function createDloot(content) {
   }
   function topOf(aid, ilvl) {
     const A = content.affixes[aid];
-    const tops = (content.dropRules || {}).affixTierTop || [3, 6, 9, 12, 20, 23, 26, 30];
+    const tops = (content.dropRules || {}).affixTierTop || [3, 6, 9, 12, 20, 23, 26, 30, 35];
     const t = Math.max(1, (tops.findIndex((x) => ilvl <= x) + 1) || tops.length);
     return A.values[Math.min(t, A.values.length) - 1][1];
   }

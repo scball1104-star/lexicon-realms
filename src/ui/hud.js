@@ -358,8 +358,10 @@ export function createHud(env) {
     g.text(ctx, `Lv ${p.level}`, 4, y - 3, 'gold');
     // rest XP (src/sim/worldlife.js): "Rested" and the banked part as the lighter segment past the fill; "zz" where the
     // hero would rest if they logged out here (a town, a hub, beside a lantern)
-    const rest = p.rest || null, banked = rest && p.xpToLevel && !p.renown ? rest.banked || 0 : 0;
-    const label = p.renown
+    // below the cap (cap 35 stage 1) Renown waits: the bar is the level bar again
+    const rnBar = p.renown && !p.renown.waiting ? p.renown : null;
+    const rest = p.rest || null, banked = rest && p.xpToLevel && !rnBar ? rest.banked || 0 : 0;
+    const label = rnBar
       ? `Renown ${p.renown.level}${p.renown.pending ? ' *' : ''}  ${fmtInt(p.xp)} / ${fmtInt(p.xpToLevel)}`
       : p.xpToLevel ? `${banked > 0 ? 'Rested  ' : ''}${fmtInt(p.xp)} / ${fmtInt(p.xpToLevel)} XP` : 'Max level';
     const lw = g.textW(label);
@@ -544,7 +546,7 @@ export function createHud(env) {
       if (region.kind === 'xp' && (m.player.xpToLevel || m.player.renown)) {
         const left = m.player.xpToLevel - m.player.xp;
         const rest = m.player.rest || {};
-        if (m.player.renown) {
+        if (m.player.renown && !m.player.renown.waiting) {
           const rn = m.player.renown;
           const wait = rn.pending ? ` ${rn.pending} reward${rn.pending === 1 ? '' : 's'} waiting on the Character panel (C).` : '';
           return { title: `Renown ${rn.level}`, sub: `${fmtInt(m.player.xp)} of ${fmtInt(m.player.xpToLevel)} XP`, body: `${fmtInt(left)} XP to the next Renown.${wait}` };

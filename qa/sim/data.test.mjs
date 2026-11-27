@@ -159,17 +159,18 @@ export const tests = [
     },
   },
   {
-    name: 'data: XP table sums to the PROGRESSION.md cumulative column (41,000 at 15, 81,640 at 20, 226,920 at the cap 30); mob curve matches section 3',
+    name: 'data: XP table sums to the PROGRESSION.md cumulative column (41,000 at 15, 81,640 at 20, 226,920 at 30, 338,350 at the cap 35); mob curve matches section 3',
     fn() {
       let cum = 0;
       const cap = PROGRESSION.maxLevel;
-      eq(cap, 30, 'cap 30');
+      eq(cap, 35, 'cap 35');
       for (let L = 1; L <= cap; L++) {
         eq(PROGRESSION.xpAtLevel[L], cum, `cumulative at ${L}`);
         if (L === 15) eq(cum, 41000, 'total to 15 (unchanged)');
         if (L < cap) cum += PROGRESSION.xpToNext[L];
       }
-      eq(cum, 226920, 'total to 30');
+      eq(PROGRESSION.xpAtLevel[30], 226920, 'total to 30 (unchanged)');
+      eq(cum, 338350, 'total to 35');
       eq(PROGRESSION.xpAtLevel[20], 81640, 'total to 20 (unchanged)');
       let rowsXp = 0, rowsMob = 0;
       const txt = doc('PROGRESSION.md');

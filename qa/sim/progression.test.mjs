@@ -30,23 +30,24 @@ export const tests = [
     eq(bagCapacity(p, content), 20, 'level 20: 20 slots');
     eq(grew.join(), '5,10,15,20', 'grows at 5, 10, 15, 20');
   } },
-  { name: 'xp: the curve: granting 226,920 XP from level 1 lands exactly on the cap 30 (41,000 on 15, 81,640 on 20), with a level event at every PROGRESSION.md threshold', fn() {
+  { name: 'xp: the curve: granting 338,350 XP from level 1 lands exactly on the cap 35 (41,000 on 15, 81,640 on 20, 226,920 on 30), with a level event at every PROGRESSION.md threshold', fn() {
     const { world: w, pid, p } = duelWorld({ cls: 'mender', level: 1 });
     const levels = [];
     let total = 0;
-    while (p.level < 30) {
+    while (p.level < 35) {
       const ev = []; const before = p.level;
       w.grantXp(pid, 10, 'quest');
       total += 10;
       if (p.level > before) levels.push([p.level, total]);
       void ev;
     }
-    eq(total, 226920, 'total');
-    eq(PROGRESSION.maxLevel, 30, 'cap 30 (BUILDS_2 5.1, phase 10; 20 in phase 5)');
+    eq(total, 338350, 'total');
+    eq(PROGRESSION.maxLevel, 35, 'cap 35 (cap 35 stage 1; 30 in phase 10, 20 in phase 5)');
     for (const [L, t] of levels) eq(t, PROGRESSION.xpAtLevel[L], `reached ${L} at its cumulative XP`);
     eq(levels.find(([L]) => L === 15)[1], 41000, '41,000 XP still lands on 15 (levels 1 to 14 unchanged)');
     eq(levels.find(([L]) => L === 20)[1], 81640, '81,640 XP still lands on 20');
-    eq(levels.length, 29, 'twenty-nine level-ups');
+    eq(levels.find(([L]) => L === 30)[1], 226920, '226,920 XP still lands on 30');
+    eq(levels.length, 34, 'thirty-four level-ups');
   } },
   { name: 'xp: level-up recomputes stats from base + growth (floor of the running total), refills health and mana', fn() {
     const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 1 });
@@ -74,12 +75,12 @@ export const tests = [
     C.combat.kill(m, p);
     eq(p.xp - x0, 40, 'kill XP to the tagger');
   } },
-  { name: 'xp: at the cap (30) overflow XP fills Renown, not gold; banked gold stays', fn() {
-    const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 30 });
+  { name: 'xp: at the cap (35) overflow XP fills Renown, not gold; banked gold stays', fn() {
+    const { world: w, pid, p } = duelWorld({ cls: 'warden', level: 35 });
     p.gold = 7;
     w.grantXp(pid, 120); eq(p.gold, 7, 'overflow is not sold'); eq(p.renown.xp, 120, 'banks toward Renown');
     w.grantXp(pid, 30); eq(p.gold, 7, 'still unsold'); eq(p.renown.xp, 150);
-    eq(p.level, 30, 'still 30'); eq(p.xp, 0, 'no XP bar at the cap');
+    eq(p.level, 35, 'still 35'); eq(p.xp, 0, 'no XP bar at the cap');
   } },
   { name: 'xp: a hero saved at the old cap 15 (banked cap gold, any leftover XP) loads at 15, keeps both, and levels on to 16', fn() {
     const content = rateOff(buildContent());

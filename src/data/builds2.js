@@ -27,6 +27,7 @@ import { WAYFINDER, WAYFINDER_ABILITIES } from './builds2_wayfinder.js';
 import { INKBLADE, INKBLADE_ABILITIES } from './builds2_inkblade.js';
 import { CAP30_ABILITIES, joinCap30 } from './builds2_cap30.js';
 import { L30_ABILITIES, joinL30 } from './builds2_l30.js';
+import { joinCap35 } from './builds2_cap35.js';
 
 export const BUILD_VERSION = 1;
 export const PICK_LEVELS = [1, 3, 6, 14, 25, 30];   // 25: cap 30 (src/data/builds2_cap30.js); 30: src/data/builds2_l30.js
@@ -124,10 +125,13 @@ const MENDER_SIGNATURE_ABILITIES = {
     id: 'mender_kindred_light', name: 'Kindred Light', icon: 'icon_phoenix', cls: 'mender', learnLevel: 10, school: 'light',
     cost: { kind: 'mana', amount: lv(15, 2) }, castTime: 1.5, cooldown: 10, gcd: true, range: null, target: 'none', threatMult: 0,
     effects: [{ type: 'summon', key: 'spirit', object: { id: 'mender_kindred_light', name: 'Kindred Light', sprite: 'ink_double', at: 'self', armTime: 0, duration: 60, max: 1,
-      hpPct: 0.4, holdThreat: true,
+      // Scott 2026-11-27 "Weaker in melee": a foe the Mender is swinging at within `range` px is never guarded by the
+      // spirit, and the spirit's hits on it deal `hit` of their damage (src/sim/combat.js holdThreat, petTick). `hit` is set
+      // by the qa/sim/builds2.mjs gate: the Battle Mender at 35 near 10 s; ranged Menders unchanged.
+      hpPct: 0.4, holdThreat: true, meleeGuard: { range: 40, hit: 0.4 },
       pet: { period: 2, range: 24, speed: 96, fly: true, effects: [{ type: 'damage', amount: lv(3, 1.2), coef: { stat: 'sp', k: 0.2 }, school: 'light' }],
         owner: { every: 2, effects: [{ type: 'heal', pctMaxHp: 0.02, canCrit: false, noThreat: true }] } } } }],
-    text: 'Call a light spirit for 60 s; calling it again refreshes its time. It has 40% of your health, draws the foes, hits for {dmg} every 2 s and heals you 2% of your max health every 2 s.',
+    text: 'Call a light spirit for 60 s; calling it again refreshes its time. It has 40% of your health, draws the foes, hits for {dmg} every 2 s and heals you 2% of your max health every 2 s. A foe you fight in melee is not drawn, and the spirit hits it for 40% of that.',
   },
 };
 
@@ -343,6 +347,8 @@ export const BUILDS2 = {
 joinCap30(BUILDS2, SKILL_PICKS);
 // Level 30 pick (src/data/builds2_l30.js): one more pick per class
 joinL30(BUILDS2, SKILL_PICKS);
+// Cap 35 (src/data/builds2_cap35.js): five more points per named build (31 to 35)
+joinCap35(BUILDS2);
 
 // ------------------------------------------------------------------------------------------------ save shape helpers
 /** A fresh v1 build record (lives in the character save at state.build, save v2). */

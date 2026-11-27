@@ -77,8 +77,8 @@ T('data: every named build is spelled out (picks at 1, 3, 6 and 14, a signature 
     eq(b.signatures.length, 3, `${b.id} signature order`); eq(b.signatures[0], b.signature, `${b.id} first signature`);
     assert(b.forks.length >= 2 && b.keystone, `${b.id} forks and keystone`);
     for (const f of [...b.forks, b.keystone]) assert(BUILDS2[cls].nodes[nid(cls, Object.values(BUILDS2[cls].nodes).find((n) => n.id.endsWith(`_${f}`)).track, f)], `${b.id} names ${f}`);
-    eq(b.path.length, 30, `${b.id} 30 points (the cap 30; 20 before it, 15 before phase 5)`);
-    for (let L = 1; L <= 30; L++) {
+    eq(b.path.length, 35, `${b.id} 35 points (the cap 35; 30 before it, 20 before cap 30, 15 before phase 5)`);
+    for (let L = 1; L <= 35; L++) {
       const { p, C } = duelWorld({ cls, level: L, learnAll: false, builds2: true });
       p.build.firstKill = true;
       for (const id of b.path.slice(0, L)) assert(C.b2.learn(p, { node: id }), `${b.id} L${L}: ${id} (${C.b2.whyNot(p, id)})`);

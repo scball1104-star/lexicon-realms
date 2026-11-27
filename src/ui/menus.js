@@ -18,6 +18,11 @@ const SLOT_ICON = { head: 'icon_helm', chest: 'icon_armor', legs: 'icon_mantle',
 const SLOT_NAME = { head: 'Head', chest: 'Chest', legs: 'Legs', feet: 'Feet', main: 'Main hand', off: 'Off hand', hands: 'Hands', trinket: 'Trinket' };
 const GEAR_LEFT = ['head', 'chest', 'legs', 'feet'], GEAR_RIGHT = ['main', 'off', 'hands', 'trinket'];
 
+// Renown below the cap (cap 35 stage 1): ranks already earned stay; new ones wait. DRAFT words, Scott to approve.
+export function renownWaitText(rn) {
+  return `Renown waits until you reach level ${(rn && rn.cap) || 35}.`;
+}
+
 export function frame(ctx, env, r, title, regions, act, id) {
   const { g } = env;
   g.window(ctx, r.x, r.y, r.w, r.h, 'std', 'blue', 0.97);
@@ -180,12 +185,13 @@ export function drawCharacter(ctx, env, m, st, regions, act) {
   g.text(ctx, goldS, gx + 15, gyy, 'gold');
   if (p.xpToLevel) {
     y += 4;
-    const capLbl = p.renown ? `Renown ${p.renown.level}` : 'Experience';
+    const capLbl = p.renown && !p.renown.waiting ? `Renown ${p.renown.level}` : 'Experience';
     g.text(ctx, capLbl, sx, y, 'gold'); y += g.ls(12);
     g.text(ctx, `${Number(p.xp || 0).toLocaleString('en-US')} / ${Number(p.xpToLevel).toLocaleString('en-US')}`, sx, y, 'violet');
     y += g.lh;
   }
   const rn = p.renown;
+  if (rn && rn.waiting) { g.text(ctx, g.clip(renownWaitText(rn), sw), sx, y, 'dim'); y += g.ls(12); }
   if (rn && rn.pending > 0 && rn.choices && rn.choices.length) {
     g.text(ctx, `${rn.pending} reward${rn.pending === 1 ? '' : 's'} to pick`, sx, y, 'gold'); y += g.ls(12);
     const bh = Math.max(14, Math.min(18, g.ls(16)));
