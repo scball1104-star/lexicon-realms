@@ -1415,11 +1415,16 @@ export function createCombat(C) {
     return o;
   }
 
+  /** `meleeGuard`: the owner is swinging at this foe from within `range` px (Kindred Light, Scott 2026-11-27 "Weaker in melee"). */
+  function meleeOwner(owner, m, mg) { return !!(owner && m && !owner.dead && owner.autoOn && owner.target === m.id && distPx(m, owner) <= mg.range); }
   /** Builds 2: every foe fighting the owner within 10 tiles turns on the object (a taunt that names the object). */
+  // An object with `meleeGuard` leaves alone a foe its owner is fighting in melee (meleeOwner): that foe keeps hitting her.
   function holdThreat(o, owner) {
+    const mg = o.obj.def.meleeGuard || null;
     for (const m of state.ents) {
       if (m.kind !== 'mob' || m.dead || m.zone !== o.zone || !m.threat || m.threat[owner.id] == null) continue;
       if (distPx(m, o) > 160) continue;
+      if (mg && meleeOwner(owner, m, mg)) continue;
       taunt(owner, m, Math.min(4, o.obj.until != null ? (o.obj.until - now()) / TICK_HZ : 4), o.id);
     }
   }
@@ -1474,7 +1479,8 @@ export function createCombat(C) {
     o.target = t.id;
     for (const fx of pet.effects || []) {
       if (fx.type === 'damage') {
-        const raw = rawAmount(owner, t, fx, {});
+        let raw = rawAmount(owner, t, fx, {});
+        if (def.meleeGuard && def.meleeGuard.hit != null && meleeOwner(owner, t, def.meleeGuard)) raw *= def.meleeGuard.hit;   // Kindred Light: weaker on a foe its owner fights in melee
         dealDamage(o, t, raw, { ability: def.id, school: fx.school || 'physical', canCrit: false, melee: (pet.range || 24) <= 40, threatMult: 1 });
       } else {
         runEffects(owner, [fx], { caster: owner, target: t, abId: def.id });

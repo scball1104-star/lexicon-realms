@@ -3,10 +3,10 @@
 // button), five more build points per named build, and affix tier 9 (ilvl 31 to 35). The fight gate is
 // qa/sim/builds2.mjs (every build at every level to 35).
 import { assert, eq } from './_helpers.mjs';
-import { duelWorld } from '../sim/_fixtures.mjs';
+import { duelWorld, addMob } from '../sim/_fixtures.mjs';
 import { PROGRESSION } from '../../src/data/progression.js';
 import { RENOWN } from '../../src/data/renown.js';
-import { BUILDS2, SIGNATURE_LEVELS } from '../../src/data/builds2.js';
+import { BUILDS2, SIGNATURE_LEVELS, B2_ABILITIES } from '../../src/data/builds2.js';
 import { PAST_30 } from '../../src/data/builds2_cap35.js';
 import { AFFIXES, AFFIX_TIER_TOP, DROP_RULES, affixTier } from '../../src/data/items.js';
 import { rollAffixes } from '../../src/sim/loot.js';
@@ -18,6 +18,26 @@ const CLASSES = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade'];
 // BRIEF section 5: 4 x kill XP x target minutes, rounded to tens; minutes 20 + (L - 14) to 30, then 36 + 0.8 x (L - 30)
 const minutes = (L) => (L <= 30 ? 20 + (L - 14) : 36 + 0.8 * (L - 30));
 const formula = (L) => Math.round((4 * (20 + 4 * L) * minutes(L)) / 10) * 10;
+
+// Kindred Light at 35 against one same-level foe: `melee` puts the Mender beside it swinging, else 8 tiles off. Returns the
+// spirit's hits on the foe and whether the foe was ever turned on the spirit.
+function kindredFight(melee) {
+  const { world, p, C } = duelWorld({ seed: 7, cls: 'mender', level: 35, learnAll: false, builds2: true });
+  p.build.firstKill = true;
+  assert(C.b2.pick(p, { level: 10, ability: 'mender_kindred_light' }), 'Kindred Light');
+  const m = addMob(world, 'brute_35', melee ? 11 : 18, 15);
+  C.combat.dealDamage(p, m, 1, { ability: 'test', school: 'light', canCrit: false });
+  p.target = m.id;
+  if (melee) p.autoOn = true;
+  world.enqueue(p.id, { t: 'cast', ability: 'mender_kindred_light' });
+  const hits = []; let drawn = false;
+  for (let i = 0; i < 20 * 8 && !m.dead && !p.dead; i++) {
+    for (const ev of world.step()) if (ev.type === 'damage' && ev.dst === m.id && ev.ability === 'mender_kindred_light') hits.push(ev.amount);
+    if ((m.auras || []).some((a) => a.id === 'warden_taunted')) drawn = true;
+    if (melee) { p.target = m.id; p.autoOn = true; }
+  }
+  return { hits, drawn };
+}
 
 export const tests = [
   {
@@ -143,6 +163,28 @@ export const tests = [
           assert(r.value >= lo && r.value <= hi, `${r.id} ${r.value} in T9`);
         }
       }
+    },
+  },
+  {
+    name: 'cap 35 (Weaker in melee): Kindred Light does not draw a foe its Mender fights in melee and hits it for the data share; at range it is unchanged',
+    fn() {
+      const mg = B2_ABILITIES.mender_kindred_light.effects[0].object.meleeGuard;
+      assert(mg && mg.range > 0 && mg.hit > 0 && mg.hit < 1, 'the melee rule is data');
+      const ranged = kindredFight(false);
+      assert(ranged.drawn, 'at range the spirit draws the foe');
+      assert(ranged.hits.length >= 2, 'the spirit hits at range');
+      const melee = kindredFight(true);
+      assert(!melee.drawn, 'in melee the spirit draws nothing');
+      assert(melee.hits.length >= 2, 'the spirit still hits in melee');
+      const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+      const ratio = mean(melee.hits) / mean(ranged.hits);
+      assert(Math.abs(ratio - mg.hit) < 0.08, `melee hits are ${mg.hit} of ranged ones (got ${ratio.toFixed(2)})`);
+      // ranged is exactly what it was before the rule: the same fight with the rule taken off matches hit for hit
+      const obj = B2_ABILITIES.mender_kindred_light.effects[0].object;
+      delete obj.meleeGuard;
+      try { eq(kindredFight(false).hits.join(), ranged.hits.join(), 'ranged hits unchanged'); eq(kindredFight(false).drawn, true); }
+      finally { obj.meleeGuard = mg; }
+      assert(!/[–—]/.test(B2_ABILITIES.mender_kindred_light.text), 'no dashes in the tooltip');
     },
   },
 ];
