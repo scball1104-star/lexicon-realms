@@ -135,7 +135,7 @@ export function rollAffixes(ctx, slot, ilvl, rarity) {
   const rar = (ctx.content.rarity || {})[rarity];
   if (!rar || !rar.affixes || rar.affixes[1] === 0) return [];
   const A = ctx.content.affixes;
-  // the tier by ilvl (DROP_RULES.affixTierTop: cap 30 adds tiers 6 to 8 above ilvl 20); an affix without that tier uses its top
+  // the tier by ilvl (DROP_RULES.affixTierTop: cap 30 adds tiers 6 to 8 above ilvl 20, cap 35 tier 9 at 31 to 35); an affix without that tier uses its top
   const tops = (ctx.content.dropRules || {}).affixTierTop;
   const tier = Array.isArray(tops) ? Math.max(1, (tops.findIndex((t) => ilvl <= t) + 1) || tops.length) : Math.max(1, Math.min(5, Math.ceil(ilvl / 3)));
   const want = ctx.rng.int(rar.affixes[0], rar.affixes[1]);

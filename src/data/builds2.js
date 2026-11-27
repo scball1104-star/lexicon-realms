@@ -27,6 +27,7 @@ import { WAYFINDER, WAYFINDER_ABILITIES } from './builds2_wayfinder.js';
 import { INKBLADE, INKBLADE_ABILITIES } from './builds2_inkblade.js';
 import { CAP30_ABILITIES, joinCap30 } from './builds2_cap30.js';
 import { L30_ABILITIES, joinL30 } from './builds2_l30.js';
+import { joinCap35 } from './builds2_cap35.js';
 
 export const BUILD_VERSION = 1;
 export const PICK_LEVELS = [1, 3, 6, 14, 25, 30];   // 25: cap 30 (src/data/builds2_cap30.js); 30: src/data/builds2_l30.js
@@ -343,6 +344,8 @@ export const BUILDS2 = {
 joinCap30(BUILDS2, SKILL_PICKS);
 // Level 30 pick (src/data/builds2_l30.js): one more pick per class
 joinL30(BUILDS2, SKILL_PICKS);
+// Cap 35 (src/data/builds2_cap35.js): five more points per named build (31 to 35)
+joinCap35(BUILDS2);
 
 // ------------------------------------------------------------------------------------------------ save shape helpers
 /** A fresh v1 build record (lives in the character save at state.build, save v2). */

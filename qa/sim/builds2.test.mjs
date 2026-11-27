@@ -71,7 +71,7 @@ T('data: six tracks (3 strength, 3 weakness), 5 tiers, tier 3 a fork of two, tie
     assert(t.axis && / vs /.test(t.axis), `${t.id} axis chip`);
     for (const n of nodes) { eq(n.byRank.length, n.maxRanks, n.id); assert(!/\u2014/.test(n.text + n.name), `no em dash ${n.id}`); }
   }
-  for (const b of MENDER.builds) eq(b.path.length, 30, `${b.id} path fills the level 30 cap (20 before cap 30, 15 before phase 5)`);
+  for (const b of MENDER.builds) eq(b.path.length, 35, `${b.id} path fills the level 35 cap (30 before cap 35, 20 before cap 30, 15 before phase 5)`);
 });
 
 // ------------------------------------------------------------------------------------------------ rules

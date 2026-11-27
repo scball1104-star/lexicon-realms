@@ -22,7 +22,7 @@ const MAX_TICKS = 20 * 120;
 export const B2_CLASSES = ['mender', 'warden', 'scribe', 'wayfinder', 'inkblade'];
 export const NAMED_ALL = Object.fromEntries(B2_CLASSES.map((c) => [c, BUILDS2[c].builds.map((b) => ({ ...b, cls: c }))]));
 export const NAMED = NAMED_ALL.mender;
-export const B2_LEVELS = Array.from({ length: 30 }, (_, i) => i + 1);   // to the cap 30 (phase 10; 20 in phase 5)
+export const B2_LEVELS = Array.from({ length: 35 }, (_, i) => i + 1);   // to the cap 35 (stage 1; 30 in phase 10, 20 in phase 5)
 // The solo band (every named build solos): it wins every fight, never dies, and one foe takes 5 to 14 s at levels 1 to 4
 // (the lighter low-level foes, today's band) and 6 to 15 s from 5 (BUILDS_2 5.3: "never under 6 s for the strongest").
 // The TARGET band, the gate since the 2026-11-19 tuning: one plain foe in 9 to 14 s from level 5 for the suggested builds
@@ -47,6 +47,9 @@ export function makeHero(build, level, seed = 1, { x = 40, y = 15 } = {}) {
   // cap 30: the second signature at 20, the next one in the build's order
   const sig2 = (build.signatures || []).find((id) => id !== build.signature);
   if (level >= 20 && sig2) { if (!C.b2.pick(p, { level: 20, ability: sig2 })) throw new Error(`${build.id} L${level}: signature ${sig2} refused`); }
+  // cap 35: the third signature at 35, the one the build has not taken (the last in its order)
+  const sig3 = (build.signatures || []).find((id) => id !== build.signature && id !== sig2);
+  if (level >= 35 && sig3) { if (!C.b2.pick(p, { level: 35, ability: sig3 })) throw new Error(`${build.id} L${level}: signature ${sig3} refused`); }
   for (const id of build.path.slice(0, level)) if (!C.b2.learn(p, { node: id })) throw new Error(`${build.id} L${level}: cannot learn ${id} (${C.b2.whyNot(p, id)})`);
   C.stats.recalc(p); p.hp = p.hpMax; p.res.cur = p.res.kind === 'resolve' ? 0 : p.res.max;   // Resolve starts empty (the Warden)
   return d;

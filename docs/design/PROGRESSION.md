@@ -6,7 +6,12 @@ section 9.4 so the engine agent can port it to a node test.
 
 ---
 
-## 1. The XP curve (levels 1 to 30)
+## 1. The XP curve (levels 1 to 35)
+
+**Cap 35 (stage 1, the Millrace, 2026-11-27; docs/handoff/briefs/BRIEF_cap35_millrace.md section 5).** Levels 1 to 29
+keep their numbers; 30 to 34 extend the same rule with target minutes 36 + 0.8 x (L - 30), so 35 comes at 338,350 XP.
+The stage holds 111,430 XP and 188 target minutes. Below the cap Renown waits: partial Renown XP turns back into
+character XP 1:1, and ranks already earned stay. At 35, overflow fills Renown again (rank size still 19,200).
 
 **Cap 30 (BUILDS_2 phase 10, the 20 to 30 band, 2026-11-22; Scott: "Go with all of it").** Levels 1 to 19 keep their
 numbers; 20 to 29 extend the same rule (target minutes 26 to 35), so 30 comes at 226,920 XP, about 10 hours of pure
@@ -53,7 +58,12 @@ of pure levelling: the chain plus one day of the bounty boards, 2.4).
 | 27 | 16,900 | 173,030 | 33 |
 | 28 | 17,950 | 189,930 | 34 |
 | 29 | 19,040 | 207,880 | 35 |
-| 30 | cap | **226,920** | |
+| 30 | 20,160 | **226,920** | 36 |
+| 31 | 21,200 | 247,080 | 36.8 |
+| 32 | 22,260 | 268,280 | 37.6 |
+| 33 | 23,350 | 290,540 | 38.4 |
+| 34 | 24,460 | 313,890 | 39.2 |
+| 35 | cap | **338,350** | |
 
 How it was built: `xp_to_next(L) = 4 * kill_xp(L) * minutes(L)`, rounded to tens, which is "30% of the level from
 about 1.2 kills a minute". Past 14 the target minutes are `20 + (L - 14)` (BUILDS_2 5.2). A hero saved at 15 under the

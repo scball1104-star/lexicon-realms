@@ -42,8 +42,8 @@ export const DROP_RULES = {
   // cap 30 (src/data/gear_tier3.js): named pieces any foe of a level band may drop, [{ from, to, chance, items }]
   named: NAMED_BANDS,
   dloot: DLOOT_RULES,   // wave 10 dloot: rolled lines on named pieces, quality, Illuminated, smart loot, the Tally (src/sim/dloot.js)
-  // affix tier by ilvl (src/sim/loot.js rollAffixes): the top ilvl of tiers 1 to 8 (AFFIX_TIER_TOP below)
-  affixTierTop: [3, 6, 9, 12, 20, 23, 26, 30],
+  // affix tier by ilvl (src/sim/loot.js rollAffixes): the top ilvl of tiers 1 to 9 (AFFIX_TIER_TOP below)
+  affixTierTop: [3, 6, 9, 12, 20, 23, 26, 30, 35],
   // BUILDS_2 6.8 drop pacing by the dropper's level (src/sim/loot.js rollKill): [upToLevel, { gearChance, weights }] for
   // normal (and caster / armored) kills and for elites (and the named rares and cave bosses). The first band is today's.
   // Epic: a small chance from elites from level 1, from normal kills from level 20 (BUILDS_2 6.8's legendary column is
@@ -83,33 +83,34 @@ export const SLOT_SHARE = { chest: 0.30, legs: 0.22, head: 0.18, feet: 0.16, han
 const SLOT_VALUE = { two: 1.8, main: 1.5, chest: 1.2, off: 1.0, head: 1.0, legs: 1.0, feet: 0.8, hands: 0.8, trinket: 0.8 };
 
 // PROGRESSION 4.7 affixes. values[tier - 1] = [min, max]; tier by ilvl: 1-3 T1, 4-6 T2, 7-9 T3, 10-12 T4, 13-20 T5, and
-// for the cap 30 gear tier 21-23 T6, 24-26 T7, 27-30 T8 (16 to 20 stay T5 so no live item changes).
+// for the cap 30 gear tier 21-23 T6, 24-26 T7, 27-30 T8 (16 to 20 stay T5 so no live item changes), and for cap 35
+// (stage 1, the Millrace) 31-35 T9, one slow step past T8.
 const ARMOR_SLOTS = ['head', 'chest', 'legs', 'feet', 'hands'];
 export const AFFIXES = {
   // combat: what the affix does in a fight (polish 2026-11-22, src/sim/affixes.js). dps: added to that weapon's damage per
   // second (its swing grows by value x speed); leech: `per` of the damage you deal a point comes back as health; onHit: a
   // direct hit has `chance` to deal value x `per` more damage of `school` (no crit, no further procs)
-  gleaming: { kind: 'prefix', name: 'Gleaming', stat: 'dps', combat: { kind: 'dps' }, slots: ['main', 'two'], values: [[0.4, 0.4], [0.8, 0.8], [1.2, 1.2], [1.6, 1.6], [2.0, 2.0], [2.4, 2.4], [2.8, 2.8], [3.2, 3.2]] },
-  keen: { kind: 'prefix', name: 'Keen', stat: 'crit', slots: ['main', 'two', 'hands'], values: [[1, 1], [1, 1], [2, 2], [2, 2], [3, 3], [3, 3], [4, 4], [4, 4]] },
-  mighty: { kind: 'prefix', name: 'Mighty', stat: 'str', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
-  nimble: { kind: 'prefix', name: 'Nimble', stat: 'agi', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
-  runed: { kind: 'prefix', name: 'Runed', stat: 'int', slots: ['head', 'chest', 'legs', 'main', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
-  vital: { kind: 'prefix', name: 'Vital', stat: 'sta', slots: [...ARMOR_SLOTS, 'trinket'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
-  sturdy: { kind: 'prefix', name: 'Sturdy', stat: 'armorPct', slots: ARMOR_SLOTS, values: [[10, 10], [15, 15], [20, 20], [25, 25], [30, 30], [35, 35], [40, 40], [45, 45]] },
-  fleet: { kind: 'prefix', name: 'Fleet', stat: 'speed', slots: ['feet'], values: [[2, 2], [2, 2], [3, 3], [3, 3], [4, 4], [4, 4], [5, 5], [5, 5]] },
-  of_the_bear: { kind: 'suffix', name: 'of the Bear', stat: 'sta', slots: [...ARMOR_SLOTS, 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
-  of_the_lantern: { kind: 'suffix', name: 'of the Lantern', stat: 'spi', slots: ['head', 'chest', 'trinket', 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8]] },
-  of_echoes: { kind: 'suffix', name: 'of Echoes', stat: 'mana', slots: ['head', 'off', 'trinket'], values: [[10, 10], [15, 15], [20, 20], [30, 30], [40, 40], [50, 50], [60, 60], [70, 70]] },
-  of_mending: { kind: 'suffix', name: 'of Mending', stat: 'sp', slots: ['main', 'off', 'trinket'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8]] },
-  of_leeching: { kind: 'suffix', name: 'of Leeching', stat: 'leech', combat: { kind: 'leech', per: 0.01 }, slots: ['main', 'two'], values: [[2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9]] },
-  of_embers: { kind: 'suffix', name: 'of Embers', stat: 'fireOnHit', combat: { kind: 'onHit', chance: 0.25, per: 4, school: 'fire', ability: 'affix_embers' }, slots: ['main', 'two'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8]] },
+  gleaming: { kind: 'prefix', name: 'Gleaming', stat: 'dps', combat: { kind: 'dps' }, slots: ['main', 'two'], values: [[0.4, 0.4], [0.8, 0.8], [1.2, 1.2], [1.6, 1.6], [2.0, 2.0], [2.4, 2.4], [2.8, 2.8], [3.2, 3.2], [3.6, 3.6]] },
+  keen: { kind: 'prefix', name: 'Keen', stat: 'crit', slots: ['main', 'two', 'hands'], values: [[1, 1], [1, 1], [2, 2], [2, 2], [3, 3], [3, 3], [4, 4], [4, 4], [5, 5]] },
+  mighty: { kind: 'prefix', name: 'Mighty', stat: 'str', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]] },
+  nimble: { kind: 'prefix', name: 'Nimble', stat: 'agi', slots: ['main', 'two', 'off', ...ARMOR_SLOTS], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]] },
+  runed: { kind: 'prefix', name: 'Runed', stat: 'int', slots: ['head', 'chest', 'legs', 'main', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]] },
+  vital: { kind: 'prefix', name: 'Vital', stat: 'sta', slots: [...ARMOR_SLOTS, 'trinket'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]] },
+  sturdy: { kind: 'prefix', name: 'Sturdy', stat: 'armorPct', slots: ARMOR_SLOTS, values: [[10, 10], [15, 15], [20, 20], [25, 25], [30, 30], [35, 35], [40, 40], [45, 45], [50, 50]] },
+  fleet: { kind: 'prefix', name: 'Fleet', stat: 'speed', slots: ['feet'], values: [[2, 2], [2, 2], [3, 3], [3, 3], [4, 4], [4, 4], [5, 5], [5, 5], [6, 6]] },
+  of_the_bear: { kind: 'suffix', name: 'of the Bear', stat: 'sta', slots: [...ARMOR_SLOTS, 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]] },
+  of_the_lantern: { kind: 'suffix', name: 'of the Lantern', stat: 'spi', slots: ['head', 'chest', 'trinket', 'off'], values: [[1, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7], [7, 8], [8, 9]] },
+  of_echoes: { kind: 'suffix', name: 'of Echoes', stat: 'mana', slots: ['head', 'off', 'trinket'], values: [[10, 10], [15, 15], [20, 20], [30, 30], [40, 40], [50, 50], [60, 60], [70, 70], [80, 80]] },
+  of_mending: { kind: 'suffix', name: 'of Mending', stat: 'sp', slots: ['main', 'off', 'trinket'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9]] },
+  of_leeching: { kind: 'suffix', name: 'of Leeching', stat: 'leech', combat: { kind: 'leech', per: 0.01 }, slots: ['main', 'two'], values: [[2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9], [10, 10]] },
+  of_embers: { kind: 'suffix', name: 'of Embers', stat: 'fireOnHit', combat: { kind: 'onHit', chance: 0.25, per: 4, school: 'fire', ability: 'affix_embers' }, slots: ['main', 'two'], values: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9]] },
   // resistances (src/data/resist.js): percentage points of that school's damage shrugged off on average
-  of_inkward: { kind: 'suffix', name: 'of Inkward', stat: 'resInk', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11]] },
-  of_shadeward: { kind: 'suffix', name: 'of Shadeward', stat: 'resShadow', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11]] },
-  of_lampward: { kind: 'suffix', name: 'of Lampward', stat: 'resLight', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11]] },
-  of_warding: { kind: 'suffix', name: 'of Warding', stat: 'resAll', slots: ['chest', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 2], [2, 3], [3, 4], [3, 4], [4, 5], [4, 5]] },
+  of_inkward: { kind: 'suffix', name: 'of Inkward', stat: 'resInk', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11], [10, 12]] },
+  of_shadeward: { kind: 'suffix', name: 'of Shadeward', stat: 'resShadow', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11], [10, 12]] },
+  of_lampward: { kind: 'suffix', name: 'of Lampward', stat: 'resLight', slots: [...ARMOR_SLOTS, 'off', 'trinket'], values: [[2, 3], [3, 4], [4, 6], [5, 7], [6, 8], [7, 9], [8, 10], [9, 11], [10, 12]] },
+  of_warding: { kind: 'suffix', name: 'of Warding', stat: 'resAll', slots: ['chest', 'off', 'trinket'], values: [[1, 1], [1, 2], [2, 2], [2, 3], [3, 4], [3, 4], [4, 5], [4, 5], [5, 5]] },
 };
-export const AFFIX_TIER_TOP = Object.freeze([3, 6, 9, 12, 20, 23, 26, 30]);
+export const AFFIX_TIER_TOP = Object.freeze([3, 6, 9, 12, 20, 23, 26, 30, 35]);
 export const affixTier = (ilvl) => { const i = AFFIX_TIER_TOP.findIndex((top) => ilvl <= top); return i < 0 ? AFFIX_TIER_TOP.length : i + 1; };
 
 // ---------------------------------------------------------------- formulas (PROGRESSION 4.2 to 4.8)

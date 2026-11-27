@@ -157,7 +157,7 @@ export const tests = [
       eq(w.get(fld).restXp, 0, 'in the open: nothing');
       const old = w.addPlayer({ name: 'Old', cls: 'warden', level: 6 });                      // an old save: no rest, no time away
       eq(w.get(old).restXp, 0, 'missing = 0');
-      const cap = w.addPlayer({ name: 'Cap', cls: 'warden', level: 30, offlineSecs: 8 * 3600, rest: { xp: 500 } });
+      const cap = w.addPlayer({ name: 'Cap', cls: 'warden', level: 35, offlineSecs: 8 * 3600, rest: { xp: 500 } });
       eq(w.get(cap).restXp, 0, 'none at the level cap');
       const kept = w.addPlayer({ name: 'Kept', cls: 'warden', level: 6, zone: 'world', x: FIELD[0], y: FIELD[1], rest: { xp: 321 }, offlineSecs: 9999 });
       eq(w.get(kept).restXp, 321, 'a saved bank is kept (no gain in the field)');

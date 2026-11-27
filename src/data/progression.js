@@ -5,13 +5,18 @@
 export const PROGRESSION = {
   // Cap 30 (BUILDS_2 phase 10, the 20 to 30 band; Scott 2026-11-22 "Go with all of it"). Levels 1 to 14 keep the old
   // numbers exactly; 15 to 29 extend the same rule (BUILDS_2 5.2: 4 x kill XP x target minutes 20 + (L - 14)).
-  maxLevel: 30,
+  // Cap 35 (cap 35 stage 1, the Millrace; Scott approved the brief 2026-11-27): 30 to 34 extend the same rule with target
+  // minutes 36 + 0.8 x (L - 30) (BRIEF_cap35_millrace.md section 5). Levels 1 to 29 are unchanged.
+  maxLevel: 35,
   // XP to go from level L to L + 1 (index = level). PROGRESSION 1.
   xpToNext: [0, 480, 780, 1020, 1440, 1760, 2110, 2500, 2910, 3360, 3840, 4350, 4900, 5470, 6080, 6720, 7390, 8100, 8830, 9600,
-    10400, 11230, 12100, 12990, 13920, 14880, 15870, 16900, 17950, 19040],
-  // Cumulative XP at the start of each level (index = level). 41,000 at 15, 81,640 at 20, 142,280 at 25, 226,920 at 30.
+    10400, 11230, 12100, 12990, 13920, 14880, 15870, 16900, 17950, 19040,
+    20160, 21200, 22260, 23350, 24460],
+  // Cumulative XP at the start of each level (index = level). 41,000 at 15, 81,640 at 20, 142,280 at 25, 226,920 at 30,
+  // 338,350 at 35.
   xpAtLevel: [0, 0, 480, 1260, 2280, 3720, 5480, 7590, 10090, 13000, 16360, 20200, 24550, 29450, 34920, 41000, 47720, 55110, 63210, 72040, 81640,
-    92040, 103270, 115370, 128360, 142280, 157160, 173030, 189930, 207880, 226920],
+    92040, 103270, 115370, 128360, 142280, 157160, 173030, 189930, 207880, 226920,
+    247080, 268280, 290540, 313890, 338350],
   // XP rate (Scott 2026-11-23, "Trim the XP"): a hero of level up to N earns this share of every XP grant (kills, quests,
   // dungeons, gathering, exploring). After the fix pass and the 25 Moor quests the questbot reached 20 in 171 to 219
   // minutes against the 300 target. 0.65 overshot (357 to 411 minutes, gold at 20 doubled from the extra grind); 0.75
@@ -21,8 +26,8 @@ export const PROGRESSION = {
   // At the cap, overflow XP fills Renown (below). Gold already banked from the old 1-per-50 rule stays in the bags;
   // leftover xpGoldAcc was never saved and is not converted. capGoldPerXp is kept so old notes and tools still read.
   capGoldPerXp: 50,
-  // Renown after 30 (BUILDS_2 5.6): each level is a choice of +1% to one main stat (cap +10% total), a one-time
-  // Lantern Glow (the existing lantern icon, no new art), or a gold chest. See src/data/renown.js.
+  // Renown after the cap (BUILDS_2 5.6; cap 35 since stage 1, rank size unchanged): each level is a choice of +1% to one
+  // main stat (cap +10% total), a one-time Lantern Glow (the existing lantern icon, no new art), or a gold chest. See src/data/renown.js.
   renown: { xpToNext: 19200, goldChest: 200, statCap: 10, stats: ['sta', 'str', 'agi', 'int', 'spi'] },
   // The zone re-spread (BUILDS_2 5.5 option 1 on today's zones, PROGRESSION.md 1.1): the zone generators author foe and
   // area levels on the old 1 to 15 scale; index = authoring level, value = the shipped level. The valley (1 to 6) is

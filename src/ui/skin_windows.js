@@ -4,7 +4,7 @@
 // hit regions (kinds, labels, actions) as menus.js, so the controller and the qa drivers work unchanged.
 import { menuRect } from './layout.js';
 import { itemInfo, RARITY_COLOR, RARITY_NAME, statsAt, classInfo, abilityInfo, abilityTooltip, liveStats, npcInfo, questInfo, allQuests } from './gamedata.js';
-import { itemTooltip, itemCard } from './menus.js';
+import { itemTooltip, itemCard, renownWaitText } from './menus.js';
 import { scrollLines } from './textscroll.js';
 
 const SLOT_ICON = { head: 'icon_helm', chest: 'icon_armor', legs: 'icon_mantle', feet: 'icon_boots', main: 'icon_sword', off: 'icon_shield', hands: 'icon_charm', trinket: 'icon_star' };
@@ -288,7 +288,7 @@ export function drawCharacterSkin(ctx, env, m, st, regions, act, sk) {
   g.text(ctx, `Level ${p.level} ${p.clsName}`, r.x + 48, r.y + 42, 'gray', { large: big });
   const xpw = 120, gxp = r.x + r.w - 10 - xpw;
   if (p.xpToLevel) {
-    const capLbl = p.renown ? `Renown ${p.renown.level}` : 'XP';
+    const capLbl = p.renown && !p.renown.waiting ? `Renown ${p.renown.level}` : 'XP';
     g.text(ctx, `${Number(p.xp || 0).toLocaleString('en-US')} / ${Number(p.xpToLevel).toLocaleString('en-US')} ${capLbl}`, gxp + xpw, r.y + 27, 'violet', { align: 'right' });
     g.gauge(ctx, gxp, r.y + 40, xpw, Math.min(1, (p.xp || 0) / p.xpToLevel), 'exp', true);
   }
@@ -407,6 +407,7 @@ export function drawCharacterSkin(ctx, env, m, st, regions, act, sk) {
     if (rn.glow) bits.push('Lantern Glow');
     for (const [id, name] of [['sta', 'Sta'], ['str', 'Str'], ['agi', 'Agi'], ['int', 'Int'], ['spi', 'Spi']]) if (rn.stats && rn.stats[id]) bits.push(`+${rn.stats[id]}% ${name}`);
     row('Rank', `${rn.level}${bits.length ? '  ' + bits.join(', ') : ''}`);
+    if (rn.waiting) { sk.ink(ctx, renownWaitText(rn), ix + 4, y, C.inkText, { big }); y += lh + 2; }
     if (rn.pending > 0 && rn.choices && rn.choices.length) {
       sk.ink(ctx, `${rn.pending} reward${rn.pending === 1 ? '' : 's'} to pick`, ix + 4, y, C.inkText, { big });
       y += lh + 2;

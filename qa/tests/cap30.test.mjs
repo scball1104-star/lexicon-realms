@@ -25,7 +25,7 @@ export const tests = [
   {
     name: 'cap 30: XP to next for 20 to 29 is 4 x kill XP x (20 + L - 14) minutes, rounded to tens; 226,920 at 30; 1 to 19 unchanged',
     fn() {
-      eq(PROGRESSION.maxLevel, 30, 'cap 30');
+      assert(PROGRESSION.maxLevel >= 30, 'cap 30 or past it (35 since cap 35 stage 1, qa/tests/cap35.test.mjs)');
       for (let L = 15; L < 30; L++) eq(PROGRESSION.xpToNext[L], Math.round((4 * (20 + 4 * L) * (20 + L - 14)) / 10) * 10, `xp to next at ${L}`);
       eq(PROGRESSION.xpAtLevel[20], 81640, '20 unchanged'); eq(PROGRESSION.xpAtLevel[25], 142280, '25 (BUILDS_2 5.2)'); eq(PROGRESSION.xpAtLevel[30], 226920, '30 (BUILDS_2 5.2)');
     },
@@ -38,7 +38,7 @@ export const tests = [
         assert(p && p.ready && p.options.length === 2 && p.axis, `${cls} level 25 pick`);
         eq(p, PICKS_25[cls], `${cls} pick joined once`);
         for (const id of p.options) { const a = B2_ABILITIES[id]; assert(a && a.learnLevel === 25 && a.text && !a.text.includes(String.fromCharCode(0x2014)), `${id} data`); }
-        for (const b of BUILDS2[cls].builds) { assert(p.options.includes(b.picks[25]), `${b.id} suggests a level 25 pick`); eq(b.path.length, 30, `${b.id} 30 points`); }
+        for (const b of BUILDS2[cls].builds) { assert(p.options.includes(b.picks[25]), `${b.id} suggests a level 25 pick`); assert(b.path.length >= 30, `${b.id} 30 points (35 since cap 35)`); }
       }
     },
   },
@@ -82,12 +82,12 @@ export const tests = [
     },
   },
   {
-    name: 'gear tier 20 to 30: affix tiers 6 to 8 above ilvl 20 (16 to 20 stay tier 5); every affix has 8 tiers rising',
+    name: 'gear tier 20 to 30: affix tiers 6 to 8 above ilvl 20 (16 to 20 stay tier 5); every affix has 8 tiers rising (9 since cap 35, qa/tests/cap35.test.mjs)',
     fn() {
       eq(affixTier(15), 5); eq(affixTier(20), 5, '20 stays T5'); eq(affixTier(21), 6); eq(affixTier(25), 7); eq(affixTier(30), 8);
       for (const [id, a] of Object.entries(AFFIXES)) {
-        eq(a.values.length, 8, `${id} 8 tiers`);
-        for (let t = 1; t < 8; t++) assert(a.values[t][0] >= a.values[t - 1][0] && a.values[t][1] >= a.values[t - 1][1], `${id} rises at tier ${t + 1}`);
+        assert(a.values.length >= 8, `${id} 8 tiers (9 since cap 35)`);
+        for (let t = 1; t < a.values.length; t++) assert(a.values[t][0] >= a.values[t - 1][0] && a.values[t][1] >= a.values[t - 1][1], `${id} rises at tier ${t + 1}`);
       }
       const content = buildContent();
       const rng = createRng(5);

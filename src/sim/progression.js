@@ -54,6 +54,7 @@ export function createProgression(C) {
       return got;
     }
     amount = Math.max(1, Math.round(amount * xpRate(P, e.level)));
+    if (C.renown && e.renown && e.renown.xp > 0 && e.level < P.maxLevel) C.renown.settle(e);   // cap 35: partial Renown back to XP
     if (e.level >= P.maxLevel) {
       // overflow XP fills Renown (BUILDS_2 5.6). Gold already in the bags stays; leftover xpGoldAcc is not converted.
       emit({ type: 'xp', id: e.id, amount, source: reason, cap: true, ...extra });
@@ -62,6 +63,12 @@ export function createProgression(C) {
     }
     e.xp += amount;
     emit({ type: 'xp', id: e.id, amount, source: reason, ...extra });
+    settleLevels(e);
+    return amount;
+  }
+
+  // the level-up loop on e.xp as it stands (grantXp, and the cap 35 Renown convert in src/sim/renown.js settle)
+  function settleLevels(e) {
     while (e.level < P.maxLevel && e.xp >= xpToNext(e.level)) {
       e.xp -= xpToNext(e.level);
       levelUp(e);
@@ -70,7 +77,6 @@ export function createProgression(C) {
       const over = e.xp; e.xp = 0;
       if (C.renown) C.renown.grantOverflow(e, over);
     }
-    return amount;
   }
 
   function levelUp(e) {
@@ -506,6 +512,6 @@ export function createProgression(C) {
     if (from !== zone) emit({ type: 'zone', id: e.id, from, to: zone, x: tx, y: ty });
   }
 
-  return { grantXp, killXp, setLevel, xpToNext, cumulative, learn, fillBar, restoreBar, restoreBarOff, dropFromBar, barSet, isItemEntry, itemOfEntry, train, trainerOffer, trainerCls, learnTalent, unlearnTalent, respec, respecCost,
+  return { grantXp, settleLevels, killXp, setLevel, xpToNext, cumulative, learn, fillBar, restoreBar, restoreBarOff, dropFromBar, barSet, isItemEntry, itemOfEntry, train, trainerOffer, trainerCls, learnTalent, unlearnTalent, respec, respecCost,
     talentPoints, onDeath, tickDeadMob, tickPlayer, bindStart, respawn, levelUp, onZoneEnter };
 }

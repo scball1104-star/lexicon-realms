@@ -3,7 +3,8 @@
 //   const RN = createRenown(C)
 //   RN.grantOverflow(e, amount)   cap overflow XP; may emit `renown` when a level is earned
 //   RN.command(e, { t: 'renown_pick', choice })   spend a pending reward
-//   RN.hud(e)                     the character panel and XP bar (null below the cap with no Renown)
+//   RN.hud(e)                     the character panel and XP bar (null below the cap with no Renown; `waiting` below it)
+//   RN.settle(e)                  below the cap, partial Renown XP becomes character XP 1:1 (cap 35 stage 1)
 //   RN.restore(e, spec) / RN.saveOf(e)   additive save field `renown` (missing = none)
 //   RN.applyGlow(e)               re-attach Lantern Glow after auras load
 // Numbers live on content.progression.renown (src/data/progression.js, src/data/renown.js). These fallbacks match that
@@ -99,6 +100,20 @@ export function createRenown(C) {
     });
   }
 
+  // Cap 35 stage 1 (BRIEF_cap35_millrace.md section 6): when the cap rises past a hero who was earning Renown, only the
+  // partial progress (renown.xp) turns into character XP, 1:1, and the normal level-up loop runs (more than one level if
+  // it is large). Completed ranks, stats, glow, pending picks and gold are kept. Runs on load and before each XP grant.
+  function settle(e) {
+    const r = e && e.renown;
+    const cap = (C.P && C.P.maxLevel) || 35;
+    if (!r || !(r.xp > 0) || !(e.level < cap)) return 0;
+    const moved = r.xp;
+    r.xp = 0;
+    e.xp = (e.xp || 0) + moved;
+    if (C.prog && C.prog.settleLevels) C.prog.settleLevels(e);
+    return moved;
+  }
+
   function restore(e, spec) {
     const raw = (spec && spec.renown) || e.renown;
     if (!raw || typeof raw !== 'object') return;
@@ -117,6 +132,7 @@ export function createRenown(C) {
       glow: !!raw.glow,
       stats,
     };
+    settle(e);
   }
 
   function saveOf(e) {
@@ -128,13 +144,18 @@ export function createRenown(C) {
 
   function hud(e) {
     if (!e || e.kind !== 'player') return null;
-    const cap = (C.P && C.P.maxLevel) || 30;
-    if (e.level < cap && !e.renown) return null;
+    const cap = (C.P && C.P.maxLevel) || 35;
+    const below = e.level < cap;
+    if (below && !e.renown) return null;
     const r = e.renown || { level: 0, xp: 0, pending: 0, glow: false, stats: {} };
-    const view = { level: r.level || 0, xp: r.xp || 0, need: xpToNext, pending: r.pending || 0, glow: !!r.glow, stats: { ...(r.stats || {}) } };
+    // below the cap (cap 35 stage 1): standing only. No fill and no rank progress; ranks wait until the hero is at the cap.
+    if (below && !r.level && !r.pending && !r.glow && !Object.keys(r.stats || {}).length) return null;
+    const view = below
+      ? { level: r.level || 0, xp: 0, need: 0, waiting: true, cap, pending: r.pending || 0, glow: !!r.glow, stats: { ...(r.stats || {}) } }
+      : { level: r.level || 0, xp: r.xp || 0, need: xpToNext, pending: r.pending || 0, glow: !!r.glow, stats: { ...(r.stats || {}) } };
     if (view.pending > 0) view.choices = offer(e).choices;
     return view;
   }
 
-  return { grantOverflow, offer, pick, command, applyGlow, restore, saveOf, hud, ensure, xpToNext, goldChest, statCap };
+  return { grantOverflow, offer, pick, command, applyGlow, restore, saveOf, hud, ensure, settle, xpToNext, goldChest, statCap };
 }
