@@ -108,7 +108,7 @@ def desktop(browser, a):
     page.goto(f'http://127.0.0.1:{a.port}/index.html', timeout=15000)
     page.wait_for_function('window.__realms && window.__realms.ready', timeout=15000)
     page.wait_for_timeout(300)
-    page.keyboard.press('Enter')                                    # title -> select
+    r = region(page, 'button', label='Heroes'); click(page, *center(r))   # welcome screen -> Heroes (Enter is Continue now)
     page.wait_for_timeout(200)
     r = region(page, 'button', label='Delete'); click(page, *center(r))
     shots.append(shot(page, 'ui_select_delete_confirm'))

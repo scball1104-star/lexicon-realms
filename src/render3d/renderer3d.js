@@ -258,6 +258,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
   }
   let shown = null;
   let turntable = null;          // wave 6: made the first time a stage is asked for (turntable.js)
+  let ownBar = false;                           // view.ownLoadBar: the welcome screen draws its own loading bar
   let photoClean = false, lastFx = null;        // wave 8 photo (view.photo): no plates, numbers, door labels, target ring or cutaway
   let flightView = null;          // big world: the flight camera's reach while the hero rides the Lantern Kite (M3)
 
@@ -690,6 +691,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (fallback) return fallback.draw(prevSnap, snap, alpha, view);
     if (state.failed) { useFallback(state.failed); return; }
     const t0 = performance.now();
+    ownBar = !!view.ownLoadBar;
     layout = layoutFor(canvas.width, canvas.height, view.zoom || 1, { touch: !!view.touch, hud: view.hud || 'big', dpr: view.dpr || 1, inset: view.inset, fill: true });
     layout.worldOx = layout.wox; layout.worldOy = layout.woy;
     if (hud.width !== layout.hudW || hud.height !== layout.hudH) { [hud, hctx] = canvas2d(layout.hudW, layout.hudH); [over, octx] = canvas2d(layout.hudW, layout.hudH); }
@@ -712,7 +714,9 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       trans = null;
     }
     const meE0 = view.followId != null ? snap.entities.find((e) => e.id === view.followId) : null;
-    const z = zoneFor(view.zone, meE0 && meE0.zone === view.zone ? { x: Math.floor(meE0.x / PX), y: Math.floor(meE0.y / PX) } : null);
+    // the welcome screen's scene (view.sceneAt, world px): no hero in the world yet, the camera looks at the square
+    const sAt = !meE0 && view.sceneAt ? view.sceneAt : null;
+    const z = zoneFor(view.zone, meE0 && meE0.zone === view.zone ? { x: Math.floor(meE0.x / PX), y: Math.floor(meE0.y / PX) } : sAt ? { x: Math.floor(sAt.x / PX), y: Math.floor(sAt.y / PX) } : null);
     if (trans && !z) {
       // still building (in time slices): the old frame stays on the WebGL canvas under the card; nothing new is drawn
       trans.k = 0.6 * (state.buildK.get(trans.key) || 0);
@@ -744,7 +748,8 @@ export function createRenderer3D(canvas, assets, opts = {}) {
       const pe = prevSnap && prevSnap.entities.find((e) => e.id === view.followId);
       const k = pe && pe.zone === meE.zone ? alpha : 1;
       focus.set(((pe ? pe.x : meE.x) + (meE.x - (pe ? pe.x : meE.x)) * k) / PX, 0, ((pe ? pe.y : meE.y) + (meE.y - (pe ? pe.y : meE.y)) * k) / PX);
-    } else if (zone) { const ar = zone.arrival || [zone.w / 2, zone.h / 2]; focus.set(ar[0] + 0.5, 0, ar[1] + 0.5); }
+    } else if (view.sceneAt) focus.set(view.sceneAt.x / PX, 0, view.sceneAt.y / PX);   // the welcome screen's scene
+    else if (zone) { const ar = zone.arrival || [zone.w / 2, zone.h / 2]; focus.set(ar[0] + 0.5, 0, ar[1] + 0.5); }
     if (view.photo) { focus.x += view.photo.dx || 0; focus.z += view.photo.dz || 0; }   // wave 8 photo: the free camera's step off the hero (m)
     photoClean = !!(view.photo && view.photo.clean);
     const target = focus.clone().setY(0.9);
@@ -986,7 +991,7 @@ export function createRenderer3D(canvas, assets, opts = {}) {
     if (!trans && !talkHide && !photoClean && !bossLabelsOff) drawDoorLabels();   // hidden over a talk and under the boss intro card (wave 6)
     fn(hctx, layout);
     // loading line (over the title too, so the title never looks frozen while the 3D world loads)
-    if (!state.ready || !shown) {
+    if ((!state.ready || !shown) && !ownBar) {   // the welcome screen draws its own bar on Continue
       const p = L.progress, k = p.total ? p.done / p.total : 0;
       const w = Math.min(220, layout.hudW - 40), x = Math.floor((layout.hudW - w) / 2), y = layout.hudH - 14;
       hctx.fillStyle = 'rgba(20,16,30,0.8)'; hctx.fillRect(x - 2, y - 11, w + 4, 16);

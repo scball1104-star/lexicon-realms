@@ -508,7 +508,7 @@ def run():
         assert g.ev('__drv.mode()') == 'select'
         g.boot(BASE)    # reload the page (no dev hooks now)
         time.sleep(0.8)
-        g.key('Enter', 0.5)
+        g.click_region(label='Heroes', wait=0.5)   # welcome screen -> Heroes (Enter there is Continue)
         g.shot('18_select_reload', 'after a page reload: the hero on the select screen')
         g.key('Enter', 1.5)
         after = g.me()
@@ -562,8 +562,7 @@ def mender_builds2(g):
     N = lambda track, slug: f'b2_mender_{track}_{slug}'  # noqa: E731
     g.boot(BASE + '?dev=1')
     time.sleep(0.8)
-    g.key('Enter', 0.5)                              # title -> select (the Warden is there)
-    g.click_region(label='New', wait=0.5)
+    g.click_region(label='New hero', wait=0.5)        # welcome screen -> creation (the Warden is the saved hero)
     g.p.keyboard.type('Lark')
     g.click_region(kind='class', id='mender')
     g.key('Enter', 1.5)

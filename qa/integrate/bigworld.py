@@ -303,10 +303,10 @@ def s_realm(b, r='3d'):
     page.goto(BASE + f'index.html?r={r}&tod=0.45')
     page.wait_for_function('() => window.__realms && window.__realms.ready', timeout=90000)
     time.sleep(1.5)
-    # no heroes on a fresh profile: the title goes to creation (or press New Character)
+    # no heroes on a fresh profile: Begin your tale goes to creation
     for _ in range(30):
         if page.evaluate('() => window.__realms.ui.mode') == 'create': break
-        p = region_css(page, 'New Character') or region_css(page, 'New')
+        p = region_css(page, 'Begin your tale') or region_css(page, 'New hero') or region_css(page, 'New')
         if p: page.mouse.click(p[0], p[1])
         time.sleep(0.3)
     p = region_css_by(page, 'class', 'scribe')

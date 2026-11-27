@@ -10,7 +10,7 @@ export const CLASS_IDS = ['warden', 'mender', 'scribe', 'wayfinder', 'inkblade']
 const IMAGES = {
   ui: 'assets/ui/ui.png', window: 'assets/ui/window.png', large: 'assets/ui/font_large.png', num: 'assets/ui/font_num.png',
   heads: 'assets/ui/heads.png', portraits: 'assets/ui/portraits.png', logo: 'assets/ui/logo_realms.png',
-  backdrop: 'assets/ui/title_backdrop.png', party: 'assets/sprites/lq/party_field.png',
+  party: 'assets/sprites/lq/party_field.png',   // (title_backdrop.png, Lexicon Quest's key art, is no longer loaded: Scott 2026-11-27)
 };
 const JSON_FILES = {
   ui: 'assets/ui/ui.json', window: 'assets/ui/window.json', large: 'assets/ui/font_large.json', num: 'assets/ui/font_num.json',
@@ -64,6 +64,6 @@ export async function loadUiArt({ font }) {
     ui: js.ui, uiImg: img.ui, win: js.window, winImg: img.window,
     font, large, num: js.num, numBig: js.numBig, numImg: img.num,
     heads: js.heads, headsImg: img.heads, portraits: js.portraits, portraitsImg: img.portraits,
-    logo: img.logo, backdrop: img.backdrop, party: js.party, partyImg: img.party, chars, icons, npcArt,
+    logo: img.logo, party: js.party, partyImg: img.party, chars, icons, npcArt,
   };
 }

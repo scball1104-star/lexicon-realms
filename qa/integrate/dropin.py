@@ -216,7 +216,7 @@ def measure_before(browser, H, phone):
     H.tap('#net-host-close')                     # Play (closes the panel; the host is in the world)
     G.open(BASE)                                 # the friend opens the game
     time.sleep(0.3)
-    G.press_button('Play')                       # title -> character select (the last hero is picked)
+    G.press_button('Heroes')                     # welcome screen -> Heroes (the last hero is picked)
     G.press_button('Join a game')
     G.page.wait_for_selector('#net-code-in', timeout=5000)
     if phone:

@@ -46,6 +46,7 @@ const TILE = 16;
 
 async function boot() {
   const q = new URLSearchParams(location.search);
+  let titleKeep = null;                 // the welcome screen's square: the view it borrowed (titleView below)
   const canvas = document.getElementById('game');
   // Size the canvas to the VISIBLE viewport (phones: 100vh runs under the browser's bars, so the bottom of the screen
   // was cut off). Safe-area insets (notch, home bar) are measured from a CSS probe so the HUD stays clear of them.
@@ -158,6 +159,8 @@ async function boot() {
       heroAnchor: () => (playerId != null ? renderer.anchorOf(playerId) : null),
       // wave 6 (customization kit): can the creation screen show the 3D hero, and a class's starting gear for it
       has3d: () => !!(renderer.is3d && renderer.stageOk),
+      // the welcome screen: is the 3D square drawn yet (and how far the 3D load has come)
+      titleLoad: () => { if (!renderer.is3d || renderer.stageOk === false) return { is3d: false, ready: false, k: 0 }; const p = renderer.progress || {}; return { is3d: true, ready: !!renderer.ready && !!titleKeep, k: p.total ? p.done / p.total : 0 }; },
       startGear: (cls) => ((content.classes[cls] || {}).startGear || {}),
       scenes: () => !!renderer.is3d, talkVoice: (m) => audio.talk(m),   // wave 6 quest scenes (src/ui/talk_ui.js)
     },
@@ -199,6 +202,7 @@ async function boot() {
     const on = !!hcam && want === 'horizon';
     view.cam = on ? hcam : null;
     if (hin) hin.setOn(on);
+    if (titleKeep) titleKeep.cam = view.cam;   // changed in the welcome screen's Options: the world gets this camera, not the one borrowed
   }
   setCam(ui.options.cam);
   // wave 8 photo mode (src/ui/photo_ui.js, photo_rig.js): render-only. While it is open this client draws its own time,
@@ -446,6 +450,45 @@ async function boot() {
   coop.onJoinLogged((tick, spec) => joins.push([tick, spec]));     // a friend's hero, added by the host (docs/NET.md)
   // frame timing for drivers (60 fps check): a rolling window of rAF deltas
   const frames = { last: 0, dts: [] };
+  // ---- the welcome screen's scene (render-only; see render below)
+  const TITLE_TILE = [21, 19];          // Willowmere tiles: in front of the well, the inn's lit windows behind
+  const TITLE_HERO = -7;                // the stand-in's id: never a sim id
+  function titleSpot() {
+    const zw = content.zones.willowmere, corner = (content.regionAt || {}).willowmere;
+    if (corner) return { zone: content.worldId, x: (corner[0] + TITLE_TILE[0]) * TILE + 8, y: (corner[1] + TITLE_TILE[1]) * TILE + 15 };
+    return zw ? { zone: 'willowmere', x: TITLE_TILE[0] * TILE + 8, y: TITLE_TILE[1] * TILE + 15 } : null;
+  }
+  function titleHero(c, at) {
+    const s = c.state || {};
+    const equip = s.equip || ((content.classes[c.cls] || {}).startGear || {});
+    return { id: TITLE_HERO, kind: 'player', zone: at.zone, x: at.x, y: at.y, dir: 'down', moving: false, name: c.name, level: c.level || 1,
+      faction: 'friendly', hp: 1, hpMax: 1, res: null, target: null, cast: null, auras: [], cd: {}, gcdUntil: 0, dead: false,
+      cls: c.cls, look: c.look, app: s.app || c.app || null, equip, emote: null, mount: null };
+  }
+  function titleView(nowMs) {
+    const want = ui.titleScene ? ui.titleScene() : null;   // { hero, frame: 'title' | 'select' } or null (no scene: creation, a phone menu)
+    if (!want) { if (titleKeep) endTitleView(); return null; }
+    const at = titleSpot();
+    if (!at) return null;
+    if (!titleKeep) titleKeep = { cam: view.cam, tod: view.tod, weather: view.weather, photo: view.photo };
+    const t = nowMs / 1000;
+    view.zone = at.zone; view.sceneAt = { x: at.x, y: at.y }; view.ownLoadBar = true;
+    view.tod = 0.78; view.weather = 'clear';
+    // a slow drift of a few degrees so the square never looks frozen; the hero sits right of the menu (title) or centre (select)
+    view.cam = { mode: 'horizon', yaw: (360 + Math.sin(t / 9) * 4) % 360, pitch: 11, dist: view.touch ? 5.2 : 5.5, minPitch: 5 };
+    view.photo = { dx: want.frame === 'select' ? 0.3 : -1.8, dz: 0, clean: true };
+    // nobody stands between the camera and the hero, or right beside it (the renderer fades a body that close to the hero):
+    // npcs and foes in that box, from just behind the spot to the camera, are left out of this frame
+    const lane = (e) => !(e.zone === at.zone && (e.kind === 'npc' || e.kind === 'mob') && Math.abs(e.x - at.x) < 5 * TILE && e.y > at.y - 3 * TILE && e.y < at.y + 10 * TILE);
+    const hero = want.hero ? titleHero(want.hero, at) : null;
+    const dress = (sn) => (sn ? { ...sn, entities: sn.entities.filter(lane).concat(hero ? [hero] : []) } : sn);
+    view.followId = hero ? TITLE_HERO : null; view.targetId = null;
+    return { snap: dress(snap), prev: dress(prev) };
+  }
+  function endTitleView() {
+    view.cam = titleKeep.cam; view.tod = titleKeep.tod; view.weather = titleKeep.weather; view.photo = titleKeep.photo;
+    view.sceneAt = null; view.ownLoadBar = false; titleKeep = null;
+  }
   function render(alpha, nowMs) {
     if (replay && replay.render(alpha, nowMs)) return;   // wave 8: the replay viewer draws its own frame (src/replay/)
     if (frames.last) { frames.dts.push(nowMs - frames.last); if (frames.dts.length > 240) frames.dts.shift(); }
@@ -461,7 +504,12 @@ async function boot() {
     photoView();                                       // wave 8 photo: this client's own time, weather and camera step
     // secret caches this hero has opened draw open, without their glint
     for (const e of snap.entities) if (e.node && e.node.secret) e.opened = (e.node.openedBy || []).includes(playerId);
-    renderer.draw(prev, snap, alpha, view);
+    // the welcome screen (src/ui/title.js): before a hero is in the world, the 3D view is Willowmere's Lantern Square at
+    // dusk with the chosen hero standing in it. Render-only: the hero is a stand-in drawn from the save, never added to the
+    // sim, so the title starts nothing and writes nothing (approved by Scott 2026-11-27, docs/handoff/briefs/BRIEF_welcome_screen.md)
+    const ts = !me && !watchE && renderer.is3d && renderer.stageOk !== false ? titleView(nowMs) : null;   // not after a fall back to 2D
+    if (!ts && titleKeep) endTitleView();
+    renderer.draw(ts ? ts.prev : prev, ts ? ts.snap : snap, alpha, view);
     const dpr = window.devicePixelRatio || 1;
     ui.setMetrics({ cssPerHud: renderer.layout.base / dpr });
     if (me) {
@@ -498,6 +546,7 @@ async function boot() {
   // a local test server has no version.json (the deploy writes it): skip the check there, so drivers see no 404
   const bootVersion = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname) ? null : await siteVersion();
   coop.setBuild(bootVersion);          // host and friends must run the same build (a deploy in between: both reload)
+  ui.setBuild(bootVersion || (q.has('build') ? q.get('build') : null));   // the welcome screen's build tag
   if (bootVersion) {
     document.addEventListener('visibilitychange', async () => {
       if (document.visibilityState !== 'visible') return;

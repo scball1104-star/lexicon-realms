@@ -55,6 +55,7 @@ import { createSecondUI } from './second_ui.js';   // wave 9 second: the phone s
 import { markPage } from './page_marks.js';   // wave 9 fixes: the co-op bar steps aside for a phone's open window
 import { createDlootUI } from './dloot_ui.js';   // wave 10 dloot: the drop's columns, tags, banner and card
 import { createBossHud, bossFrameRect } from './boss_hud.js';   // wave 10 dbosses: the boss fight call-out
+import { NEWS } from '../data/news.js';   // the welcome screen's New this week card (title.js)
 
 const SIDE = ['character', 'bags'];
 const CENTER = ['talents', 'quests', 'map', 'menu', 'help', 'prof', 'glyphs'];
@@ -179,7 +180,7 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
       const c = store.get(id);
       if (!c) return;
       store.touch(id);
-      st.charId = id;
+      st.charId = id; st.playMark = Date.now(); st.friendsOpen = false; st.open.delete('menu');
       playerId = hooks.enterWorld ? hooks.enterWorld(c) : null;
       st.mode = 'game'; st.open.clear(); st.dialog = null; st.trained = new Set();
       st.navQuest = c.navQuest || null; st.questSel = null; st.mapZone = null;
@@ -377,6 +378,10 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   /** Save the hero: the select-screen summary plus the full character (hooks.saveState: CONTRACTS 2.4 addPlayer restore). */
   function saveProgress() {
     if (st.charId == null || playerId == null) return;
+    const nowMs = Date.now(), c0 = store.get(st.charId);
+    const shown = typeof document === 'undefined' || document.visibilityState !== 'hidden';   // a tab in the background is not play
+    if (c0 && st.mode === 'game' && shown) { const d = st.playMark ? Math.min(30, Math.max(0, (nowMs - st.playMark) / 1000)) : 0; if (d) c0.played = Math.round(((c0.played || 0) + d) * 10) / 10; }
+    st.playMark = nowMs;
     const full = hooks.saveState ? hooks.saveState(playerId) : null;
     const e = full || (lastSnap && lastSnap.entities.find((o) => o.id === playerId));
     if (!e) return;
@@ -393,6 +398,26 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   }
 
   // ---------------------------------------------------------------- drawing
+  // ---- the welcome screen (title.js) and its 3D square (main.js titleView)
+  const NEWS_KEY = 'lexiconRealms.newsSeen';
+  let newsSeen = null;
+  try { newsSeen = storage ? storage.getItem(NEWS_KEY) : null; } catch { newsSeen = null; }
+  let buildTag = null;
+  function titleEnv() {
+    return {
+      scene: hooks.titleLoad ? hooks.titleLoad() : null,   // { is3d, ready, k }: the square is drawn (ready) or loading (k)
+      build: buildTag, news: NEWS, newsSeen: !!NEWS && newsSeen === NEWS.id,
+      markNews: (id) => { newsSeen = id; try { if (storage) storage.setItem(NEWS_KEY, id); } catch { /* private mode */ } },
+      itemInfo: (id) => itemInfo(id), questName: (id) => questInfoName(id),
+    };
+  }
+  /** What main.js should stage in the square: the last hero (welcome) or the chosen one (Heroes); null = no scene. */
+  function titleScene() {
+    if (st.mode !== 'title' && st.mode !== 'select') return null;
+    const list = store.list();
+    const hero = st.mode === 'select' ? (list.find((c) => c.id === st.selId) || list[0] || null) : (list[0] || null);
+    return { hero, frame: st.mode };
+  }
   function layoutNow() {
     const l = hooks.getLayout ? hooks.getLayout() : null;
     return hudLayout({ touch: st.metrics.touch, minHit: st.metrics.touch ? hitPx(st.metrics.cssPerHud) : 15, W: (l && l.hudW) || W, H: (l && l.hudH) || H });
@@ -449,10 +474,18 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     const regions = [];
     ctx.imageSmoothingEnabled = false;
     markPage('lr-window', st.mode === 'game' && !!L.touch && (st.open.size > 0 || !!chatUi.sheetOpen || !!chatUi.cardOpen || !!chatUi.state.full));   // wave 9 fixes: the bar hid talents nodes and Say phrases
-    if (st.mode !== 'game' && st.mode !== 'watch' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }
+    if (st.mode !== 'game' && st.mode !== 'watch' && st.mode !== 'title' && st.mode !== 'select' && (L.W > W || L.H > H)) { ctx.fillStyle = '#0b0a12'; ctx.fillRect(0, 0, L.W, L.H); }   // the welcome and Heroes screens paint the whole layer
     if (secondUi.on) { const m2 = playerId != null && snap ? buildHudModel(vm, snap, { state: { ...local, untracked: st.untracked, navQuest: st.navQuest }, tickHz: 20, zoneNames, zones }) : null; if (m2) { lastModel = m2; setWornEquip(m2.equip); } secondUi.draw(ctx, env, m2, L, regions, (id) => g.textScope(() => { if (id === 'map') drawMap(ctx, env, m2, st, regions, act); if (id === 'quests') ((g.skin && g.skin.drawQuestLog) || drawQuestLog)(ctx, env, m2, st, regions, act); if (id === 'bags') { ((g.skin && g.skin.drawCharacter) || drawCharacter)(ctx, env, m2, st, regions, act); drawBags(ctx, env, m2, st, regions, act); } })); }   // wave 9 second: the phone screen
-    else if (st.mode === 'title') centred(ctx, L, regions, () => drawTitle(ctx, env, st, regions, act, t), env);
-    else if (st.mode === 'select') centred(ctx, L, regions, () => drawSelect(ctx, env, st, regions, act, t), env);
+    else if (st.mode === 'title' || st.mode === 'select') {
+      // the welcome screen and Heroes, on the whole layer over the live square (title.js; main.js titleView)
+      env.title = titleEnv();
+      if (st.mode === 'title') drawTitle(ctx, env, st, regions, act, t); else drawSelect(ctx, env, st, regions, act, t);
+      if (st.mode === 'title' && st.open.has('menu')) {
+        regions.push({ rect: { x: 0, y: 0, w: L.W, h: L.H }, kind: 'window', id: 'scrim' });   // the screen under Options takes no presses
+        g.scrim(ctx, 0, 0, L.W, L.H, 110);
+        centred(ctx, L, regions, () => drawOptions(ctx, { ...env, preplay: true }, null, st, regions, act, options), env);
+      }
+    }
     else if (st.mode === 'create') looks.drawCreate(ctx, env, regions, t, centred, L);
     else if (st.mode === 'watch') chatUi.drawWatch(ctx, L, regions, hooks.talkHeads ? hooks.talkHeads() : []);   // drop-in watcher: the world and the chat (wave 8 talk)
     else {
@@ -801,8 +834,9 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   function press(x, y, button = 0) {
     if (st.mode !== 'game') {
       const r = topRegion(x, y);
-      if (r && r.on) { r.on(button); uiSnd.press(r.label); }
-      else if (st.mode === 'title' && !r && !st.fsHelp) { if (store.list().length) act.go('select'); else act.go('create'); }
+      if (r && r.drag) { st.drag = r; r.drag(x); }   // the welcome screen's Options: the volume sliders
+      else if (r && r.on) { r.on(button); uiSnd.press(r.label); }
+      else if (st.mode === 'title' && !r && !st.fsHelp && !store.list().length) act.go('create');   // no heroes yet: a tap anywhere begins (with heroes, only the buttons act)
       if (st.mode === 'create' && (!r || r.kind !== 'name_field')) { nameInput.blur(); st.nameFocus = false; }
       return true;
     }
@@ -935,15 +969,22 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
     if (overlayEv(ev)) return;
     if (st.mode !== 'game') {
       if (!down) return;
+      if (st.mode === 'title' && st.rebinding) {   // Options on the welcome screen: the key list works there too
+        ev.stopPropagation(); ev.preventDefault();
+        if (ev.code !== 'Escape') act.setOption('binds', rebind(options.binds, st.rebinding, ev.code));
+        st.rebinding = null;
+        return;
+      }
       if (st.mode === 'create' && st.nameFocus && ev.code !== 'Enter' && ev.code !== 'Escape' && ev.code !== 'Tab') { ev.stopPropagation(); return; }
       ev.stopPropagation();
       if (ev.code === 'Enter' || ev.code === 'NumpadEnter') {
         ev.preventDefault();
-        if (st.mode === 'title') act.go(store.list().length ? 'select' : 'create');
+        if (st.mode === 'title' && !st.open.has('menu')) { const last = store.list()[0]; if (last) act.enter(last.id); else act.go('create'); }   // Enter: Continue
         else if (st.mode === 'select' && st.selId != null) act.enter(st.selId);
         else if (st.mode === 'create') act.create();
       } else if (ev.code === 'Escape') {
-        if (st.mode === 'create') act.go(store.list().length ? 'select' : 'title'); else if (st.mode === 'select') act.go('title');
+        if (st.mode === 'title') { st.open.delete('menu'); st.friendsOpen = false; st.fsHelp = false; }
+        else if (st.mode === 'create') act.go(store.list().length ? 'select' : 'title'); else if (st.mode === 'select') act.go('title');
       } else if (st.mode === 'select' && (ev.code === 'ArrowDown' || ev.code === 'ArrowUp')) {
         const list = store.list(); const i = list.findIndex((c) => c.id === st.selId);
         const n = list[(i + (ev.code === 'ArrowDown' ? 1 : list.length - 1)) % list.length]; if (n) st.selId = n.id; st.confirm = null;
@@ -1222,6 +1263,8 @@ export async function createUI({ canvas, font, zones, zoneNames = {}, storage = 
   // ---------------------------------------------------------------- the object
   const ui = {
     get mode() { return st.mode; },
+    titleScene,                         // main.js titleView: the hero for the welcome screen's square
+    setBuild(v) { buildTag = v ? String(v).slice(0, 7) : null; },   // the welcome screen's build tag (version.json)
     get state() { return st; },
     get options() { return options; },
     /** wave 6: main.js hands in the boss intro card's draw (src/ui/boss_card.js); drawn after the HUD, under the windows */

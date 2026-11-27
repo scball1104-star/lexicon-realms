@@ -870,7 +870,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
   const { g } = env;
   const r = { x: 60, y: 24, w: 520, h: 316 };
   frame(ctx, env, r, 'Options', regions, act, 'menu');
-  titleButtons(ctx, env, r, regions, act);   // Invite a friend (wave 8), Replays (wave 8), Chronicle and Use my phone (wave 9)
+  if (!env.preplay) titleButtons(ctx, env, r, regions, act);   // (not on the welcome screen: no hero in the world) Invite a friend (wave 8), Replays (wave 8), Chronicle and Use my phone (wave 9)
   const touch = env.L.touch, big = g.big;
   const short = touch || big;                  // short labels where room is short (a phone, or Large text)
   // key rows: 11 px a row on desktop (22 rows with 8 skill keys); Large text scrolls the list. A phone has no key list.
@@ -970,6 +970,7 @@ export function drawOptions(ctx, env, m, st, regions, act, options) {
     g.text(ctx, label, x + w / 2, by + Math.floor(bh / 2) - g.mid(6), 'cream', { align: 'center' });
     regions.push({ rect: { x, y: by, w, h: bh }, kind: 'button', on, label });
   };
+  if (env.preplay) { btn(ox, big ? 90 : 110, 'Back', () => act.close('menu')); return; }   // the welcome screen's Options
   if (big) { btn(ox, 90, 'Resume', () => act.close('menu')); btn(ox + 96, ow - 96, 'Character select', () => act.logout()); return; }
   btn(ox, 110, 'Resume', () => act.close('menu'));
   btn(ox + 118, 110, 'Character select', () => act.logout());

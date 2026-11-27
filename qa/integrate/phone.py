@@ -110,7 +110,7 @@ def run():
         assert page.evaluate('window.__realms.ui.state.metrics.touch'), 'phone HUD on'
         time.sleep(0.8)
         ph.shot('phone_01_title', 'title on a phone (landscape)')
-        ph.tap_region(label='New Character', wait=0.5)
+        ph.tap_region(label='Begin your tale', wait=0.5)
         ph.tap_region(kind='name_field', wait=0.3)
         page.keyboard.type('Wren')
         ph.tap_region(kind='class', id='scribe', wait=0.3)
