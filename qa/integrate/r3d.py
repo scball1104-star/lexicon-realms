@@ -375,6 +375,15 @@ def session_d(b):
     if m['d'] > 150:
         g.walk('world', m['tx'], m['ty'], near=5)
     xy = g.ev(f'__drv.entCss({m["id"]})')
+    # a slime drawn behind a HUD box (the bar, the tracker) cannot be tapped: the HUD takes the tap, as it should. Take a
+    # near slime that is clear of the HUD (2026-11-27: one sat a few px under the bar's top edge and the tap cast slot 7)
+    for c in mobs[:6]:
+        if c['d'] > 150:
+            break
+        cxy = g.ev(f'__drv.entCss({c["id"]})')
+        if cxy and not any(g.ev(f'__drv.onHud({cxy[0]}, {cxy[1] + dy})') for dy in (-8, 0, 8)):
+            m, xy = c, cxy
+            break
     page.touchscreen.tap(xy[0], xy[1])
     time.sleep(0.5)
     assert g.me()['target'] == m['id'], 'tap on a foe targets it (3D pick)'

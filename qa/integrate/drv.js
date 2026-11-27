@@ -148,6 +148,8 @@
     },
     /** CSS point on an entity's body (for clicks / taps). */
     entCss(id) { const a = R.renderer.anchorOf(id); if (!a) return null; return worldToCss(a.x, a.y - Math.max(4, Math.round(a.h / 2))); },
+    /** True when a CSS point lands on a HUD box: a tap there goes to the HUD (a bar slot, the tracker), not the world. */
+    onHud(cx, cy) { const l = R.renderer.layout, d = window.devicePixelRatio || 1; const hx = (cx * d - l.ox) / l.base, hy = (cy * d - l.oy) / l.base; return (R.ui.regions || []).some((o) => o.rect && hx >= o.rect.x && hx < o.rect.x + o.rect.w && hy >= o.rect.y && hy < o.rect.y + o.rect.h); },
     dialog() { const d = R.ui.state.dialog; return d ? { page: d.page, npc: d.npc, offers: d.offers, turnins: d.turnins, quest: d.quest, vendor: !!d.vendor, trainer: !!d.trainer } : null; },
     mode() { return R.ui.mode; },
     log(n = 12) { return R.ui.logText().slice(-n); },
