@@ -1643,8 +1643,11 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
   `RULES.buyBack[30]` 400 gold, the same DRAFT price as 25) and the suggested pick (`b.picks[30]`). Axes: Mender Bite vs
   Well, Warden Gate vs Breaker, Scribe Hounds vs Hand, Wayfinder Kestrel vs Bow, Inkblade Shade vs Wound.
 - **Skills.** Eight passives and two casts (Well of Names, Gate Oath), same passive rules as the level 25 picks
-  (`src/sim/data.js talentInfo`; never on the bar). The balance bot (`qa/sim/builds2.mjs`) takes the suggested pick at 30
-  and casts Well of Names and Gate Oath when hurt.
+  (`src/sim/data.js talentInfo`; never on the bar). Well of Names and Gate Oath go on the bar when a slot is free.
+  Breaker Iron: lone Strike +40% (beats a packed Strike) and Sunders; after a lone Strike you heave (recover 0.3 s slower, next swings 0.8 s later); Anvil Drop hits a lone foe as if packed. Shared Hunt: while the kestrel is out, shots mark the foe, the bird flies to the mark, and the next
+  shot ricochets to a nearby foe for 50%. Deep Wound: Spill consumes Bleed Line and deals remaining ticks at once.
+  Second Shade: Fade's cooldown is 2 s (the text matches the patch). Grapple Skirmisher takes Shared Hunt. The balance
+  bot (`qa/sim/builds2.mjs`) takes the suggested pick at 30 and casts Well of Names and Gate Oath when hurt.
 - **Talents strip.** `pickSlots(cls, level)`: from level 25 the 30 slot joins and the level 3 slot leaves it (five slots,
   the approved geometry). From 20 the 25 slot already joins and the level 1 slot leaves it.
 

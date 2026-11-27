@@ -17,6 +17,7 @@ export function createB2Scripts(C) {
   const counters = (e) => (e.counters = e.counters || {});
   const isInstant = (ab) => !(ab.castTime > 0) && !ab.channel;
   const myObjects = (e, id) => state.ents.filter((o) => o.kind === 'object' && o.obj && o.owner === e.id && o.obj.def.id === id);
+  const myAura = (t, id, src) => t ? stats.findAura(t, id, src) : null;
   /** The damage a mob spell would have dealt (Unwritten, Spellbreaker): its first damage effect, rolled at its numbers. */
   function spellRaw(caster, id, victim) {
     const ab = data.abilities[id];
@@ -130,10 +131,36 @@ export function createB2Scripts(C) {
         const s = e.b2Stored; e.b2Stored = null;
         K().dealDamage(e, t, s.raw * 1.5, { ability: 'b2_unwritten', school: 'shadow', canCrit: true, threatMult: 1 });
       }
+      // Deep Wound: Spill consumes your Bleed Line and deals the remaining ticks at once
+      if (ab.id === 'inkblade_spill' && has(e, 'b2_deep_wound') && t) {
+        const u = myAura(t, 'inkblade_bleed_line', e.id);
+        if (u) {
+          const uab = data.ability(e, 'inkblade_bleed_line');
+          const tickFx = uab && (uab.effects || []).find((f) => f.type === 'aura');
+          const fx = tickFx && tickFx.aura && (tickFx.aura.tick || [])[0];
+          const per = Math.max(1, T(u.def.period));
+          const left = Math.max(0, Math.floor(((u.until || now()) - u.nextTick) / per) + 1);
+          const raw = fx && left > 0 ? K().rawAmount(e, t, fx, {}) * left : 0;
+          K().removeAura(t, u, 'consume');
+          if (raw > 0) K().dealDamage(e, t, raw, { ability: 'inkblade_deep_wound', school: 'physical', canCrit: false, noArmor: true, threatMult: 1 });
+          emit({ type: 'b2_proc', id: e.id, what: 'deep_wound', target: t.id, ticks: left, amount: raw });
+        }
+      }
     },
 
     afterFire(e, ab, t) {
       if (ab.id === 'inkblade_fade' && has(e, 'b2_vanish') && e.inCombat) { e.cd.b2_vanish = now() + T(30); unseen(e, 6); }
+      // Breaker Iron: a heavier lone Strike still beats a packed Strike, then you need a short heave before the next swings
+      if (ab.id === 'warden_strike' && has(e, 'b2_breaker_iron') && t && !t.dead) {
+        let packed = false;
+        for (const u of state.ents) if (u !== t && u.kind === 'mob' && !u.dead && u.zone === t.zone && u.faction === 'hostile' && distPx(u, t) <= 48) { packed = true; break; }
+        if (!packed) {
+          e.gcdUntil = Math.max(e.gcdUntil || 0, now()) + T(0.3);
+          e.swing = e.swing || { main: 0, off: 0 };
+          e.swing.main = Math.max(e.swing.main || 0, now()) + T(0.8);
+          e.swing.off = Math.max(e.swing.off || 0, now()) + T(0.8);
+        }
+      }
     },
 
     beforeDeath(dst) {
@@ -273,6 +300,31 @@ export function createB2Scripts(C) {
             h.threat = { [caster.id]: 1 };
             C.ai.engage(h, caster, false);
             K().dealDamage(caster, h, 0.2 * h.hpMax, { ability: 'scribe_rewrite', school: 'ink', canCrit: false, noArmor: true, threatMult: 1 });
+          }
+          return;
+        }
+        case 'b2_shared_hunt': {
+          // Shared Hunt: while the kestrel is out, a shot marks the foe; the bird flies to the mark; a later shot on
+          // that mark ricochets to another foe within 3 tiles for half the hit
+          const t = r || ctx.target;
+          if (!t || t.dead) return;
+          const bird = myObjects(src, 'wayfinder_kestrel')[0];
+          if (!bird) return;
+          const d = distPx(bird, t);
+          if (d > 24) {
+            const [vx, vy] = unitTo(bird, t, bird.dir || src.dir);
+            const step = Math.min(d - 16, 96);
+            bird.x += Math.round(vx * step * SUB);
+            bird.y += Math.round(vy * step * SUB);
+          }
+          const marked = myAura(t, 'wayfinder_hunt_mark', src.id);
+          K().applyAura(src, t, { id: 'wayfinder_hunt_mark', name: 'Hunt Mark', icon: 'icon_feather', kind: 'debuff', duration: 6, unique: 'per_caster' }, { abId: 'wayfinder_shared_hunt' });
+          if (marked && (ctx.damage || 0) > 0) {
+            const other = K().nearest(K().unitsNear(t.x, t.y, t.zone, 48, (u) => u !== t && u.kind === 'mob' && !u.dead && K().isHostile(src, u)), t.x, t.y);
+            if (other) {
+              K().dealDamage(src, other, Math.round(ctx.damage * 0.5), { ability: 'wayfinder_shared_hunt', school: 'physical', canCrit: false, cleave: true, threatMult: 1 });
+              emit({ type: 'b2_proc', id: src.id, what: 'shared_hunt', target: other.id });
+            }
           }
           return;
         }

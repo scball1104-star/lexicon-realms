@@ -22,7 +22,7 @@ const PASSIVE = (id, name, icon, cls, school, passive, text) => ({
   effects: [], passive, text,
 });
 
-const SHOTS = ['wayfinder_quick_shot', 'wayfinder_aimed_shot', 'wayfinder_pinning_shot', 'wayfinder_volley', 'wayfinder_hush_arrow', 'wayfinder_scatter_shot'];
+const SHOTS = ['wayfinder_quick_shot', 'wayfinder_aimed_shot', 'wayfinder_pinning_shot', 'wayfinder_hush_arrow', 'wayfinder_scatter_shot'];
 
 export const L30_ABILITIES = {
   // ---- Mender: Bite vs Well
@@ -54,8 +54,20 @@ export const L30_ABILITIES = {
     text: 'You take 12% less damage for 8 s, and every foe within 6 tiles must attack you for 3 s.',
   },
   warden_breaker_iron: PASSIVE('warden_breaker_iron', 'Breaker Iron', 'icon16_sword', 'warden', 'physical', {
-    mods: [dmgUp(0.08, { ability: ['warden_strike', 'warden_anvil_drop'], when: { targetAlone: 48 } })],
-  }, 'Passive. Strike and Anvil Drop deal 8% more to a foe with no other foe within 3 tiles.'),
+    script: 'b2_breaker_iron',
+    mods: [
+      // 0.75 baseline lone cut * 1.40 = 1.05, so a lone Strike beats a packed Strike (~188 vs 179)
+      dmgUp(0.40, { ability: 'warden_strike', when: { targetAlone: 48 } }),
+      // 4/3 cancels the 0.75 lone cut: Anvil Drop hits a lone foe as if packed
+      dmgUp(1 / 3, { ability: 'warden_anvil_drop', when: { targetAlone: 48 } }),
+    ],
+    procs: [
+      { on: 'hit', ability: 'warden_strike', when: { targetAlone: 48 }, effects: [
+        { type: 'aura', to: 'target', aura: { id: 'warden_breaker_sunder', name: 'Sundered', icon: 'icon_sunder', kind: 'debuff', duration: 8, unique: 'per_caster',
+          mods: [{ stat: 'armorMul', add: -0.15 }] } },
+      ] },
+    ],
+  }, 'Passive. Strike deals 40% more to a foe with no other foe within 3 tiles, enough to beat a packed Strike, and Sunders that foe (15% less armor for 8 s). After a lone Strike you heave: you recover 0.3 s slower and your next swings come 0.8 s later. Anvil Drop hits a lone foe as if packed.'),
 
   // ---- Scribe: Hounds vs Hand
   scribe_kennel_law: PASSIVE('scribe_kennel_law', 'Kennel Law', 'icon_letter', 'scribe', 'ink', {
@@ -75,9 +87,9 @@ export const L30_ABILITIES = {
 
   // ---- Wayfinder: Kestrel vs Bow
   wayfinder_shared_hunt: PASSIVE('wayfinder_shared_hunt', 'Shared Hunt', 'icon_feather', 'wayfinder', 'physical', {
-    mods: [dmgUp(0.04, { ability: SHOTS })],
-    modAbility: [abl('wayfinder_sand_kestrel', 'effects.#bird.object.pet.effects.0.amount', { mul: 1.15 })],
-  }, 'Passive. Your Sand Kestrel deals 15% more. Your shots deal 4% more.'),
+    script: 'b2_shared_hunt',
+    procs: [{ on: 'hit', ability: SHOTS, effects: [{ type: 'script', name: 'b2_shared_hunt' }] }],
+  }, 'Passive. While your Sand Kestrel is out, your shots mark the foe. The kestrel flies to your mark, and your next shot on that foe ricochets to another foe within 3 tiles for 50% of the hit.'),
   wayfinder_drawn_cord: PASSIVE('wayfinder_drawn_cord', 'Drawn Cord', 'aimed_shot', 'wayfinder', 'physical', {
     mods: [dmgUp(0.1, { ability: 'wayfinder_aimed_shot' })],
     modAbility: [abl('wayfinder_aimed_shot', 'castTime', { add: -0.2 })],
@@ -87,10 +99,10 @@ export const L30_ABILITIES = {
   inkblade_second_shade: PASSIVE('inkblade_second_shade', 'Second Shade', 'fade', 'inkblade', 'shadow', {
     mods: [mod('openerBonus', { add: 0.15 })],
     modAbility: [abl('inkblade_fade', 'cooldown', { add: -4 })],
-  }, 'Passive. Your first attack from Fade or stealth deals 15% more. Fade is ready 4 s sooner after a fight.'),
+  }, 'Passive. Your first attack from Fade or stealth deals 15% more. Fade\'s cooldown is 2 s, down from 6 s.'),
   inkblade_deep_wound: PASSIVE('inkblade_deep_wound', 'Deep Wound', 'bleed_line', 'inkblade', 'physical', {
-    mods: [dmgUp(0.15, { ability: 'inkblade_bleed_line', periodic: true }), dmgUp(0.1, { ability: 'inkblade_spill' })],
-  }, 'Passive. Bleed Line ticks deal 15% more, and Spill deals 10% more.'),
+    script: 'b2_deep_wound',
+  }, 'Passive. Spill on a foe bleeding from your Bleed Line consumes the line and deals its remaining ticks at once.'),
 };
 
 // The suggested level 30 pick per named build (the side that matches the build's play).
@@ -98,7 +110,8 @@ export const PICK_30_OF = {
   shieldwheel: 'warden_gate_oath', forge_reaver: 'warden_breaker_iron', spellbreaker: 'warden_breaker_iron',
   tidehammer: 'mender_biting_word', lamplighter: 'mender_well_of_names', battle_mender: 'mender_well_of_names',
   ellipsis_duelist: 'scribe_heavy_quill', author_of_beasts: 'scribe_kennel_law', wordstorm: 'scribe_heavy_quill',
-  falconer: 'wayfinder_shared_hunt', stormcaller: 'wayfinder_drawn_cord', grapple_skirmisher: 'wayfinder_drawn_cord',
+  // Grapple Skirmisher never stands still for Aimed Shot, so Shared Hunt (the kestrel mark and ricochet, which works on the move) is its side
+  falconer: 'wayfinder_shared_hunt', stormcaller: 'wayfinder_drawn_cord', grapple_skirmisher: 'wayfinder_shared_hunt',
   night_letter: 'inkblade_second_shade', fan_dancer: 'inkblade_deep_wound', venom_knife: 'inkblade_deep_wound',
 };
 

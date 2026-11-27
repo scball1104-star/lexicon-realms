@@ -124,7 +124,7 @@ export const tests = [
     },
   },
   {
-    name: 'level 30: Gate Oath puts the ward on you and taunts nearby foes; Breaker Iron is a passive that is never cast',
+    name: 'level 30: Gate Oath puts the ward on you and taunts nearby foes; Breaker Iron is a passive that is never cast, and its lone Strike beats a packed Strike',
     fn() {
       const { world, p, pid, C } = duelWorld({ cls: 'warden', level: 30, x: 10, y: 15, learnAll: false, builds2: true });
       p.build.firstKill = true;
@@ -145,10 +145,55 @@ export const tests = [
       assert(br.C.b2.pick(br.p, { level: 30, ability: 'warden_breaker_iron' }));
       eq(JSON.stringify(br.p.bar), bar0, 'Breaker Iron stays off the bar');
       const mods = br.C.data.talentInfo(br.p).mods.filter((m) => m.stat === 'damageDone' && m.when && m.when.targetAlone === 48);
-      assert(mods.length >= 1, 'Breaker Iron mod is on the hero');
+      assert(mods.some((m) => m.mul === 1.4 && m.ability === 'warden_strike'), 'lone Strike +40%');
+      assert(mods.some((m) => Math.abs(m.mul - 4 / 3) < 1e-5 && m.ability === 'warden_anvil_drop'), 'lone Anvil as if packed');
       br.world.enqueue(br.pid, { t: 'cast', ability: 'warden_breaker_iron' });
       const ev2 = br.world.step();
       assert(ev2.some((x) => x.type === 'cast_fail' && x.ability === 'warden_breaker_iron' && x.reason === 'passive'), 'a passive is never cast');
+
+      function strikeAmount(alone) {
+        const d = duelWorld({ cls: 'warden', level: 30, x: 10, y: 15, learnAll: true, builds2: true });
+        d.p.build.firstKill = true;
+        takePicks(d.C, d.p, 'warden', 25);
+        assert(d.C.b2.pick(d.p, { level: 30, ability: 'warden_breaker_iron' }));
+        d.p.res.cur = d.p.res.max;
+        const foe = addMob(d.world, 'brute_30', 11, 15);
+        if (!alone) addMob(d.world, 'brute_30', 12, 15);
+        d.p.target = foe.id;
+        const ev = [];
+        ev.push(...castNow(d.world, d.pid, 'warden_strike', foe.id));
+        ev.push(...stepN(d.world, 8));
+        const hit = ofType(ev, 'damage', (e) => e.ability === 'warden_strike' && e.dst === foe.id && e.amount > 0)[0];
+        assert(hit, `Strike landed (alone=${alone})`);
+        return { amount: hit.amount, sunder: foe.auras.some((a) => a.id === 'warden_breaker_sunder'), foe, ev, d };
+      }
+      const lone = strikeAmount(true);
+      const packed = strikeAmount(false);
+      assert(lone.amount > packed.amount, `lone Strike ${lone.amount} should beat packed ${packed.amount}`);
+      assert(lone.sunder, 'lone Strike Sunders');
+      assert(!packed.sunder, 'packed Strike does not Sunder');
+      assert(lone.d.p.swing && lone.d.p.swing.main > lone.d.world.state.tick, 'lone Strike heaves the next swing');
+
+      function anvilAmount(alone) {
+        const d = duelWorld({ cls: 'warden', level: 30, x: 10, y: 15, learnAll: true, builds2: true });
+        d.p.build.firstKill = true;
+        takePicks(d.C, d.p, 'warden', 25);
+        assert(d.C.b2.pick(d.p, { level: 30, ability: 'warden_breaker_iron' }));
+        d.C.prog.learn(d.p, 'warden_anvil_drop');
+        d.p.res.cur = d.p.res.max;
+        const foe = addMob(d.world, 'brute_30', 11, 15);
+        if (!alone) addMob(d.world, 'brute_30', 12, 15);
+        d.p.target = foe.id;
+        const ev = [];
+        ev.push(...castNow(d.world, d.pid, 'warden_anvil_drop', foe.id));
+        ev.push(...stepN(d.world, 8));
+        const hit = ofType(ev, 'damage', (e) => e.ability === 'warden_anvil_drop' && e.dst === foe.id && e.amount > 0)[0];
+        assert(hit, `Anvil Drop landed (alone=${alone})`);
+        return hit.amount;
+      }
+      const loneAnvil = anvilAmount(true);
+      const packedAnvil = anvilAmount(false);
+      assert(Math.abs(loneAnvil - packedAnvil) <= 1, `lone Anvil ${loneAnvil} should match packed ${packedAnvil}`);
     },
   },
   {
@@ -177,18 +222,38 @@ export const tests = [
     },
   },
   {
-    name: 'level 30: Shared Hunt patches the kestrel and raises shots; Drawn Cord shortens Aimed Shot and raises it',
+    name: 'level 30: Shared Hunt marks with the kestrel and ricochets the next shot; Drawn Cord shortens Aimed Shot and raises it; Grapple takes Shared Hunt',
     fn() {
-      const h = duelWorld({ cls: 'wayfinder', level: 30, learnAll: false, builds2: true });
+      const g = BUILDS2.wayfinder.builds.find((b) => b.id === 'grapple_skirmisher');
+      eq(g.picks[30], 'wayfinder_shared_hunt', 'Grapple Skirmisher takes Shared Hunt (works on the move)');
+      eq(BUILDS2.wayfinder.builds.find((b) => b.id === 'stormcaller').picks[30], 'wayfinder_drawn_cord', 'Stormcaller stays with Drawn Cord');
+
+      const h = duelWorld({ cls: 'wayfinder', level: 30, x: 10, y: 15, learnAll: true, builds2: true });
       h.p.build.firstKill = true;
       takePicks(h.C, h.p, 'wayfinder', 25);
-      const before = h.C.data.ability(h.p, 'wayfinder_sand_kestrel');
-      const amt0 = before.effects.find((f) => f.key === 'bird').object.pet.effects[0].amount;
       assert(h.C.b2.pick(h.p, { level: 30, ability: 'wayfinder_shared_hunt' }));
-      const after = h.C.data.ability(h.p, 'wayfinder_sand_kestrel');
-      const amt1 = after.effects.find((f) => f.key === 'bird').object.pet.effects[0].amount;
-      assert(Math.abs(amt1.base - amt0.base * 1.15) < 1e-9, 'kestrel +15%');
-      assert(h.C.data.talentInfo(h.p).mods.some((m) => m.stat === 'damageDone' && m.mul === 1.04), 'shots +4%');
+      assert(h.C.data.hasScript(h.p, 'b2_shared_hunt'), 'Shared Hunt script is on');
+      h.C.prog.learn(h.p, 'wayfinder_sand_kestrel');
+      if (h.p.res) h.p.res.cur = h.p.res.max;
+      const evK = [];
+      evK.push(...castNow(h.world, h.pid, 'wayfinder_sand_kestrel'));
+      evK.push(...stepN(h.world, 20));
+      const bird = h.world.state.ents.find((e) => e.kind === 'object' && e.obj && e.obj.def && e.obj.def.id === 'wayfinder_kestrel');
+      assert(bird, 'kestrel is out');
+      const foe = addMob(h.world, 'brute_30', 14, 15);
+      const pack = addMob(h.world, 'brute_30', 15, 15);
+      h.p.target = foe.id;
+      const ev1 = [];
+      ev1.push(...castNow(h.world, h.pid, 'wayfinder_quick_shot', foe.id));
+      ev1.push(...stepN(h.world, 30));
+      assert(foe.auras.some((a) => a.id === 'wayfinder_hunt_mark'), 'first shot marks');
+      assert(!ev1.some((e) => e.type === 'b2_proc' && e.what === 'shared_hunt'), 'first shot does not ricochet');
+      const ev2 = [];
+      ev2.push(...castNow(h.world, h.pid, 'wayfinder_quick_shot', foe.id));
+      ev2.push(...stepN(h.world, 30));
+      const bounce = ev2.filter((e) => e.type === 'damage' && e.ability === 'wayfinder_shared_hunt' && e.dst === pack.id && e.amount > 0);
+      assert(bounce.length >= 1, `next shot ricochets (${bounce.length})`);
+      assert(ev2.some((e) => e.type === 'b2_proc' && e.what === 'shared_hunt' && e.target === pack.id), 'ricochet proc');
 
       const d = duelWorld({ cls: 'wayfinder', level: 30, learnAll: false, builds2: true });
       d.p.build.firstKill = true;
@@ -202,23 +267,68 @@ export const tests = [
     },
   },
   {
-    name: 'level 30: Second Shade raises the Fade opener and cuts Fade cooldown; Deep Wound raises Bleed Line and Spill',
+    name: 'level 30: Second Shade raises the Fade opener and cuts Fade cooldown to 2 s; Deep Wound spends Bleed Line on Spill',
     fn() {
       const s = duelWorld({ cls: 'inkblade', level: 30, learnAll: false, builds2: true });
       s.p.build.firstKill = true;
       takePicks(s.C, s.p, 'inkblade', 25);
       eq(s.C.data.ability(s.p, 'inkblade_fade').cooldown, 6, 'Fade starts at 6 s');
       assert(s.C.b2.pick(s.p, { level: 30, ability: 'inkblade_second_shade' }));
-      eq(s.C.data.ability(s.p, 'inkblade_fade').cooldown, 2, 'Fade ready 4 s sooner');
+      eq(s.C.data.ability(s.p, 'inkblade_fade').cooldown, 2, 'Fade cooldown is 2 s');
       assert(s.C.data.talentInfo(s.p).mods.some((m) => m.stat === 'openerBonus' && m.add === 0.15), 'opener +15%');
+      assert(!B2_ABILITIES.inkblade_second_shade.text.includes('after a fight'), 'text matches the 2 s cooldown, not a special after-fight rule');
 
-      const w = duelWorld({ cls: 'inkblade', level: 30, learnAll: false, builds2: true });
+      const w = duelWorld({ cls: 'inkblade', level: 30, x: 10, y: 15, learnAll: true, builds2: true });
       w.p.build.firstKill = true;
       takePicks(w.C, w.p, 'inkblade', 25);
       assert(w.C.b2.pick(w.p, { level: 30, ability: 'inkblade_deep_wound' }));
-      const mods = w.C.data.talentInfo(w.p).mods;
-      assert(mods.some((m) => m.stat === 'damageDone' && m.mul === 1.15 && m.ability === 'inkblade_bleed_line' && m.periodic), 'Bleed Line ticks +15%');
-      assert(mods.some((m) => m.stat === 'damageDone' && m.mul === 1.1 && m.ability === 'inkblade_spill'), 'Spill +10%');
+      assert(w.C.data.hasScript(w.p, 'b2_deep_wound'), 'Deep Wound script is on');
+      if (w.p.res) w.p.res.cur = w.p.res.max;
+      const foe = addMob(w.world, 'brute_30', 11, 15);
+      w.p.target = foe.id;
+      w.p.combo = { target: foe.id, n: 3, until: w.world.tick + 400 };
+      const evB = [];
+      evB.push(...castNow(w.world, w.pid, 'inkblade_bleed_line', foe.id));
+      evB.push(...stepN(w.world, 24));
+      assert(foe.auras.some((a) => a.id === 'inkblade_bleed_line'), 'Bleed Line is on');
+      w.p.combo = { target: foe.id, n: 3, until: w.world.tick + 400 };
+      if (w.p.res) w.p.res.cur = w.p.res.max;
+      const evS = [];
+      evS.push(...castNow(w.world, w.pid, 'inkblade_spill', foe.id));
+      evS.push(...stepN(w.world, 8));
+      assert(!foe.auras.some((a) => a.id === 'inkblade_bleed_line'), 'Spill consumes Bleed Line');
+      const dump = evS.filter((e) => (e.type === 'damage' && e.ability === 'inkblade_deep_wound' && e.dst === foe.id && e.amount > 0) || (e.type === 'b2_proc' && e.what === 'deep_wound'));
+      assert(dump.length >= 1, `remaining ticks dumped (${dump.length})`);
+    },
+  },
+  {
+    name: 'level 30: Well of Names and Gate Oath go on the bar when a slot is free, and stay off it when the bar is full',
+    fn() {
+      const well = duelWorld({ cls: 'mender', level: 30, learnAll: false, builds2: true });
+      well.p.build.firstKill = true;
+      takePicks(well.C, well.p, 'mender', 25);
+      const free = 8 - well.p.bar.filter(Boolean).length;
+      assert(free >= 1, 'a slot is free before the pick');
+      assert(well.C.b2.pick(well.p, { level: 30, ability: 'mender_well_of_names' }));
+      assert(well.p.bar.includes('mender_well_of_names'), 'Well of Names sits on a free slot');
+
+      const full = duelWorld({ cls: 'mender', level: 30, learnAll: true, builds2: true });
+      full.p.build.firstKill = true;
+      takePicks(full.C, full.p, 'mender', 25);
+      const keep = full.p.bar.slice();
+      while (full.p.bar.length < 8) full.p.bar.push(full.p.known.find((id) => !full.p.bar.includes(id)) || 'mender_mend');
+      const before = full.p.bar.slice();
+      assert(full.C.b2.pick(full.p, { level: 30, ability: 'mender_well_of_names' }));
+      assert(full.p.known.includes('mender_well_of_names'), 'Well is known when the bar is full');
+      assert(!full.p.bar.includes('mender_well_of_names'), 'a full bar is not evicted for Well of Names');
+      eq(full.p.bar.slice().filter(Boolean).length, before.filter(Boolean).length, 'bar length stays full');
+      void keep;
+
+      const gate = duelWorld({ cls: 'warden', level: 30, learnAll: false, builds2: true });
+      gate.p.build.firstKill = true;
+      takePicks(gate.C, gate.p, 'warden', 25);
+      assert(gate.C.b2.pick(gate.p, { level: 30, ability: 'warden_gate_oath' }));
+      assert(gate.p.bar.includes('warden_gate_oath'), 'Gate Oath sits on a free slot');
     },
   },
 ];

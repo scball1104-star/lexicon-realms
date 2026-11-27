@@ -175,7 +175,7 @@ Skill picks (2 core known: Strike, Shield Bash, Fact):
 | 6 | War Cry (new: you and allies within 8 tiles +12% damage 12 s, 30 Resolve, 40 s) or Iron Hide (new: armor +40% 10 s, 30 Resolve, 40 s) | attack boost vs armor boost |
 | 14 | Oath of Iron (Fact) or Anvil Drop (new: 40 Resolve, `1.6 W + 6 + 4 L`, stun 1 s, 10 s) | defense vs burst |
 | 25 | Slag Brand or Hammerfall (BUILDS_2_PLAY 1.3, built) | fire vs steel |
-| 30 | Gate Oath (new: 20 Resolve, 45 s: damage taken -12% for 8 s, taunt every foe within 6 tiles) or Breaker Iron (new, passive: Strike and Anvil Drop +8% on a foe with no other foe within 3 tiles) | gate vs breaker |
+| 30 | Gate Oath (new: 20 Resolve, 45 s: damage taken -12% for 8 s, taunt every foe within 6 tiles) or Breaker Iron (new, passive: Strike +40% on a lone foe, enough to beat a packed Strike, and Sunders it; after a lone Strike you heave (recover 0.3 s slower, next swings 0.8 s later); Anvil Drop hits a lone foe as if packed) | gate vs breaker |
 
 Signature skills (one at 10, one at 20, the last at 35):
 
@@ -336,7 +336,7 @@ Skill picks (core: Quick Shot, Pinning Shot, Fact):
 | 6 | Hunter's Mark (new: the target takes +10% from all, 15 s) or Sand Cloak (new: 25% of hits miss you for 8 s, 30 s) | attack boost vs defense boost |
 | 14 | Hush Arrow (new: interrupt and silence 2 s, 12 s) or Scatter Shot (new: cone, knock up to 3 foes back 3 tiles) | duel casters vs push a pack |
 | 25 | Tanglewire or Broadhead (BUILDS_2_PLAY 1.3, built) | snare vs damage |
-| 30 | Shared Hunt (new, passive: Sand Kestrel +15%, your shots +4%) or Drawn Cord (new, passive: Aimed Shot +10% and 0.2 s shorter) | kestrel vs bow |
+| 30 | Shared Hunt (new, passive: while the Sand Kestrel is out, your shots mark the foe, the kestrel flies to the mark, and the next shot on it ricochets to another foe within 3 tiles for 50%) or Drawn Cord (new, passive: Aimed Shot +10% and 0.2 s shorter) | kestrel vs bow |
 
 Signature skills:
 
@@ -388,7 +388,7 @@ Skill picks (core: Nick, Spill, Fact):
 | 6 | Shadow Mark (new: the target takes +10% from you for 15 s) or Ink Cloak (new: dodge +30% for 6 s, 30 s) | attack boost vs defense boost |
 | 14 | Quiet Wire (new: from Fade, silence 3 s and bleed) or Throwing Knife (new: 8 tiles, `0.6 W + 2 + L`, +1 mark, 6 s) | assassin vs ranged |
 | 25 | Gall Ink or Opened Vein (BUILDS_2_PLAY 1.3, built) | poison vs bleed |
-| 30 | Second Shade (new, passive: first attack from Fade or stealth +15%, Fade ready 4 s sooner after a fight) or Deep Wound (new, passive: Bleed Line ticks +15%, Spill +10%) | shade vs wound |
+| 30 | Second Shade (new, passive: first attack from Fade or stealth +15%, Fade's cooldown is 2 s, down from 6 s) or Deep Wound (new, passive: Spill consumes your Bleed Line and deals its remaining ticks at once) | shade vs wound |
 
 Signature skills:
 
@@ -559,9 +559,10 @@ cap 30: overflow XP fills Renown; see PROGRESSION.md).
   and the Character panel. SAVE_VERSION stays 2 (additive `renown` field).
 - **Level 30 pick.** The ten skills of `src/data/builds2_l30.js`, live. Eight are **passive** (known = on, never on the
   bar): Biting Word, Breaker Iron, Kennel Law, Heavy Quill, Shared Hunt, Drawn Cord, Second Shade, Deep Wound. Two are
-  cast: Well of Names and Gate Oath. Buying back the other side: 400 gold (the same DRAFT price as 25). Each named build
-  suggests the side that matches its play. The talents strip keeps five slots: from 25 the level 30 pick joins and the
-  level 3 pick leaves it.
+  cast: Well of Names and Gate Oath (each goes on the bar when a slot is free; a full bar is not evicted). Buying back
+  the other side: 400 gold (the same DRAFT price as 25). Each named build suggests the side that matches its play
+  (Grapple Skirmisher takes Shared Hunt, which works on the move; Stormcaller takes Drawn Cord). The talents strip keeps
+  five slots: from 25 the level 30 pick joins and the level 3 pick leaves it.
 - **5-piece sets.** 5-piece sets (6.5, 6.8) are built on the Endmarket tier: see the Built note under 6.5.
 - **Not built:** the level 45 pick.
 
