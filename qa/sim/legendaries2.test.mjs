@@ -127,6 +127,16 @@ T('The Far Tether: Grapple Line drags a heavy foe to her and roots it; without i
   assert(Math.abs(bare.p.x - bx) > TILE, 'without it the heavy foe pulls her');
 });
 
+T('The Far Tether: a fresh foe stays pinned about 1 s after the 0.35 s pull lands', () => {
+  const h = H('wayfinder', { wear: ['far_tether_bow'], known: ['wayfinder_grapple_line'], mobs: [['heavy_15', 18, 15]] });
+  castNow(h.world, h.pid, 'wayfinder_grapple_line', h.m.id);
+  const t0 = h.world.tick;
+  let last = t0;
+  for (let i = 0; i < 60; i++) { h.world.step(); if (aura(h.m, 'lg_far_tether_root')) last = h.world.tick; }
+  const held = (last - t0) / 20;
+  assert(held >= 1.25 && held <= 1.45, `pinned for the pull plus about 1 s (${held} s)`);
+});
+
 T('Unwritten Step: attacks do not end Inkwalk; it lasts 2 s; without it the first attack ends it', () => {
   const h = H('inkblade', { wear: ['unwritten_cowl'], known: ['inkblade_inkwalk'], mobs: [['dummy_15', 11, 15]] });
   castNow(h.world, h.pid, 'inkblade_inkwalk'); h.world.step();

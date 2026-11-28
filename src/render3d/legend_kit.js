@@ -109,16 +109,20 @@ export function tollingRod() {
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.95, 8), dark); shaft.position.y = top - 0.475; g.add(shaft);
   const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.05, 10), bronze); collar.position.y = top; g.add(collar);
   const pts = [];
-  for (let i = 0; i <= 12; i++) { const t = i / 12; pts.push(new THREE.Vector2(0.04 + 0.14 * t * t, 0.22 * (1 - t))); }
+  // a bell hanging mouth-down (Scott 2026-11-27: the first take opened upward and read as a torch): the mouth flares
+  // at the bottom, a narrow waist, a domed crown on the rod's end, and the flame clapper hangs just below the mouth
+  for (let i = 0; i <= 14; i++) { const t = i / 14; pts.push(new THREE.Vector2(0.055 + 0.115 * (1 - t) ** 3, 0.2 * t)); }
   const bell = new THREE.Mesh(new THREE.LatheGeometry(pts, 20), bronze); bell.material.side = THREE.DoubleSide;
-  bell.rotation.x = Math.PI; bell.position.y = top + 0.2; bell.userData.tint = true; g.add(bell);
-  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.014, 8, 20), bronze); lip.rotation.x = Math.PI / 2; lip.position.y = top + 0.02; g.add(lip);
-  const clapper = new THREE.Group(); clapper.position.set(0, top + 0.08, 0); g.add(clapper);
-  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.09, 5), dark); chain.position.y = -0.05; clapper.add(chain);
+  bell.position.y = top + 0.02; bell.userData.tint = true; g.add(bell);
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), bronze); crown.position.y = top + 0.22; g.add(crown);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), bronze); knob.position.y = top + 0.29; g.add(knob);
+  const lip = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.014, 8, 20), bronze); lip.rotation.x = Math.PI / 2; lip.position.y = top + 0.02; g.add(lip);
+  const clapper = new THREE.Group(); clapper.position.set(0, top + 0.1, 0); g.add(clapper);   // hung from inside the crown
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.13, 5), dark); chain.position.y = -0.07; clapper.add(chain);
   const flame = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), std({ color: '#ffd27a', emissive: '#ffd27a', emissiveIntensity: 3.2, roughness: 0.3 }));
-  flame.scale.set(0.75, 1.25, 0.75); flame.position.y = -0.11; flame.userData.keepColor = true; clapper.add(flame);
+  flame.scale.set(0.95, 1.5, 0.95); flame.position.y = -0.16;   // the flame hangs just below the mouth, where it reads flame.userData.keepColor = true; clapper.add(flame);
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: radial('rgba(255,236,190,0.95)', 'rgba(255,140,40,0.3)'), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-  halo.scale.setScalar(0.28); halo.position.y = -0.11; clapper.add(halo);
+  halo.scale.setScalar(0.3); halo.position.y = -0.16; clapper.add(halo);
   castAll(g); flame.castShadow = false;
   Object.assign(g.userData, { legend: 'the_tolling_rod', clapper, flame, halo });
   return g;
@@ -242,12 +246,15 @@ export function farTetherBow({ h = 1.32 } = {}) {
   for (const m of braid(top, bot, 0.0055, 16, rope)) g.add(m);
   // the rope's tail past the lower limb, and the hook on it (it swings as she walks)
   const swing = new THREE.Group(); swing.position.copy(top); g.add(swing);   // held, the curve's far end is the lower limb
-  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.13, 5), rope); tail.position.y = -0.065; swing.add(tail);
-  const iron = std({ color: '#3a3532', roughness: 0.4, metalness: 0.8 });
-  const shank = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.06, 6), iron); shank.position.y = -0.15; swing.add(shank);
-  const bend = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.009, 6, 12, Math.PI * 1.3), iron); bend.rotation.set(0, Math.PI / 2, Math.PI * 0.85); bend.position.set(0, -0.19, 0.022); swing.add(bend);
-  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.011, 0.035, 5), iron); tip.position.set(0, -0.17, 0.05); tip.rotation.x = -0.4; swing.add(tip);
-  for (const m of [shank, bend, tip]) { m.scale.multiplyScalar(1.5); m.position.y *= 1.25; m.position.z *= 1.5; }
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.16, 5), rope); tail.position.y = -0.08; swing.add(tail);
+  const iron = std({ color: '#6a625a', roughness: 0.35, metalness: 0.75, emissive: LEGEND_ORANGE, emissiveIntensity: 0.35 });   // lighter, with a legendary glint: it reads at play distance
+  // one iron tube: a shank, then a J that curls out on a diagonal (x and z at once), so it reads as a hook from any side
+  // as it swings (the first take curled in one plane and showed as a stub edge-on), and a point at the end
+  const hook = new THREE.Group(); hook.position.y = -0.16; swing.add(hook);
+  const hk = new THREE.CatmullRomCurve3([[0, 0.02, 0], [0, -0.03, 0], [0.008, -0.062, 0.008], [0.026, -0.074, 0.026], [0.042, -0.062, 0.042], [0.048, -0.038, 0.048]].map((p) => new THREE.Vector3(...p)));
+  hook.add(new THREE.Mesh(new THREE.TubeGeometry(hk, 20, 0.0085, 7), iron));
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.03, 6), iron); tip.position.set(0.049, -0.024, 0.049); tip.rotation.set(-0.25, 0, 0.25); hook.add(tip);
+  hook.scale.setScalar(2.4);   // about 2.4x the first take's hook
   castAll(g);
   Object.assign(g.userData, { legend: 'far_tether_bow', hook: swing });
   return g;
