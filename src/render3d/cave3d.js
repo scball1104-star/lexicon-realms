@@ -12,6 +12,8 @@
 //   glow fungus     small caps that glow teal at the foot of walls, with a soft pool of their light on the floor (an
 //                   additive quad, no real light: phones get 2 lights)
 //   puddles         dark, glossy pools in the middle of rooms
+//                   (a zone's own `puddle: { color, opacity }` makes them a lit, matte pool of that colour instead:
+//                   the Weir Works' silt water, cap 35; with no sky to mirror, the glossy black read as holes)
 // Nothing lands on the doors, the lantern, the arrival, the chests or a cell the plan already dressed.
 import * as THREE from '../vendor/three/three.module.min.js';
 import { radial, softDot } from './textures.js';
@@ -53,6 +55,7 @@ function spike(seed, h, r) {
 export function dressCave(B, zone, plan) {
   if (!zone || zone.kind !== 'cave') return null;
   const M = mats();
+  const puddleMat = zone.puddle ? std({ color: zone.puddle.color || '#3e5450', roughness: 0.25, metalness: 0, transparent: true, opacity: zone.puddle.opacity || 0.6, depthWrite: false, map: softDot(), name: 'cv_puddle_silt' }) : M.puddle;
   const { W, H, solid, floor } = cells(zone);
   const key = (x, y) => `${x},${y}`;
   const keep = new Set();
@@ -129,7 +132,7 @@ export function dressCave(B, zone, plan) {
       const p = g.attributes.position;
       for (let i = 1; i < p.count; i++) { const k = 0.75 + hashXY(i, x, y) * 0.4; p.setX(i, p.getX(i) * k); p.setY(i, p.getY(i) * k); }
       g.rotateX(-Math.PI / 2);
-      B.mergeGeo(g, M.puddle, M4(cx, 0.016, cz, hashXY(x, y, 142) * 6.28, 1 + hashXY(x, y, 143) * 0.8, 1, 0.7 + hashXY(x, y, 144) * 0.4), false);
+      B.mergeGeo(g, puddleMat, M4(cx, 0.016, cz, hashXY(x, y, 142) * 6.28, 1 + hashXY(x, y, 143) * 0.8, 1, 0.7 + hashXY(x, y, 144) * 0.4), false);
       puddles++;
     }
   }

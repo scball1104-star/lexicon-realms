@@ -8,6 +8,8 @@
 //   tickMill3d(group, now, fast)  every frame for the shown zone (renderer3d.js): the wheels turn; `fast` (the Weir
 //                                 Works: the Wheel-Keeper under half health) turns a `keeper` wheel about 2.5 times as fast
 //   millProp(p)                   one prop's group (tests and the cave lane's second wheel use it)
+//   millTrough(x, z)              the horse trough in style 'mill' (zone3d.js, decor x1_trough): plank staves, iron bands,
+//                                 silt water
 //
 // Props: mr_wheel { r (degrees about the vertical), scale, keeper? } the undershot wheel, its axle east to west by default so
 // it stands in a north to south race (r 90: the axle north to south, the face toward the north-up cave camera); mr_undercroft { h } a dark stone-framed door low in the mill's wall (the Weir Works
@@ -22,24 +24,31 @@ const M = {
   paper: std('#d8cca8', { side: THREE.DoubleSide }), wetPaper: std('#a89c7c', { side: THREE.DoubleSide }), ink: std('#2a2a30'),
   foam: std('#d8e4e0', { transparent: true, opacity: 0.55, roughness: 0.4 }),
 };
+// a lit wheel's wood (a prop with a `lamp`: the Weir Works' cave wheels): warmer, with a touch of emissive, so the wheel
+// reads against the cave dark behind it under its one lamp (the plain wet wood read as a black silhouette)
+const GLOW = {
+  wetWood: std('#5a3e28', { emissive: '#3e2814', emissiveIntensity: 0.6 }),
+  wood: std('#7a5838', { emissive: '#5a3a1c', emissiveIntensity: 0.6 }),
+};
 const mesh = (geo, mat, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(geo, mat); o.position.set(x, y, z); o.castShadow = true; o.receiveShadow = true; return o; };
 const box = (w, h, d, mat, x, y, z) => mesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
 
 /** The undershot wheel: two posts and a cross beam, an iron axle, two rims, 12 spokes and paddles, foam where it dips. */
 function wheel(p) {
+  const W = p.lamp ? GLOW : M;   // a lit (cave) wheel: the warmer wood
   const g = new THREE.Group();
-  for (const px of [-1.05, 1.05]) { g.add(box(0.3, 3.4, 0.3, M.wetWood, px, 1.7, 0)); g.add(box(0.5, 0.25, 0.5, M.wetStone, px, 0.12, 0)); }
-  g.add(box(2.4, 0.22, 0.22, M.wetWood, 0, 3.15, 0));
+  for (const px of [-1.05, 1.05]) { g.add(box(0.3, 3.4, 0.3, W.wetWood, px, 1.7, 0)); g.add(box(0.5, 0.25, 0.5, M.wetStone, px, 0.12, 0)); }
+  g.add(box(2.4, 0.22, 0.22, W.wetWood, 0, 3.15, 0));
   const axle = mesh(new THREE.CylinderGeometry(0.12, 0.12, 2.5, 8), M.iron, 0, 2.05, 0); axle.rotation.z = Math.PI / 2; g.add(axle);
   const spin = new THREE.Group(); spin.position.y = 2.05; spin.name = 'mr_wheel_spin'; g.add(spin);
   const hub = mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.55, 10), M.iron); hub.rotation.z = Math.PI / 2; spin.add(hub);
   const R = 2.15;
-  for (const ox of [-0.22, 0.22]) { const rim = mesh(new THREE.TorusGeometry(R, 0.09, 6, 18), M.wetWood, ox, 0, 0); rim.rotation.y = Math.PI / 2; spin.add(rim); }
+  for (const ox of [-0.22, 0.22]) { const rim = mesh(new THREE.TorusGeometry(R, 0.09, 6, 18), W.wetWood, ox, 0, 0); rim.rotation.y = Math.PI / 2; spin.add(rim); }
   const N = 12;
   for (let i = 0; i < N; i++) {
     const a = (i / N) * Math.PI * 2;
-    const sp = mesh(new THREE.BoxGeometry(0.08, R * 2 - 0.15, 0.08), M.wood); sp.rotation.x = a; spin.add(sp);
-    const pad = mesh(new THREE.BoxGeometry(0.62, 0.48, 0.07), M.wetWood, 0, Math.cos(a) * R, Math.sin(a) * R); pad.rotation.x = a; spin.add(pad);
+    const sp = mesh(new THREE.BoxGeometry(0.08, R * 2 - 0.15, 0.08), W.wood); sp.rotation.x = a; spin.add(sp);
+    const pad = mesh(new THREE.BoxGeometry(0.62, 0.48, 0.07), W.wetWood, 0, Math.cos(a) * R, Math.sin(a) * R); pad.rotation.x = a; spin.add(pad);
   }
   const foam = mesh(new THREE.CircleGeometry(0.9, 12), M.foam, 0, 0.05, 0); foam.rotation.x = -Math.PI / 2; foam.castShadow = false; g.add(foam);
   g.scale.setScalar(p.scale || 1);
@@ -101,6 +110,21 @@ function ledger(p) {
   return g;
 }
 
+const SILT = std('#5a6a52', { roughness: 0.15, metalness: 0, transparent: true, opacity: 0.85 });
+/** The mill's horse trough (zone3d.js, decor x1_trough in style 'mill'): plank staves on two trestles, iron bands, silt
+ *  water a hand below the rim; origin (x, z) on the ground. The plain dark box it replaces read as a black block. */
+export function millTrough(x, z) {
+  const g = new THREE.Group(); g.position.set(x, 0, z);
+  const L = 1.7, D = 0.6, H = 0.5, t = 0.07, sh = H - 0.12, sy = 0.12 + sh / 2;
+  for (const sz of [-1, 1]) g.add(box(L, sh, t, M.plank, 0, sy, sz * (D / 2 - t / 2)));
+  for (const sx of [-1, 1]) g.add(box(t, sh, D, M.plank, sx * (L / 2 - t / 2), sy, 0));
+  g.add(box(L - 0.04, t, D - 0.04, M.wetWood, 0, 0.14, 0));
+  for (const sx of [-0.55, 0.55]) g.add(box(0.12, 0.14, D + 0.1, M.wetWood, sx, 0.07, 0));   // the trestles
+  for (const sx of [-0.45, 0.45]) g.add(box(0.04, sh + 0.02, D + 0.02, M.iron, sx, sy, 0));   // the bands
+  const w = new THREE.Mesh(new THREE.PlaneGeometry(L - 2 * t, D - 2 * t), SILT); w.rotation.x = -Math.PI / 2; w.position.y = H - 0.08; g.add(w);
+  return g;
+}
+
 /** One code-built prop's group, placed at its tile's centre (null for an id this kit does not know). */
 export function millProp(p) {
   let g = null, spin = null;
@@ -127,7 +151,7 @@ export function buildMill3d(zone, group) {
   const spins = [], lights = [];
   for (const p of zone.millProps) {
     const o = millProp(p); if (!o) continue; root.add(o); if (o.userData.spin) spins.push(o.userData.spin);
-    // a prop's own light (the Weir Works: a dark cave, so its wheels are lit from the floor in front): { k, color?, h?, dz? }
+    // a prop's own light (the Weir Works: a dark cave, so its wheels are lit from the floor in front): { k, color?, h?, dz? }; a lit wheel also gets the warmer wood (GLOW)
     if (p.lamp) lights.push({ pos: new THREE.Vector3(p.x + 0.5, p.lamp.h || 3.0, p.y + 0.5 + (p.lamp.dz ?? 3)), color: p.lamp.color || '#ffb35c', k: p.lamp.k || 1 });
   }
   group.add(root);

@@ -296,6 +296,7 @@ export function build(db) {
     id: 'millrace', name: 'The Millrace', music: 'the_downs', under: 'grass', style: 'mill', mounts: true,
     palette: { grass: '#4a5e40', tallgrass: '#3e5440', dirt: '#6a5a44', plaza: '#7a6a50', sand: '#8a7a60', x1_peat: '#3a3a2a', x1_bracken: '#4a4a32' },
     lighting: { tint: 'none', dark: 0 }, grade: { tint: 'rgba(80,90,70,0.10)', desat: 0.12 },
+    water3d: { silt: '#6a6a48', k: 0.7 },   // render only (src/render3d/zone3d.js waterMaterial): the race's water graded toward silt
     levels: [30, 35], arrival: [GATE.arrive[0], GATE.arrive[1]],
     wade: { terrains: ['shallow'], slow: 0.15 },
     regions: [{ id: 'mr_mill', name: "Ferrick's Mill", kind: 'town', x: 74, y: 28, w: 40, h: 34, levels: [30, 35], music: 'the_downs', lighting: { tint: 'none', dark: 0 }, under: 'grass' }],

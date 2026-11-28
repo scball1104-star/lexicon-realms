@@ -1521,6 +1521,8 @@ Data: `src/data/rares.js`, `src/data/story_chains.js`, `src/data/world_events.js
 - **Caves in 3D** (src/render3d/cave3d.js dressCave, called by dungeon3d.js dressPlace for `kind: 'cave'`): floor patches,
   gravel, stalagmites, glow fungus with additive light pools, puddles, by hashXY of the cell (no rng); cave walls take
   vertex colours from `caveTint` (dungeon3d.js). dressPlace may now return a Group (the fire glow plus the fungus glows).
+  A cave's own **`puddle: { color, opacity }`** (render only) makes its puddles lit, matte pools of that colour instead of
+  the glossy dark ones (the Weir Works, cap 35: with no sky to mirror they read as holes).
 
 ## Mounts (2026-11-22, LIVE; D:/LQOnline/mounts/BRIEF.md, Scott said go with its recommended answers)
 
@@ -1829,6 +1831,10 @@ shared and fps is noisy). How to run: `docs/LOOKDEV.md`. Draw calls come from `r
   `secrets` of kind 'waterfall'. zone3d.js hooks: `waterMaterial(..., kit)` patches the surface, `buildFalls` replaces
   the old curtain when the kit is on. renderer3d.js feeds the sky colours each frame (`waterSky`) and the spray scale on
   resize (`setSprayScale`). Render only: the sim and collision never see it.
+- **Silt grade.** A zone's own **`water3d: { silt: '#rrggbb', k }`** (render only, zone3d.js `waterMaterial`) pulls its
+  water's colour toward `silt` at the water's own brightness, `k` of the way (the Millrace, cap 35). Zones without it are
+  unchanged. In style `mill` the decor `x1_trough` is the mill's own trough (src/render3d/mill3d.js `millTrough`), and a
+  mill wheel prop with a `lamp` gets warmer, slightly emissive wood so it reads in a cave.
 - **The falls pool is map water.** The valley falls pool is shallow tiles in tools/maps/zone_valley.mjs (`FALLS_POOL`,
   rows 6 to 8 under the falls): walkable, so the way through the falls to the Keeper Cache stays open
   (qa/tests/water.test.mjs walks it in the sim and opens the cache).

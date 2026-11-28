@@ -79,9 +79,10 @@ export function build() {
   // the Wet Gallery: crates on the dry walk, a ledger crate by Ferrick
   put('crate', 46, 49); put('barrel', 9, 49); put('crate', 15, 35); put('barrel', 46, 33);
   put('lamp_post', 46, 46, { state: 1 });     // a lamp by Ferrick, so he can be seen
-  // the Wheel Chamber: lamp posts round the floor the Keeper walks, crates by the chest, a trough at the race
+  // the Wheel Chamber: lamp posts round the floor the Keeper walks, crates by the chest, a crate and a barrel at the race
+  // (kit pieces: a code-built trough read as a black box in the cave dark)
   for (const [x, y] of [[22, 9], [34, 9], [19, 16], [37, 16]]) put('lamp_post', x, y, { state: 1 });
-  put('crates_barrels', 40, 12); put('crate', 37, 6); put('barrel', 16, 7); put('x1_trough', 17, 11);
+  put('crates_barrels', 40, 12); put('crate', 37, 6); put('barrel', 16, 7); put('crate', 17, 11); put('barrel', 18, 12);
 
   // ---- code-built props (src/render3d/mill3d.js): the great wheel in the race on the chamber's north wall and a smaller
   // one on the gallery's north-west wall, both turned 90 degrees to face the camera, each lit from the floor in front (`lamp`)
@@ -89,6 +90,9 @@ export function build() {
     { t: 'mr_wheel', x: 27.5, y: 6, r: 90, scale: 1.6, keeper: true, lamp: { k: 2.4, h: 3.2, dz: 3.5 } },
     { t: 'mr_wheel', x: 10.5, y: 32.5, r: 90, scale: 0.75, lamp: { k: 1.2, h: 2.2, dz: 2.5 } },
   ];
+  // render only (src/render3d/cave3d.js): the puddles are the race's silt water, lit and matte (glossy black read as
+  // holes in the floor)
+  z.puddle = { color: '#4e6058', opacity: 0.55 };
   z.flavour = D.flavour;
   return z;
 }

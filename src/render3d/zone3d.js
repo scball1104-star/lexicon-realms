@@ -26,7 +26,7 @@ import { regionInfo, underAt } from '../data/maps/compose.js';
 import { buildPlaceWalls, buildDoorMouths, cutMat, doorAt, dressPlace } from './dungeon3d.js';
 import { dungeonPlan, isPlaceZone } from '../render/dungeon_plan.js';
 import { buildRealm3d } from './realm3d.js';   // wave 3: the start realms' props, lava crossings and tide water
-import { buildMill3d } from './mill3d.js';     // cap 35: the Millrace's code-built wheel, board, ledgers, chain, undercroft door
+import { buildMill3d, millTrough } from './mill3d.js';     // cap 35: the Millrace's code-built wheel, board, ledgers, chain, undercroft door
 import { poolCells, waterPlan, surfaceUniforms, patchSurface, buildFalls, tickWaterKit } from './water_kit.js';   // wave 7 water kit
 import { createGroundKit } from './ground_kit.js';   // wave 5 ground kit: hills, cobbles, grass, square dressing (desktop only)
 import { barkPart, lodCell, unLodCell } from './lod_kit.js';   // wave 8: the horizon camera's level of detail (off for today's camera)
@@ -398,16 +398,21 @@ function groundMaterial({ color, weights }, W, H) {
 }
 
 /** The zone's water surface: colour per kind from the mask, alpha fading at the shore, a foam line, scrolling ripples. */
-function waterMaterial(mask, W, H, inkGlow = 0, lava = false, kit = null) {
+// silt: a zone's own water grade (zone.water3d = { silt: '#rrggbb', k }, cap 35 the Millrace): the water's colour is
+// pulled toward that hue at its own brightness (depth and foam keep their light and dark), k of the way. Zones without
+// it skip the branch and draw exactly as before.
+function waterMaterial(mask, W, H, inkGlow = 0, lava = false, kit = null, silt = null) {
   const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.1, metalness: 0.1, transparent: true, depthWrite: false, normalMap: RIPPLE, normalScale: new THREE.Vector2(0.5, 0.5) });
+  const sc = silt && silt.silt ? new THREE.Color(silt.silt) : null;
   // lava (zone.style 'forge', Emberpeak): the ink channel is molten rock, orange and glowing
   const U = { tWM: { value: mask }, tJit: { value: groundDetail().macro }, uSize: { value: new THREE.Vector2(W, H) }, uInkGlow: { value: inkGlow },
-    uInkCol: { value: lava ? new THREE.Vector3(0.62, 0.17, 0.03) : new THREE.Vector3(0.13, 0.07, 0.24) }, uInkEm: { value: lava ? new THREE.Vector3(1.0, 0.32, 0.04) : new THREE.Vector3(0.05, 0.11, 0.34) } };
+    uInkCol: { value: lava ? new THREE.Vector3(0.62, 0.17, 0.03) : new THREE.Vector3(0.13, 0.07, 0.24) }, uInkEm: { value: lava ? new THREE.Vector3(1.0, 0.32, 0.04) : new THREE.Vector3(0.05, 0.11, 0.34) },
+    uSilt: { value: sc ? new THREE.Vector4(sc.r, sc.g, sc.b, Math.max(0, Math.min(1, silt.k != null ? silt.k : 0.5))) : new THREE.Vector4(0, 0, 0, 0) } };
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec2 lrWorld; varying vec2 vWM; varying vec2 vWW;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\nvWM = uv; vWW = lrWorld;');
-    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tWM, tJit; uniform vec2 uSize; uniform float uInkGlow; uniform vec3 uInkCol, uInkEm; varying vec2 vWM; varying vec2 vWW; float lrInk = 0.0;')
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform sampler2D tWM, tJit; uniform vec2 uSize; uniform float uInkGlow; uniform vec3 uInkCol, uInkEm; uniform vec4 uSilt; varying vec2 vWM; varying vec2 vWW; float lrInk = 0.0;')
       .replace('#include <color_fragment>', `#include <color_fragment>
       {
         vec4 j = texture2D(tJit, vWW * 0.17 + vec2(0.13, 0.61));
@@ -422,7 +427,11 @@ function waterMaterial(mask, W, H, inkGlow = 0, lava = false, kit = null) {
         if (diffuseColor.a < 0.01) discard;
         lrInk = m.b * edge * (0.75 + 0.25 * j.g);
       }`).replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-      totalEmissiveRadiance += lrInk * uInkGlow * uInkEm;   // a cavern's ink glows (zone.cavern); lava glows (zone.style 'forge')`);
+      totalEmissiveRadiance += lrInk * uInkGlow * uInkEm;   // a cavern's ink glows (zone.cavern); lava glows (zone.style 'forge')
+      if (uSilt.a > 0.0) {   // a zone's silt grade (zone.water3d)
+        float lrL = dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)), lrS = max(0.001, dot(uSilt.rgb, vec3(0.3, 0.59, 0.11)));
+        diffuseColor.rgb = mix(diffuseColor.rgb, uSilt.rgb * (lrL / lrS), uSilt.a * (1.0 - lrInk));
+      }`);
     if (kit) { Object.assign(sh.uniforms, kit.U); patchSurface(sh, kit.tier); }
   };
   mat.customProgramCacheKey = () => (kit ? 'lr_water4k_' + kit.tier : 'lr_water4');
@@ -846,7 +855,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
     const forge = zone.style === 'forge';
     const wtier = quality.water || 'off';
     if (wkitOn) { wplan = waterPlan(terr, W, H, zone, wpool); wkit = { tier: wtier, U: surfaceUniforms(wplan) }; }
-    const wmat = waterMaterial(mt, W, H, zone.cavern || forge ? (forge ? 0.75 : 1) : 0, forge, wkit);
+    const wmat = waterMaterial(mt, W, H, zone.cavern || forge ? (forge ? 0.75 : 1) : 0, forge, wkit, zone.water3d || null);
     const wgeo = new THREE.PlaneGeometry(W, H); wgeo.rotateX(-Math.PI / 2); wgeo.translate(W / 2, 0.035, H / 2);
     const uv2 = wgeo.attributes.uv, ps2 = wgeo.attributes.position;
     // uv: the mask lookup; lrWorld (world metres) breaks the shore edge
@@ -1059,7 +1068,7 @@ export async function buildZone(L, zone, { tilesDb = null, quality = {}, yieldFn
       else if (/^signboard|^signpost/.test(t)) B.mergeGroup(post(d.x + 0.5, d.y + 0.5, 1.6, true));
       else if (t === 'x1_haybale') B.mergeGroup(hay(d.x + 0.5, d.y + 0.5, 'bale'));
       else if (/^x1_haystack/.test(t)) B.mergeGroup(hay(cx, d.y + 0.5, 'stack'));
-      else if (/^x1_trough/.test(t)) B.mergeGroup(trough(cx, d.y + 0.5, t === 'x1_trough'));
+      else if (/^x1_trough/.test(t)) B.mergeGroup(zone.style === 'mill' && t === 'x1_trough' ? millTrough(cx, d.y + 0.5) : trough(cx, d.y + 0.5, t === 'x1_trough'));   // cap 35: the mill's own trough (the plain box read as a dark block)
       else if (t === 'x1_hearth') { B.mergeGroup(hearth(cx, d.y + 0.5)); lamp({ pos: new THREE.Vector3(cx, 0.8, d.y + 0.5), color: '#ff9a40', k: 1.3, fire: true }); }
       else if (/^x1_chimepost/.test(t)) B.mergeGroup(chimePost(d.x + 0.5, d.y + 0.5));
       else if (/chain/.test(t)) B.mergeGroup(chainGate(cx, d.y + 0.5, fw));
